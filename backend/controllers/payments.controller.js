@@ -1,0 +1,106 @@
+const { createCrudController } = require('./crudController');
+const paymentModel = require('../models/payment.model');
+const invoiceModel = require('../models/invoice.model');
+const { withTransaction } = require('../config/db');
+const { syncInvoiceFinancialState } = require('../services/finance.service');
+const { toNumber } = require('../utils/format');
+
+const paymentsController = createCrudController(paymentModel, {
+  defaultOrder: 'payment_date DESC'
+});
+
+async function normalizePayment(body = {}, current = null) {
+  const base = current ? { ...current, ...body } : { ...body };
+  let clientId = base.clientId || current?.clientId || null;
+  let projectId = base.projectId || current?.projectId || null;
+  const invoiceId = base.invoiceId || current?.invoiceId || null;
+
+  if (invoiceId) {
+    const invoice = await invoiceModel.findById(invoiceId);
+    if (invoice) {
+      clientId = clientId || invoice.clientId || null;
+      projectId = projectId || invoice.projectId || null;
+    }
+  }
+
+  return {
+    ...base,
+    paymentDate: base.paymentDate || current?.paymentDate || new Date().toISOString().slice(0, 10),
+    clientId,
+    projectId,
+    invoiceId,
+    amountReceived: toNumber(base.amountReceived ?? current?.amountReceived ?? 0),
+    tdsDeducted: toNumber(base.tdsDeducted ?? current?.tdsDeducted ?? 0),
+    paymentMode: base.paymentMode || current?.paymentMode || 'Bank Transfer',
+    bankAccountId: base.bankAccountId || current?.bankAccountId || null,
+    transactionId: base.transactionId || current?.transactionId || '',
+    notes: base.notes || current?.notes || ''
+  };
+}
+
+async function syncInvoicesForPaymentChange(db, before = null, after = null) {
+  const invoiceIds = new Set([before?.invoiceId, after?.invoiceId].filter(Boolean).map((value) => String(value)));
+  for (const invoiceId of invoiceIds) {
+    await syncInvoiceFinancialState(invoiceId, db);
+  }
+}
+
+paymentsController.create = async (req, res, next) => {
+  try {
+    const record = await withTransaction(async (db) => {
+      const body = await normalizePayment(req.body || {}, null);
+      const created = await paymentModel.create(body, db);
+      await syncInvoicesForPaymentChange(db, null, created);
+      return paymentModel.findById(created.id, db);
+    });
+
+    res.status(201).json({ success: true, data: record });
+  } catch (error) {
+    next(error);
+  }
+};
+
+paymentsController.update = async (req, res, next) => {
+  try {
+    const record = await withTransaction(async (db) => {
+      const current = await paymentModel.findById(req.params.id, db);
+      if (!current) return null;
+      const body = await normalizePayment(req.body || {}, current);
+      const updated = await paymentModel.update(req.params.id, body, db);
+      await syncInvoicesForPaymentChange(db, current, updated);
+      return paymentModel.findById(updated.id, db);
+    });
+
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+
+    res.json({ success: true, data: record });
+  } catch (error) {
+    next(error);
+  }
+};
+
+paymentsController.remove = async (req, res, next) => {
+  try {
+    const ok = await withTransaction(async (db) => {
+      const current = await paymentModel.findById(req.params.id, db);
+      if (!current) return false;
+      const removed = await paymentModel.remove(req.params.id, db);
+      if (removed) {
+        await syncInvoicesForPaymentChange(db, current, null);
+      }
+      return removed;
+    });
+
+    if (!ok) {
+      return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+
+    res.json({ success: true, message: 'Deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = paymentsController;

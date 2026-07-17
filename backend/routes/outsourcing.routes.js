@@ -1,0 +1,13 @@
+const express = require('express');
+const controller = require('../controllers/outsourcing.controller');
+const { requirePermission } = require('../middlewares/auth');
+
+const router = express.Router();
+
+router.get('/', requirePermission('outsourcing.read'), controller.list);
+router.post('/', requirePermission('outsourcing.write'), controller.create);
+router.get('/:id', requirePermission('outsourcing.read'), controller.getById);
+router.put('/:id', requirePermission('outsourcing.write'), controller.update);
+router.delete('/:id', requirePermission('outsourcing.delete'), controller.remove);
+
+module.exports = router;

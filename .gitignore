@@ -1,0 +1,83 @@
+# ════════════════════════════════════════════════════════════
+#  Webitof CRM — Root .gitignore
+#  Covers: backend (Node.js) + frontend (Vite/React)
+# ════════════════════════════════════════════════════════════
+
+# ─── Environment & Secrets (NEVER commit!) ───────────────────
+.env
+.env.*
+!.env.example
+*.env
+*.env.local
+*.env.development
+*.env.production
+*.env.test
+
+# ─── Service Account & API Keys ──────────────────────────────
+*.json.key
+*service-account*.json
+*credentials*.json
+mycrm.json
+
+# ─── Node / npm ──────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-store/
+
+# ─── Build Output ─────────────────────────────────────────────
+dist/
+build/
+out/
+.vite/
+.next/
+
+# ─── Logs ─────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+# ─── Temp / Cache ─────────────────────────────────────────────
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tmp
+*.temp
+temp-backup-*.sql
+temp-backup-*.json
+
+# ─── OS Files ─────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.Spotlight-V100
+.Trashes
+
+# ─── IDE / Editor ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+
+# ─── Test / Coverage ──────────────────────────────────────────
+coverage/
+*.lcov
+.nyc_output/
+
+# ─── Upload Temp ──────────────────────────────────────────────
+uploads/
+public/uploads/
+
+# ─── Backup Scripts Output ────────────────────────────────────
+scripts/temp-*
+*.backup.json
+*.backup.sql

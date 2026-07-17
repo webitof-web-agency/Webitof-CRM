@@ -1,0 +1,1 @@
+const { query } = require("./config/db"); async function run() { await query("UPDATE storage_folders SET drive_folder_id = $1, folder_name = $2 WHERE id = $3", ["10SLQC9nNOyArTgQ_NidLYdGF_WRETlXz", "WebitofCRMFils", "root"]); console.log("UPDATED"); } run();
