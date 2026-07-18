@@ -7,6 +7,7 @@ const clientModel = require('../models/client.model');
 const { withTransaction } = require('../config/db');
 const { getSettings } = require('../models/settings.model');
 const { buildLeadSummary } = require('../services/analytics.service');
+const { notifyBusinessEvent } = require('../services/notification.service');
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -295,6 +296,17 @@ const leadsController = {
         return created;
       });
 
+      notifyBusinessEvent({
+        moduleName: 'leads',
+        eventKey: 'created',
+        entity: record,
+        title: 'Lead created',
+        message: `${record.name || record.companyName || 'Lead'} was created.`,
+        actorUserId: req.user?.id || null,
+        explicitUserIds: [record.assignedTo, record.createdBy].filter(Boolean),
+        routePath: `/app/leads/${record.id}`
+      }).catch(() => {});
+
       res.status(201).json({ success: true, data: record });
     } catch (error) {
       next(error);
@@ -359,6 +371,17 @@ const leadsController = {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
 
+      notifyBusinessEvent({
+        moduleName: 'leads',
+        eventKey: 'updated',
+        entity: record,
+        title: 'Lead updated',
+        message: `${record.name || record.companyName || 'Lead'} was updated.`,
+        actorUserId: req.user?.id || null,
+        explicitUserIds: [record.assignedTo, record.createdBy].filter(Boolean),
+        routePath: `/app/leads/${record.id}`
+      }).catch(() => {});
+
       res.json({ success: true, data: record });
     } catch (error) {
       next(error);
@@ -371,6 +394,18 @@ const leadsController = {
       if (!converted) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
+
+      notifyBusinessEvent({
+        moduleName: 'leads',
+        eventKey: 'converted',
+        entity: converted.client,
+        title: 'Lead converted',
+        message: `${converted.lead?.name || converted.lead?.companyName || 'Lead'} was converted to a client.`,
+        severity: 'success',
+        actorUserId: req.user?.id || null,
+        explicitUserIds: [converted.lead?.assignedTo, converted.lead?.createdBy].filter(Boolean),
+        routePath: `/app/clients/${converted.client.id}`
+      }).catch(() => {});
 
       return res.json({
         success: true,

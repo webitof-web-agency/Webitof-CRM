@@ -24,6 +24,18 @@ function normalizeUsername(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function isoDateOffset(days = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function isoDateTimeOffset(minutes = 0) {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() + Number(minutes || 0));
+  return date.toISOString();
+}
+
 async function ensureDatabase() {
   const schemaPath = path.join(__dirname, '..', 'database', 'schema.sql');
   if (String(process.env.AUTO_INIT_DB || 'true').toLowerCase() === 'true') {
@@ -31,8 +43,18 @@ async function ensureDatabase() {
     await runSqlFile(path.join(__dirname, '..', 'database', 'storage.sql'));
   }
   await ensureLeadEventsSchema();
+  await ensureExpenseSchema();
+  await ensureOutsourcingSchema();
+  await ensureRenewalSchema();
+  await ensureAmcSchema();
+  await ensureAmcAutomationHistorySchema();
+  await ensureWorkflowAutomationHistorySchema();
+  await ensureNotificationsSchema();
+  await ensurePaymentStatusSchema();
+  await ensureInvoiceSourceIndexes();
   if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
     await seedDefaultData();
+    await seedAutomationDemoData();
   }
   await seedRbac();
 }
@@ -73,6 +95,219 @@ async function ensureLeadEventsSchema() {
       event_type = COALESCE(event_type, 'event')
   `);
   await query(`CREATE INDEX IF NOT EXISTS idx_lead_events_scope ON lead_events(scope_type, scope_id);`);
+}
+
+async function ensureExpenseSchema() {
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS expense_type text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payee_type text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payee_id text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payee_name text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS employee_id text REFERENCES users(id) ON DELETE SET NULL;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS status text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS approval_status text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS payment_status text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS period_start date;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS period_end date;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS due_date date;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS paid_amount numeric(14,2) NOT NULL DEFAULT 0;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS balance_due numeric(14,2) NOT NULL DEFAULT 0;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS cost_center text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tds_applicable boolean NOT NULL DEFAULT false;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tds_section text;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tds_rate numeric(8,2) NOT NULL DEFAULT 0;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS tds_amount numeric(14,2) NOT NULL DEFAULT 0;`);
+  await query(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS attachments jsonb NOT NULL DEFAULT '[]'::jsonb;`);
+  await query(`ALTER TABLE expenses ALTER COLUMN expense_type SET DEFAULT 'Vendor Bill';`);
+  await query(`ALTER TABLE expenses ALTER COLUMN payee_type SET DEFAULT 'Vendor';`);
+  await query(`ALTER TABLE expenses ALTER COLUMN status SET DEFAULT 'Draft';`);
+  await query(`ALTER TABLE expenses ALTER COLUMN approval_status SET DEFAULT 'Pending';`);
+  await query(`ALTER TABLE expenses ALTER COLUMN payment_status SET DEFAULT 'Unpaid';`);
+  await query(`
+    UPDATE expenses
+    SET
+      expense_type = COALESCE(NULLIF(expense_type, ''), 'Vendor Bill'),
+      payee_type = COALESCE(NULLIF(payee_type, ''), CASE WHEN employee_id IS NOT NULL THEN 'Employee' ELSE 'Vendor' END),
+      payee_id = COALESCE(NULLIF(payee_id, ''), vendor_id::text),
+      payee_name = COALESCE(NULLIF(payee_name, ''), vendor, ''),
+      vendor = COALESCE(NULLIF(vendor, ''), payee_name, ''),
+      status = COALESCE(NULLIF(status, ''), 'Draft'),
+      approval_status = COALESCE(NULLIF(approval_status, ''), 'Pending'),
+      payment_status = COALESCE(NULLIF(payment_status, ''), 'Unpaid'),
+      paid_amount = COALESCE(paid_amount, 0),
+      balance_due = COALESCE(balance_due, GREATEST(0, COALESCE(total_amount, 0) - COALESCE(paid_amount, 0))),
+      tds_applicable = COALESCE(tds_applicable, false),
+      tds_rate = COALESCE(tds_rate, 0),
+      tds_amount = COALESCE(tds_amount, 0)
+    WHERE TRUE;
+  `);
+  await query(`ALTER TABLE expenses ALTER COLUMN expense_type SET NOT NULL;`);
+  await query(`ALTER TABLE expenses ALTER COLUMN payee_type SET NOT NULL;`);
+  await query(`ALTER TABLE expenses ALTER COLUMN status SET NOT NULL;`);
+  await query(`ALTER TABLE expenses ALTER COLUMN approval_status SET NOT NULL;`);
+  await query(`ALTER TABLE expenses ALTER COLUMN payment_status SET NOT NULL;`);
+}
+
+async function ensureOutsourcingSchema() {
+  await query(`ALTER TABLE outsourcing_expenses ADD COLUMN IF NOT EXISTS approval_status text;`);
+  await query(`ALTER TABLE outsourcing_expenses ADD COLUMN IF NOT EXISTS due_date date;`);
+  await query(`ALTER TABLE outsourcing_expenses ADD COLUMN IF NOT EXISTS reminder_days integer;`);
+  await query(`ALTER TABLE outsourcing_expenses ADD COLUMN IF NOT EXISTS last_reminder_sent_at timestamptz;`);
+  await query(`ALTER TABLE outsourcing_expenses ADD COLUMN IF NOT EXISTS last_reminder_sent_for_date date;`);
+  await query(`ALTER TABLE outsourcing_expenses ADD COLUMN IF NOT EXISTS last_automation_run_at timestamptz;`);
+  await query(`ALTER TABLE outsourcing_expenses ADD COLUMN IF NOT EXISTS payment_status text;`);
+  await query(`ALTER TABLE outsourcing_expenses ALTER COLUMN approval_status SET DEFAULT 'Pending';`);
+  await query(`ALTER TABLE outsourcing_expenses ALTER COLUMN reminder_days SET DEFAULT 7;`);
+  await query(`ALTER TABLE outsourcing_expenses ALTER COLUMN payment_status SET DEFAULT 'Pending';`);
+  await query(`
+    UPDATE outsourcing_expenses
+    SET
+      approval_status = COALESCE(NULLIF(approval_status, ''), 'Pending'),
+      reminder_days = COALESCE(reminder_days, 7),
+      payment_status = COALESCE(NULLIF(payment_status, ''), 'Pending')
+    WHERE TRUE;
+  `);
+  await query(`ALTER TABLE outsourcing_expenses ALTER COLUMN approval_status SET NOT NULL;`);
+  await query(`ALTER TABLE outsourcing_expenses ALTER COLUMN reminder_days SET NOT NULL;`);
+  await query(`ALTER TABLE outsourcing_expenses ALTER COLUMN payment_status SET NOT NULL;`);
+}
+
+async function ensureRenewalSchema() {
+  await query(`ALTER TABLE renewals ADD COLUMN IF NOT EXISTS reminder_days integer;`);
+  await query(`ALTER TABLE renewals ADD COLUMN IF NOT EXISTS last_reminder_sent_at timestamptz;`);
+  await query(`ALTER TABLE renewals ADD COLUMN IF NOT EXISTS last_reminder_sent_for_date date;`);
+  await query(`ALTER TABLE renewals ADD COLUMN IF NOT EXISTS last_automation_run_at timestamptz;`);
+  await query(`ALTER TABLE renewals ALTER COLUMN reminder_days SET DEFAULT 30;`);
+  await query(`
+    UPDATE renewals
+    SET reminder_days = COALESCE(reminder_days, 30)
+    WHERE TRUE;
+  `);
+  await query(`ALTER TABLE renewals ALTER COLUMN reminder_days SET NOT NULL;`);
+}
+
+async function ensureAmcSchema() {
+  await query(`ALTER TABLE amcs ADD COLUMN IF NOT EXISTS title text;`);
+  await query(`ALTER TABLE amcs ALTER COLUMN title SET DEFAULT '';`);
+  await query(`
+    UPDATE amcs
+    SET title = COALESCE(NULLIF(title, ''), NULLIF(amc_type, ''), 'AMC')
+    WHERE title IS NULL OR title = '';
+  `);
+  await query(`ALTER TABLE amcs ALTER COLUMN title SET NOT NULL;`);
+  await query(`
+    UPDATE amcs
+    SET
+      start_date = COALESCE(start_date, NULLIF(payload->>'startDate', '')::date),
+      end_date = COALESCE(end_date, NULLIF(payload->>'endDate', '')::date, NULLIF(payload->>'renewalDate', '')::date),
+      billing_cycle = COALESCE(NULLIF(billing_cycle, ''), NULLIF(payload->>'billingCycle', '')),
+      amc_amount = COALESCE(amc_amount, NULLIF(payload->>'amcAmount', '')::numeric, 0),
+      gst_type = COALESCE(NULLIF(gst_type, ''), NULLIF(payload->>'gstType', '')),
+      next_invoice_date = COALESCE(next_invoice_date, NULLIF(payload->>'nextInvoiceDate', '')::date),
+      reminder_days = COALESCE(reminder_days, NULLIF(payload->>'reminderDays', '')::int, 7),
+      status = COALESCE(NULLIF(status, ''), NULLIF(payload->>'status', ''), 'Active'),
+      auto_invoice = COALESCE(auto_invoice, NULLIF(payload->>'autoInvoice', '')::boolean, false),
+      remarks = COALESCE(NULLIF(remarks, ''), NULLIF(payload->>'remarks', ''))
+    WHERE TRUE;
+  `);
+}
+
+async function ensureAmcAutomationHistorySchema() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS amc_automation_logs (
+      id text PRIMARY KEY,
+      amc_id text NOT NULL REFERENCES amcs(id) ON DELETE CASCADE,
+      run_id text NOT NULL,
+      run_source text NOT NULL DEFAULT 'manual',
+      action text NOT NULL,
+      status text NOT NULL DEFAULT 'Success',
+      due_date date,
+      invoice_id text REFERENCES invoices(id) ON DELETE SET NULL,
+      invoice_number text,
+      message text,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_amc_automation_logs_amc_id ON amc_automation_logs(amc_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_amc_automation_logs_run_id ON amc_automation_logs(run_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_amc_automation_logs_created_at ON amc_automation_logs(created_at);`);
+}
+
+async function ensureWorkflowAutomationHistorySchema() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS workflow_automation_logs (
+      id text PRIMARY KEY,
+      module_name text NOT NULL,
+      entity_id text NOT NULL,
+      run_id text NOT NULL,
+      run_source text NOT NULL DEFAULT 'manual',
+      action text NOT NULL,
+      status text NOT NULL DEFAULT 'Success',
+      due_date date,
+      reference_id text,
+      reference_name text,
+      message text,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_module_name ON workflow_automation_logs(module_name);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_entity_id ON workflow_automation_logs(entity_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_run_id ON workflow_automation_logs(run_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_created_at ON workflow_automation_logs(created_at);`);
+}
+
+async function ensureNotificationsSchema() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id text PRIMARY KEY,
+      recipient_type text NOT NULL DEFAULT 'user',
+      user_id text REFERENCES users(id) ON DELETE CASCADE,
+      client_id text REFERENCES clients(id) ON DELETE CASCADE,
+      module_name text NOT NULL,
+      event_key text NOT NULL,
+      entity_type text NOT NULL DEFAULT '',
+      entity_id text NOT NULL DEFAULT '',
+      title text NOT NULL,
+      message text NOT NULL,
+      severity text NOT NULL DEFAULT 'info',
+      is_read boolean NOT NULL DEFAULT false,
+      read_at timestamptz,
+      email_to text,
+      email_status text NOT NULL DEFAULT 'pending',
+      email_sent_at timestamptz,
+      email_error text,
+      actor_user_id text REFERENCES users(id) ON DELETE SET NULL,
+      route_path text,
+      channels jsonb NOT NULL DEFAULT '[]'::jsonb,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notifications_client_id ON notifications(client_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notifications_module_name ON notifications(module_name);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notifications_event_key ON notifications(event_key);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);`);
+}
+
+async function ensurePaymentStatusSchema() {
+  await query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_status text;`);
+  await query(`ALTER TABLE payments ALTER COLUMN payment_status SET DEFAULT 'Received';`);
+  await query(`
+    UPDATE payments
+    SET payment_status = COALESCE(NULLIF(payment_status, ''), 'Received')
+    WHERE payment_status IS NULL OR payment_status = '';
+  `);
+  await query(`ALTER TABLE payments ALTER COLUMN payment_status SET NOT NULL;`);
+}
+
+async function ensureInvoiceSourceIndexes() {
+  await query(`CREATE INDEX IF NOT EXISTS idx_invoices_source_amc_id ON invoices(source_amc_id);`);
 }
 
 async function seedDefaultData() {
@@ -126,6 +361,410 @@ async function seedDefaultData() {
       ]
     );
   }
+}
+
+async function seedAutomationDemoData() {
+  const counts = await Promise.all([
+    query('select count(*)::int as count from clients'),
+    query('select count(*)::int as count from projects'),
+    query('select count(*)::int as count from amcs'),
+    query('select count(*)::int as count from renewals'),
+    query('select count(*)::int as count from outsourcing_expenses'),
+    query('select count(*)::int as count from amc_automation_logs'),
+    query('select count(*)::int as count from workflow_automation_logs')
+  ]);
+
+  const [clientsCount, projectsCount, amcsCount, renewalsCount, outsourcingCount, amcLogsCount, workflowLogsCount] = counts.map((result) => Number(result.rows[0]?.count || 0));
+  if (amcsCount || renewalsCount || outsourcingCount || amcLogsCount || workflowLogsCount) {
+    return;
+  }
+
+  const primaryClientId = 'client-demo-orbit';
+  const secondaryClientId = 'client-demo-nova';
+  const primaryProjectId = 'project-demo-portal';
+  const secondaryProjectId = 'project-demo-retainer';
+  const amcOneId = 'amc-demo-portal';
+  const amcTwoId = 'amc-demo-support';
+  const renewalOneId = 'renewal-demo-domain';
+  const renewalTwoId = 'renewal-demo-hosting';
+  const renewalThreeId = 'renewal-demo-software';
+  const outsourcingOneId = 'outsource-demo-domain';
+  const outsourcingTwoId = 'outsource-demo-design';
+  const outsourcingThreeId = 'outsource-demo-marketing';
+
+  const existingClients = await query('select id from clients order by created_at asc limit 2');
+  let demoClientIds = existingClients.rows.map((row) => row.id).filter(Boolean);
+
+  if (!demoClientIds.length) {
+    await query(
+      `insert into clients (
+        id, name, company_name, client_type, source, mobile, email, city, state, country, status, labels, payload
+      ) values
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'India', 'Active', '[]'::jsonb, $10::jsonb),
+        ($11, $12, $13, $14, $15, $16, $17, $18, $19, 'India', 'Active', '[]'::jsonb, $20::jsonb)
+      on conflict (id) do nothing`,
+      [
+        primaryClientId,
+        'Orbit Retail',
+        'Orbit Retail Pvt Ltd',
+        'Organization',
+        'Referral',
+        '+91 90000 10001',
+        'accounts@orbitretail.test',
+        'Raipur',
+        'Chhattisgarh',
+        JSON.stringify({ notes: 'Demo client for automation dashboard' }),
+        secondaryClientId,
+        'Nova Health',
+        'Nova Health Labs',
+        'Organization',
+        'Website',
+        '+91 90000 10002',
+        'finance@novahealth.test',
+        'Bengaluru',
+        'Karnataka',
+        JSON.stringify({ notes: 'Second demo client for renewals and outsourcing' })
+      ]
+    );
+    demoClientIds = [primaryClientId, secondaryClientId];
+  }
+
+  const primaryClientSeedId = demoClientIds[0] || primaryClientId;
+  const secondaryClientSeedId = demoClientIds[1] || demoClientIds[0] || secondaryClientId;
+
+  const existingProjects = await query('select id from projects order by created_at asc limit 2');
+  let demoProjectIds = existingProjects.rows.map((row) => row.id).filter(Boolean);
+
+  if (!demoProjectIds.length) {
+    await query(
+      `insert into projects (
+        id, client_id, title, project_type, value, start_date, deadline, status, billing_type, cost_estimate, notes, labels, payload
+      ) values
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, '[]'::jsonb, $12::jsonb),
+        ($13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, '[]'::jsonb, $24::jsonb)
+      on conflict (id) do nothing`,
+      [
+        primaryProjectId,
+        primaryClientSeedId,
+        'Orbit Customer Portal',
+        'Web App',
+        240000,
+        isoDateOffset(-120),
+        isoDateOffset(30),
+        'In Progress',
+        'Milestone',
+        180000,
+        'Demo project linked to AMC and outsourcing.',
+        JSON.stringify({ priority: 'High' }),
+        secondaryProjectId,
+        secondaryClientSeedId,
+        'Nova Support Portal',
+        'Support Portal',
+        180000,
+        isoDateOffset(-90),
+        isoDateOffset(18),
+        'Active',
+        'Recurring',
+        140000,
+        'Second demo project for renewals and payable monitoring.',
+        JSON.stringify({ priority: 'Medium' })
+      ]
+    );
+    demoProjectIds = [primaryProjectId, secondaryProjectId];
+  }
+
+  const primaryProjectSeedId = demoProjectIds[0] || primaryProjectId;
+  const secondaryProjectSeedId = demoProjectIds[1] || demoProjectIds[0] || secondaryProjectId;
+
+  await query(
+    `insert into amcs (
+      id, client_id, project_id, title, amc_type, start_date, end_date, billing_cycle, amc_amount, gst_type, next_invoice_date, reminder_days, status, auto_invoice, remarks, payload
+    ) values
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, '{}'::jsonb),
+      ($16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, '{}'::jsonb)
+    on conflict (id) do nothing`,
+    [
+      amcOneId,
+      primaryClientSeedId,
+      primaryProjectSeedId,
+      'Orbit Portal AMC',
+      'Website Maintenance',
+      isoDateOffset(-75),
+      isoDateOffset(20),
+      'Monthly',
+      12000,
+      'GST',
+      isoDateOffset(4),
+      7,
+      'Active',
+      true,
+      'Monthly support, bug fixes, and updates.',
+      amcTwoId,
+      secondaryClientSeedId,
+      secondaryProjectSeedId,
+      'Nova Infrastructure AMC',
+      'Server Maintenance',
+      isoDateOffset(-210),
+      isoDateOffset(-6),
+      'Monthly',
+      18000,
+      'GST',
+      isoDateOffset(-2),
+      5,
+      'Active',
+      true,
+      'Server monitoring and emergency support.'
+    ]
+  );
+
+  await query(
+    `insert into renewals (
+      id, client_id, project_id, category, domain_name, hosting_name, package_name, software_name, provider, purchase_date, duration_years, renewal_date, expiry_date, purchase_price, renewal_price, renewal_cost, client_charge, reminder_date, reminder_days, auto_renewal, finance_action, status, remarks, payload
+    ) values
+      ($1, $2, $3, $4, $5, null, null, null, $6, $7, 1, $8, $9, $10, $11, $12, $13, $14, 30, false, 'Renew', 'Due Soon', $15, '{}'::jsonb),
+      ($16, $17, $18, $19, null, $20, null, null, $21, $22, 1, $23, $24, $25, $26, $27, $28, $29, 30, false, 'Renew', 'Expired', $30, '{}'::jsonb),
+      ($31, $32, $33, $34, null, null, $35, $36, $37, $38, 1, $39, $40, $41, $42, $43, $44, $45, 30, false, 'Create Invoice', 'Pending', $46, '{}'::jsonb)
+    on conflict (id) do nothing`,
+    [
+      renewalOneId,
+      primaryClientSeedId,
+      primaryProjectSeedId,
+      'Domain',
+      'orbitretail.in',
+      'GoDaddy',
+      isoDateOffset(-350),
+      isoDateOffset(18),
+      isoDateOffset(18),
+      1200,
+      1499,
+      0,
+      1499,
+      isoDateOffset(8),
+      'Domain renewal due soon.',
+      renewalTwoId,
+      secondaryClientSeedId,
+      secondaryProjectSeedId,
+      'Hosting',
+      'novahealth.com hosting',
+      'Hostinger',
+      isoDateOffset(-370),
+      isoDateOffset(-3),
+      isoDateOffset(-3),
+      5000,
+      6500,
+      0,
+      6500,
+      isoDateOffset(-10),
+      'Hosting renewal overdue.',
+      renewalThreeId,
+      primaryClientSeedId,
+      primaryProjectSeedId,
+      'Software',
+      'Microsoft 365',
+      'Microsoft',
+      'Business Standard',
+      isoDateOffset(-200),
+      isoDateOffset(14),
+      isoDateOffset(14),
+      12000,
+      13500,
+      0,
+      13500,
+      isoDateOffset(7),
+      'Software license pending renewal.'
+    ]
+  );
+
+  await query(
+    `insert into outsourcing_expenses (
+      id, expense_date, client_id, project_id, vendor_id, vendor_name, work_type, description, base_amount, vendor_gst_registered, gst_applicable, gst_rate, gst_amount, total_amount, itc_eligible, approval_status, due_date, payment_status, reminder_days, notes, payload
+    ) values
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, true, 18, $10, $11, true, 'Pending', $12, 'Pending', 7, $13, '{}'::jsonb),
+      ($14, $15, $16, $17, $18, $19, $20, $21, $22, true, true, 18, $23, $24, true, 'Approved', $25, 'Pending', 5, $26, '{}'::jsonb),
+      ($27, $28, $29, $30, $31, $32, $33, $34, $35, false, false, 0, 0, $36, false, 'Approved', $37, 'Pending', 3, $38, '{}'::jsonb)
+    on conflict (id) do nothing`,
+    [
+      outsourcingOneId,
+      isoDateOffset(-2),
+      primaryClientSeedId,
+      primaryProjectSeedId,
+      'vendor-godaddy',
+      'GoDaddy',
+      'Domain Purchase',
+      'New domain purchase and renewal consolidation.',
+      9000,
+      10620,
+      10620,
+      isoDateOffset(5),
+      'Pending approval, due soon.',
+      outsourcingTwoId,
+      isoDateOffset(-6),
+      secondaryClientSeedId,
+      secondaryProjectSeedId,
+      'vendor-designer-sample',
+      'Freelance Graphic Designer',
+      'Landing Page Redesign',
+      'Creative redesign for the customer portal.',
+      15000,
+      17700,
+      17700,
+      isoDateOffset(2),
+      'Approved and due soon.',
+      outsourcingThreeId,
+      isoDateOffset(-12),
+      primaryClientSeedId,
+      primaryProjectSeedId,
+      'vendor-referral-sample',
+      'Rahul Referral Partner',
+      'Lead Partnership',
+      'Referral payout for closed deal.',
+      22000,
+      22000,
+      isoDateOffset(-4),
+      'Overdue payable.'
+    ]
+  );
+
+  const amcLatestRun = 'amcrun-demo-20260718-2';
+  const amcPreviousRun = 'amcrun-demo-20260718-1';
+  const outsourcingLatestRun = 'outsrc-demo-20260718-2';
+  const outsourcingPreviousRun = 'outsrc-demo-20260718-1';
+
+  await query(
+    `insert into amc_automation_logs (
+      id, amc_id, run_id, run_source, action, status, due_date, invoice_number, message, payload, created_at, updated_at
+    ) values
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11, $11),
+      ($12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb, $22, $22),
+      ($23, $24, $25, $26, $27, $28, $29, $30, $31, $32::jsonb, $33, $33),
+      ($34, $35, $36, $37, $38, $39, $40, $41, $42, $43::jsonb, $44, $44)
+    on conflict (id) do nothing`,
+    [
+      'amclog-demo-1',
+      amcOneId,
+      amcPreviousRun,
+      'manual',
+      'reminder_sent',
+      'Success',
+      isoDateOffset(18),
+      null,
+      'Reminder sent for upcoming AMC',
+      JSON.stringify({ reminderDays: 7 }),
+      isoDateTimeOffset(-1440),
+      'amclog-demo-2',
+      amcTwoId,
+      amcPreviousRun,
+      'manual',
+      'invoice_created',
+      'Success',
+      isoDateOffset(-6),
+      'INV-2501',
+      'Auto invoice created for AMC',
+      JSON.stringify({ invoiceId: 'inv-demo-1' }),
+      isoDateTimeOffset(-1435),
+      'amclog-demo-3',
+      amcOneId,
+      amcLatestRun,
+      'manual',
+      'reminder_sent',
+      'Success',
+      isoDateOffset(4),
+      null,
+      'Reminder sent for Orbit Portal AMC',
+      JSON.stringify({ reminderDays: 7 }),
+      isoDateTimeOffset(-60),
+      'amclog-demo-4',
+      amcTwoId,
+      amcLatestRun,
+      'manual',
+      'invoice_created',
+      'Success',
+      isoDateOffset(-2),
+      'INV-2502',
+      'Invoice created for AMC renewal',
+      JSON.stringify({ invoiceId: 'inv-demo-2' }),
+      isoDateTimeOffset(-55)
+    ]
+  );
+
+  await query(
+    `insert into workflow_automation_logs (
+      id, module_name, entity_id, run_id, run_source, action, status, due_date, reference_id, reference_name, message, payload, created_at, updated_at
+    ) values
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $13),
+      ($14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25::jsonb, $26, $26),
+      ($27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38::jsonb, $39, $39),
+      ($40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51::jsonb, $52, $52),
+      ($53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64::jsonb, $65, $65)
+    on conflict (id) do nothing`,
+    [
+      'wflog-demo-1',
+      'outsourcing',
+      outsourcingOneId,
+      outsourcingPreviousRun,
+      'manual',
+      'approval_alert',
+      'Success',
+      isoDateOffset(5),
+      'ref-out-1',
+      'Domain Purchase',
+      'Approval alert sent to finance inbox',
+      JSON.stringify({ note: 'Pending approval' }),
+      isoDateTimeOffset(-1440),
+      'wflog-demo-2',
+      'outsourcing',
+      outsourcingTwoId,
+      outsourcingPreviousRun,
+      'manual',
+      'due_alert',
+      'Success',
+      isoDateOffset(2),
+      'ref-out-2',
+      'Landing Page Redesign',
+      'Due alert sent for outsourcing payable',
+      JSON.stringify({ note: 'Due soon' }),
+      isoDateTimeOffset(-1430),
+      'wflog-demo-3',
+      'outsourcing',
+      outsourcingThreeId,
+      outsourcingLatestRun,
+      'manual',
+      'overdue_alert',
+      'Warning',
+      isoDateOffset(-4),
+      'ref-out-3',
+      'Lead Partnership',
+      'Overdue alert sent for payable',
+      JSON.stringify({ note: 'Overdue' }),
+      isoDateTimeOffset(-65),
+      'wflog-demo-4',
+      'outsourcing',
+      outsourcingOneId,
+      outsourcingLatestRun,
+      'manual',
+      'approval_reminder_sent',
+      'Success',
+      isoDateOffset(5),
+      'ref-out-1',
+      'Domain Purchase',
+      'Approval reminder sent',
+      JSON.stringify({ note: 'Reminder sent' }),
+      isoDateTimeOffset(-60),
+      'wflog-demo-5',
+      'outsourcing',
+      outsourcingTwoId,
+      outsourcingLatestRun,
+      'manual',
+      'payment_reminder_sent',
+      'Success',
+      isoDateOffset(2),
+      'ref-out-2',
+      'Landing Page Redesign',
+      'Payment reminder sent',
+      JSON.stringify({ note: 'Payment reminder' }),
+      isoDateTimeOffset(-55)
+    ]
+  );
 }
 
 async function seedRbac() {

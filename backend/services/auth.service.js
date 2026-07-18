@@ -120,7 +120,8 @@ async function getUserAccessProfile(userId) {
       name: role.name,
       description: role.description,
       isSystem: Boolean(role.isSystem),
-      isActive: Boolean(role.isActive)
+      isActive: Boolean(role.isActive),
+      payload: role.payload || {}
     })),
     permissions: uniquePermissions.map((permission) => permission.code),
     permissionObjects: uniquePermissions.map((permission) => ({

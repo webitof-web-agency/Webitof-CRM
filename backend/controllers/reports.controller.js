@@ -1,5 +1,5 @@
-const { loadBusinessState, buildRenewalDashboard } = require('../services/analytics.service');
-const { buildFinanceSummary, calculatePayrollExpense } = require('../services/finance.service');
+const { loadBusinessState, buildRenewalDashboard, getRenewalTitle, getRenewalAmount } = require('../services/analytics.service');
+const { buildFinanceSummary, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
 const {
   calculateExpenseImpact,
   calculateInvoiceTotals,
@@ -16,7 +16,19 @@ function getPayrollUsers(state = {}) {
   return (state.users || []).filter((user) => user && user.isActive !== false && toNumber(user.salary) > 0);
 }
 
+function isSalaryExpenseRecord(expense = {}) {
+  return String(expense.expenseType || expense.expense_type || '').trim() === 'Employee Salary';
+}
+
 function buildPayrollRows(state = {}) {
+  const payrollRecords = getPayrollRecords(state);
+  if (payrollRecords.length) {
+    return payrollRecords.map((record) => ({
+      ...record,
+      type: 'Payroll'
+    }));
+  }
+
   const asOfDate = new Date().toISOString().slice(0, 10);
   return getPayrollUsers(state).map((user) => ({
     id: `payroll-${user.id}`,
@@ -25,6 +37,7 @@ function buildPayrollRows(state = {}) {
     employeeName: user.fullName || user.username || user.email || '-',
     roleName: (user.roles || []).map((role) => role.name).filter(Boolean).join(', ') || '-',
     amount: calculatePayrollExpense(user),
+    payable: calculatePayrollExpense(user),
     type: 'Payroll',
     paymentStatus: 'Pending',
     notes: `Monthly salary for ${user.fullName || user.username || user.email || 'employee'}`
@@ -76,6 +89,7 @@ function buildFinanceTrend(state, monthsBack = 6) {
   });
 
   (state.expenses || []).forEach((expense) => {
+    if (isSalaryExpenseRecord(expense)) return;
     const monthKey = getMonthKey(expense.expenseDate || expense.createdAt);
     const bucket = bucketMap.get(monthKey);
     if (!bucket) return;
@@ -101,6 +115,13 @@ function buildFinanceTrend(state, monthsBack = 6) {
     bucket.expense = round2(bucket.expense + toNumber(impact.expenseImpact));
   });
 
+  getPayrollRecords(state).forEach((record) => {
+    const monthKey = getMonthKey(record.date);
+    const bucket = bucketMap.get(monthKey);
+    if (!bucket) return;
+    bucket.expense = round2(bucket.expense + toNumber(record.amount));
+  });
+
   (state.payments || []).forEach((payment) => {
     const monthKey = getMonthKey(payment.paymentDate || payment.createdAt);
     const bucket = bucketMap.get(monthKey);
@@ -115,6 +136,37 @@ function buildFinanceTrend(state, monthsBack = 6) {
   return buckets.map(({ monthKey, ...bucket }) => bucket);
 }
 
+function addDays(dateString, days = 0) {
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setDate(date.getDate() + Number(days || 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function getOutsourcingDueDate(record = {}, settings = {}) {
+  const configuredDays = toNumber(settings?.invoice?.defaultDueDays ?? 15, 15);
+  return record.dueDate || (record.expenseDate ? addDays(record.expenseDate, configuredDays) : '');
+}
+
+function getOutsourcingTitle(record = {}) {
+  return String(record.workType || record.vendorName || record.description || 'Outsourcing').trim() || 'Outsourcing';
+}
+
+function getOutsourcingAlertState(record = {}, settings = {}) {
+  const approvalStatus = String(record.approvalStatus || 'Pending').trim() || 'Pending';
+  const paymentStatus = String(record.paymentStatus || 'Pending').trim() || 'Pending';
+  const dueDate = getOutsourcingDueDate(record, settings);
+  const remainingDays = daysUntil(dueDate);
+  const reminderDays = Math.max(1, toNumber(record.reminderDays || 7, 7));
+
+  if (paymentStatus === 'Paid') return 'Paid';
+  if (approvalStatus === 'Pending') return 'Pending Approval';
+  if (remainingDays == null) return 'Open';
+  if (remainingDays < 0) return 'Overdue';
+  if (remainingDays <= reminderDays) return 'Due Soon';
+  return 'Scheduled';
+}
+
 async function dashboardSummary(req, res, next) {
   try {
     const state = await loadBusinessState();
@@ -122,13 +174,75 @@ async function dashboardSummary(req, res, next) {
     const invoiceTotals = state.invoices
       .filter((invoice) => invoice.status !== 'Cancelled')
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
-    const expenseImpacts = state.expenses.map(calculateExpenseImpact);
+    const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
     const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
     const outputGst = sumBy(invoiceTotals, (item) => item.gstAmount);
     const inputGst = sumBy(expenseImpacts, (item) => item.inputGst)
       + sumBy(outsourcingImpacts, (item) => item.inputGst)
       + sumBy(commissionImpacts, (item) => item.inputGst);
+    const renewalRows = state.renewals.map((item) => ({
+      ...item,
+      dueDate: item.renewalDate || item.expiryDate || item.reminderDate || ''
+    }));
+    const outsourcingRows = state.outsourcingExpenses.map((item) => ({
+      ...item,
+      dueDate: getOutsourcingDueDate(item, state.settings)
+    }));
+    const automationAlerts = [
+      ...state.amcs
+        .map((item) => {
+          const remaining = daysUntil(item.nextInvoiceDate || item.endDate);
+          if (remaining == null || remaining > 30 || String(item.status || '').trim() === 'Cancelled') return null;
+          return {
+            module: 'AMC',
+            title: item.title || item.amcType || 'AMC',
+            state: remaining < 0 ? 'Expired' : 'Due Soon',
+            dueDate: item.nextInvoiceDate || item.endDate || '',
+            daysRemaining: remaining,
+            amount: toNumber(item.amcAmount)
+          };
+        })
+        .filter(Boolean),
+      ...renewalRows
+        .map((item) => {
+          const remaining = daysUntil(item.dueDate);
+          const status = String(item.status || '').trim();
+          if (status === 'Cancelled' || status === 'Renewed' || remaining == null || remaining > 30) return null;
+          return {
+            module: 'Renewal',
+            title: getRenewalTitle(item),
+            state: remaining < 0 ? 'Expired' : 'Due Soon',
+            dueDate: item.dueDate || '',
+            daysRemaining: remaining,
+            amount: getRenewalAmount(item)
+          };
+        })
+        .filter(Boolean),
+      ...outsourcingRows
+        .map((item) => {
+          const alertState = getOutsourcingAlertState(item, state.settings);
+          const remaining = daysUntil(item.dueDate);
+          if (!['Pending Approval', 'Due Soon', 'Overdue'].includes(alertState)) return null;
+          return {
+            module: 'Outsourcing',
+            title: getOutsourcingTitle(item),
+            state: alertState,
+            dueDate: item.dueDate || '',
+            daysRemaining: remaining,
+            amount: round2(item.totalAmount || item.baseAmount || 0)
+          };
+        })
+        .filter(Boolean)
+    ]
+      .sort((left, right) => {
+        const priority = { 'Pending Approval': 0, Overdue: 1, Expired: 1, 'Due Soon': 2, Scheduled: 3, Open: 4, Paid: 5 };
+        const leftPriority = priority[left.state] ?? 9;
+        const rightPriority = priority[right.state] ?? 9;
+        if (leftPriority !== rightPriority) return leftPriority - rightPriority;
+        return toNumber(left.daysRemaining, 0) - toNumber(right.daysRemaining, 0);
+      })
+      .slice(0, 8);
 
     res.json({
       success: true,
@@ -155,13 +269,21 @@ async function dashboardSummary(req, res, next) {
         unreconciledBankTransactions: financeSummary.unreconciledBankTransactions,
         financeTrend: buildFinanceTrend(state, 6),
         amcExpiringSoon: state.amcs.filter((amc) => {
-          const remaining = daysUntil(amc.endDate);
+          const remaining = daysUntil(amc.nextInvoiceDate || amc.endDate);
           return remaining !== null && remaining >= 0 && remaining <= 30;
         }).length,
         renewalsExpiringSoon: state.renewals.filter((renewal) => {
           const remaining = daysUntil(renewal.renewalDate || renewal.expiryDate || renewal.endDate);
           return remaining !== null && remaining >= 0 && remaining <= 30;
-        }).length
+        }).length,
+        renewalsExpired: state.renewals.filter((renewal) => {
+          const remaining = daysUntil(renewal.renewalDate || renewal.expiryDate || renewal.endDate);
+          return remaining !== null && remaining < 0;
+        }).length,
+        outsourcingPendingApproval: state.outsourcingExpenses.filter((item) => String(item.approvalStatus || 'Pending').trim() === 'Pending').length,
+        outsourcingDueSoon: state.outsourcingExpenses.filter((item) => getOutsourcingAlertState(item, state.settings) === 'Due Soon').length,
+        outsourcingOverdue: state.outsourcingExpenses.filter((item) => getOutsourcingAlertState(item, state.settings) === 'Overdue').length,
+        automationAlerts
       }
     });
   } catch (error) {
@@ -175,14 +297,14 @@ async function profitLoss(req, res, next) {
     const invoiceTotals = state.invoices
       .filter((invoice) => invoice.status !== 'Cancelled')
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
-    const expenseImpacts = state.expenses.map(calculateExpenseImpact);
+    const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
     const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
     const revenue = sumBy(invoiceTotals, (item) => item.taxableAmount);
     const expense = sumBy(expenseImpacts, (item) => item.expenseAmount)
       + sumBy(outsourcingImpacts, (item) => item.expenseImpact)
       + sumBy(commissionImpacts, (item) => item.expenseImpact);
-    const payrollExpense = sumBy(getPayrollUsers(state), calculatePayrollExpense);
+    const payrollExpense = getPayrollExpenseTotal(state);
     const totalExpense = round2(expense + payrollExpense);
 
     res.json({
@@ -208,7 +330,7 @@ async function gstSummary(req, res, next) {
     const invoiceTotals = state.invoices
       .filter((invoice) => invoice.status !== 'Cancelled')
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
-    const expenseImpacts = state.expenses.map(calculateExpenseImpact);
+    const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
     const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
     const outputGst = sumBy(invoiceTotals, (item) => item.gstAmount);
@@ -268,10 +390,10 @@ async function caAudit(req, res, next) {
     const invoiceTotals = state.invoices
       .filter((invoice) => invoice.status !== 'Cancelled')
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
-    const expenseImpacts = state.expenses.map(calculateExpenseImpact);
+    const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
     const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
-    const payrollUsers = getPayrollUsers(state);
+    const payrollRecords = getPayrollRecords(state);
 
     res.json({
       success: true,
@@ -279,8 +401,8 @@ async function caAudit(req, res, next) {
         invoiceCount: state.invoices.length,
         clientCount: state.clients.length,
         projectCount: state.projects.length,
-        payrollEmployeeCount: payrollUsers.length,
-        payrollExpense: sumBy(payrollUsers, calculatePayrollExpense),
+        payrollEmployeeCount: new Set(payrollRecords.map((item) => String(item.employeeId || '')).filter(Boolean)).size,
+        payrollExpense: getPayrollExpenseTotal(state),
         gstOutput: sumBy(invoiceTotals, (item) => item.gstAmount),
         gstInput: sumBy(expenseImpacts, (item) => item.inputGst) + sumBy(outsourcingImpacts, (item) => item.inputGst) + sumBy(commissionImpacts, (item) => item.inputGst),
         pendingTdsCount: state.leadCommissions.filter((item) => item.tdsApplicable && item.tdsAmount > 0 && item.tdsDepositStatus !== 'Deposited').length,

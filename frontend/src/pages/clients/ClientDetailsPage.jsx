@@ -1178,6 +1178,7 @@ export function ClientDetailsPage() {
   const [filesModalOpen, setFilesModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [amcLookups, setAmcLookups] = useState({ amcTypes: [], billingCycles: [] });
   const [editOpen, setEditOpen] = useState(false);
   const [activityType, setActivityType] = useState(null);
   const [activityEdit, setActivityEdit] = useState(null);
@@ -1202,12 +1203,14 @@ export function ClientDetailsPage() {
           api.resources.get('/clients', `${id}/summary`, token),
           api.files.list(token, '', 'clients', id),
           api.settings.get(token),
-          api.resources.list('/users', token, '')
+          api.resources.list('/users', token, ''),
+          api.resources.list('/masters/amc_type', token, ''),
+          api.resources.list('/masters/billing_cycle', token, '')
         ]);
 
         if (!active) return;
 
-        const [summaryRes, filesRes, settingsRes, usersRes] = results;
+        const [summaryRes, filesRes, settingsRes, usersRes, amcTypesRes, billingCyclesRes] = results;
         if (summaryRes.status === 'fulfilled') {
           setData(summaryRes.value.data || null);
         } else {
@@ -1229,6 +1232,11 @@ export function ClientDetailsPage() {
         } else {
           setUsers([]);
         }
+
+        setAmcLookups({
+          amcTypes: amcTypesRes.status === 'fulfilled' ? amcTypesRes.value.data || [] : [],
+          billingCycles: billingCyclesRes.status === 'fulfilled' ? billingCyclesRes.value.data || [] : []
+        });
       } catch (error) {
         if (active) {
           toast.error(error.message || 'Failed to load client details');
@@ -1626,48 +1634,44 @@ export function ClientDetailsPage() {
           {activeTab === 'overview' && (
             <>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-blue-600 text-white shadow-sm">
-                      <Briefcase size={20} />
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800">{summary.totalProjects || 0}</span>
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                  <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
+                    <Briefcase size={24} strokeWidth={2} />
                   </div>
-                  <div className="text-sm font-medium text-slate-500 mt-1">
-                    Projects
-                  </div>
-                </Card>
-                <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-emerald-600 text-white shadow-sm">
-                      <Receipt size={20} />
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800">{formatMoney(summary.totalInvoiceAmount || 0, currency, currencySymbol)}</span>
-                  </div>
-                  <div className="text-sm font-medium text-slate-500 mt-1">
-                    Invoiced
+                  <div className="overflow-hidden">
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Projects</p>
+                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.totalProjects || 0}</h3>
+                    <p className="mt-1 text-xs text-slate-400 truncate">Total active projects</p>
                   </div>
                 </Card>
-                <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-purple-600 text-white shadow-sm">
-                      <Wallet size={20} />
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800">{formatMoney(summary.totalReceived || 0, currency, currencySymbol)}</span>
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                  <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
+                    <Receipt size={24} strokeWidth={2} />
                   </div>
-                  <div className="text-sm font-medium text-slate-500 mt-1">
-                    Received
+                  <div className="overflow-hidden">
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Invoiced</p>
+                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(summary.totalInvoiceAmount || 0, currency, currencySymbol)}</h3>
+                    <p className="mt-1 text-xs text-slate-400 truncate">Total billed amount</p>
                   </div>
                 </Card>
-                <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                  <div className="flex items-start justify-between">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-amber-600 text-white shadow-sm">
-                      <Clock3 size={20} />
-                    </div>
-                    <span className="text-2xl font-bold text-slate-800">{formatMoney(summary.totalDue || 0, currency, currencySymbol)}</span>
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                  <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
+                    <Wallet size={24} strokeWidth={2} />
                   </div>
-                  <div className="text-sm font-medium text-slate-500 mt-1">
-                    Outstanding
+                  <div className="overflow-hidden">
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Received</p>
+                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(summary.totalReceived || 0, currency, currencySymbol)}</h3>
+                    <p className="mt-1 text-xs text-slate-400 truncate">Total payments received</p>
+                  </div>
+                </Card>
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                  <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
+                    <Clock3 size={24} strokeWidth={2} />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Outstanding</p>
+                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(summary.totalDue || 0, currency, currencySymbol)}</h3>
+                    <p className="mt-1 text-xs text-slate-400 truncate">Total pending amount</p>
                   </div>
                 </Card>
               </div>
@@ -2090,6 +2094,7 @@ export function ClientDetailsPage() {
               <DataTable
                 columns={[
                   { key: 'paymentDate', label: 'Date', type: 'date' },
+                  { key: 'paymentStatus', label: 'Status', type: 'badge' },
                   { key: 'paymentMode', label: 'Mode' },
                   { key: 'transactionId', label: 'Transaction ID' },
                   { key: 'amountReceived', label: 'Amount Received', type: 'money', align: 'right' }
@@ -2104,13 +2109,53 @@ export function ClientDetailsPage() {
             <Card className="p-5">
               <DataTable
                 columns={[
-                  { key: 'title', label: 'Title', render: (row) => row.title || row.amcType || 'AMC' },
+                  { key: 'title', label: 'AMC Title', render: (row) => row.title || row.amcType || 'AMC' },
+                  { key: 'amcType', label: 'AMC Type', render: (row, lookups) => lookups.amcTypes?.find((item) => item.id === row.amcType || item.name === row.amcType)?.name || row.amcType || '-' },
+                  { key: 'billingCycle', label: 'Billing Cycle', render: (row, lookups) => lookups.billingCycles?.find((item) => item.id === row.billingCycle || item.name === row.billingCycle)?.name || row.billingCycle || '-' },
                   { key: 'startDate', label: 'Start Date', type: 'date' },
-                  { key: 'endDate', label: 'End Date', type: 'date' },
-                  { key: 'status', label: 'Status', type: 'badge' },
-                  { key: 'amcAmount', label: 'Amount', type: 'money', align: 'right' }
+                  { key: 'endDate', label: 'Renewal / End Date', type: 'date' },
+                  { key: 'nextInvoiceDate', label: 'Next Invoice', type: 'date' },
+                  { key: 'daysRemaining', label: 'Due In', render: (row) => {
+                    const target = row.nextInvoiceDate || row.endDate;
+                    if (row.daysRemaining == null && !target) return '-';
+                    const days = row.daysRemaining != null ? row.daysRemaining : (() => {
+                      const end = new Date(target);
+                      if (Number.isNaN(end.getTime())) return null;
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      end.setHours(0, 0, 0, 0);
+                      return Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+                    })();
+                    if (days == null) return '-';
+                    if (days < 0) return `Overdue ${Math.abs(days)}d`;
+                    if (days === 0) return 'Due today';
+                    return `${days}d`;
+                  } },
+                  { key: 'status', label: 'Status', render: (row) => row.renewalStatus || row.status || '-' },
+                  { key: 'automationState', label: 'Automation', type: 'badge', render: (row) => {
+                    const target = row.nextInvoiceDate || row.endDate;
+                    const days = row.daysRemaining != null ? row.daysRemaining : (() => {
+                      if (!target) return null;
+                      const end = new Date(target);
+                      if (Number.isNaN(end.getTime())) return null;
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      end.setHours(0, 0, 0, 0);
+                      return Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+                    })();
+                    if (String(row.status || '').trim() === 'Cancelled') return 'Disabled';
+                    if (row.autoInvoice && days != null && days <= 0) return 'Invoice due';
+                    if (row.autoInvoice && days != null && days <= (Number(row.reminderDays) || 7)) return 'Reminder window';
+                    if (row.autoInvoice) return 'Scheduled';
+                    return 'Manual only';
+                  } },
+                  { key: 'amcAmount', label: 'Amount', type: 'money', align: 'right' },
+                  { key: 'autoInvoice', label: 'Auto Invoice', render: (row) => (row.autoInvoice ? 'Yes' : 'No') },
+                  { key: 'lastInvoiceGeneratedAt', label: 'Last Invoice', type: 'date' },
+                  { key: 'lastReminderSentAt', label: 'Last Reminder', type: 'date' }
                 ]}
                 rows={amcs}
+                lookups={amcLookups}
                 selectable={false}
               />
             </Card>

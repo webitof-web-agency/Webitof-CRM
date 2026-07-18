@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, FileText, RefreshCw } from 'lucide-react';
+import { BarChart3, FileText, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
+import { cn } from '../lib/cn';
 import { Card } from '../components/ui/Card';
 import { DataTable } from '../components/ui/Table';
-import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { Button } from '../components/ui/Button';
+import { Input } from '../components/ui/Input';
 import { useAuth } from '../context/AuthContext';
 
 function formatAmount(value) {
@@ -37,6 +38,9 @@ export function ReportsPage() {
   const [renewalsPageSize, setRenewalsPageSize] = useState(8);
   const [payablesPage, setPayablesPage] = useState(1);
   const [payablesPageSize, setPayablesPageSize] = useState(6);
+  const [payrollSearch, setPayrollSearch] = useState('');
+  const [renewalsSearch, setRenewalsSearch] = useState('');
+  const [payablesSearch, setPayablesSearch] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -76,108 +80,167 @@ export function ReportsPage() {
 
   const renewalRows = useMemo(() => {
     const all = renewals?.rows || [];
-    return [...all].map((item) => ({
+    let mapped = [...all].map((item) => ({
       ...item,
       amount: item.renewalPrice || item.amcAmount || item.amount || 0,
       title: item.renewalType || item.amcType || item.category || item.title || 'Renewal',
       detail: item.providerName || item.provider || item.clientName || item.notes || '-'
     }));
-  }, [renewals]);
+    if (renewalsSearch) {
+      const q = renewalsSearch.toLowerCase();
+      mapped = mapped.filter(r => r.title.toLowerCase().includes(q) || r.detail.toLowerCase().includes(q) || r.recordType?.toLowerCase().includes(q));
+    }
+    return mapped;
+  }, [renewals, renewalsSearch]);
 
   const payrollRows = useMemo(() => {
     const rows = payroll?.rows || [];
-    return [...rows].map((item) => ({
+    let mapped = [...rows].map((item) => ({
       ...item,
       employeeName: item.fullName || item.employeeName || item.username || item.email || '-'
     }));
-  }, [payroll]);
+    if (payrollSearch) {
+      const q = payrollSearch.toLowerCase();
+      mapped = mapped.filter(r => r.employeeName.toLowerCase().includes(q) || r.username?.toLowerCase().includes(q) || r.email?.toLowerCase().includes(q));
+    }
+    return mapped;
+  }, [payroll, payrollSearch]);
+
+  const payablesRows = useMemo(() => {
+    let mapped = payables.map((item) => ({ ...item, vendorName: item.vendorName || item.partnerName || item.employeeName || item.vendorName || '-' }));
+    if (payablesSearch) {
+      const q = payablesSearch.toLowerCase();
+      mapped = mapped.filter(r => r.vendorName.toLowerCase().includes(q) || r.type?.toLowerCase().includes(q) || r.paymentStatus?.toLowerCase().includes(q));
+    }
+    return mapped;
+  }, [payables, payablesSearch]);
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Reports"
-        title="Reports Center"
-        description="Financial summaries, audit snapshots, and renewal intelligence in one place."
-        actions={[
-          { label: 'Refresh', icon: RefreshCw, variant: 'secondary', onClick: () => window.location.reload() }
-        ]}
-      />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-main)]">Reports Center</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Financial summaries, audit snapshots, and renewal intelligence in one place.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => window.location.reload()} className="bg-white shadow-sm border-slate-200 hover:bg-slate-50 gap-2">
+            <RefreshCw size={16} /> Refresh
+          </Button>
+        </div>
+      </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
         {sections.map((section) => (
-          <Button
+          <button
             key={section.key}
             type="button"
-            variant={activeSection === section.key ? 'primary' : 'secondary'}
-            size="sm"
             onClick={() => setActiveSection(section.key)}
+            className={cn(
+              'inline-flex items-center gap-2 px-1 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap',
+              activeSection === section.key
+                ? 'border-[var(--primary)] text-[var(--primary)]'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+            )}
           >
             {section.label}
-          </Button>
+          </button>
         ))}
       </div>
 
       {activeSection === 'summary' ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
-          <StatCard title="Taxable Revenue" value={loading ? '...' : formatAmount(dashboard?.totalTaxableAmount || 0)} helper="From invoices" icon={FileText} />
-          <StatCard title="Received" value={loading ? '...' : formatAmount(dashboard?.totalReceived || 0)} helper="Payments received" icon={BarChart3} />
-          <StatCard title="Outstanding" value={loading ? '...' : formatAmount(dashboard?.totalOutstanding || dashboard?.totalDue || 0)} helper="Open receivables" icon={BarChart3} />
-          <StatCard title="Payables" value={loading ? '...' : formatAmount(dashboard?.totalPayables || 0)} helper="Vendor, commission, and payroll dues" icon={BarChart3} />
-          <StatCard title="Payroll" value={loading ? '...' : formatAmount(dashboard?.payrollExpense || 0)} helper="Active user salaries" icon={BarChart3} />
-          <StatCard title="Cash in Bank" value={loading ? '...' : formatAmount(dashboard?.cashInBank || 0)} helper="Opening + credits - debits" icon={BarChart3} />
-          <StatCard title="Net GST" value={loading ? '...' : formatAmount(gst?.netGstPayable || dashboard?.netGstPayable || 0)} helper="Input minus output" icon={BarChart3} />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[
+            { title: 'Taxable Revenue', value: dashboard?.totalTaxableAmount || 0, helper: 'From invoices', icon: FileText, bg: 'bg-blue-50/80 text-blue-500' },
+            { title: 'Received', value: dashboard?.totalReceived || 0, helper: 'Payments received', icon: BarChart3, bg: 'bg-emerald-50/80 text-emerald-500' },
+            { title: 'Outstanding', value: dashboard?.totalOutstanding || dashboard?.totalDue || 0, helper: 'Open receivables', icon: BarChart3, bg: 'bg-rose-50/80 text-rose-500' },
+            { title: 'Payables', value: dashboard?.totalPayables || 0, helper: 'Vendor, commission, and payroll dues', icon: BarChart3, bg: 'bg-amber-50/80 text-amber-500' },
+            { title: 'Payroll', value: dashboard?.payrollExpense || 0, helper: 'Active user salaries', icon: BarChart3, bg: 'bg-purple-50/80 text-purple-500' },
+            { title: 'Cash in Bank', value: dashboard?.cashInBank || 0, helper: 'Opening + credits - debits', icon: BarChart3, bg: 'bg-indigo-50/80 text-indigo-500' },
+            { title: 'Net GST', value: gst?.netGstPayable || dashboard?.netGstPayable || 0, helper: 'Input minus output', icon: BarChart3, bg: 'bg-cyan-50/80 text-cyan-500' },
+          ].map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <Card key={i} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+                <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
+                  <Icon size={20} strokeWidth={2} />
+                </div>
+                <div className="overflow-hidden min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.title}</p>
+                  <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : formatAmount(item.value)}</h3>
+                  <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+                </div>
+              </Card>
+            );
+          })}
         </div>
       ) : null}
 
       {activeSection === 'profit' ? (
-        <Card className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {[
-            ['Revenue', profitLoss?.revenue],
-            ['Expense', profitLoss?.expense],
-            ['Payroll', profitLoss?.payrollExpense],
-            ['Office Expense', profitLoss?.officeExpense],
-            ['Profit', profitLoss?.profit]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">{label}</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : formatAmount(value || 0)}</div>
-            </div>
+            { label: 'Revenue', value: profitLoss?.revenue, helper: 'Total income generated', bg: 'bg-emerald-50/80 text-emerald-500' },
+            { label: 'Expense', value: profitLoss?.expense, helper: 'Total costs incurred', bg: 'bg-rose-50/80 text-rose-500' },
+            { label: 'Payroll', value: profitLoss?.payrollExpense, helper: 'Employee salary costs', bg: 'bg-amber-50/80 text-amber-500' },
+            { label: 'Office Expense', value: profitLoss?.officeExpense, helper: 'Operational costs', bg: 'bg-purple-50/80 text-purple-500' },
+            { label: 'Profit', value: profitLoss?.profit, helper: 'Net income', bg: 'bg-blue-50/80 text-blue-500' }
+          ].map((item, i) => (
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+              <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
+                <BarChart3 size={20} strokeWidth={2} />
+              </div>
+              <div className="overflow-hidden min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
+                <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : formatAmount(item.value || 0)}</h3>
+                <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+              </div>
+            </Card>
           ))}
-        </Card>
+        </div>
       ) : null}
 
       {activeSection === 'gst' ? (
-        <Card className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[
-            ['Output GST', gst?.outputGst],
-            ['Input GST', gst?.inputGst],
-            ['Net Payable', gst?.netGstPayable],
-            ['IGST', gst?.igst]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">{label}</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : formatAmount(value || 0)}</div>
-            </div>
+            { label: 'Output GST', value: gst?.outputGst, helper: 'Collected from sales', bg: 'bg-amber-50/80 text-amber-500' },
+            { label: 'Input GST', value: gst?.inputGst, helper: 'Paid on purchases', bg: 'bg-indigo-50/80 text-indigo-500' },
+            { label: 'Net Payable', value: gst?.netGstPayable, helper: 'Amount due to govt', bg: 'bg-rose-50/80 text-rose-500' },
+            { label: 'IGST', value: gst?.igst, helper: 'Inter-state tax', bg: 'bg-cyan-50/80 text-cyan-500' }
+          ].map((item) => (
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+              <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
+                <BarChart3 size={20} strokeWidth={2} />
+              </div>
+              <div className="overflow-hidden min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
+                <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : formatAmount(item.value || 0)}</h3>
+                <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+              </div>
+            </Card>
           ))}
-        </Card>
+        </div>
       ) : null}
 
       {activeSection === 'payroll' ? (
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {[
-              ['Active Employees', payroll?.summary?.activeEmployees],
-              ['Monthly Payroll', payroll?.summary?.totalMonthlyPayroll],
-              ['Annual Payroll', payroll?.summary?.annualPayroll],
-              ['Average Salary', payroll?.summary?.averageSalary]
-            ].map(([label, value]) => (
-              <StatCard
-                key={label}
-                title={label}
-                value={loading ? '...' : label.includes('Employees') ? Number(value || 0).toLocaleString('en-IN') : formatAmount(value || 0)}
-                helper={label === 'Monthly Payroll' ? 'Active user salary cost' : label === 'Average Salary' ? 'Average monthly salary' : 'Payroll metrics'}
-                icon={BarChart3}
-              />
+              { label: 'Active Employees', value: payroll?.summary?.activeEmployees, isNum: true, helper: 'Total active staff', bg: 'bg-blue-50/80 text-blue-500' },
+              { label: 'Monthly Payroll', value: payroll?.summary?.totalMonthlyPayroll, helper: 'Active user salary cost', bg: 'bg-purple-50/80 text-purple-500' },
+              { label: 'Annual Payroll', value: payroll?.summary?.annualPayroll, helper: 'Projected yearly cost', bg: 'bg-emerald-50/80 text-emerald-500' },
+              { label: 'Average Salary', value: payroll?.summary?.averageSalary, helper: 'Average monthly salary', bg: 'bg-amber-50/80 text-amber-500' }
+            ].map((item) => (
+              <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+                <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
+                  <BarChart3 size={20} strokeWidth={2} />
+                </div>
+                <div className="overflow-hidden min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
+                  <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">
+                    {loading ? '...' : item.isNum ? Number(item.value || 0).toLocaleString('en-IN') : formatAmount(item.value || 0)}
+                  </h3>
+                  <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+                </div>
+              </Card>
             ))}
           </div>
 
@@ -199,7 +262,20 @@ export function ReportsPage() {
                 { key: 'status', label: 'Status', type: 'badge' }
               ]}
               rows={payrollRows}
-              selectable={false}
+              selectable={true}
+              toolbarLeft={
+                <div className="relative flex-1 w-full max-w-xs">
+                  <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                    <Search size={16} />
+                  </div>
+                  <Input
+                    value={payrollSearch}
+                    onChange={(e) => setPayrollSearch(e.target.value)}
+                    placeholder="Search payroll..."
+                    className="pl-9 w-full"
+                  />
+                </div>
+              }
               onCreate={undefined}
             />
           </Card>
@@ -207,21 +283,27 @@ export function ReportsPage() {
       ) : null}
 
       {activeSection === 'audit' ? (
-        <Card className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[
-            ['Invoices', audit?.invoiceCount],
-            ['Clients', audit?.clientCount],
-            ['Projects', audit?.projectCount],
-            ['Pending TDS', audit?.pendingTdsCount],
-            ['Pending ITC', audit?.pendingItcCount],
-            ['Renewals Due', audit?.renewalDueSoonCount]
-          ].map(([label, value]) => (
-            <div key={label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">{label}</div>
-              <div className="mt-2 text-2xl font-semibold">{loading ? '...' : Number(value || 0).toLocaleString('en-IN')}</div>
-            </div>
+            { label: 'Invoices', value: audit?.invoiceCount, helper: 'Total generated', bg: 'bg-blue-50/80 text-blue-500' },
+            { label: 'Clients', value: audit?.clientCount, helper: 'Active clients', bg: 'bg-emerald-50/80 text-emerald-500' },
+            { label: 'Projects', value: audit?.projectCount, helper: 'Ongoing projects', bg: 'bg-purple-50/80 text-purple-500' },
+            { label: 'Pending TDS', value: audit?.pendingTdsCount, helper: 'TDS to be filed', bg: 'bg-rose-50/80 text-rose-500' },
+            { label: 'Pending ITC', value: audit?.pendingItcCount, helper: 'ITC to be claimed', bg: 'bg-amber-50/80 text-amber-500' },
+            { label: 'Renewals Due', value: audit?.renewalDueSoonCount, helper: 'Upcoming renewals', bg: 'bg-indigo-50/80 text-indigo-500' }
+          ].map((item) => (
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+              <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
+                <FileText size={20} strokeWidth={2} />
+              </div>
+              <div className="overflow-hidden min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
+                <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : Number(item.value || 0).toLocaleString('en-IN')}</h3>
+                <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+              </div>
+            </Card>
           ))}
-        </Card>
+        </div>
       ) : null}
 
       {activeSection === 'renewals' ? (
@@ -236,7 +318,23 @@ export function ReportsPage() {
               { key: 'amount', label: 'Amount', type: 'money', align: 'right' }
             ]}
             rows={renewalRows}
-            selectable={false}
+            selectable={true}
+            toolbarLeft={
+              <div className="relative flex-1 w-full max-w-xs">
+                <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                  <Search size={16} />
+                </div>
+                <Input
+                  value={renewalsSearch}
+                  onChange={(e) => {
+                    setRenewalsSearch(e.target.value);
+                    setRenewalsPage(1);
+                  }}
+                  placeholder="Search renewals..."
+                  className="pl-9 w-full"
+                />
+              </div>
+            }
             onCreate={undefined}
             page={renewalsPage}
             pageSize={renewalsPageSize}
@@ -264,8 +362,24 @@ export function ReportsPage() {
             { key: 'paymentStatus', label: 'Status', type: 'badge' },
             { key: 'amount', label: 'Amount', type: 'money', align: 'right' }
           ]}
-          rows={payables.map((item) => ({ ...item, vendorName: item.vendorName || item.partnerName || item.employeeName || item.vendorName || '-' }))}
-          selectable={false}
+          rows={payablesRows}
+          selectable={true}
+          toolbarLeft={
+            <div className="relative flex-1 w-full max-w-xs">
+              <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                <Search size={16} />
+              </div>
+              <Input
+                value={payablesSearch}
+                onChange={(e) => {
+                  setPayablesSearch(e.target.value);
+                  setPayablesPage(1);
+                }}
+                placeholder="Search payables..."
+                className="pl-9 w-full"
+              />
+            </div>
+          }
           onCreate={undefined}
           page={payablesPage}
           pageSize={payablesPageSize}

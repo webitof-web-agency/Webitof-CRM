@@ -264,9 +264,10 @@ function calculateExpenseImpact(expense = {}) {
   const amountBeforeGst = toNumber(expense.amountBeforeGst);
   const gstAmount = toNumber(expense.gstAmount);
   const totalAmount = round2(toNumber(expense.totalAmount) || amountBeforeGst + gstAmount);
+  const isPayrollExpense = String(expense.expenseType || expense.expense_type || '').trim() === 'Employee Salary';
   return {
-    expenseAmount: round2(expense.itcEligible ? amountBeforeGst : totalAmount),
-    inputGst: round2(expense.itcEligible ? gstAmount : 0),
+    expenseAmount: round2(isPayrollExpense ? totalAmount : expense.itcEligible ? amountBeforeGst : totalAmount),
+    inputGst: round2(isPayrollExpense ? 0 : expense.itcEligible ? gstAmount : 0),
     totalCashOut: totalAmount
   };
 }

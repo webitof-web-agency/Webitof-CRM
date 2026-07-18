@@ -10,7 +10,7 @@ async function summary(req, res, next) {
     const state = await loadBusinessState();
     res.json({
       success: true,
-      data: buildFinanceSummary(state)
+      data: buildFinanceSummary(state, req.query || {})
     });
   } catch (error) {
     next(error);

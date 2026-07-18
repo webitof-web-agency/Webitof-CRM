@@ -24,10 +24,14 @@ const {
   getPlaceOfSupplyForClient
 } = require('../utils/finance');
 const { round2, toNumber } = require('../utils/format');
-const { getInvoiceSnapshot } = require('./finance.service');
+const { getInvoiceSnapshot, getPayrollExpenseTotal, getPayrollRecords } = require('./finance.service');
 
 function sumBy(items = [], iteratee = (item) => item) {
   return round2(items.reduce((sum, item) => sum + toNumber(iteratee(item)), 0));
+}
+
+function isSalaryExpenseRecord(expense = {}) {
+  return String(expense.expenseType || expense.expense_type || '').trim() === 'Employee Salary';
 }
 
 function daysUntil(dateString, fromDate = new Date()) {
@@ -237,9 +241,10 @@ async function buildDashboardSummary() {
       const payments = state.payments.filter((payment) => String(payment.invoiceId) === String(invoice.id));
       return getInvoiceSnapshot(invoice, payments, state.settings, client);
     });
-  const expenseImpacts = state.expenses.map(calculateExpenseImpact);
+  const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
   const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
   const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
+  const payrollExpense = getPayrollExpenseTotal(state);
 
   const outputGst = sumBy(invoiceTotals, (total) => total.gstAmount);
   const inputGst = sumBy(expenseImpacts, (item) => item.inputGst)
@@ -258,10 +263,11 @@ async function buildDashboardSummary() {
     overdueDue: sumBy(invoiceSnapshots.filter((snapshot) => snapshot.isOverdue), (snapshot) => snapshot.balanceDue),
     outputGst,
     inputGst,
+    payrollExpense,
     netGstPayable: round2(outputGst - inputGst),
     pendingInvoices: state.invoices.filter((invoice) => ['Sent', 'Partially Paid', 'Overdue'].includes(invoice.status)).length,
     amcExpiringSoon: state.amcs.filter((amc) => {
-      const remaining = daysUntil(amc.endDate);
+      const remaining = daysUntil(amc.nextInvoiceDate || amc.endDate);
       return remaining !== null && remaining >= 0 && remaining <= 30;
     }).length,
     renewalsExpiringSoon: state.renewals.filter((renewal) => {
@@ -612,7 +618,7 @@ function buildClientTimeline(clientId, state) {
     ...expenses.map((expense) => ({
       date: expense.expenseDate,
       title: 'Expense booked',
-      detail: expense.vendor || expense.invoiceNumber || 'Expense',
+      detail: expense.payeeName || expense.vendor || expense.invoiceNumber || 'Expense',
       amount: expense.totalAmount || expense.amountBeforeGst || 0
     }))
   ];
@@ -813,7 +819,7 @@ async function buildProjectSummary(projectId) {
     ...expenses.map((expense) => ({
       date: expense.expenseDate,
       title: 'Expense booked',
-      detail: expense.vendor || expense.invoiceNumber || 'Expense',
+      detail: expense.payeeName || expense.vendor || expense.invoiceNumber || 'Expense',
       amount: expense.totalAmount || expense.amountBeforeGst || 0
     }))
   ].filter((item) => item.date).sort((a, b) => String(b.date).localeCompare(String(a.date)));
@@ -871,8 +877,10 @@ function buildRenewalDashboard(state) {
       ...item,
       recordType: 'AMC',
       category: 'AMC',
+      title: item.title || item.amcType || 'AMC',
       renewalDate: item.nextInvoiceDate || item.endDate,
-      renewalPrice: item.amcAmount
+      renewalPrice: item.amcAmount,
+      daysRemaining: daysUntil(item.nextInvoiceDate || item.endDate)
     }))
   ];
   const activeRows = rows.filter((item) => getRenewalDate(item) && item.status !== 'Cancelled');
@@ -894,5 +902,11 @@ module.exports = {
   buildLeadSummary,
   buildProjectSummary,
   buildRenewalDashboard,
-  loadBusinessState
+  loadBusinessState,
+  getRenewalDate,
+  getRenewalTitle,
+  getRenewalCategory,
+  getRenewalProvider,
+  getRenewalAmount,
+  getComputedRenewalStatus
 };

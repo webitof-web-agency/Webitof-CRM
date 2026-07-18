@@ -10,10 +10,11 @@ module.exports = createRepository({
     column({ key: 'invoiceId', db: 'invoice_id' }),
     column({ key: 'amountReceived', db: 'amount_received', type: 'number' }),
     column({ key: 'tdsDeducted', db: 'tds_deducted', type: 'number' }),
+    column({ key: 'paymentStatus', db: 'payment_status' }),
     column({ key: 'paymentMode', db: 'payment_mode' }),
     column({ key: 'bankAccountId', db: 'bank_account_id' }),
     column({ key: 'transactionId', db: 'transaction_id' }),
     column({ key: 'notes', db: 'notes' })
   ],
-  searchColumns: ['transaction_id', 'payment_mode']
+  searchColumns: ['transaction_id', 'payment_mode', 'payment_status']
 });

@@ -4,6 +4,7 @@ const invoiceModel = require('../models/invoice.model');
 const { withTransaction } = require('../config/db');
 const { syncInvoiceFinancialState } = require('../services/finance.service');
 const { toNumber } = require('../utils/format');
+const { notifyBusinessEvent } = require('../services/notification.service');
 
 const paymentsController = createCrudController(paymentModel, {
   defaultOrder: 'payment_date DESC'
@@ -31,6 +32,7 @@ async function normalizePayment(body = {}, current = null) {
     invoiceId,
     amountReceived: toNumber(base.amountReceived ?? current?.amountReceived ?? 0),
     tdsDeducted: toNumber(base.tdsDeducted ?? current?.tdsDeducted ?? 0),
+    paymentStatus: base.paymentStatus || current?.paymentStatus || 'Received',
     paymentMode: base.paymentMode || current?.paymentMode || 'Bank Transfer',
     bankAccountId: base.bankAccountId || current?.bankAccountId || null,
     transactionId: base.transactionId || current?.transactionId || '',
@@ -54,6 +56,20 @@ paymentsController.create = async (req, res, next) => {
       return paymentModel.findById(created.id, db);
     });
 
+    if (record) {
+      notifyBusinessEvent({
+        moduleName: 'payments',
+        eventKey: 'created',
+        entity: record,
+        clientId: record.clientId || null,
+        title: 'Payment recorded',
+        message: `Payment of ₹${Number(record.amountReceived || 0).toLocaleString('en-IN')} was recorded.`,
+        actorUserId: req.user?.id || null,
+        notifyClient: Boolean(record.clientId),
+        routePath: `/app/payments/${record.id}`
+      }).catch(() => {});
+    }
+
     res.status(201).json({ success: true, data: record });
   } catch (error) {
     next(error);
@@ -74,6 +90,18 @@ paymentsController.update = async (req, res, next) => {
     if (!record) {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
+
+    notifyBusinessEvent({
+      moduleName: 'payments',
+      eventKey: 'updated',
+      entity: record,
+      clientId: record.clientId || null,
+      title: 'Payment updated',
+      message: `Payment of ₹${Number(record.amountReceived || 0).toLocaleString('en-IN')} was updated.`,
+      actorUserId: req.user?.id || null,
+      notifyClient: Boolean(record.clientId),
+      routePath: `/app/payments/${record.id}`
+    }).catch(() => {});
 
     res.json({ success: true, data: record });
   } catch (error) {
@@ -96,6 +124,18 @@ paymentsController.remove = async (req, res, next) => {
     if (!ok) {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
+
+    notifyBusinessEvent({
+      moduleName: 'payments',
+      eventKey: 'deleted',
+      entity: current,
+      clientId: current.clientId || null,
+      title: 'Payment deleted',
+      message: `Payment of ₹${Number(current.amountReceived || 0).toLocaleString('en-IN')} was deleted.`,
+      severity: 'warning',
+      actorUserId: req.user?.id || null,
+      notifyClient: Boolean(current.clientId)
+    }).catch(() => {});
 
     res.json({ success: true, message: 'Deleted successfully' });
   } catch (error) {

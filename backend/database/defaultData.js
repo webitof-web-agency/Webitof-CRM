@@ -229,28 +229,80 @@ const DEFAULT_EXPENSE_CATEGORIES = [
     type: 'expense_category',
     name: 'Domain Purchase',
     is_active: true,
-    payload: { group: 'Direct Cost', defaultGstRate: 18, itcEligible: true }
+    sort_order: 10,
+    payload: { group: 'Direct Cost', defaultGstRate: 18, itcEligible: true, requiresInvoice: true, requiresEmployee: false, isPayroll: false, sortOrder: 10 }
   },
   {
     id: 'exp-hosting',
     type: 'expense_category',
     name: 'Hosting Server',
     is_active: true,
-    payload: { group: 'Direct Cost', defaultGstRate: 18, itcEligible: true }
+    sort_order: 20,
+    payload: { group: 'Direct Cost', defaultGstRate: 18, itcEligible: true, requiresInvoice: true, requiresEmployee: false, isPayroll: false, sortOrder: 20 }
   },
   {
     id: 'exp-software',
     type: 'expense_category',
     name: 'Software Subscription',
     is_active: true,
-    payload: { group: 'Operating Expense', defaultGstRate: 18, itcEligible: true }
+    sort_order: 30,
+    payload: { group: 'Operating Expense', defaultGstRate: 18, itcEligible: true, requiresInvoice: true, requiresEmployee: false, isPayroll: false, sortOrder: 30 }
   },
   {
     id: 'exp-office',
     type: 'expense_category',
     name: 'Office Expense',
     is_active: true,
-    payload: { group: 'Operating Expense', defaultGstRate: 18, itcEligible: false }
+    sort_order: 40,
+    payload: { group: 'Operating Expense', defaultGstRate: 18, itcEligible: false, requiresInvoice: false, requiresEmployee: false, isPayroll: false, sortOrder: 40 }
+  },
+  {
+    id: 'exp-utility',
+    type: 'expense_category',
+    name: 'Utility Bill',
+    is_active: true,
+    sort_order: 50,
+    payload: { group: 'Operating Expense', defaultGstRate: 18, itcEligible: true, requiresInvoice: true, requiresEmployee: false, isPayroll: false, sortOrder: 50 }
+  },
+  {
+    id: 'exp-travel',
+    type: 'expense_category',
+    name: 'Travel',
+    is_active: true,
+    sort_order: 60,
+    payload: { group: 'Operating Expense', defaultGstRate: 5, itcEligible: false, requiresInvoice: true, requiresEmployee: false, isPayroll: false, sortOrder: 60 }
+  },
+  {
+    id: 'exp-salary',
+    type: 'expense_category',
+    name: 'Employee Salary',
+    is_active: true,
+    sort_order: 70,
+    payload: { group: 'Payroll', defaultGstRate: 0, itcEligible: false, requiresInvoice: false, requiresEmployee: true, isPayroll: true, sortOrder: 70 }
+  },
+  {
+    id: 'exp-reimbursement',
+    type: 'expense_category',
+    name: 'Reimbursement',
+    is_active: true,
+    sort_order: 80,
+    payload: { group: 'Payroll', defaultGstRate: 0, itcEligible: false, requiresInvoice: false, requiresEmployee: true, isPayroll: true, sortOrder: 80 }
+  },
+  {
+    id: 'exp-statutory',
+    type: 'expense_category',
+    name: 'Statutory / Tax',
+    is_active: true,
+    sort_order: 90,
+    payload: { group: 'Statutory', defaultGstRate: 0, itcEligible: false, requiresInvoice: false, requiresEmployee: false, isPayroll: false, sortOrder: 90 }
+  },
+  {
+    id: 'exp-capex',
+    type: 'expense_category',
+    name: 'Asset / Capex',
+    is_active: true,
+    sort_order: 100,
+    payload: { group: 'Capex', defaultGstRate: 18, itcEligible: true, requiresInvoice: true, requiresEmployee: false, isPayroll: false, sortOrder: 100 }
   }
 ];
 
@@ -357,9 +409,30 @@ const DEFAULT_RENEWAL_PROVIDERS = [
 ];
 
 const DEFAULT_AMC_TYPES = [
-  { id: 'amc-website', type: 'amc_type', name: 'Website Maintenance', is_active: true, payload: {} },
-  { id: 'amc-server', type: 'amc_type', name: 'Server Maintenance', is_active: true, payload: {} },
-  { id: 'amc-seo', type: 'amc_type', name: 'SEO Maintenance', is_active: true, payload: {} }
+  {
+    id: 'amc-website',
+    type: 'amc_type',
+    name: 'Website Maintenance',
+    is_active: true,
+    sort_order: 10,
+    payload: { group: 'Maintenance', defaultBillingCycle: 'Monthly', defaultReminderDays: 7, autoInvoice: true, supportHours: 10, responseSlaHours: 24 }
+  },
+  {
+    id: 'amc-server',
+    type: 'amc_type',
+    name: 'Server Maintenance',
+    is_active: true,
+    sort_order: 20,
+    payload: { group: 'Maintenance', defaultBillingCycle: 'Monthly', defaultReminderDays: 5, autoInvoice: true, supportHours: 24, responseSlaHours: 4 }
+  },
+  {
+    id: 'amc-seo',
+    type: 'amc_type',
+    name: 'SEO Maintenance',
+    is_active: true,
+    sort_order: 30,
+    payload: { group: 'Maintenance', defaultBillingCycle: 'Monthly', defaultReminderDays: 7, autoInvoice: false, supportHours: 8, responseSlaHours: 48 }
+  }
 ];
 
 const DEFAULT_BILLING_CYCLES = [

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banknote, RefreshCw, Plus } from 'lucide-react';
+import { Banknote, Plus, Edit2, Search, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
-import { PageHeader } from '../components/ui/PageHeader';
-import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { DataTable } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
@@ -79,6 +77,18 @@ export function BankingPage() {
   const [activeRecord, setActiveRecord] = useState(null);
   const [busy, setBusy] = useState(false);
 
+  const [filterType, setFilterType] = useState('');
+  const [filterBank, setFilterBank] = useState('');
+  const [filterClient, setFilterClient] = useState('');
+  const [filterProject, setFilterProject] = useState('');
+
+  useEffect(() => {
+    setFilterType('');
+    setFilterBank('');
+    setFilterClient('');
+    setFilterProject('');
+  }, [activeTab]);
+
   const schema = activeTab === 'accounts' ? accountSchema : transactionSchema;
 
   async function load() {
@@ -115,6 +125,20 @@ export function BankingPage() {
 
   const rows = useMemo(() => (activeTab === 'accounts' ? accounts : transactions), [activeTab, accounts, transactions]);
 
+  const filteredRows = useMemo(() => {
+    let result = rows;
+    if (activeTab === 'transactions') {
+      if (filterType) result = result.filter(r => r.transactionType === filterType);
+      if (filterBank) result = result.filter(r => String(r.bankAccountId) === String(filterBank));
+      if (filterClient) result = result.filter(r => String(r.linkedClientId) === String(filterClient));
+      if (filterProject) result = result.filter(r => String(r.linkedProjectId) === String(filterProject));
+    } else {
+      if (filterType) result = result.filter(r => r.accountType === filterType);
+      if (filterBank !== '') result = result.filter(r => String(!!r.isPrimary) === filterBank);
+    }
+    return result;
+  }, [rows, activeTab, filterType, filterBank, filterClient, filterProject]);
+
   function openCreate() {
     setActiveRecord(null);
     setEditorOpen(true);
@@ -149,28 +173,40 @@ export function BankingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Finance"
-        title="Banking"
-        description="Accounts and transaction mapping with linked clients, projects, invoices, and expenses."
-        actions={[
-          { label: 'Reload', icon: RefreshCw, variant: 'secondary', onClick: load },
-          ...(hasPermission('banking.write') ? [{ label: `Add ${schema.singular}`, icon: Plus, onClick: openCreate }] : [])
-        ]}
-      />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-main)]">Banking</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Accounts and transaction mapping with linked clients, projects, invoices, and expenses.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {hasPermission('banking.write') ? (
+            <Button onClick={openCreate} className="gap-2">
+              <Plus size={16} />
+              Add {schema.singular}
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
         {[
           ['accounts', `Accounts (${accounts.length})`],
           ['transactions', `Transactions (${transactions.length})`]
         ].map(([key, label]) => (
-          <Button key={key} type="button" variant={activeTab === key ? 'primary' : 'secondary'} size="sm" onClick={() => setActiveTab(key)}>
+          <button 
+            key={key} 
+            type="button" 
+            className={`px-5 py-2.5 text-sm font-semibold transition-all border-b-2 -mb-[1px] ${
+              activeTab === key 
+                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
+            onClick={() => setActiveTab(key)}
+          >
             {label}
-          </Button>
+          </button>
         ))}
       </div>
-
-      <Card className="space-y-4 p-4 md:p-5">
         <DataTable
           loading={loading}
           columns={(activeTab === 'accounts' ? accountSchema.columns : transactionSchema.columns).map((column) => {
@@ -182,23 +218,62 @@ export function BankingPage() {
             }
             return column;
           })}
-          rows={sortRows(rows, 'updatedAt', 'desc')}
+          rows={sortRows(filteredRows, 'updatedAt', 'desc')}
           selectable={false}
-          onCreate={hasPermission('banking.write') ? openCreate : undefined}
-          createLabel={`Add ${schema.singular}`}
+          toolbarLeft={
+            activeTab === 'transactions' ? (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-[var(--text-muted)] mr-1"><Filter size={16} /> <span className="text-sm font-medium">Filters:</span></div>
+                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                  <option value="">All Types</option>
+                  <option value="Credit">Credit</option>
+                  <option value="Debit">Debit</option>
+                  <option value="Transfer">Transfer</option>
+                  <option value="Adjustment">Adjustment</option>
+                </select>
+                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
+                  <option value="">All Banks</option>
+                  {lookups.bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber}</option>)}
+                </select>
+                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterClient} onChange={e => setFilterClient(e.target.value)}>
+                  <option value="">All Clients</option>
+                  {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+                  <option value="">All Projects</option>
+                  {lookups.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2 text-[var(--text-muted)] mr-1"><Filter size={16} /> <span className="text-sm font-medium">Filters:</span></div>
+                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                  <option value="">All Account Types</option>
+                  <option value="Current">Current</option>
+                  <option value="Savings">Savings</option>
+                  <option value="OD">OD</option>
+                  <option value="Cash Credit">Cash Credit</option>
+                </select>
+                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
+                  <option value="">Primary Status</option>
+                  <option value="true">Primary Only</option>
+                  <option value="false">Secondary Only</option>
+                </select>
+              </div>
+            )
+          }
           rowActions={
             hasPermission('banking.write')
               ? (row) => (
-                  <div className="flex justify-end">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                      Edit
-                    </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <button type="button" onClick={() => openEdit(row)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <Edit2 size={16} />
+                    </button>
                   </div>
                 )
               : undefined
           }
         />
-      </Card>
 
       <Modal
         open={editorOpen}

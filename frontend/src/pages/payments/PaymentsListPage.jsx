@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, RefreshCw, Pencil, Trash2, Search, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
@@ -13,6 +13,15 @@ import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { SearchableSelect } from '../../components/forms/SearchableSelect';
 import { PaymentFormModal } from '../../components/forms/PaymentFormModal';
+import { getInvoiceStatusTone, getPaymentStatusTone, PAYMENT_STATUS_OPTIONS } from '../../lib/paymentStatus';
+
+const TONE_COLORS = {
+  success: '#10b981',
+  warning: '#f59e0b',
+  danger: '#f43f5e',
+  info: '#0ea5e9',
+  neutral: '#64748b'
+};
 
 export function PaymentsListPage() {
   const { token, hasPermission } = useAuth();
@@ -28,7 +37,8 @@ export function PaymentsListPage() {
   const [sortKey, setSortKey] = useState('updated_at');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedIds, setSelectedIds] = useState([]);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [modeFilter, setModeFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   
   const [deleting, setDeleting] = useState(false);
@@ -40,6 +50,9 @@ export function PaymentsListPage() {
 
   const canCreate = hasPermission('payments.manage') || hasPermission('payments.write');
   const canDelete = hasPermission('payments.manage') || hasPermission('payments.delete');
+
+  const paymentStatusOptions = [{ label: 'All Payment Statuses', value: '' }, ...PAYMENT_STATUS_OPTIONS.map((status) => ({ label: status, value: status }))];
+  const modeOptions = [{ label: 'All Modes', value: '' }, ...Array.from(new Set(rows.map((r) => r.paymentMode))).filter(Boolean).map((status) => ({ label: status, value: status }))];
 
   useEffect(() => {
     let active = true;
@@ -75,20 +88,87 @@ export function PaymentsListPage() {
         const dd = String(d.getDate()).padStart(2, '0');
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const yyyy = d.getFullYear();
-        return <span className="text-sm text-slate-600">{`${dd}-${mm}-${yyyy}`}</span>;
+        const dateStr = `${dd}-${mm}-${yyyy}`;
+        
+        const valStr = String(row.paymentDate);
+        const hasTime = valStr.includes('T') && !valStr.endsWith('T00:00:00.000Z') && !valStr.endsWith('T00:00:00Z');
+        
+        if (hasTime) {
+          const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+          return <span className="text-sm text-slate-600">{`${dateStr} ${timeStr}`}</span>;
+        }
+        return <span className="text-sm text-slate-600">{dateStr}</span>;
       }
     },
     { key: 'clientId', label: 'Client', render: (row) => clients.find(c => String(c.id) === String(row.clientId))?.name || '-' },
-    { key: 'invoiceId', label: 'Invoice', render: (row) => invoices.find(i => String(i.id) === String(row.invoiceId))?.invoiceNumber || '-' },
+    {
+      key: 'invoiceId',
+      label: 'Invoice',
+      render: (row) => {
+        const invoice = invoices.find(i => String(i.id) === String(row.invoiceId));
+        return invoice?.invoiceNumber || '-';
+      }
+    },
+    {
+      key: 'invoiceStatus',
+      label: 'Invoice Status',
+      sortable: false,
+      render: (row) => {
+        const invoice = invoices.find(i => String(i.id) === String(row.invoiceId));
+        if (!invoice) return <span className="text-slate-400">-</span>;
+        const status = invoice.status || 'Sent';
+        const color = TONE_COLORS[getInvoiceStatusTone(status)] || TONE_COLORS.neutral;
+        return (
+          <span
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border uppercase tracking-[0.16em]"
+            style={{ backgroundColor: `${color}1A`, color: color, borderColor: `${color}33` }}
+          >
+            {status}
+          </span>
+        );
+      }
+    },
+
     { key: 'amountReceived', label: 'Received', align: 'right', type: 'money' },
-    { key: 'paymentMode', label: 'Mode' }
+    {
+      key: 'balanceDue',
+      label: 'Balance Due',
+      align: 'right',
+      sortable: false,
+      render: (row) => {
+        const invoice = invoices.find(i => String(i.id) === String(row.invoiceId));
+        if (!invoice) return <span className="text-slate-400">-</span>;
+        return <span className="font-medium text-[var(--text-main)]">{Number(invoice.balanceDue || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 })}</span>;
+      }
+    },
+    { key: 'paymentMode', label: 'Mode' },
+    {
+      key: 'paymentStatus',
+      label: 'Payment Status',
+      render: (row) => {
+        const status = row.paymentStatus || 'Received';
+        const color = TONE_COLORS[getPaymentStatusTone(status)] || TONE_COLORS.neutral;
+        return (
+          <span
+            className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border uppercase tracking-[0.16em]"
+            style={{ backgroundColor: `${color}1A`, color: color, borderColor: `${color}33` }}
+          >
+            {status}
+          </span>
+        );
+      }
+    }
   ];
 
   const sortedRows = useMemo(() => {
     let filtered = [...rows];
 
-    if (statusFilter) {
-      filtered = filtered.filter(r => r.paymentMode === statusFilter);
+    if (paymentStatusFilter) {
+      filtered = filtered.filter(r => String(r.paymentStatus || 'Received') === String(paymentStatusFilter));
+    }
+
+    if (modeFilter) {
+      filtered = filtered.filter(r => r.paymentMode === modeFilter);
     }
 
     if (dateFilter) {
@@ -103,7 +183,7 @@ export function PaymentsListPage() {
       }
       return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
     });
-  }, [rows, sortKey, sortDirection, statusFilter, dateFilter]);
+  }, [rows, sortKey, sortDirection, paymentStatusFilter, modeFilter, dateFilter]);
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -152,13 +232,20 @@ export function PaymentsListPage() {
             <div className="flex items-center gap-3">
               <div className="w-48">
                 <SearchableSelect
-                  value={statusFilter}
-                  onChange={val => { setStatusFilter(val); setPage(1); }}
-                  options={[
-                    { label: 'All Modes', value: '' },
-                    ...Array.from(new Set(rows.map(r => r.paymentMode))).filter(Boolean).map(s => ({ label: s, value: s }))
-                  ]}
+                  value={paymentStatusFilter}
+                  onChange={val => { setPaymentStatusFilter(val); setPage(1); }}
+                  options={paymentStatusOptions}
+                  placeholder="All Payment Statuses"
+                  searchPlaceholder="Search payment status..."
+                />
+              </div>
+              <div className="w-40">
+                <SearchableSelect
+                  value={modeFilter}
+                  onChange={val => { setModeFilter(val); setPage(1); }}
+                  options={modeOptions}
                   placeholder="All Modes"
+                  searchPlaceholder="Search mode..."
                 />
               </div>
               <Input

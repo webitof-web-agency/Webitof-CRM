@@ -286,6 +286,7 @@ CREATE TABLE IF NOT EXISTS payments (
   invoice_id text REFERENCES invoices(id) ON DELETE SET NULL,
   amount_received numeric(14,2) NOT NULL DEFAULT 0,
   tds_deducted numeric(14,2) NOT NULL DEFAULT 0,
+  payment_status text NOT NULL DEFAULT 'Received',
   payment_mode text,
   bank_account_id text,
   transaction_id text,
@@ -300,6 +301,11 @@ CREATE TABLE IF NOT EXISTS expenses (
   expense_date date NOT NULL,
   vendor text NOT NULL,
   vendor_id text REFERENCES master_items(id) ON DELETE SET NULL,
+  expense_type text NOT NULL DEFAULT 'Vendor Bill',
+  payee_type text NOT NULL DEFAULT 'Vendor',
+  payee_id text,
+  payee_name text,
+  employee_id text REFERENCES users(id) ON DELETE SET NULL,
   category_id text REFERENCES master_items(id) ON DELETE SET NULL,
   client_id text REFERENCES clients(id) ON DELETE SET NULL,
   project_id text REFERENCES projects(id) ON DELETE SET NULL,
@@ -309,10 +315,24 @@ CREATE TABLE IF NOT EXISTS expenses (
   total_amount numeric(14,2) NOT NULL DEFAULT 0,
   invoice_number text,
   vendor_gstin text,
+  tds_applicable boolean NOT NULL DEFAULT false,
+  tds_section text,
+  tds_rate numeric(8,2) NOT NULL DEFAULT 0,
+  tds_amount numeric(14,2) NOT NULL DEFAULT 0,
+  status text NOT NULL DEFAULT 'Draft',
+  approval_status text NOT NULL DEFAULT 'Pending',
+  payment_status text NOT NULL DEFAULT 'Unpaid',
+  period_start date,
+  period_end date,
+  due_date date,
+  paid_amount numeric(14,2) NOT NULL DEFAULT 0,
+  balance_due numeric(14,2) NOT NULL DEFAULT 0,
   payment_mode text,
   bank_account_id text,
   itc_eligible boolean NOT NULL DEFAULT true,
   rcm_applicable boolean NOT NULL DEFAULT false,
+  cost_center text,
+  attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
   attachment_url text,
   notes text,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -336,7 +356,13 @@ CREATE TABLE IF NOT EXISTS outsourcing_expenses (
   gst_amount numeric(14,2) NOT NULL DEFAULT 0,
   total_amount numeric(14,2) NOT NULL DEFAULT 0,
   itc_eligible boolean NOT NULL DEFAULT true,
+  approval_status text NOT NULL DEFAULT 'Pending',
+  due_date date,
   payment_status text NOT NULL DEFAULT 'Pending',
+  reminder_days integer NOT NULL DEFAULT 7,
+  last_reminder_sent_at timestamptz,
+  last_reminder_sent_for_date date,
+  last_automation_run_at timestamptz,
   vendor_invoice_number text,
   vendor_invoice_url text,
   payment_proof_url text,
@@ -412,6 +438,7 @@ CREATE TABLE IF NOT EXISTS amcs (
   id text PRIMARY KEY,
   client_id text REFERENCES clients(id) ON DELETE SET NULL,
   project_id text REFERENCES projects(id) ON DELETE SET NULL,
+  title text NOT NULL DEFAULT '',
   amc_type text NOT NULL,
   start_date date,
   end_date date,
@@ -423,6 +450,22 @@ CREATE TABLE IF NOT EXISTS amcs (
   status text NOT NULL DEFAULT 'Active',
   auto_invoice boolean NOT NULL DEFAULT false,
   remarks text,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS amc_automation_logs (
+  id text PRIMARY KEY,
+  amc_id text NOT NULL REFERENCES amcs(id) ON DELETE CASCADE,
+  run_id text NOT NULL,
+  run_source text NOT NULL DEFAULT 'manual',
+  action text NOT NULL,
+  status text NOT NULL DEFAULT 'Success',
+  due_date date,
+  invoice_id text REFERENCES invoices(id) ON DELETE SET NULL,
+  invoice_number text,
+  message text,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -450,6 +493,7 @@ CREATE TABLE IF NOT EXISTS renewals (
   renewal_cost numeric(14,2) NOT NULL DEFAULT 0,
   client_charge numeric(14,2) NOT NULL DEFAULT 0,
   reminder_date date,
+  reminder_days integer NOT NULL DEFAULT 30,
   auto_renewal boolean NOT NULL DEFAULT false,
   finance_action text NOT NULL DEFAULT 'None',
   finance_entry_id text,
@@ -457,7 +501,53 @@ CREATE TABLE IF NOT EXISTS renewals (
   source_invoice_id text,
   source_expense_id text,
   status text NOT NULL DEFAULT 'Pending',
+  last_reminder_sent_at timestamptz,
+  last_reminder_sent_for_date date,
+  last_automation_run_at timestamptz,
   remarks text,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS workflow_automation_logs (
+  id text PRIMARY KEY,
+  module_name text NOT NULL,
+  entity_id text NOT NULL,
+  run_id text NOT NULL,
+  run_source text NOT NULL DEFAULT 'manual',
+  action text NOT NULL,
+  status text NOT NULL DEFAULT 'Success',
+  due_date date,
+  reference_id text,
+  reference_name text,
+  message text,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id text PRIMARY KEY,
+  recipient_type text NOT NULL DEFAULT 'user',
+  user_id text REFERENCES users(id) ON DELETE CASCADE,
+  client_id text REFERENCES clients(id) ON DELETE CASCADE,
+  module_name text NOT NULL,
+  event_key text NOT NULL,
+  entity_type text NOT NULL DEFAULT '',
+  entity_id text NOT NULL DEFAULT '',
+  title text NOT NULL,
+  message text NOT NULL,
+  severity text NOT NULL DEFAULT 'info',
+  is_read boolean NOT NULL DEFAULT false,
+  read_at timestamptz,
+  email_to text,
+  email_status text NOT NULL DEFAULT 'pending',
+  email_sent_at timestamptz,
+  email_error text,
+  actor_user_id text REFERENCES users(id) ON DELETE SET NULL,
+  route_path text,
+  channels jsonb NOT NULL DEFAULT '[]'::jsonb,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -471,6 +561,7 @@ CREATE INDEX IF NOT EXISTS idx_clients_mobile ON clients(mobile);
 CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_client_id ON invoices(client_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_project_id ON invoices(project_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_source_amc_id ON invoices(source_amc_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(invoice_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_client_id ON expenses(client_id);
@@ -479,4 +570,17 @@ CREATE INDEX IF NOT EXISTS idx_outsourcing_project_id ON outsourcing_expenses(pr
 CREATE INDEX IF NOT EXISTS idx_lead_commissions_project_id ON lead_commissions(project_id);
 CREATE INDEX IF NOT EXISTS idx_bank_transactions_bank_account_id ON bank_transactions(bank_account_id);
 CREATE INDEX IF NOT EXISTS idx_amcs_client_id ON amcs(client_id);
+CREATE INDEX IF NOT EXISTS idx_amc_automation_logs_amc_id ON amc_automation_logs(amc_id);
+CREATE INDEX IF NOT EXISTS idx_amc_automation_logs_run_id ON amc_automation_logs(run_id);
+CREATE INDEX IF NOT EXISTS idx_amc_automation_logs_created_at ON amc_automation_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_module_name ON workflow_automation_logs(module_name);
+CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_entity_id ON workflow_automation_logs(entity_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_run_id ON workflow_automation_logs(run_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_automation_logs_created_at ON workflow_automation_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_renewals_client_id ON renewals(client_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_client_id ON notifications(client_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_module_name ON notifications(module_name);
+CREATE INDEX IF NOT EXISTS idx_notifications_event_key ON notifications(event_key);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);

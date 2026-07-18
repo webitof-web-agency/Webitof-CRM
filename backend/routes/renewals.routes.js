@@ -6,6 +6,9 @@ const router = express.Router();
 
 router.get('/', requirePermission('renewals.read'), controller.list);
 router.post('/', requirePermission('renewals.write'), controller.create);
+router.post('/automation/run', requirePermission('renewals.write'), controller.runAutomation);
+router.get('/automation/summary', requirePermission('renewals.read'), controller.getAutomationSummary);
+router.get('/:id/automation-history', requirePermission('renewals.read'), controller.getAutomationHistory);
 router.get('/:id', requirePermission('renewals.read'), controller.getById);
 router.put('/:id', requirePermission('renewals.write'), controller.update);
 router.delete('/:id', requirePermission('renewals.delete'), controller.remove);

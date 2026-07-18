@@ -2,10 +2,31 @@ const { createCrudController } = require('./crudController');
 const projectModel = require('../models/project.model');
 const { buildProjectSummary } = require('../services/analytics.service');
 const { cleanupRemovedAttachments } = require('../services/attachmentCleanup.service');
+const { notifyBusinessEvent } = require('../services/notification.service');
 
 const projectsController = createCrudController(projectModel, {
   defaultOrder: 'updated_at DESC'
 });
+
+projectsController.create = async (req, res, next) => {
+  try {
+    const record = await projectModel.create(req.body || {});
+    notifyBusinessEvent({
+      moduleName: 'projects',
+      eventKey: 'created',
+      entity: record,
+      clientId: record.clientId || null,
+      title: 'Project created',
+      message: `${record.title || 'Project'} was created.`,
+      actorUserId: req.user?.id || null,
+      notifyClient: Boolean(record.clientId),
+      routePath: `/app/projects/${record.id}`
+    }).catch(() => {});
+    res.status(201).json({ success: true, data: record });
+  } catch (error) {
+    next(error);
+  }
+};
 
 projectsController.update = async (req, res, next) => {
   try {
@@ -19,6 +40,18 @@ projectsController.update = async (req, res, next) => {
       moduleName: 'projects',
       entityId: req.params.id
     });
+
+    notifyBusinessEvent({
+      moduleName: 'projects',
+      eventKey: 'updated',
+      entity: record,
+      clientId: record.clientId || null,
+      title: 'Project updated',
+      message: `${record.title || 'Project'} was updated.`,
+      actorUserId: req.user?.id || null,
+      notifyClient: Boolean(record.clientId),
+      routePath: `/app/projects/${record.id}`
+    }).catch(() => {});
 
     res.json({ success: true, data: record });
   } catch (error) {
@@ -42,6 +75,18 @@ projectsController.remove = async (req, res, next) => {
       moduleName: 'projects',
       entityId: req.params.id
     });
+
+    notifyBusinessEvent({
+      moduleName: 'projects',
+      eventKey: 'deleted',
+      entity: current,
+      clientId: current.clientId || null,
+      title: 'Project deleted',
+      message: `${current.title || 'Project'} was deleted.`,
+      severity: 'warning',
+      actorUserId: req.user?.id || null,
+      notifyClient: Boolean(current.clientId)
+    }).catch(() => {});
 
     res.json({ success: true, message: 'Deleted successfully' });
   } catch (error) {

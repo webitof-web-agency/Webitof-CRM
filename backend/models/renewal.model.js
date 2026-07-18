@@ -24,6 +24,7 @@ module.exports = createRepository({
     column({ key: 'renewalCost', db: 'renewal_cost', type: 'number' }),
     column({ key: 'clientCharge', db: 'client_charge', type: 'number' }),
     column({ key: 'reminderDate', db: 'reminder_date', type: 'date' }),
+    column({ key: 'reminderDays', db: 'reminder_days', type: 'number' }),
     column({ key: 'autoRenewal', db: 'auto_renewal', type: 'boolean' }),
     column({ key: 'financeAction', db: 'finance_action' }),
     column({ key: 'financeEntryId', db: 'finance_entry_id' }),
@@ -31,6 +32,9 @@ module.exports = createRepository({
     column({ key: 'sourceInvoiceId', db: 'source_invoice_id' }),
     column({ key: 'sourceExpenseId', db: 'source_expense_id' }),
     column({ key: 'status', db: 'status' }),
+    column({ key: 'lastReminderSentAt', db: 'last_reminder_sent_at' }),
+    column({ key: 'lastReminderSentForDate', db: 'last_reminder_sent_for_date', type: 'date' }),
+    column({ key: 'lastAutomationRunAt', db: 'last_automation_run_at' }),
     column({ key: 'remarks', db: 'remarks' })
   ],
   searchColumns: ['category', 'domain_name', 'hosting_name', 'software_name', 'provider', 'status']

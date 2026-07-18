@@ -4,7 +4,8 @@ import { Checkbox } from '../ui/Checkbox';
 import { Input, Textarea } from '../ui/Input';
 import { SearchableSelect } from './SearchableSelect';
 import { PhoneInput } from './PhoneInput';
-import { buildInitialDraft, getFieldOptions, isLookupField, serializeDraft } from '../../lib/resource';
+import { AttachmentPicker } from '../ui/AttachmentPicker';
+import { buildInitialDraft, getFieldOptions, isFieldVisible, isLookupField, serializeDraft } from '../../lib/resource';
 import { cn } from '../../lib/cn';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../../data/indiaLocations';
 
@@ -13,7 +14,7 @@ function FieldLabel({ field, compact = false }) {
     <div className={cn(compact ? 'pt-1' : 'mb-2')}>
       <label className={cn('text-sm font-medium text-[var(--text)]', compact && 'block')}>
         {field.label}
-        {field.required ? <span className="ml-1 text-[var(--accent)]">*</span> : null}
+        {field.required ? <span className="ml-1 text-rose-500">*</span> : null}
       </label>
       {field.description ? <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{field.description}</p> : null}
     </div>
@@ -53,6 +54,11 @@ export function ResourceForm({
     [fields, lookups]
   );
 
+  const visibleFields = useMemo(
+    () => enrichedFields.filter((field) => isFieldVisible(field, draft)),
+    [draft, enrichedFields]
+  );
+
   function updateField(name, nextValue) {
     setDraft((current) => {
       const next = { ...current, [name]: nextValue };
@@ -64,6 +70,71 @@ export function ResourceForm({
         if ('city' in current) next.city = '';
         if ('placeOfSupply' in current) next.placeOfSupply = '';
       }
+
+      if (name === 'expenseType') {
+        if (String(nextValue) === 'Employee Salary') {
+          next.payeeType = 'Employee';
+          next.vendorId = '';
+          next.vendor = '';
+          next.vendorGstin = '';
+          next.amountBeforeGst = '';
+          next.gstRate = 0;
+          next.gstAmount = 0;
+          next.totalAmount = '';
+          next.paidAmount = '';
+          next.balanceDue = '';
+          next.periodStart = '';
+          next.periodEnd = '';
+        } else if (String(nextValue) === 'Reimbursement') {
+          next.payeeType = 'Employee';
+          next.vendorId = '';
+          next.vendor = '';
+          next.vendorGstin = '';
+          next.gstRate = 0;
+          next.gstAmount = 0;
+        } else {
+          if (String(current.expenseType) === 'Employee Salary' || String(current.payeeType) === 'Employee') {
+            next.payeeType = 'Vendor';
+            next.employeeId = '';
+          } else if (!next.payeeType) {
+            next.payeeType = 'Vendor';
+          }
+        }
+      }
+
+      if (name === 'payeeType') {
+        if (String(nextValue) === 'Vendor') {
+          next.employeeId = '';
+          next.clientId = next.clientId || '';
+        }
+        if (String(nextValue) === 'Employee') {
+          next.vendorId = '';
+          next.vendor = '';
+          next.vendorGstin = '';
+        }
+        if (String(nextValue) === 'Client') {
+          next.vendorId = '';
+          next.employeeId = '';
+          next.vendorGstin = '';
+        }
+        if (String(nextValue) === 'Internal' || String(nextValue) === 'Other') {
+          next.vendorId = '';
+          next.employeeId = '';
+          next.clientId = '';
+          next.vendorGstin = '';
+        }
+      }
+
+      if (name === 'vendorId') {
+        next.payeeId = nextValue;
+        next.payeeType = next.payeeType || 'Vendor';
+      }
+
+      if (name === 'employeeId') {
+        next.payeeId = nextValue;
+        next.payeeType = next.payeeType || 'Employee';
+      }
+
       return next;
     });
   }
@@ -120,7 +191,8 @@ export function ResourceForm({
                     checked={String(value || '') === String(optionValue)}
                     onChange={(event) => updateField(field.name, event.target.value)}
                     disabled={busy}
-                    className="h-4 w-4 border-slate-300 text-[var(--accent)] focus:ring-[var(--accent)]"
+                    className="h-4 w-4 border-slate-300"
+                    style={{ accentColor: 'var(--primary)' }}
                   />
                   <span>{optionLabel}</span>
                 </label>
@@ -216,6 +288,25 @@ export function ResourceForm({
         );
       }
 
+      if (field.type === 'attachment') {
+        const fieldAttachments = Array.isArray(value) ? value : [];
+        return (
+          <AttachmentPicker
+            attachments={fieldAttachments}
+            uploadModule="expenses"
+            uploadEntityId={draft.id || 'draft'}
+            onAddFile={(file) => {
+              if (!file) return;
+              if (fieldAttachments.some(a => String(a.driveFileId || a.id) === String(file.driveFileId || file.id))) return;
+              updateField(field.name, [file, ...fieldAttachments]);
+            }}
+            onRemoveFile={(driveFileId) => {
+              updateField(field.name, fieldAttachments.filter((item) => String(item.driveFileId || item.id) !== String(driveFileId)));
+            }}
+          />
+        );
+      }
+
       return (
         <Input
           {...commonProps}
@@ -254,11 +345,11 @@ export function ResourceForm({
       ) : null}
 
       <div className={cn(labelPlacement === 'left' ? 'space-y-5' : 'grid gap-5 md:grid-cols-2')}>
-        {enrichedFields.map(renderField)}
+        {visibleFields.map(renderField)}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
-        <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
+      <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-wrap items-center justify-end gap-3 rounded-b-2xl border-t border-slate-200 bg-slate-50 px-6 py-4 z-10">
+        <Button type="button" variant="outline" className="bg-white shadow-sm" onClick={onCancel} disabled={busy}>
           {cancelLabel}
         </Button>
         <Button type="submit" disabled={busy}>

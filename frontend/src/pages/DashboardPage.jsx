@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { RefreshCw, ShieldCheck, BriefcaseBusiness, FileText, Wallet, Banknote, BarChart3, TrendingUp, CheckCircle2, MoreVertical, CreditCard, CalendarCheck, Users, Receipt, UploadCloud, Zap, Clock, Folder, ArrowDownToLine, PieChart, LineChart, UserPlus, CloudUpload, Rocket } from 'lucide-react';
+import { RefreshCw, ShieldCheck, BriefcaseBusiness, FileText, Wallet, Banknote, BarChart3, TrendingUp, CheckCircle2, MoreVertical, CreditCard, CalendarCheck, Users, Receipt, UploadCloud, Zap, Clock, Folder, ArrowDownToLine, PieChart, LineChart, UserPlus, CloudUpload, Rocket, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -345,7 +345,7 @@ export function DashboardPage() {
               {stat.sub && <p className="text-[9px] md:text-[10px] text-slate-400 mt-1">{stat.sub}</p>}
             </div>
           </Card>
-        ))}
+        ))} 
       </div>
 
       {/* Main Grid Row 3 */}
@@ -526,17 +526,20 @@ export function DashboardPage() {
           </div>
           
           <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <div className="w-20 h-20 mb-3 opacity-40">
-              <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="30" y="25" width="40" height="50" rx="4" fill="#94A3B8"/>
-                <rect x="40" y="35" width="20" height="4" rx="2" fill="#E2E8F0"/>
-                <rect x="40" y="45" width="10" height="4" rx="2" fill="#E2E8F0"/>
-                <circle cx="65" cy="70" r="14" fill="#64748B"/>
-                <circle cx="55" cy="75" r="14" fill="#94A3B8"/>
-              </svg>
+            <div className="relative z-10 mb-6 flex items-center justify-center">
+              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl bg-indigo-100 p-3 shadow-inner">
+                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full bg-indigo-50 mix-blend-multiply blur-xl"></div>
+                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl bg-indigo-200"></div>
+                <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
+                <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
+                <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
+                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 shadow-lg border-4 border-white transform rotate-12">
+                  <Search size={20} className="text-white" />
+                </div>
+              </div>
             </div>
-            <h4 className="text-slate-800 text-[11px] font-bold mb-1">No records found</h4>
-            <p className="text-slate-400 text-[10px]">There is nothing to show yet.</p>
+            <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No records found</h4>
+            <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
           </div>
         </Card>
 
@@ -554,17 +557,20 @@ export function DashboardPage() {
           </div>
           
           <div className="flex-1 flex flex-col items-center justify-center text-center">
-             <div className="w-20 h-20 mb-3 opacity-40">
-              <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="25" y="35" width="50" height="40" rx="6" fill="#94A3B8"/>
-                <path d="M25 45H75" stroke="#E2E8F0" strokeWidth="4"/>
-                <rect x="35" y="25" width="8" height="15" rx="4" fill="#64748B"/>
-                <rect x="57" y="25" width="8" height="15" rx="4" fill="#64748B"/>
-                <circle cx="65" cy="75" r="12" fill="#64748B"/>
-              </svg>
+            <div className="relative z-10 mb-6 flex items-center justify-center">
+              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl bg-indigo-100 p-3 shadow-inner">
+                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full bg-indigo-50 mix-blend-multiply blur-xl"></div>
+                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl bg-indigo-200"></div>
+                <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
+                <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
+                <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
+                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 shadow-lg border-4 border-white transform rotate-12">
+                  <Search size={20} className="text-white" />
+                </div>
+              </div>
             </div>
-            <h4 className="text-slate-800 text-[11px] font-bold mb-1">No records found</h4>
-            <p className="text-slate-400 text-[10px]">There is nothing to show yet.</p>
+            <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No records found</h4>
+            <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
           </div>
         </Card>
 
@@ -572,3 +578,4 @@ export function DashboardPage() {
     </div>
   );
 }
+

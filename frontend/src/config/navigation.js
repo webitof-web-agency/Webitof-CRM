@@ -4,6 +4,7 @@ import {
   Boxes,
   BriefcaseBusiness,
   Building2,
+  Bell,
   LayoutDashboard,
   LucideFileText,
   MessageSquareText,
@@ -16,7 +17,8 @@ import {
   FileArchive,
   Cog,
   UserCog,
-  Target
+  Target,
+  AlarmClock
 } from 'lucide-react';
 
 export const navigationGroups = [
@@ -29,7 +31,9 @@ export const navigationGroups = [
       { label: 'Projects', path: '/app/projects', icon: BriefcaseBusiness, permission: 'projects.read' },
       { label: 'Invoices', path: '/app/invoices', icon: ReceiptText, permission: 'invoices.read' },
       { label: 'Payments', path: '/app/payments', icon: Banknote, permission: 'payments.read' },
-      { label: 'Finance', path: '/app/finance', icon: CircleDollarSign, permission: 'reports.view' }
+      { label: 'Finance', path: '/app/finance', icon: CircleDollarSign, permission: 'reports.view' },
+      { label: 'Notifications', path: '/app/notifications', icon: Bell },
+      { label: 'Automation', path: '/app/automation', icon: AlarmClock, permission: 'reports.view' }
     ]
   },
   {

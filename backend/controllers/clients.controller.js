@@ -4,6 +4,7 @@ const clientContactModel = require('../models/clientContact.model');
 const { withTransaction } = require('../config/db');
 const { buildClientSummary } = require('../services/analytics.service');
 const { cleanupRemovedAttachments } = require('../services/attachmentCleanup.service');
+const { notifyBusinessEvent } = require('../services/notification.service');
 
 const clientsController = createCrudController(clientModel, {
   defaultOrder: 'updated_at DESC'
@@ -69,6 +70,16 @@ clientsController.create = async (req, res, next) => {
       return created;
     });
 
+    notifyBusinessEvent({
+      moduleName: 'clients',
+      eventKey: 'created',
+      entity: record,
+      title: 'Client created',
+      message: `${record.name || record.companyName || 'Client'} was created.`,
+      actorUserId: req.user?.id || null,
+      routePath: `/app/clients/${record.id}`
+    }).catch(() => {});
+
     res.status(201).json({ success: true, data: record });
   } catch (error) {
     next(error);
@@ -104,6 +115,16 @@ clientsController.update = async (req, res, next) => {
       entityId: req.params.id
     });
 
+    notifyBusinessEvent({
+      moduleName: 'clients',
+      eventKey: 'updated',
+      entity: record,
+      title: 'Client updated',
+      message: `${record.name || record.companyName || 'Client'} was updated.`,
+      actorUserId: req.user?.id || null,
+      routePath: `/app/clients/${record.id}`
+    }).catch(() => {});
+
     res.json({ success: true, data: record });
   } catch (error) {
     next(error);
@@ -126,6 +147,16 @@ clientsController.remove = async (req, res, next) => {
       moduleName: 'clients',
       entityId: req.params.id
     });
+
+    notifyBusinessEvent({
+      moduleName: 'clients',
+      eventKey: 'deleted',
+      entity: current,
+      title: 'Client deleted',
+      message: `${current.name || current.companyName || 'Client'} was deleted.`,
+      severity: 'warning',
+      actorUserId: req.user?.id || null
+    }).catch(() => {});
 
     res.json({ success: true, message: 'Deleted successfully' });
   } catch (error) {

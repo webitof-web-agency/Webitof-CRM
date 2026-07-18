@@ -10,6 +10,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Select } from '../../components/ui/Select';
 import { PageLoader } from '../../components/ui/Loader';
+import { PAYMENT_STATUS_OPTIONS } from '../../lib/paymentStatus';
 
 export function PaymentBuilderPage() {
   const { id } = useParams();
@@ -30,6 +31,7 @@ export function PaymentBuilderPage() {
     invoiceId: location.state?.invoiceId || '',
     amountReceived: '',
     tdsDeducted: 0,
+    paymentStatus: 'Received',
     paymentMode: 'Bank Transfer',
     bankAccountId: '',
     transactionId: '',
@@ -56,6 +58,7 @@ export function PaymentBuilderPage() {
             setDraft({
               ...payRes.data,
               paymentDate: payRes.data.paymentDate?.slice(0, 10) || '',
+              paymentStatus: payRes.data.paymentStatus || 'Received'
             });
           }
         } else if (location.state?.invoiceId) {
@@ -151,6 +154,17 @@ export function PaymentBuilderPage() {
               min="0"
               value={draft.amountReceived}
               onChange={(e) => setDraft(d => ({ ...d, amountReceived: e.target.value }))}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-[var(--text-main)]">Payment Status</label>
+            <Select
+              options={PAYMENT_STATUS_OPTIONS.map(status => ({ value: status, label: status }))}
+              value={draft.paymentStatus}
+              onChange={(val) => setDraft(d => ({ ...d, paymentStatus: val }))}
+              placeholder="Select Status"
+              searchable={false}
             />
           </div>
 

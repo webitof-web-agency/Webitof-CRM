@@ -24,6 +24,8 @@ const lookupSourceByFieldName = {
   linkedClientId: 'clients',
   partnerId: 'vendors',
   vendorId: 'vendors',
+  employeeId: 'users',
+  payeeId: 'users',
   categoryId: 'expenseCategories',
   providerId: 'renewalProviders',
   amcType: 'amcTypes',
@@ -63,6 +65,36 @@ function lookupDescription(item = {}, field = {}) {
     return String(item[descriptionKey]);
   }
 
+  if (field.lookupKey === 'expenseCategories' || lookupSourceByFieldName[field.name] === 'expenseCategories') {
+    const payload = item.payload || {};
+    const metaBits = [
+      payload.group,
+      payload.isPayroll ? 'Payroll' : '',
+      payload.requiresEmployee ? 'Employee' : '',
+      payload.requiresInvoice ? 'Invoice' : '',
+      typeof payload.defaultGstRate === 'number' ? `GST ${payload.defaultGstRate}%` : '',
+      payload.itcEligible === false ? 'No ITC' : ''
+    ].filter(Boolean);
+    if (metaBits.length) return metaBits.join(' • ');
+  }
+
+  if (field.lookupKey === 'amcTypes' || lookupSourceByFieldName[field.name] === 'amcTypes') {
+    const payload = item.payload || {};
+    const metaBits = [
+      payload.group,
+      payload.defaultBillingCycle ? `Default ${payload.defaultBillingCycle}` : '',
+      payload.autoInvoice ? 'Auto invoice' : '',
+      payload.supportHours ? `${payload.supportHours}h support` : '',
+      payload.responseSlaHours ? `${payload.responseSlaHours}h SLA` : ''
+    ].filter(Boolean);
+    if (metaBits.length) return metaBits.join(' • ');
+  }
+
+  if (field.lookupKey === 'billingCycles') {
+    const payload = item.payload || {};
+    return payload.months ? `${payload.months} month${payload.months === 1 ? '' : 's'}` : String(item.description || item.type || '');
+  }
+
   return String(item.description || item.status || item.type || item.module || item.action || '');
 }
 
@@ -90,6 +122,16 @@ export function getFieldOptions(field, lookups = {}) {
         value: client.id,
         label: client.companyName ? formatLookupLabel([client.companyName, client.name]) : client.name,
         description: formatLookupLabel([client.email, client.mobile])
+      })
+    );
+  }
+
+  if (field.name === 'employeeId') {
+    return getLookupItems(field, lookups).map((user) =>
+      normalizeOption({
+        value: user.id,
+        label: user.fullName || user.username || user.email || user.id,
+        description: formatLookupLabel([user.email, user.salary ? `Salary ${user.salary}` : '', user.isActive === false ? 'Inactive' : 'Active'])
       })
     );
   }
@@ -167,6 +209,38 @@ export function getFieldOptions(field, lookups = {}) {
   return Array.isArray(field.options) ? field.options.map(normalizeOption) : [];
 }
 
+function getVisibleWhenValue(value, draft = {}, field = {}) {
+  if (typeof value === 'function') return value(draft, field);
+  if (value == null) return true;
+
+  if (typeof value === 'boolean') return value;
+
+  if (typeof value === 'string') {
+    return Boolean(draft[value]);
+  }
+
+  if (Array.isArray(value)) {
+    return value.some((item) => getVisibleWhenValue(item, draft, field));
+  }
+
+  if (typeof value === 'object') {
+    const current = draft[value.field];
+    if (Object.prototype.hasOwnProperty.call(value, 'equals')) return String(current ?? '') === String(value.equals ?? '');
+    if (Object.prototype.hasOwnProperty.call(value, 'notEquals')) return String(current ?? '') !== String(value.notEquals ?? '');
+    if (Array.isArray(value.in)) return value.in.map((item) => String(item)).includes(String(current ?? ''));
+    if (Array.isArray(value.notIn)) return !value.notIn.map((item) => String(item)).includes(String(current ?? ''));
+    if (Object.prototype.hasOwnProperty.call(value, 'exists')) return value.exists ? current != null && current !== '' : current == null || current === '';
+    if (Object.prototype.hasOwnProperty.call(value, 'truthy')) return value.truthy ? Boolean(current) : !Boolean(current);
+  }
+
+  return true;
+}
+
+export function isFieldVisible(field = {}, draft = {}) {
+  if (!field?.visibleWhen) return true;
+  return getVisibleWhenValue(field.visibleWhen, draft, field);
+}
+
 export function buildInitialDraft(fields = [], record = {}) {
   return fields.reduce((draft, field) => {
     const current = record[field.name];
@@ -176,7 +250,7 @@ export function buildInitialDraft(fields = [], record = {}) {
       return draft;
     }
 
-    if (field.type === 'multiselect') {
+    if (field.type === 'multiselect' || field.type === 'attachment') {
       draft[field.name] = Array.isArray(current) ? current : Array.isArray(field.defaultValue) ? field.defaultValue : [];
       return draft;
     }
@@ -213,7 +287,7 @@ export function serializeDraft(fields = [], draft = {}) {
       continue;
     }
 
-    if (field.type === 'multiselect') {
+    if (field.type === 'multiselect' || field.type === 'attachment') {
       payload[field.name] = Array.isArray(value) ? value.filter(Boolean) : [];
       continue;
     }
@@ -278,7 +352,30 @@ export function formatDisplayValue(value, type) {
   }
 
   if (type === 'date') {
-    return String(value).slice(0, 10);
+    const raw = String(value);
+    const dateObj = new Date(raw);
+    if (Number.isNaN(dateObj.getTime())) return raw.slice(0, 10);
+    
+    // Check if it's a date-only string (YYYY-MM-DD) or has zeroed time
+    const isDateOnly = raw.length === 10 || raw.endsWith('T00:00:00.000Z') || (dateObj.getUTCHours() === 0 && dateObj.getUTCMinutes() === 0);
+    
+    const pad = (n) => String(n).padStart(2, '0');
+    const day = pad(dateObj.getDate());
+    const month = pad(dateObj.getMonth() + 1);
+    const year = dateObj.getFullYear();
+    
+    if (isDateOnly) {
+      return `${day}-${month}-${year}`;
+    }
+    
+    let hours = dateObj.getHours();
+    const minutes = pad(dateObj.getMinutes());
+    const seconds = pad(dateObj.getSeconds());
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    
+    return `${day}-${month}-${year} ${pad(hours)}:${minutes}:${seconds} ${ampm}`;
   }
 
   if (type === 'badge') {

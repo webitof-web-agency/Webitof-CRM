@@ -7,6 +7,7 @@ import { Modal } from '../ui/Modal';
 import { Input, Textarea } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { SearchableSelect } from './SearchableSelect';
+import { PAYMENT_STATUS_OPTIONS } from '../../lib/paymentStatus';
 
 function PaymentFormRow({ label, children, required }) {
   return (
@@ -36,6 +37,7 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
     invoiceId: '',
     amountReceived: '',
     tdsDeducted: 0,
+    paymentStatus: 'Received',
     paymentMode: 'Bank Transfer',
     transactionId: '',
     notes: ''
@@ -70,7 +72,8 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
             ...prev,
             clientId: initialData.clientId || '',
             invoiceId: initialData.invoiceId || '',
-            amountReceived: initialData.amountReceived || prev.amountReceived
+            amountReceived: initialData.amountReceived || prev.amountReceived,
+            paymentStatus: initialData.paymentStatus || prev.paymentStatus
           }));
         } else {
             setDraft({
@@ -79,6 +82,7 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
                 invoiceId: '',
                 amountReceived: '',
                 tdsDeducted: 0,
+                paymentStatus: 'Received',
                 paymentMode: 'Bank Transfer',
                 transactionId: '',
                 notes: ''
@@ -125,6 +129,7 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
     }));
   
   const modeOptions = ['Bank Transfer', 'UPI', 'Cheque', 'Cash', 'Credit Card'].map(m => ({ value: m, label: m }));
+  const statusOptions = PAYMENT_STATUS_OPTIONS.map((status) => ({ value: status, label: status }));
 
   return (
     <Modal
@@ -181,6 +186,16 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
               min="0"
               value={draft.amountReceived}
               onChange={(e) => setDraft(d => ({ ...d, amountReceived: e.target.value }))}
+            />
+          </PaymentFormRow>
+
+          <PaymentFormRow label="Payment Status">
+            <SearchableSelect
+              options={statusOptions}
+              value={draft.paymentStatus}
+              onChange={(val) => setDraft(d => ({ ...d, paymentStatus: val }))}
+              placeholder="Select status"
+              allowClear={false}
             />
           </PaymentFormRow>
 

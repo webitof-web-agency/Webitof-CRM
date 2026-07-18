@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, ShieldCheck, Users, CheckSquare, Square } from 'lucide-react';
+import { Plus, ShieldCheck, Users, CheckSquare, Square, Search, Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
-import { PageHeader } from '../components/ui/PageHeader';
-import { StatCard } from '../components/ui/StatCard';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { DataTable } from '../components/ui/Table';
@@ -15,14 +13,44 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { groupPermissionsByModule, mapRoleForForm } from '../lib/rbac';
 import { sortRows } from '../lib/resource';
 
+const NOTIFICATION_MODULES = [
+  { key: '*', label: 'All Modules' },
+  { key: 'leads', label: 'Leads' },
+  { key: 'clients', label: 'Clients' },
+  { key: 'projects', label: 'Projects' },
+  { key: 'invoices', label: 'Invoices' },
+  { key: 'payments', label: 'Payments' },
+  { key: 'expenses', label: 'Expenses' },
+  { key: 'outsourcing', label: 'Outsourcing' },
+  { key: 'lead-commissions', label: 'Lead Commissions' },
+  { key: 'amc', label: 'AMC' },
+  { key: 'renewals', label: 'Renewals' },
+  { key: 'banking', label: 'Banking' },
+  { key: 'files', label: 'Files' },
+  { key: 'reports', label: 'Reports' }
+];
+
 function RoleEditor({ role, permissions, onSubmit, onCancel, busy }) {
+  const rolePayload = role?.payload || {};
+  const notificationDefaults = rolePayload.notificationSettings || {};
   const [form, setForm] = useState({
     code: role?.code || '',
     name: role?.name || '',
     description: role?.description || '',
     isSystem: role?.isSystem || false,
     isActive: role?.isActive !== false,
-    permissionIds: role?.permissionIds || []
+    permissionIds: role?.permissionIds || [],
+    payload: {
+      ...rolePayload,
+      notificationSettings: {
+        enabled: notificationDefaults.enabled !== false,
+        inApp: notificationDefaults.inApp !== false,
+        email: Boolean(notificationDefaults.email),
+        modules: Array.isArray(notificationDefaults.modules) && notificationDefaults.modules.length
+          ? notificationDefaults.modules
+          : ['*']
+      }
+    }
   });
 
   const grouped = useMemo(() => groupPermissionsByModule(permissions), [permissions]);
@@ -52,26 +80,67 @@ function RoleEditor({ role, permissions, onSubmit, onCancel, busy }) {
     });
   }
 
+  function updateNotificationSettings(patch) {
+    setForm((prev) => ({
+      ...prev,
+      payload: {
+        ...(prev.payload || {}),
+        notificationSettings: {
+          ...(prev.payload?.notificationSettings || {}),
+          ...patch
+        }
+      }
+    }));
+  }
+
+  function toggleNotificationModule(moduleKey) {
+    setForm((prev) => {
+      const current = [...(prev.payload?.notificationSettings?.modules || [])];
+      const hasAll = current.includes('*');
+      let next = current;
+      if (moduleKey === '*') {
+        next = hasAll ? [] : ['*'];
+      } else if (hasAll) {
+        next = [moduleKey];
+      } else if (current.includes(moduleKey)) {
+        next = current.filter((item) => item !== moduleKey);
+      } else {
+        next = [...current, moduleKey];
+      }
+
+      return {
+        ...prev,
+        payload: {
+          ...(prev.payload || {}),
+          notificationSettings: {
+            ...(prev.payload?.notificationSettings || {}),
+            modules: next.length ? next : ['*']
+          }
+        }
+      };
+    });
+  }
+
   return (
-    <div className="flex h-[75vh] flex-col overflow-hidden bg-bg-main/50 rounded-2xl border border-white/5">
-      <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
+    <div className="flex flex-col">
+      <div className="flex flex-col md:flex-row gap-8">
         {/* Left Side: Role Form Card */}
-        <div className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-white/10 p-5 overflow-y-auto bg-white/5">
-          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-text-muted">Role Details</h3>
+        <div className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-slate-200 md:pr-8 pb-6 md:pb-0">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Role Details</h3>
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm text-text-main">Role Name *</label>
+              <label className="mb-1 block text-sm text-[var(--text-main)]">Role Name <span className="text-rose-500">*</span></label>
               <Input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="e.g. Sales Manager" />
             </div>
             <div>
-              <label className="mb-1 block text-sm text-text-main">Code *</label>
+              <label className="mb-1 block text-sm text-[var(--text-main)]">Code <span className="text-rose-500">*</span></label>
               <Input value={form.code} onChange={e => setForm({...form, code: e.target.value})} placeholder="e.g. sales-manager" />
               <p className="mt-1 text-xs text-text-muted">Unique machine readable code.</p>
             </div>
             <div>
               <label className="mb-1 block text-sm text-text-main">Description</label>
               <textarea 
-                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-text-main focus:border-accent focus:outline-none"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-[var(--text-main)] focus:border-[var(--primary)] focus:outline-none"
                 rows={3} 
                 value={form.description} 
                 onChange={e => setForm({...form, description: e.target.value})} 
@@ -79,21 +148,81 @@ function RoleEditor({ role, permissions, onSubmit, onCancel, busy }) {
               />
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" id="isActive" checked={form.isActive} onChange={e => setForm({...form, isActive: e.target.checked})} className="rounded border-white/20 bg-white/5 text-accent focus:ring-accent focus:ring-offset-bg-main" />
-              <label htmlFor="isActive" className="text-sm text-text-main">Active Role</label>
+              <input type="checkbox" id="isActive" checked={form.isActive} onChange={e => setForm({...form, isActive: e.target.checked})} className="h-4 w-4 rounded border-slate-300 outline-none transition" style={{ accentColor: 'var(--primary)' }} />
+              <label htmlFor="isActive" className="text-sm text-[var(--text-main)]">Active Role</label>
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" id="isSystem" checked={form.isSystem} onChange={e => setForm({...form, isSystem: e.target.checked})} className="rounded border-white/20 bg-white/5 text-accent focus:ring-accent focus:ring-offset-bg-main" />
-              <label htmlFor="isSystem" className="text-sm text-text-main">System Role</label>
+              <input type="checkbox" id="isSystem" checked={form.isSystem} onChange={e => setForm({...form, isSystem: e.target.checked})} className="h-4 w-4 rounded border-slate-300 outline-none transition" style={{ accentColor: 'var(--primary)' }} />
+              <label htmlFor="isSystem" className="text-sm text-[var(--text-main)]">System Role</label>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="mb-3">
+                <h4 className="text-sm font-semibold text-[var(--text-main)]">Notification Preferences</h4>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">Control which modules generate in-app alerts and email copies for this role.</p>
+              </div>
+              <div className="space-y-3">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.payload?.notificationSettings?.enabled !== false}
+                    onChange={(e) => updateNotificationSettings({ enabled: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 outline-none transition"
+                    style={{ accentColor: 'var(--primary)' }}
+                  />
+                  <span className="text-sm text-[var(--text-main)]">Enable notifications</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={form.payload?.notificationSettings?.inApp !== false}
+                    onChange={(e) => updateNotificationSettings({ inApp: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 outline-none transition"
+                    style={{ accentColor: 'var(--primary)' }}
+                  />
+                  <span className="text-sm text-[var(--text-main)]">In-app alerts</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.payload?.notificationSettings?.email)}
+                    onChange={(e) => updateNotificationSettings({ email: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 outline-none transition"
+                    style={{ accentColor: 'var(--primary)' }}
+                  />
+                  <span className="text-sm text-[var(--text-main)]">Email alerts</span>
+                </label>
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Modules</p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {NOTIFICATION_MODULES.map((item) => {
+                      const selected = (form.payload?.notificationSettings?.modules || []).includes(item.key);
+                      return (
+                        <label key={item.key} className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-[var(--text-main)] transition hover:border-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleNotificationModule(item.key)}
+                            disabled={form.payload?.notificationSettings?.enabled === false}
+                            className="h-4 w-4 rounded border-slate-300 outline-none transition"
+                            style={{ accentColor: 'var(--primary)' }}
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Right Side: Permissions Checklist */}
-        <div className="w-full md:w-2/3 p-5 overflow-y-auto">
+        <div className="w-full md:w-2/3">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">Permissions Checklist</h3>
-            <span className="text-sm font-medium text-accent">{form.permissionIds.length} Selected</span>
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-muted)]">Permissions Checklist</h3>
+            <span className="text-sm font-medium text-[var(--primary)]">{form.permissionIds.length} Selected</span>
           </div>
           
           <div className="space-y-6">
@@ -102,17 +231,17 @@ function RoleEditor({ role, permissions, onSubmit, onCancel, busy }) {
               const someChecked = group.items.some(p => form.permissionIds.includes(p.id));
               
               return (
-                <div key={group.module} className="rounded-2xl border border-white/10 bg-white/5 p-4 transition-colors hover:border-white/20">
-                  <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-2">
+                <div key={group.module} className="rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:border-slate-300 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
                     <div className="flex items-center gap-2">
                       <button 
                         type="button"
                         onClick={() => toggleModule(group.items, !allChecked)}
-                        className="text-accent hover:text-accent/80 focus:outline-none"
+                        className="text-[var(--primary)] hover:opacity-80 focus:outline-none transition-opacity"
                       >
                         {allChecked ? <CheckSquare size={18} /> : (someChecked ? <CheckSquare size={18} className="opacity-50" /> : <Square size={18} />)}
                       </button>
-                      <span className="text-base font-semibold capitalize text-text-main">{group.module.replace('-', ' ')} Module</span>
+                      <span className="text-base font-semibold capitalize text-[var(--text-main)]">{group.module.replace('-', ' ')} Module</span>
                     </div>
                   </div>
                   
@@ -120,18 +249,19 @@ function RoleEditor({ role, permissions, onSubmit, onCancel, busy }) {
                     {group.items.map(perm => {
                       const checked = form.permissionIds.includes(perm.id);
                       return (
-                        <label key={perm.id} className="flex cursor-pointer items-start gap-2 rounded-lg p-2 hover:bg-white/5">
+                        <label key={perm.id} className="flex cursor-pointer items-start gap-2 rounded-lg p-2 hover:bg-slate-50 transition-colors">
                           <div className="mt-0.5">
                             <input 
                               type="checkbox" 
                               checked={checked} 
                               onChange={() => togglePermission(perm.id)} 
-                              className="rounded border-white/20 bg-white/5 text-accent focus:ring-accent focus:ring-offset-bg-main"
+                              className="h-4 w-4 rounded border-slate-300 outline-none transition"
+                              style={{ accentColor: 'var(--primary)' }}
                             />
                           </div>
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium text-text-main capitalize">{perm.action}</span>
-                            {perm.description && <span className="text-xs text-text-muted">{perm.description}</span>}
+                            <span className="text-sm font-medium text-[var(--text-main)] capitalize">{perm.action}</span>
+                            {perm.description && <span className="text-xs text-[var(--text-muted)]">{perm.description}</span>}
                           </div>
                         </label>
                       );
@@ -143,8 +273,8 @@ function RoleEditor({ role, permissions, onSubmit, onCancel, busy }) {
           </div>
         </div>
       </div>
-      <div className="border-t border-white/10 bg-bg-main p-4 flex justify-end gap-3">
-        <Button variant="secondary" onClick={onCancel}>Cancel</Button>
+      <div className="sticky -bottom-6 -mx-6 -mb-6 mt-8 flex flex-wrap items-center justify-end gap-3 rounded-b-2xl border-t border-slate-200 bg-slate-50 px-6 py-4 z-10">
+        <Button variant="secondary" onClick={onCancel} disabled={busy} className="bg-white shadow-sm">Cancel</Button>
         <Button onClick={() => onSubmit(form)} disabled={busy}>{role ? 'Update Role' : 'Create Role'}</Button>
       </div>
     </div>
@@ -258,82 +388,98 @@ export function RolesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Administration"
-        title="Manage Roles & Permissions"
-        description="Map permissions to roles and keep access control aligned with your backend RBAC rules."
-        actions={[
-          { label: 'Refresh', icon: RefreshCw, variant: 'secondary', onClick: () => setReloadTick((value) => value + 1) },
-          ...(canCreate ? [{ label: 'Add Role', icon: Plus, onClick: openCreate }] : [])
-        ]}
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total Roles" value={loading ? '...' : String(stats.total)} helper="All role groups" icon={ShieldCheck} />
-        <StatCard title="Active" value={loading ? '...' : String(stats.active)} helper="Enabled roles" icon={ShieldCheck} tone="positive" />
-        <StatCard title="System" value={loading ? '...' : String(stats.system)} helper="Built-in roles" icon={ShieldCheck} />
-        <StatCard title="Assignments" value={loading ? '...' : String(stats.permissionLinks)} helper="Total permission links" icon={Users} />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-main)]">Manage Roles & Permissions</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Map permissions to roles and keep access control aligned with your backend RBAC rules.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {canCreate ? (
+            <Button onClick={openCreate} className="gap-2">
+              <Plus size={16} />
+              Add Role
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <Card className="space-y-4 p-4 md:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Search roles</label>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Total Roles', value: stats.total, helper: 'All role groups', bg: 'bg-blue-50/80 text-blue-500', icon: ShieldCheck },
+          { label: 'Active', value: stats.active, helper: 'Enabled roles', bg: 'bg-emerald-50/80 text-emerald-500', icon: ShieldCheck },
+          { label: 'System', value: stats.system, helper: 'Built-in roles', bg: 'bg-purple-50/80 text-purple-500', icon: ShieldCheck },
+          { label: 'Assignments', value: stats.permissionLinks, helper: 'Total permission links', bg: 'bg-amber-50/80 text-amber-500', icon: Users }
+        ].map((item) => {
+          const Icon = item.icon;
+          return (
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+              <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
+                <Icon size={20} strokeWidth={2} />
+              </div>
+              <div className="overflow-hidden min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
+                <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : String(item.value)}</h3>
+                <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+
+      <DataTable
+        loading={loading}
+        columns={[
+          { key: 'code', label: 'Code' },
+          { key: 'name', label: 'Name' },
+          { key: 'description', label: 'Description', ellipsis: true },
+          { key: 'permissions', label: 'Permissions', render: (row) => String(row.permissions?.length || 0) },
+          { key: 'isSystem', label: 'System', type: 'badge' },
+          { key: 'isActive', label: 'Status', type: 'badge' }
+        ]}
+        rows={sortedRows}
+        selectable={true}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSortChange={(key, direction) => {
+          setSortKey(key);
+          setSortDirection(direction);
+        }}
+        toolbarLeft={
+          <div className="relative flex-1 w-full max-w-xs">
+            <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+              <Search size={16} />
+            </div>
             <Input
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by code, name, or description"
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search roles..."
+              className="pl-9 w-full"
             />
           </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--text-muted)]">
-            {rows.length} matching roles
-          </div>
-        </div>
-
-        <DataTable
-          loading={loading}
-          columns={[
-            { key: 'code', label: 'Code' },
-            { key: 'name', label: 'Name' },
-            { key: 'description', label: 'Description', ellipsis: true },
-            { key: 'permissions', label: 'Permissions', render: (row) => String(row.permissions?.length || 0) },
-            { key: 'isSystem', label: 'System', type: 'badge' },
-            { key: 'isActive', label: 'Status', type: 'badge' }
-          ]}
-          rows={sortedRows}
-          selectable={canDelete}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSortChange={(key, direction) => {
-            setSortKey(key);
-            setSortDirection(direction);
-          }}
-          onCreate={canCreate ? openCreate : undefined}
-          createLabel="Add Role"
-          rowActions={
-            canEdit || canDelete
-              ? (row) => (
-                  <div className="flex items-center justify-end gap-2">
-                    {canEdit ? (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                        Edit
-                      </Button>
-                    ) : null}
-                    {canDelete ? (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
-                        Delete
-                      </Button>
-                    ) : null}
-                  </div>
-                )
-              : undefined
-          }
-        />
-      </Card>
+        }
+        rowActions={
+          canEdit || canDelete
+            ? (row) => (
+                <div className="flex items-center justify-end gap-1">
+                  {canEdit ? (
+                    <button type="button" onClick={() => openEdit(row)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                      <Edit2 size={16} />
+                    </button>
+                  ) : null}
+                  {canDelete ? (
+                    <button type="button" onClick={() => setDeleteTarget(row)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                      <Trash2 size={16} />
+                    </button>
+                  ) : null}
+                </div>
+              )
+            : undefined
+        }
+      />
 
       <Modal
         open={editorOpen}
-        title="" // Custom title inside editor
+        title={`${activeRecord ? 'Edit' : 'Add'} Role`}
         subtitle=""
         onClose={() => {
           setEditorOpen(false);
@@ -341,15 +487,13 @@ export function RolesPage() {
         }}
         width="min(1200px, 96vw)"
       >
-        <div className="p-1">
-           <RoleEditor 
-             role={activeRecord} 
-             permissions={permissions} 
-             onSubmit={saveRecord} 
-             onCancel={() => { setEditorOpen(false); setActiveRecord(null); }} 
-             busy={busy} 
-           />
-        </div>
+        <RoleEditor 
+          role={activeRecord} 
+          permissions={permissions} 
+          onSubmit={saveRecord} 
+          onCancel={() => { setEditorOpen(false); setActiveRecord(null); }} 
+          busy={busy} 
+        />
       </Modal>
 
       <ConfirmDialog

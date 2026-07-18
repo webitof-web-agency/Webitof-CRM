@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, ShieldCheck, Layers3, Clock3 } from 'lucide-react';
+import { Plus, RefreshCw, ShieldCheck, Layers3, Clock3, Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +14,7 @@ import { ResourceForm } from '../components/forms/ResourceForm';
 import { ConfirmDialog } from '../components/overlays/ConfirmDialog';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { sortRows } from '../lib/resource';
+import { cn } from '../lib/cn';
 
 const masterTypes = [
   { key: 'service_category', label: 'Service Categories' },
@@ -341,30 +342,71 @@ export function MastersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Administration"
-        title="Masters"
-        description="Manage reusable lookup data used throughout the CRM."
-        actions={[
-          { label: 'Refresh', icon: RefreshCw, variant: 'secondary', onClick: () => setReloadTick((value) => value + 1) },
-          ...(canWrite ? [{ label: `Add ${singularLabel(activeTypeMeta.label)}`, icon: Plus, onClick: openCreate }] : [])
-        ]}
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total" value={loading ? '...' : String(stats.total)} helper="All master records" icon={Layers3} />
-        <StatCard title="Current Type" value={loading ? '...' : String(stats.current)} helper={activeTypeMeta.label} icon={ShieldCheck} />
-        <StatCard title="Active" value={loading ? '...' : String(stats.active)} helper="Enabled items" icon={ShieldCheck} tone="positive" />
-        <StatCard title="Inactive" value={loading ? '...' : String(stats.inactive)} helper="Disabled items" icon={ShieldCheck} tone="negative" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-main)]">Masters</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Manage reusable lookup data used throughout the CRM.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {canWrite ? (
+            <Button onClick={openCreate}>
+              <Plus size={16} className="mr-2" /> Add {singularLabel(activeTypeMeta.label)}
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+          <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
+            <Layers3 size={24} strokeWidth={2} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total</p>
+            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{loading ? '...' : String(stats.total)}</h3>
+            <p className="mt-1 text-xs text-slate-400 truncate">All master records</p>
+          </div>
+        </Card>
+        
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+          <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-indigo-50/80 text-indigo-500">
+            <ShieldCheck size={24} strokeWidth={2} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Current Type</p>
+            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{loading ? '...' : String(stats.current)}</h3>
+            <p className="mt-1 text-xs text-slate-400 truncate">{activeTypeMeta.label}</p>
+          </div>
+        </Card>
+        
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+          <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
+            <ShieldCheck size={24} strokeWidth={2} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Active</p>
+            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{loading ? '...' : String(stats.active)}</h3>
+            <p className="mt-1 text-xs text-slate-400 truncate">Enabled items</p>
+          </div>
+        </Card>
+
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+          <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-rose-50/80 text-rose-500">
+            <ShieldCheck size={24} strokeWidth={2} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Inactive</p>
+            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{loading ? '...' : String(stats.inactive)}</h3>
+            <p className="mt-1 text-xs text-slate-400 truncate">Disabled items</p>
+          </div>
+        </Card>
+      </div>
+
+      <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
         {masterTypes.map((type) => (
-          <Button
+          <button
             key={type.key}
             type="button"
-            size="sm"
-            variant={activeType === type.key ? 'primary' : 'secondary'}
             onClick={() => {
               setActiveType(type.key);
               setServiceStatusFilter('all');
@@ -373,26 +415,19 @@ export function MastersPage() {
               setActiveRecord(null);
               setDeleteTarget(null);
             }}
+            className={cn(
+              'inline-flex items-center gap-2 px-1 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap',
+              activeType === type.key
+                ? 'border-[var(--primary)] text-[var(--primary)]'
+                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+            )}
           >
             {type.label}
-          </Button>
+          </button>
         ))}
       </div>
 
-      <Card className="space-y-4 p-4 md:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Search {activeTypeMeta.label.toLowerCase()}</label>
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={`Search ${activeTypeMeta.label.toLowerCase()}`}
-            />
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--text-muted)]">
-            {rows.length} records
-          </div>
-        </div>
+      <div className="pt-2">
 
         <DataTable
           loading={loading}
@@ -406,22 +441,33 @@ export function MastersPage() {
             setSortKey(key);
             setSortDirection(direction);
           }}
+          toolbarLeft={
+            <div className="relative flex-1 w-full max-w-sm">
+              <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </div>
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={`Search ${activeTypeMeta.label.toLowerCase()}...`}
+                className="pl-9 w-full"
+              />
+            </div>
+          }
           toolbarRight={toolbarRight}
-          onCreate={canWrite ? openCreate : undefined}
-          createLabel={`Add ${singularLabel(activeTypeMeta.label)}`}
           rowClassName={(row) => (activeType === 'service' && row.isActive === false ? 'opacity-60 bg-slate-50/80' : '')}
           rowActions={
             canWrite || canDelete
               ? (row) => (
-                  <div className="flex items-center justify-end gap-2">
+                  <div className="flex items-center justify-end gap-1">
                     {canWrite ? (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                        Edit
+                      <Button type="button" variant="ghost" size="icon" onClick={() => openEdit(row)} title="Edit" className="h-8 w-8 text-slate-400 hover:text-[var(--primary)]">
+                        <Edit2 size={16} />
                       </Button>
                     ) : null}
                     {canDelete ? (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
-                        Delete
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setDeleteTarget(row)} title="Delete" className="h-8 w-8 text-slate-400 hover:text-rose-500">
+                        <Trash2 size={16} />
                       </Button>
                     ) : null}
                   </div>
@@ -429,7 +475,7 @@ export function MastersPage() {
               : undefined
           }
         />
-      </Card>
+      </div>
 
       <Modal
         open={editorOpen}

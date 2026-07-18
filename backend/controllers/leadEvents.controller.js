@@ -1,5 +1,6 @@
 const leadEventModel = require('../models/leadEvent.model');
 const { cleanupRemovedAttachments } = require('../services/attachmentCleanup.service');
+const { notifyBusinessEvent } = require('../services/notification.service');
 const {
   getEventAttachmentContext,
   isVisibleToUser,
@@ -56,6 +57,16 @@ async function create(req, res, next) {
       scopeId: body.scopeId || body.leadId || null,
       leadId: body.scopeId || body.leadId || null
     });
+    notifyBusinessEvent({
+      moduleName: 'lead-events',
+      eventKey: 'created',
+      entity: record,
+      title: 'Lead activity created',
+      message: record.title || 'A lead activity was created.',
+      actorUserId: req.user?.id || null,
+      explicitUserIds: [record.ownerUserId].filter(Boolean),
+      routePath: `/app/leads/${record.leadId || record.scopeId || ''}`
+    }).catch(() => {});
     res.status(201).json({ success: true, data: record });
   } catch (error) {
     next(error);
@@ -82,6 +93,16 @@ async function update(req, res, next) {
     });
 
     await cleanupRemovedAttachments(current.attachments, record.attachments, getEventAttachmentContext(record));
+    notifyBusinessEvent({
+      moduleName: 'lead-events',
+      eventKey: 'updated',
+      entity: record,
+      title: 'Lead activity updated',
+      message: record.title || 'A lead activity was updated.',
+      actorUserId: req.user?.id || null,
+      explicitUserIds: [record.ownerUserId].filter(Boolean),
+      routePath: `/app/leads/${record.leadId || record.scopeId || ''}`
+    }).catch(() => {});
     res.json({ success: true, data: record });
   } catch (error) {
     next(error);

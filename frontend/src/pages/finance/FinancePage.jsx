@@ -13,7 +13,21 @@ import {
   ArrowDownRight,
   ShieldCheck,
   ReceiptText,
-  Download
+  Download,
+  Activity,
+  FileText,
+  AlertCircle,
+  CheckCircle2,
+  HelpCircle,
+  XCircle,
+  CheckSquare,
+  PieChart,
+  Clock,
+  CheckCheck,
+  Receipt,
+  ChevronsDown,
+  Building2,
+  Briefcase
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -35,7 +49,22 @@ function formatAmount(value) {
 function formatDate(value) {
   if (!value) return '-';
   try {
-    return new Date(value).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value).slice(0, 10);
+    
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    const dateStr = `${day}-${month}-${year}`;
+    
+    const valStr = String(value);
+    const hasTime = valStr.includes('T') && !valStr.endsWith('T00:00:00.000Z') && !valStr.endsWith('T00:00:00Z');
+    
+    if (hasTime) {
+      const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+      return `${dateStr} ${timeStr}`;
+    }
+    return dateStr;
   } catch {
     return String(value).slice(0, 10);
   }
@@ -134,11 +163,14 @@ export function FinancePage() {
   const [reconTo, setReconTo] = useState('');
   const debouncedReconSearch = useDebouncedValue(reconSearch, 250);
 
+  const [overviewFrom, setOverviewFrom] = useState('');
+  const [overviewTo, setOverviewTo] = useState('');
+
   async function loadData() {
     setLoading(true);
     try {
       const [summaryRes, ledgerRes, reconRes, banksRes, clientsRes, projectsRes] = await Promise.all([
-        api.finance.summary(token),
+        api.finance.summary(token, { from: overviewFrom, to: overviewTo }),
         api.finance.ledger(token, { search: debouncedLedgerSearch, module: ledgerModule, direction: ledgerDirection, from: ledgerFrom, to: ledgerTo }),
         api.finance.reconciliation(token, { search: debouncedReconSearch, bankAccountId: reconBankAccountId, matchStatus: reconMatchStatus, from: reconFrom, to: reconTo }),
         api.resources.list('/banking/accounts', token),
@@ -162,18 +194,18 @@ export function FinancePage() {
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, refreshTick]);
+  }, [token, refreshTick, overviewFrom, overviewTo]);
 
   const overviewCards = useMemo(() => ([
-    { title: 'Received', value: summary?.totalReceived || 0, helper: 'Actual collections', icon: Wallet, tone: 'positive' },
-    { title: 'Outstanding', value: summary?.totalOutstanding || 0, helper: 'Open receivables', icon: Banknote },
-    { title: 'Overdue', value: summary?.totalOverdueOutstanding || 0, helper: 'Past due invoices', icon: CircleDollarSign, tone: 'negative' },
-    { title: 'Payables', value: summary?.totalPayables || 0, helper: 'Outsourcing + commissions + expenses + payroll', icon: ArrowDownRight },
-    { title: 'Payroll', value: summary?.totalPayrollExpense || 0, helper: 'Active user salaries', icon: ShieldCheck },
-    { title: 'Cash in Bank', value: summary?.cashInBank || 0, helper: 'Opening balance + credits - debits', icon: ArrowUpRight },
-    { title: 'Net Cash Flow', value: summary?.netCashFlow || 0, helper: 'Receipts minus payables', icon: Scale },
-    { title: 'Unreconciled', value: summary?.unreconciledBankTransactions || 0, helper: 'Bank lines waiting for match', icon: SplitSquareHorizontal, tone: 'negative' },
-    { title: 'Payments', value: summary?.paymentCount || 0, helper: 'Recorded receipts', icon: ShieldCheck }
+    { title: 'RECEIVED', value: summary?.totalReceived || 0, helper: 'Actual collections', icon: Wallet, color: 'text-green-500', bg: 'bg-green-50/80' },
+    { title: 'OUTSTANDING', value: summary?.totalOutstanding || 0, helper: 'Open receivables', icon: Banknote, color: 'text-blue-500', bg: 'bg-blue-50/80' },
+    { title: 'OVERDUE', value: summary?.totalOverdueOutstanding || 0, helper: 'Past due invoices', icon: CircleDollarSign, color: 'text-rose-500', bg: 'bg-rose-50/80' },
+    { title: 'PAYABLES', value: summary?.totalPayables || 0, helper: 'Outsourcing + commissions + expenses + payroll', icon: ArrowDownRight, color: 'text-orange-500', bg: 'bg-orange-50/80' },
+    { title: 'PAYROLL', value: summary?.totalPayrollExpense || 0, helper: 'Active user salaries', icon: ShieldCheck, color: 'text-purple-500', bg: 'bg-purple-50/80' },
+    { title: 'CASH IN BANK', value: summary?.cashInBank || 0, helper: 'Opening balance + credits - debits', icon: ArrowUpRight, color: 'text-emerald-500', bg: 'bg-emerald-50/80' },
+    { title: 'NET CASH FLOW', value: summary?.netCashFlow || 0, helper: 'Receipts minus payables', icon: Scale, color: 'text-cyan-500', bg: 'bg-cyan-50/80' },
+    { title: 'UNRECONCILED', value: summary?.unreconciledBankTransactions || 0, helper: 'Bank lines waiting for match', icon: SplitSquareHorizontal, color: 'text-pink-500', bg: 'bg-pink-50/80' },
+    { title: 'PAYMENTS', value: summary?.paymentCount || 0, helper: 'Recorded receipts', icon: ShieldCheck, color: 'text-indigo-500', bg: 'bg-indigo-50/80', isCount: true }
   ]), [summary]);
 
   const filteredLedgerRows = useMemo(() => {
@@ -221,12 +253,12 @@ export function FinancePage() {
   }, [debouncedReconSearch, reconBankAccountId, reconFrom, reconMatchStatus, reconTo, reconciliation.entries]);
 
   const summaryCards = [
-    { label: 'Invoices', value: summary?.totalInvoices || 0 },
-    { label: 'Paid Invoices', value: summary?.paidInvoiceCount || 0 },
-    { label: 'Partials', value: summary?.partialPaymentCount || 0 },
-    { label: 'Overdue', value: summary?.overdueInvoiceCount || 0 },
-    { label: 'Matched', value: reconciliation?.summary?.matched || 0 },
-    { label: 'Unmatched', value: reconciliation?.summary?.unmatched || 0 }
+    { label: 'Invoices', value: summary?.totalInvoices || 0, icon: FileText, rightIcon: Receipt, color: 'blue' },
+    { label: 'Paid Invoices', value: summary?.paidInvoiceCount || 0, icon: CheckSquare, rightIcon: ChevronsDown, color: 'emerald' },
+    { label: 'Partials', value: summary?.partialPaymentCount || 0, icon: Clock, rightIcon: PieChart, color: 'orange' },
+    { label: 'Overdue', value: summary?.overdueInvoiceCount || 0, icon: AlertCircle, rightIcon: AlertCircle, color: 'red' },
+    { label: 'Matched', value: reconciliation?.summary?.matched || 0, icon: CheckCircle2, rightIcon: CheckCircle2, color: 'emerald' },
+    { label: 'Unmatched', value: reconciliation?.summary?.unmatched || 0, icon: XCircle, rightIcon: XCircle, color: 'blue' }
   ];
 
   const ledgerExportColumns = [
@@ -255,92 +287,159 @@ export function FinancePage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Finance"
-        title="Finance Ledger"
-        description="Track incoming cash, outgoing payables, and bank reconciliation from one place."
-        meta={loading ? 'Loading finance data...' : `${ledger.entries?.length || 0} ledger entries`}
-        actions={[
-          { label: 'Refresh', icon: RefreshCw, variant: 'secondary', onClick: () => setRefreshTick((value) => value + 1) }
-        ]}
-      />
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">Finance Ledger</h1>
+        </div>
+      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <Button
-            key={tab.key}
-            type="button"
-            variant={activeTab === tab.key ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setActiveTab(tab.key)}
-          >
-            <tab.icon size={16} />
-            {tab.label}
-          </Button>
-        ))}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 px-2 mb-6">
+        <div className="flex items-center gap-6 overflow-x-auto">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`inline-flex items-center gap-2 px-1 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
+                  activeTab === tab.key
+                    ? 'border-[var(--primary)] text-[var(--primary)]'
+                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                {Icon && <Icon size={16} className={activeTab === tab.key ? 'text-[var(--primary)]' : 'text-slate-400'} />}
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex shrink-0 pb-2 sm:pb-0 gap-3">
+          {activeTab === 'overview' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={overviewFrom}
+                onChange={(e) => setOverviewFrom(e.target.value)}
+                className="h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+              />
+              <span className="text-slate-400 text-sm">to</span>
+              <input
+                type="date"
+                value={overviewTo}
+                onChange={(e) => setOverviewTo(e.target.value)}
+                className="h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+              />
+            </div>
+          )}
+          {activeTab === 'ledger' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shadow-sm"
+              onClick={() => downloadCsv(`finance-ledger-${new Date().toISOString().slice(0, 10)}.csv`, ledgerExportColumns, filteredLedgerRows)}
+              disabled={!filteredLedgerRows.length}
+            >
+              <Download size={16} className="mr-2" />
+              Export CSV
+            </Button>
+          )}
+          {activeTab === 'reconciliation' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shadow-sm"
+              onClick={() => downloadCsv(`finance-reconciliation-${new Date().toISOString().slice(0, 10)}.csv`, reconciliationExportColumns, filteredReconciliationRows)}
+              disabled={!filteredReconciliationRows.length}
+            >
+              <Download size={16} className="mr-2" />
+              Export CSV
+            </Button>
+          )}
+        </div>
       </div>
 
       {activeTab === 'overview' ? (
         <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {overviewCards.map((card) => (
-              <StatCard
-                key={card.title}
-                title={card.title}
-                value={loading ? '...' : formatAmount(card.value)}
-                helper={card.helper}
-                icon={card.icon}
-                tone={card.tone}
-              />
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {overviewCards.map((card, i) => (
+              <Card key={i} className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <div className={`shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full ${card.bg} ${card.color}`}>
+                  <card.icon size={24} strokeWidth={2} />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">{card.title}</p>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">
+                    {loading ? '...' : (card.isCount ? Number(card.value || 0).toLocaleString('en-IN') : formatAmount(card.value))}
+                  </h3>
+                  {card.helper && <p className="text-[9px] text-slate-400 mt-1 truncate">{card.helper}</p>}
+                </div>
+              </Card>
             ))}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="space-y-4 p-5">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] p-3 text-[var(--accent)]">
-                  <ReceiptText size={20} />
+            <Card className="p-5 shadow-sm border border-slate-100 flex flex-col rounded-[16px] bg-white">
+              <div className="flex items-center gap-3.5 mb-5">
+                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
+                  <ReceiptText size={20} strokeWidth={2} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-[var(--text)]">Receivables snapshot</h3>
-                  <p className="text-sm text-[var(--text-muted)]">What is billed, collected, and still due.</p>
+                  <h3 className="text-sm font-bold text-slate-800">Receivables snapshot</h3>
+                  <p className="text-[10px] text-slate-500 mt-0.5">What is billed, collected, and still due.</p>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
-                  ['Total Invoiced', summary?.totalInvoiceAmount || 0],
-                  ['Total Received', summary?.totalReceived || 0],
-                  ['Total Outstanding', summary?.totalOutstanding || 0],
-                  ['Overdue Outstanding', summary?.totalOverdueOutstanding || 0]
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-border bg-surface p-4">
-                    <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">{label}</div>
-                    <div className="mt-2 text-2xl font-semibold text-[var(--text)]">{loading ? '...' : formatAmount(value)}</div>
+                  ['Total Invoiced', summary?.totalInvoiceAmount || 0, FileText],
+                  ['Total Received', summary?.totalReceived || 0, Wallet],
+                  ['Total Outstanding', summary?.totalOutstanding || 0, CircleDollarSign],
+                  ['Overdue Outstanding', summary?.totalOverdueOutstanding || 0, AlertCircle]
+                ].map(([label, value, Icon]) => (
+                  <div key={label} className="rounded-[12px] border border-slate-100 p-4 bg-white hover:border-slate-200 transition-colors">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className="text-slate-400">
+                        <Icon size={16} strokeWidth={2.5} />
+                      </div>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</div>
+                    </div>
+                    <div className={`text-lg font-bold ${label === 'Overdue Outstanding' ? 'text-red-500' : 'text-slate-800'}`}>
+                      {loading ? '...' : formatAmount(value)}
+                    </div>
                   </div>
                 ))}
               </div>
             </Card>
 
-            <Card className="space-y-4 p-5">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] p-3 text-[var(--accent)]">
-                  <SplitSquareHorizontal size={20} />
+            <Card className="p-5 md:p-6 shadow-sm border border-slate-100 flex flex-col rounded-[20px] bg-white">
+              <div className="flex items-center gap-3.5 mb-6">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
+                  <SplitSquareHorizontal size={20} strokeWidth={2} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-[var(--text)]">Bank reconciliation snapshot</h3>
-                  <p className="text-sm text-[var(--text-muted)]">Quick read on what is matched to bank entries.</p>
+                  <h3 className="text-sm font-bold text-slate-800">Bank reconciliation snapshot</h3>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Quick read on what is matched to bank entries.</p>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
-                  ['Matched', reconciliation?.summary?.matched || 0],
-                  ['Suggested', reconciliation?.summary?.suggested || 0],
-                  ['Unmatched', reconciliation?.summary?.unmatched || 0],
-                  ['Matched Amount', reconciliation?.summary?.matchedAmount || 0]
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-2xl border border-border bg-surface p-4">
-                    <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">{label}</div>
-                    <div className="mt-2 text-2xl font-semibold text-[var(--text)]">
+                  ['Matched', reconciliation?.summary?.matched || 0, CheckCircle2],
+                  ['Suggested', reconciliation?.summary?.suggested || 0, HelpCircle],
+                  ['Unmatched', reconciliation?.summary?.unmatched || 0, XCircle],
+                  ['Matched Amount', reconciliation?.summary?.matchedAmount || 0, Banknote]
+                ].map(([label, value, Icon]) => (
+                  <div key={label} className="rounded-[12px] border border-slate-100 p-4 bg-white hover:border-slate-200 transition-colors">
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className="text-slate-400">
+                        <Icon size={16} strokeWidth={2.5} />
+                      </div>
+                      <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</div>
+                    </div>
+                    <div className="text-lg font-bold text-slate-800">
                       {typeof value === 'number' && label.includes('Amount') ? formatAmount(value) : value.toLocaleString('en-IN')}
                     </div>
                   </div>
@@ -349,25 +448,45 @@ export function FinancePage() {
             </Card>
           </div>
 
-          <Card className="space-y-4 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Health check</p>
-                <h3 className="mt-1 text-lg font-semibold text-[var(--text)]">Finance flow indicators</h3>
+          <Card className="p-5 md:p-6 shadow-sm border border-slate-100 flex flex-col rounded-[20px] bg-white">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
+                  <Activity size={20} strokeWidth={2} style={{ color: 'var(--primary)' }} className="relative z-10" />
+                </div>
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-0.5">Health check</p>
+                  <h3 className="text-sm font-bold text-slate-800">Finance flow indicators</h3>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2 text-sm text-[var(--text-muted)]">
-                <span className="rounded-full border border-border bg-surface px-3 py-1">{summary?.paymentCount || 0} payments</span>
-                <span className="rounded-full border border-border bg-surface px-3 py-1">{summary?.bankCredits || 0} bank credits</span>
-                <span className="rounded-full border border-border bg-surface px-3 py-1">{summary?.bankDebits || 0} bank debits</span>
+              <div className="flex flex-wrap gap-2">
+                <span className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-50">{summary?.paymentCount || 0} payments</span>
+                <span className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-50">{summary?.bankCredits || 0} bank credits</span>
+                <span className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-50">{summary?.bankDebits || 0} bank debits</span>
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
-              {summaryCards.map((item) => (
-                <div key={item.label} className="rounded-2xl border border-border bg-surface p-4">
-                  <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">{item.label}</div>
-                  <div className="mt-2 text-2xl font-semibold text-[var(--text)]">{loading ? '...' : Number(item.value || 0).toLocaleString('en-IN')}</div>
-                </div>
-              ))}
+              {summaryCards.map((item) => {
+                const Icon = item.icon;
+                const RightIcon = item.rightIcon;
+                return (
+                  <div key={item.label} className="rounded-[16px] border border-slate-100 p-4 bg-white flex items-center justify-between shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-${item.color}-50 text-${item.color}-500`}>
+                        <Icon size={20} strokeWidth={2.5} />
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-0.5">{item.label}</div>
+                        <div className="text-lg font-bold text-slate-800">{loading ? '...' : Number(item.value || 0).toLocaleString('en-IN')}</div>
+                      </div>
+                    </div>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-${item.color}-50 text-${item.color}-500 shrink-0`}>
+                      <RightIcon size={16} strokeWidth={2.5} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </div>
@@ -375,59 +494,28 @@ export function FinancePage() {
 
       {activeTab === 'ledger' ? (
         <div className="space-y-6">
-          <Card className="space-y-4 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] p-3 text-[var(--accent)]">
-                  <Filter size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--text)]">Ledger filters</h3>
-                  <p className="text-sm text-[var(--text-muted)]">Search, narrow by module, and inspect the money trail.</p>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => downloadCsv(`finance-ledger-${new Date().toISOString().slice(0, 10)}.csv`, ledgerExportColumns, filteredLedgerRows)}
-                disabled={!filteredLedgerRows.length}
-              >
-                <Download size={16} />
-                Export CSV
-              </Button>
-            </div>
-            <div className="grid gap-4 xl:grid-cols-6">
-              <div className="xl:col-span-2">
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Search</label>
-                <div className="relative">
-                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                  <Input className="pl-10" value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} placeholder="Search notes, client, invoice..." />
-                </div>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Module</label>
-                <Select options={moduleOptions} value={ledgerModule} onChange={setLedgerModule} placeholder="All modules" searchable={false} />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Direction</label>
-                <Select options={directionOptions} value={ledgerDirection} onChange={setLedgerDirection} placeholder="All directions" searchable={false} />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">From</label>
-                <Input type="date" value={ledgerFrom} onChange={(e) => setLedgerFrom(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">To</label>
-                <Input type="date" value={ledgerTo} onChange={(e) => setLedgerTo(e.target.value)} />
-              </div>
-            </div>
-          </Card>
-
           <DataTable
+            toolbarLeft={
+              <div className="relative flex-1 w-full max-w-sm">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input className="pl-9 w-full" value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} placeholder="Search notes, client, invoice..." />
+              </div>
+            }
+            toolbarRight={
+              <div className="flex items-center gap-3">
+                <div className="w-32 md:w-36">
+                  <Select options={moduleOptions} value={ledgerModule} onChange={setLedgerModule} placeholder="All modules" searchable={false} />
+                </div>
+                <div className="w-32 md:w-36">
+                  <Select options={directionOptions} value={ledgerDirection} onChange={setLedgerDirection} placeholder="All directions" searchable={false} />
+                </div>
+                <Input type="date" value={ledgerFrom} onChange={(e) => setLedgerFrom(e.target.value)} title="From" className="w-auto h-10" />
+                <Input type="date" value={ledgerTo} onChange={(e) => setLedgerTo(e.target.value)} title="To" className="w-auto h-10" />
+              </div>
+            }
             loading={loading}
             columns={[
-              { key: 'date', label: 'Date', type: 'date' },
+              { key: 'date', label: 'Date', render: (row) => formatDate(row.date) },
               { key: 'module', label: 'Module' },
               { key: 'title', label: 'Entry' },
               { key: 'clientName', label: 'Client' },
@@ -438,24 +526,24 @@ export function FinancePage() {
               { key: 'amount', label: 'Amount', type: 'money', align: 'right' }
             ]}
             rows={filteredLedgerRows}
-            selectable={false}
+            selectable={true}
             emptyTitle="No ledger entries"
             emptyDescription="Try changing the filters or search query."
             rowActions={(row) => (
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-end gap-1">
                 {row.invoiceId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Invoice" onClick={() => navigate(`/app/invoices/${row.invoiceId}`)}>
-                    <ArrowRight size={16} />
+                    <FileText size={16} className="text-slate-400 hover:text-blue-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.clientId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Client" onClick={() => navigate(`/app/clients/${row.clientId}`)}>
-                    <ArrowRight size={16} />
+                    <Building2 size={16} className="text-slate-400 hover:text-emerald-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.projectId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Project" onClick={() => navigate(`/app/projects/${row.projectId}`)}>
-                    <ArrowRight size={16} />
+                    <Briefcase size={16} className="text-slate-400 hover:text-purple-500 transition-colors" />
                   </Button>
                 ) : null}
               </div>
@@ -466,67 +554,36 @@ export function FinancePage() {
 
       {activeTab === 'reconciliation' ? (
         <div className="space-y-6">
-          <Card className="space-y-4 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-[color-mix(in_srgb,var(--accent)_12%,transparent)] p-3 text-[var(--accent)]">
-                  <SplitSquareHorizontal size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--text)]">Reconciliation filters</h3>
-                  <p className="text-sm text-[var(--text-muted)]">Match and trace bank entries against invoices and expenses.</p>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => downloadCsv(`finance-reconciliation-${new Date().toISOString().slice(0, 10)}.csv`, reconciliationExportColumns, filteredReconciliationRows)}
-                disabled={!filteredReconciliationRows.length}
-              >
-                <Download size={16} />
-                Export CSV
-              </Button>
-            </div>
-            <div className="grid gap-4 xl:grid-cols-6">
-              <div className="xl:col-span-2">
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Search</label>
-                <div className="relative">
-                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                  <Input className="pl-10" value={reconSearch} onChange={(e) => setReconSearch(e.target.value)} placeholder="Search client, invoice, note..." />
-                </div>
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Bank account</label>
-                <Select
-                  options={[{ value: '', label: 'All accounts' }, ...bankAccounts.map((account) => ({
-                    value: account.id,
-                    label: account.accountHolderName ? `${account.bankName} - ${account.accountHolderName}` : account.bankName
-                  }))]}
-                  value={reconBankAccountId}
-                  onChange={setReconBankAccountId}
-                  placeholder="All accounts"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Match status</label>
-                <Select options={matchOptions} value={reconMatchStatus} onChange={setReconMatchStatus} placeholder="All statuses" searchable={false} />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">From</label>
-                <Input type="date" value={reconFrom} onChange={(e) => setReconFrom(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">To</label>
-                <Input type="date" value={reconTo} onChange={(e) => setReconTo(e.target.value)} />
-              </div>
-            </div>
-          </Card>
-
           <DataTable
+            toolbarLeft={
+              <div className="relative flex-1 w-full max-w-sm">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input className="pl-9 w-full" value={reconSearch} onChange={(e) => setReconSearch(e.target.value)} placeholder="Search client, invoice, note..." />
+              </div>
+            }
+            toolbarRight={
+              <div className="flex items-center gap-3">
+                <div className="w-40 md:w-48">
+                  <Select
+                    options={[{ value: '', label: 'All accounts' }, ...bankAccounts.map((account) => ({
+                      value: account.id,
+                      label: account.accountHolderName ? `${account.bankName} - ${account.accountHolderName}` : account.bankName
+                    }))]}
+                    value={reconBankAccountId}
+                    onChange={setReconBankAccountId}
+                    placeholder="All accounts"
+                  />
+                </div>
+                <div className="w-32 md:w-36">
+                  <Select options={matchOptions} value={reconMatchStatus} onChange={setReconMatchStatus} placeholder="All statuses" searchable={false} />
+                </div>
+                <Input type="date" value={reconFrom} onChange={(e) => setReconFrom(e.target.value)} title="From" className="w-auto h-10" />
+                <Input type="date" value={reconTo} onChange={(e) => setReconTo(e.target.value)} title="To" className="w-auto h-10" />
+              </div>
+            }
             loading={loading}
             columns={[
-              { key: 'date', label: 'Date', type: 'date' },
+              { key: 'date', label: 'Date', render: (row) => formatDate(row.date) },
               { key: 'bankAccountId', label: 'Bank Account', render: (row) => bankAccounts.find((account) => String(account.id) === String(row.bankAccountId))?.accountHolderName || row.bankAccountId || '-' },
               { key: 'transactionType', label: 'Type' },
               { key: 'matchStatus', label: 'Match', render: (row) => <Badge tone={row.matchStatus}>{row.matchStatus}</Badge> },
@@ -537,24 +594,24 @@ export function FinancePage() {
               { key: 'amount', label: 'Amount', type: 'money', align: 'right' }
             ]}
             rows={filteredReconciliationRows}
-            selectable={false}
+            selectable={true}
             emptyTitle="No reconciliation items"
             emptyDescription="Try a different match filter or date range."
             rowActions={(row) => (
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-end gap-1">
                 {row.invoiceId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Invoice" onClick={() => navigate(`/app/invoices/${row.invoiceId}`)}>
-                    <ArrowRight size={16} />
+                    <FileText size={16} className="text-slate-400 hover:text-blue-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.clientId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Client" onClick={() => navigate(`/app/clients/${row.clientId}`)}>
-                    <ArrowRight size={16} />
+                    <Building2 size={16} className="text-slate-400 hover:text-emerald-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.projectId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Project" onClick={() => navigate(`/app/projects/${row.projectId}`)}>
-                    <ArrowRight size={16} />
+                    <Briefcase size={16} className="text-slate-400 hover:text-purple-500 transition-colors" />
                   </Button>
                 ) : null}
               </div>

@@ -27,7 +27,73 @@ function calculatePayrollExpense(user = {}) {
   return round2(toNumber(user.salary));
 }
 
+function isSalaryExpenseRecord(expense = {}) {
+  return String(expense.expenseType || expense.expense_type || '').trim() === 'Employee Salary';
+}
+
+function buildPayrollRecordFromUser(user = {}) {
+  const amount = calculatePayrollExpense(user);
+  if (!amount) return null;
+  return {
+    id: `payroll-${user.id}`,
+    date: normalizeDateValue(new Date().toISOString()),
+    employeeId: user.id,
+    employeeName: user.fullName || user.username || user.email || '-',
+    roleName: (user.roles || []).map((role) => role.name).filter(Boolean).join(', ') || '-',
+    amount,
+    payable: amount,
+    paymentStatus: 'Pending',
+    notes: `Monthly salary for ${user.fullName || user.username || user.email || 'employee'}`,
+    source: 'user'
+  };
+}
+
+function buildPayrollRecordFromExpense(expense = {}) {
+  const amount = round2(toNumber(expense.totalAmount || expense.amountBeforeGst || expense.balanceDue || expense.paidAmount || 0));
+  if (!amount) return null;
+  return {
+    id: expense.id,
+    date: normalizeDateValue(expense.periodEnd || expense.periodStart || expense.dueDate || expense.expenseDate || expense.createdAt),
+    employeeId: expense.employeeId || expense.payeeId || null,
+    employeeName: expense.payeeName || expense.vendor || 'Employee',
+    roleName: expense.costCenter || '-',
+    amount,
+    payable: round2(toNumber(expense.balanceDue || amount)),
+    paymentStatus: expense.paymentStatus || expense.status || 'Pending',
+    notes: expense.notes || `Salary expense for ${expense.payeeName || expense.vendor || 'employee'}`,
+    status: expense.status || 'Approved',
+    source: 'expense'
+  };
+}
+
+function getPayrollRecords(state = {}) {
+  const salaryExpenses = (state.expenses || []).filter(isSalaryExpenseRecord);
+  if (salaryExpenses.length) {
+    return salaryExpenses.map(buildPayrollRecordFromExpense).filter(Boolean);
+  }
+
+  return (state.users || [])
+    .filter((user) => user && user.isActive !== false && toNumber(user.salary) > 0)
+    .map(buildPayrollRecordFromUser)
+    .filter(Boolean);
+}
+
+function getPayrollExpenseTotal(state = {}) {
+  return sumBy(getPayrollRecords(state), (record) => record.amount);
+}
+
+function getPayrollRecordCount(state = {}) {
+  return getPayrollRecords(state).length;
+}
+
 function normalizeDateValue(value) {
+  if (!value) return '';
+  const text = String(value);
+  // Ensure we have a valid Date string, but do not slice it
+  return text;
+}
+
+function getDateOnly(value) {
   if (!value) return '';
   const text = String(value);
   return text.includes('T') ? text.slice(0, 10) : text;
@@ -137,6 +203,30 @@ function buildInvoiceLedgerEntry(snapshot = {}, client = null, project = null) {
 }
 
 function buildExpenseLedgerEntry(expense = {}, client = null, project = null) {
+  if (isSalaryExpenseRecord(expense)) {
+    const amount = round2(toNumber(expense.totalAmount || expense.amountBeforeGst || expense.balanceDue || expense.paidAmount || 0));
+    return {
+      id: expense.id,
+      module: 'payroll',
+      entryType: 'salary',
+      direction: 'out',
+      date: normalizeDateValue(expense.periodEnd || expense.periodStart || expense.dueDate || expense.expenseDate || expense.createdAt),
+      amount,
+      clientId: expense.clientId || client?.id || null,
+      clientName: client?.companyName || client?.name || '-',
+      projectId: expense.projectId || project?.id || null,
+      projectName: project?.title || '-',
+      status: expense.status || expense.paymentStatus || 'Scheduled',
+      title: 'Salary expense',
+      notes: expense.notes || expense.payeeName || expense.vendor || '',
+      payable: round2(toNumber(expense.balanceDue || amount)),
+      employeeId: expense.employeeId || expense.payeeId || null,
+      employeeName: expense.payeeName || expense.vendor || '-',
+      paymentStatus: expense.paymentStatus || 'Unpaid',
+      expenseType: expense.expenseType || 'Employee Salary'
+    };
+  }
+
   const impact = calculateExpenseImpact(expense);
   return {
     id: expense.id,
@@ -158,26 +248,29 @@ function buildExpenseLedgerEntry(expense = {}, client = null, project = null) {
   };
 }
 
-function buildPayrollLedgerEntry(user = {}) {
-  const amount = calculatePayrollExpense(user);
+function buildPayrollLedgerEntry(record = {}) {
+  const amount = round2(toNumber(record.amount));
   if (!amount) return null;
   return {
-    id: `payroll-${user.id}`,
+    id: record.id,
     module: 'payroll',
     entryType: 'salary',
     direction: 'out',
-    date: normalizeDateValue(user.lastLoginAt || user.createdAt || new Date().toISOString()),
+    date: normalizeDateValue(record.date || new Date().toISOString()),
     amount,
     clientId: null,
     clientName: '-',
     projectId: null,
     projectName: '-',
-    status: 'Pending',
+    status: record.status || record.paymentStatus || 'Pending',
     title: 'Salary payable',
-    notes: `Monthly salary for ${user.fullName || user.username || user.email || 'employee'}`,
-    payable: amount,
-    employeeId: user.id,
-    employeeName: user.fullName || user.username || user.email || '-'
+    notes: record.notes || `Monthly salary for ${record.employeeName || 'employee'}`,
+    payable: round2(toNumber(record.payable || amount)),
+    employeeId: record.employeeId || null,
+    employeeName: record.employeeName || '-',
+    roleName: record.roleName || '-',
+    paymentStatus: record.paymentStatus || 'Pending',
+    source: record.source || 'user'
   };
 }
 
@@ -253,25 +346,50 @@ function buildBankTransactionLedgerEntry(transaction = {}, client = null, projec
   };
 }
 
-function buildFinanceSummary(state = {}) {
+function buildFinanceSummary(state = {}, filters = {}) {
   const settings = state.settings || {};
   const clientById = new Map((state.clients || []).map((client) => [String(client.id), client]));
   const projectById = new Map((state.projects || []).map((project) => [String(project.id), project]));
   const vendorById = new Map((state.vendors || []).map((vendor) => [String(vendor.id), vendor]));
 
+  const fromDate = filters.from ? getDateOnly(filters.from) : '';
+  const toDate = filters.to ? getDateOnly(filters.to) : '';
+
+  function isWithinRange(dateValue) {
+    if (!dateValue) return true;
+    const normalized = getDateOnly(dateValue);
+    if (fromDate && normalized < fromDate) return false;
+    if (toDate && normalized > toDate) return false;
+    return true;
+  }
+
+  const validPayments = (state.payments || []).filter(p => isWithinRange(p.paymentDate || p.createdAt));
+
   const invoiceSnapshots = (state.invoices || [])
-    .filter((invoice) => invoice.status !== 'Cancelled')
-    .map((invoice) => getInvoiceSnapshot(invoice, (state.payments || []).filter((payment) => String(payment.invoiceId) === String(invoice.id)), settings, clientById.get(String(invoice.clientId)) || {}));
+    .filter((invoice) => invoice.status !== 'Cancelled' && isWithinRange(invoice.invoiceDate || invoice.createdAt))
+    .map((invoice) => getInvoiceSnapshot(invoice, validPayments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), settings, clientById.get(String(invoice.clientId)) || {}));
 
-  const expenseImpacts = (state.expenses || []).map(calculateExpenseImpact);
-  const outsourcingImpacts = (state.outsourcingExpenses || []).map((item) => calculateOutsourcingExpense(item, vendorById.get(String(item.vendorId)) || {}, settings));
-  const commissionImpacts = (state.leadCommissions || []).map((item) => calculateLeadCommission(item, vendorById.get(String(item.partnerId)) || {}, settings));
-  const payrollUsers = getActivePayrollUsers(state);
-  const payrollExpense = sumBy(payrollUsers, calculatePayrollExpense);
-  const bankTransactionCredits = (state.bankTransactions || []).filter((item) => String(item.transactionType || '').toLowerCase() !== 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
-  const bankTransactionDebits = (state.bankTransactions || []).filter((item) => String(item.transactionType || '').toLowerCase() === 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
+  const expenseImpacts = (state.expenses || [])
+    .filter(e => isWithinRange(e.expenseDate || e.createdAt) && !isSalaryExpenseRecord(e))
+    .map(calculateExpenseImpact);
+    
+  const outsourcingImpacts = (state.outsourcingExpenses || [])
+    .filter(e => isWithinRange(e.expenseDate || e.createdAt))
+    .map((item) => calculateOutsourcingExpense(item, vendorById.get(String(item.vendorId)) || {}, settings));
+    
+  const commissionImpacts = (state.leadCommissions || [])
+    .filter(c => isWithinRange(c.commissionDate || c.createdAt))
+    .map((item) => calculateLeadCommission(item, vendorById.get(String(item.partnerId)) || {}, settings));
+    
+  const payrollRecords = getPayrollRecords(state);
+  const payrollExpense = sumBy(payrollRecords, (record) => record.amount);
+  const payrollEmployeeCount = new Set(payrollRecords.map((record) => String(record.employeeId || '')).filter(Boolean)).size;
+  
+  const validBankTransactions = (state.bankTransactions || []).filter(t => isWithinRange(t.date || t.createdAt));
+  const bankTransactionCredits = validBankTransactions.filter((item) => String(item.transactionType || '').toLowerCase() !== 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
+  const bankTransactionDebits = validBankTransactions.filter((item) => String(item.transactionType || '').toLowerCase() === 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
 
-  const totalReceived = sumBy(state.payments || [], getPaymentAppliedAmount);
+  const totalReceived = sumBy(validPayments, getPaymentAppliedAmount);
   const totalOutstanding = sumBy(invoiceSnapshots, (item) => item.balanceDue);
   const totalExpense = sumBy(expenseImpacts, (item) => item.expenseAmount);
   const totalOutsourcingPayable = sumBy(outsourcingImpacts, (item) => item.totalAmount);
@@ -288,6 +406,7 @@ function buildFinanceSummary(state = {}) {
     totalOverdueOutstanding: sumBy(invoiceSnapshots.filter((item) => item.isOverdue), (item) => item.balanceDue),
     totalExpenses: totalExpense,
     totalPayrollExpense: payrollExpense,
+    payrollEmployeeCount,
     totalOutsourcingPayable,
     totalCommissionPayable,
     totalPayables,
@@ -302,8 +421,8 @@ function buildFinanceSummary(state = {}) {
     unreconciledBankTransactions: (state.bankTransactions || []).filter((transaction) => !transaction.linkedInvoiceId && !transaction.linkedExpenseId).length,
     bankCredits: round2(bankTransactionCredits),
     bankDebits: round2(bankTransactionDebits),
-    payrollUsers: payrollUsers.length,
-    averageSalary: payrollUsers.length ? round2(payrollExpense / payrollUsers.length) : 0
+    payrollRecords: payrollRecords.length,
+    averageSalary: payrollEmployeeCount ? round2(payrollExpense / payrollEmployeeCount) : 0
   };
 }
 
@@ -314,6 +433,7 @@ function buildFinanceLedger(state = {}, filters = {}) {
   const invoiceById = new Map((state.invoices || []).map((invoice) => [String(invoice.id), invoice]));
   const expenseById = new Map((state.expenses || []).map((expense) => [String(expense.id), expense]));
   const vendorById = new Map((state.vendors || []).map((vendor) => [String(vendor.id), vendor]));
+  const payrollRecords = getPayrollRecords(state);
   const paymentsByInvoiceId = new Map();
 
   (state.payments || []).forEach((payment) => {
@@ -333,7 +453,7 @@ function buildFinanceLedger(state = {}, filters = {}) {
       projectById.get(String(payment.projectId)) || null,
       invoiceById.get(String(payment.invoiceId)) || null
     )),
-    ...(state.expenses || []).map((expense) => buildExpenseLedgerEntry(
+    ...(state.expenses || []).filter((expense) => !isSalaryExpenseRecord(expense)).map((expense) => buildExpenseLedgerEntry(
       expense,
       clientById.get(String(expense.clientId)) || null,
       projectById.get(String(expense.projectId)) || null
@@ -352,7 +472,7 @@ function buildFinanceLedger(state = {}, filters = {}) {
       vendorById.get(String(commission.partnerId)) || null,
       settings
     )),
-    ...(state.users || []).map((user) => buildPayrollLedgerEntry(user)).filter(Boolean),
+    ...payrollRecords.map(buildPayrollLedgerEntry).filter(Boolean),
     ...(state.bankTransactions || []).map((transaction) => buildBankTransactionLedgerEntry(
       transaction,
       clientById.get(String(transaction.linkedClientId)) || null,
@@ -382,8 +502,8 @@ function buildFinanceLedger(state = {}, filters = {}) {
     if (normalizedFilters.invoiceId && String(entry.invoiceId || '') !== normalizedFilters.invoiceId) return false;
     if (normalizedFilters.bankAccountId && String(entry.bankAccountId || '') !== normalizedFilters.bankAccountId) return false;
     if (normalizedFilters.status && String(entry.status || '').toLowerCase() !== normalizedFilters.status) return false;
-    if (normalizedFilters.from && entry.date < normalizeDateValue(normalizedFilters.from)) return false;
-    if (normalizedFilters.to && entry.date > normalizeDateValue(normalizedFilters.to)) return false;
+    if (normalizedFilters.from && getDateOnly(entry.date) < getDateOnly(normalizedFilters.from)) return false;
+    if (normalizedFilters.to && getDateOnly(entry.date) > getDateOnly(normalizedFilters.to)) return false;
     return true;
   });
 
@@ -471,8 +591,8 @@ function buildBankReconciliation(state = {}, filters = {}) {
     if (filters.matchStatus && String(entry.matchStatus || '').toLowerCase() !== String(filters.matchStatus).toLowerCase()) return false;
     if (filters.clientId && String(entry.clientId || '') !== String(filters.clientId)) return false;
     if (filters.projectId && String(entry.projectId || '') !== String(filters.projectId)) return false;
-    if (filters.from && entry.date < normalizeDateValue(filters.from)) return false;
-    if (filters.to && entry.date > normalizeDateValue(filters.to)) return false;
+    if (filters.from && getDateOnly(entry.date) < getDateOnly(filters.from)) return false;
+    if (filters.to && getDateOnly(entry.date) > getDateOnly(filters.to)) return false;
     return true;
   });
 
@@ -554,5 +674,8 @@ module.exports = {
   getInvoiceSnapshot,
   getPaymentAppliedAmount,
   calculatePayrollExpense,
+  getPayrollExpenseTotal,
+  getPayrollRecords,
+  getPayrollRecordCount,
   syncInvoiceFinancialState
 };

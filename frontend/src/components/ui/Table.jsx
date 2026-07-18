@@ -36,6 +36,7 @@ export function DataTable({
   onPageSizeChange,
   rowActions,
   rowClassName,
+  onRowClick,
   lookups = {}
 }) {
   const [internalPage, setInternalPage] = useState(1);
@@ -141,6 +142,7 @@ export function DataTable({
               {columns.map((column) => {
                 const sorted = sortKey === column.key;
                 const icon = sorted ? (sortDirection === 'desc' ? <ChevronDown size={14} /> : <ChevronUp size={14} />) : <ChevronsUpDown size={14} />;
+                const sortable = column.sortable !== false;
                 return (
                   <th
                     key={column.key}
@@ -149,14 +151,20 @@ export function DataTable({
                       column.align === 'right' && 'text-right'
                     )}
                   >
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 transition hover:text-[var(--text)]"
-                      onClick={() => onSortChange?.(column.key, getNextSortDirection(sortKey, sortDirection, column.key))}
-                    >
-                      <span>{column.label}</span>
-                      {column.sortable === false ? null : icon}
-                    </button>
+                    {sortable ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 transition hover:text-[var(--text)]"
+                        onClick={() => onSortChange?.(column.key, getNextSortDirection(sortKey, sortDirection, column.key))}
+                      >
+                        <span>{column.label}</span>
+                        {icon}
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-2">
+                        <span>{column.label}</span>
+                      </span>
+                    )}
                   </th>
                 );
               })}
@@ -166,15 +174,33 @@ export function DataTable({
           <tbody>
             {visibleRows.map((row, index) => {
               const id = row[rowKey];
+              const clickable = typeof onRowClick === 'function';
               return (
-                <tr key={id} className={cn('transition hover:bg-slate-50', rowClassName ? rowClassName(row) : '')}>
+                <tr
+                  key={id}
+                  className={cn('transition hover:bg-slate-50', clickable && 'cursor-pointer', rowClassName ? rowClassName(row) : '')}
+                  onClick={clickable ? () => onRowClick(row, startIndex + index) : undefined}
+                  onKeyDown={clickable ? (event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onRowClick(row, startIndex + index);
+                    }
+                  } : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  role={clickable ? 'button' : undefined}
+                >
                   {selectable ? (
                     <td className="sticky left-0 border-b border-slate-100 bg-white px-4 py-4 align-middle text-sm text-[var(--text-muted)]">
                       {startIndex + index + 1}
                     </td>
                   ) : null}
                   {columns.map((column) => {
-                    const content = column.render ? column.render(row, lookups) : formatTableValue(row[column.key], column.type);
+                    const rawContent = column.render ? column.render(row, lookups, startIndex + index) : row[column.key];
+                    const content = column.render && column.type === 'badge'
+                      ? formatBadgeValue(rawContent)
+                      : column.render
+                        ? rawContent
+                        : formatTableValue(rawContent, column.type);
                     return (
                       <td
                         key={column.key}
@@ -189,7 +215,15 @@ export function DataTable({
                       </td>
                     );
                   })}
-                  {rowActions ? <td className="border-b border-slate-100 px-4 py-4 text-right">{rowActions(row)}</td> : null}
+                  {rowActions ? (
+                    <td
+                      className="border-b border-slate-100 px-4 py-4 text-right"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      {rowActions(row)}
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
@@ -265,25 +299,62 @@ function formatTableValue(value, type) {
       ? number.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 })
       : value;
   }
-  if (type === 'date') return String(value).slice(0, 10);
+  if (type === 'date') {
+    const raw = String(value);
+    const dateObj = new Date(raw);
+    if (Number.isNaN(dateObj.getTime())) return raw.slice(0, 10);
+    const isDateOnly = raw.length === 10 || raw.endsWith('T00:00:00.000Z') || (dateObj.getUTCHours() === 0 && dateObj.getUTCMinutes() === 0);
+    const pad = (n) => String(n).padStart(2, '0');
+    const day = pad(dateObj.getDate());
+    const month = pad(dateObj.getMonth() + 1);
+    const year = dateObj.getFullYear();
+    if (isDateOnly) return `${day}-${month}-${year}`;
+    let hours = dateObj.getHours();
+    const minutes = pad(dateObj.getMinutes());
+    const seconds = pad(dateObj.getSeconds());
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    return `${day}-${month}-${year} ${pad(hours)}:${minutes}:${seconds} ${ampm}`;
+  }
   if (type === 'badge') {
-    if (typeof value === 'boolean') {
-      const text = value ? 'Yes' : 'No';
-      return (
-        <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold', value ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-700')}>
-          {text}
-        </span>
-      );
-    }
-    const text = String(value);
-    const tone = text === 'Active' || text === 'Paid' || text === 'Completed' || text === 'Renewed' ? 'success' : text === 'Pending' || text === 'Due' ? 'warning' : 'neutral';
-    return (
-      <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold', tone === 'success' && 'border-emerald-200 bg-emerald-50 text-emerald-700', tone === 'warning' && 'border-amber-200 bg-amber-50 text-amber-700', tone === 'neutral' && 'border-slate-200 bg-slate-100 text-slate-700')}>
-        {text}
-      </span>
-    );
+    return formatBadgeValue(value);
   }
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);
+}
+
+function formatBadgeValue(value) {
+  if (typeof value === 'boolean') {
+    const text = value ? 'Yes' : 'No';
+    return (
+      <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold', value ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-100 text-slate-700')}>
+        {text}
+      </span>
+    );
+  }
+
+  const text = String(value);
+  const successValues = new Set(['Active', 'Paid', 'Completed', 'Renewed', 'Received', 'Cleared', 'Scheduled', 'Auto Invoice On']);
+  const warningValues = new Set(['Pending', 'Due', 'Partially Paid', 'Pending Clearance', 'On Hold', 'Reminder window']);
+  const dangerValues = new Set(['Overdue', 'Expired', 'Cancelled', 'Inactive', 'Bounced', 'Reversed', 'Invoice due']);
+  const infoValues = new Set(['Sent', 'Refunded', 'Manual only']);
+  const neutralValues = new Set(['Disabled']);
+  const tone = successValues.has(text)
+    ? 'success'
+    : warningValues.has(text)
+      ? 'warning'
+      : dangerValues.has(text)
+        ? 'danger'
+        : infoValues.has(text)
+          ? 'info'
+          : neutralValues.has(text)
+            ? 'neutral'
+            : 'neutral';
+  return (
+    <span className={cn('inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold', tone === 'success' && 'border-emerald-200 bg-emerald-50 text-emerald-700', tone === 'warning' && 'border-amber-200 bg-amber-50 text-amber-700', tone === 'danger' && 'border-rose-200 bg-rose-50 text-rose-700', tone === 'info' && 'border-sky-200 bg-sky-50 text-sky-700', tone === 'neutral' && 'border-slate-200 bg-slate-100 text-slate-700')}>
+      {text}
+    </span>
+  );
 }

@@ -8,6 +8,8 @@ import { PageLoader } from '../../components/ui/Loader';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { PaymentFormModal } from '../../components/forms/PaymentFormModal';
+import { Badge } from '../../components/ui/Badge';
+import { getInvoiceStatusTone, getPaymentStatusTone } from '../../lib/paymentStatus';
 
 export function PaymentDetailPage() {
   const { id } = useParams();
@@ -106,6 +108,10 @@ export function PaymentDetailPage() {
     });
   };
 
+  const invoiceStatus = invoice?.status || 'Sent';
+  const invoiceBalance = Number(invoice?.balanceDue || 0);
+  const paymentStatus = payment.paymentStatus || 'Received';
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -129,6 +135,8 @@ export function PaymentDetailPage() {
               <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
                 {payment.paymentMode || 'Payment'}
               </span>
+              <Badge tone={getPaymentStatusTone(paymentStatus)}>{paymentStatus}</Badge>
+              {invoice ? <Badge tone={getInvoiceStatusTone(invoiceStatus)}>{invoiceStatus}</Badge> : null}
             </div>
           </div>
         </div>
@@ -168,6 +176,14 @@ export function PaymentDetailPage() {
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment Mode</p>
                 <p className="text-base font-medium text-slate-900">{payment.paymentMode || '-'}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Activity className="mt-0.5 text-slate-400" size={18} />
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment Status</p>
+                <p className="text-base font-medium text-slate-900">{paymentStatus}</p>
               </div>
             </div>
 
@@ -221,6 +237,9 @@ export function PaymentDetailPage() {
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase">Invoice</p>
                   <p className="font-semibold text-slate-900">{invoice.invoiceNumber}</p>
+                  <p className="text-xs text-slate-500">
+                    {invoice.status || 'Sent'} · Balance {formatMoney(invoiceBalance)}
+                  </p>
                 </div>
               </div>
             )}

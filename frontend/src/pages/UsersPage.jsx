@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, RefreshCw, Users } from 'lucide-react';
+import { Plus, Users, Search, Edit2, Trash2, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
-import { PageHeader } from '../components/ui/PageHeader';
-import { StatCard } from '../components/ui/StatCard';
 import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { DataTable } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
 import { ResourceForm } from '../components/forms/ResourceForm';
 import { ConfirmDialog } from '../components/overlays/ConfirmDialog';
+import { UserAvatar } from '../components/ui/UserAvatar';
+import { useNavigate } from 'react-router-dom';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { mapUserForForm } from '../lib/rbac';
 import { sortRows } from '../lib/resource';
@@ -34,6 +34,7 @@ function formatRoleNames(roles = []) {
 }
 
 export function UsersPage() {
+  const navigate = useNavigate();
   const { token, hasPermission } = useAuth();
   const [rows, setRows] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -140,82 +141,108 @@ export function UsersPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Administration"
-        title="Manage Users"
-        description="Create users, assign RBAC roles, and reset access without leaving the CRM."
-        actions={[
-          { label: 'Refresh', icon: RefreshCw, variant: 'secondary', onClick: () => setReloadTick((value) => value + 1) },
-          ...(canCreate ? [{ label: 'Add User', icon: Plus, onClick: openCreate }] : [])
-        ]}
-      />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total Users" value={loading ? '...' : String(stats.total)} helper="All accounts" icon={Users} />
-        <StatCard title="Active" value={loading ? '...' : String(stats.active)} helper="Enabled logins" icon={Users} tone="positive" />
-        <StatCard title="Admins" value={loading ? '...' : String(stats.admins)} helper="Admin role mapped" icon={Users} />
-        <StatCard title="Inactive" value={loading ? '...' : String(stats.inactive)} helper="Disabled accounts" icon={Users} tone="negative" />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-main)]">Manage Users</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">Create users, assign RBAC roles, and reset access without leaving the CRM.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {canCreate ? (
+            <Button onClick={openCreate} className="gap-2">
+              <Plus size={16} />
+              Add User
+            </Button>
+          ) : null}
+        </div>
       </div>
 
-      <Card className="space-y-4 p-4 md:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Search users</label>
-            <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by name, username, or email" />
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--text-muted)]">
-            {rows.length} matching users
-          </div>
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: 'Total Users', value: stats.total, helper: 'All accounts', bg: 'bg-blue-50/80 text-blue-500' },
+          { label: 'Active', value: stats.active, helper: 'Enabled logins', bg: 'bg-emerald-50/80 text-emerald-500' },
+          { label: 'Admins', value: stats.admins, helper: 'Admin role mapped', bg: 'bg-purple-50/80 text-purple-500' },
+          { label: 'Inactive', value: stats.inactive, helper: 'Disabled accounts', bg: 'bg-rose-50/80 text-rose-500' }
+        ].map((item) => (
+          <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+            <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
+              <Users size={20} strokeWidth={2} />
+            </div>
+            <div className="overflow-hidden min-w-0">
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
+              <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : String(item.value)}</h3>
+              <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+            </div>
+          </Card>
+        ))}
+      </div>
 
-        <DataTable
-          loading={loading}
-          columns={[
-            { key: 'fullName', label: 'Name' },
-            { key: 'username', label: 'Username' },
-            { key: 'email', label: 'Email' },
-            { key: 'salary', label: 'Salary', type: 'money', align: 'right' },
-            { key: 'roles', label: 'Roles', render: (row) => formatRoleNames(row.roles) },
-            { key: 'lastLoginAt', label: 'Last Login', type: 'date' },
-            { key: 'isActive', label: 'Status', type: 'badge' }
-          ]}
-          rows={sortedRows}
-          selectable={canDelete}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSortChange={(key, direction) => {
-            setSortKey(key);
-            setSortDirection(direction);
-          }}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => {
-            setPageSize(size);
-            setPage(1);
-          }}
-          onCreate={canCreate ? openCreate : undefined}
-          createLabel="Add User"
-          rowActions={
-            canEdit || canDelete
-              ? (row) => (
-                  <div className="flex items-center justify-end gap-2">
-                    {canEdit ? (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => openEdit(row)}>
-                        Edit
-                      </Button>
-                    ) : null}
-                    {canDelete ? (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
-                        Delete
-                      </Button>
-                    ) : null}
-                  </div>
-                )
-              : undefined
-          }
-        />
-      </Card>
+      <DataTable
+        loading={loading}
+        columns={[
+          { key: 'fullName', label: 'Name', render: (row) => (
+            <div className="flex items-center gap-3">
+              <UserAvatar name={row.fullName} url={row.avatarUrl} className="h-7 w-7" fallbackSize={14} />
+              <div className="text-sm font-medium text-[var(--text-main)] truncate">
+                {row.fullName}
+              </div>
+            </div>
+          )},
+          { key: 'phone', label: 'Phone', render: (row) => row.phone || '-' },
+          { key: 'username', label: 'Username' },
+          { key: 'email', label: 'Email' },
+          { key: 'salary', label: 'Salary', type: 'money', align: 'right' },
+          { key: 'roles', label: 'Roles', render: (row) => formatRoleNames(row.roles) },
+          { key: 'lastLoginAt', label: 'Last Login', type: 'date' },
+          { key: 'isActive', label: 'Status', type: 'badge' }
+        ]}
+        rows={sortedRows}
+        selectable={true}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSortChange={(key, direction) => {
+          setSortKey(key);
+          setSortDirection(direction);
+        }}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+        toolbarLeft={
+          <div className="relative flex-1 w-full max-w-xs">
+            <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]">
+              <Search size={16} />
+            </div>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search users..."
+              className="pl-9 w-full"
+            />
+          </div>
+        }
+        rowActions={
+          (row) => (
+            <div className="flex items-center justify-end gap-1">
+              <button type="button" onClick={() => navigate(`/app/users/${row.id}`)} className="p-2 text-slate-400 hover:text-[var(--primary)] hover:bg-slate-50 rounded-lg transition-colors" title="View Details">
+                <Eye size={16} />
+              </button>
+              {canEdit ? (
+                <button type="button" onClick={() => openEdit(row)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                  <Edit2 size={16} />
+                </button>
+              ) : null}
+              {canDelete ? (
+                <button type="button" onClick={() => setDeleteTarget(row)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                  <Trash2 size={16} />
+                </button>
+              ) : null}
+            </div>
+          )
+        }
+      />
 
       <Modal
         open={editorOpen}
@@ -226,7 +253,6 @@ export function UsersPage() {
           setActiveRecord(null);
         }}
         width="min(1120px, 96vw)"
-        hideHeader
       >
         <ResourceForm
           key={`user:${activeRecord?.id || 'new'}`}

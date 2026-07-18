@@ -1715,51 +1715,47 @@ export function LeadDetailsPage() {
         <div className="space-y-6">
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-blue-600 text-white shadow-sm">
-                    <Users size={20} />
-                  </div>
-                  <span className="text-2xl font-bold text-slate-800">{summary.contactsCount || contacts.length || 0}</span>
+              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
+                  <Users size={24} strokeWidth={2} />
                 </div>
-                <div className="text-sm font-medium text-slate-500 mt-1">
-                  Total Contacts
-                </div>
-              </Card>
-
-              <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-emerald-600 text-white shadow-sm">
-                    <Activity size={20} />
-                  </div>
-                  <span className="text-2xl font-bold text-slate-800">{summary.eventsCount || events.length || 0}</span>
-                </div>
-                <div className="text-sm font-medium text-slate-500 mt-1">
-                  Total Activities
+                <div className="overflow-hidden">
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Contacts</p>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.contactsCount || contacts.length || 0}</h3>
+                  <p className="mt-1 text-xs text-slate-400 truncate">Total linked contacts</p>
                 </div>
               </Card>
 
-              <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-purple-600 text-white shadow-sm">
-                    <CheckCircle2 size={20} />
-                  </div>
-                  <span className="text-2xl font-bold text-slate-800">{summary.tasksCount || 0}</span>
+              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
+                  <Activity size={24} strokeWidth={2} />
                 </div>
-                <div className="text-sm font-medium text-slate-500 mt-1">
-                  Total Tasks
+                <div className="overflow-hidden">
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Activities</p>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.eventsCount || events.length || 0}</h3>
+                  <p className="mt-1 text-xs text-slate-400 truncate">Logged events & calls</p>
                 </div>
               </Card>
 
-              <Card className="p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col gap-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-amber-600 text-white shadow-sm">
-                    <Clock3 size={20} />
-                  </div>
-                  <span className="text-2xl font-bold text-slate-800">{summary.remindersCount || 0}</span>
+              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
+                  <CheckCircle2 size={24} strokeWidth={2} />
                 </div>
-                <div className="text-sm font-medium text-slate-500 mt-1">
-                  Total Reminders
+                <div className="overflow-hidden">
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Tasks</p>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.tasksCount || 0}</h3>
+                  <p className="mt-1 text-xs text-slate-400 truncate">Action items</p>
+                </div>
+              </Card>
+
+              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
+                  <Clock3 size={24} strokeWidth={2} />
+                </div>
+                <div className="overflow-hidden">
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Reminders</p>
+                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.remindersCount || 0}</h3>
+                  <p className="mt-1 text-xs text-slate-400 truncate">Upcoming alerts</p>
                 </div>
               </Card>
             </div>

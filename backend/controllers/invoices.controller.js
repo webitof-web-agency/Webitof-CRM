@@ -8,6 +8,7 @@ const { getSettings } = require('../models/settings.model');
 const { calculateInvoiceTotals, getDefaultInvoiceTypeForClient, getPlaceOfSupplyForClient } = require('../utils/finance');
 const { generateInvoiceNumber, getFinancialYear, normalizeInvoiceNumber } = require('../utils/invoice');
 const { getInvoiceSnapshot, syncInvoiceFinancialState } = require('../services/finance.service');
+const { notifyBusinessEvent } = require('../services/notification.service');
 const { hasPermission } = require('../middlewares/auth');
 
 function buildPaymentMap(payments = []) {
@@ -266,6 +267,18 @@ invoicesController.create = async (req, res, next) => {
     const body = await normalizeInvoice(req.body || {}, null, req.user);
     const record = await invoiceModel.create(body);
     const snapshot = await syncInvoiceFinancialState(record.id);
+    const nextRecord = snapshot || record;
+    notifyBusinessEvent({
+      moduleName: 'invoices',
+      eventKey: 'created',
+      entity: nextRecord,
+      clientId: nextRecord?.clientId || null,
+      title: 'Invoice created',
+      message: `Invoice ${nextRecord?.invoiceNumber || record.invoiceNumber} was created.`,
+      actorUserId: req.user?.id || null,
+      notifyClient: Boolean(nextRecord?.clientId),
+      routePath: `/app/invoices/${record.id}`
+    }).catch(() => {});
     res.status(201).json({ success: true, data: snapshot || record });
   } catch (error) {
     next(error);
@@ -281,7 +294,19 @@ invoicesController.update = async (req, res, next) => {
     const body = await normalizeInvoice(req.body || {}, current, req.user);
     await invoiceModel.update(req.params.id, body);
     const snapshot = await syncInvoiceFinancialState(req.params.id);
-    res.json({ success: true, data: snapshot || (await invoiceModel.findById(req.params.id)) });
+    const nextRecord = snapshot || (await invoiceModel.findById(req.params.id));
+    notifyBusinessEvent({
+      moduleName: 'invoices',
+      eventKey: 'updated',
+      entity: nextRecord,
+      clientId: nextRecord?.clientId || null,
+      title: 'Invoice updated',
+      message: `Invoice ${nextRecord?.invoiceNumber || current.invoiceNumber} was updated.`,
+      actorUserId: req.user?.id || null,
+      notifyClient: Boolean(nextRecord?.clientId),
+      routePath: `/app/invoices/${req.params.id}`
+    }).catch(() => {});
+    res.json({ success: true, data: snapshot || nextRecord });
   } catch (error) {
     next(error);
   }

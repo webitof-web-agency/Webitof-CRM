@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { useEffect } from 'react';
 import { ProtectedRoute } from './components/guards/ProtectedRoute';
 import { PermissionRoute } from './components/guards/PermissionRoute';
@@ -17,6 +18,8 @@ import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { FilesPage } from './pages/FilesPage';
 import { FinancePage } from './pages/finance/FinancePage';
+import { ExpenseDetailsPage } from './pages/expenses/ExpenseDetailsPage';
+import { AmcDetailPage } from './pages/amc/AmcDetailPage';
 import { BankingPage } from './pages/BankingPage';
 import { MastersPage } from './pages/MastersPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -48,6 +51,8 @@ import { InvoicePublicPage } from './pages/invoices/InvoicePublicPage';
 import { PaymentsListPage } from './pages/payments/PaymentsListPage';
 import { PaymentBuilderPage } from './pages/payments/PaymentBuilderPage';
 import { PaymentDetailPage } from './pages/payments/PaymentDetailPage';
+import { AutomationPage } from './pages/AutomationPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 
 function AppRoutes() {
   return (
@@ -211,10 +216,38 @@ function AppRoutes() {
           }
         />
         <Route
+          path="notifications"
+          element={<NotificationsPage />}
+        />
+        <Route
+          path="automation"
+          element={
+            <PermissionRoute permission="reports.view">
+              <AutomationPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
           path="finance"
           element={
             <PermissionRoute permission="reports.view">
               <FinancePage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="expenses/:id"
+          element={
+            <PermissionRoute permission="expenses.read">
+              <ExpenseDetailsPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="amc/:id"
+          element={
+            <PermissionRoute permission="amc.read">
+              <AmcDetailPage />
             </PermissionRoute>
           }
         />
@@ -329,6 +362,8 @@ function TitleUpdater() {
       
       if (path.includes('/settings')) pageName = 'Settings';
       else if (path.includes('/dashboard')) pageName = 'Dashboard';
+      else if (path.includes('/notifications')) pageName = 'Notifications';
+      else if (path.includes('/automation')) pageName = 'Automation';
       else if (path.includes('/clients')) pageName = 'Clients';
       else if (path.includes('/projects')) pageName = 'Projects';
       else if (path.includes('/invoices')) pageName = 'Invoices';
@@ -396,9 +431,11 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <HashRouter>
-          <TitleUpdater />
-          <AppRoutes />
-          <Toaster richColors position="top-right" closeButton />
+          <NotificationProvider>
+            <TitleUpdater />
+            <AppRoutes />
+            <Toaster richColors position="top-right" closeButton />
+          </NotificationProvider>
         </HashRouter>
       </AuthProvider>
     </ThemeProvider>

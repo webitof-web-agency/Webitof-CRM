@@ -92,9 +92,9 @@ async function parseResponse(response) {
   return data;
 }
 
-export async function request(path, { method = 'GET', body, token, headers = {}, formData = null } = {}) {
+export async function request(path, { method = 'GET', body, token, headers = {}, formData = null, skipCache = false } = {}) {
   const cacheKey = getCacheKey(method, path, token);
-  if (method === 'GET') {
+  if (method === 'GET' && !skipCache) {
     const cached = readStoredCache(cacheKey);
     if (cached) return cached.value;
   }
@@ -117,7 +117,7 @@ export async function request(path, { method = 'GET', body, token, headers = {},
   const response = await fetch(`${API_BASE_URL}${path}`, init);
   const data = await parseResponse(response);
 
-  if (method === 'GET') {
+  if (method === 'GET' && !skipCache) {
     writeStoredCache(cacheKey, data);
   } else {
     invalidateStoredCache(path.split('?')[0]);
@@ -145,7 +145,15 @@ export const api = {
     renewalDashboard: (token) => request('/reports/renewals', { token })
   },
   finance: {
-    summary: (token) => request('/finance/summary', { token }),
+    summary: (token, query = {}) => {
+      const params = new URLSearchParams();
+      Object.entries(query || {}).forEach(([key, value]) => {
+        if (value == null || value === '') return;
+        params.set(key, value);
+      });
+      const suffix = params.toString() ? `?${params.toString()}` : '';
+      return request(`/finance/summary${suffix}`, { token });
+    },
     ledger: (token, query = {}) => {
       const params = new URLSearchParams();
       Object.entries(query || {}).forEach(([key, value]) => {
@@ -168,6 +176,20 @@ export const api = {
   settings: {
     get: (token) => request('/settings', { token }),
     save: (token, payload) => request('/settings', { method: 'PUT', token, body: payload })
+  },
+  notifications: {
+    list: (token, query = {}) => {
+      const params = new URLSearchParams();
+      Object.entries(query || {}).forEach(([key, value]) => {
+        if (value == null || value === '') return;
+        params.set(key, value);
+      });
+      const suffix = params.toString() ? `?${params.toString()}` : '';
+      return request(`/notifications${suffix}`, { token, skipCache: true });
+    },
+    unreadCount: (token) => request('/notifications/unread-count', { token, skipCache: true }),
+    markRead: (token, id) => request(`/notifications/${id}/read`, { method: 'PATCH', token, skipCache: true }),
+    markAllRead: (token) => request('/notifications/read-all', { method: 'PATCH', token, skipCache: true })
   },
   files: {
     list: (token, search = '', moduleName = '', entityId = '', folderKey = '') =>
