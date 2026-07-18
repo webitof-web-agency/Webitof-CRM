@@ -492,26 +492,50 @@ export function DashboardPage() {
               <h3 className="text-sm font-bold text-slate-800">Recent Activity</h3>
               <p className="text-[10px] text-slate-500">Latest invoices and transactions</p>
             </div>
+            <Link to="/app/invoices" className="ml-auto text-[11px] font-bold flex items-center gap-1 transition-all hover:gap-1.5" style={{ color: 'var(--primary)' }}>
+              View All <span aria-hidden="true">&rarr;</span>
+            </Link>
           </div>
           
           <div className="flex-1 flex flex-col overflow-auto -mx-2">
-
-            <div className="flex-1 flex flex-col items-center justify-center text-center">
-              <div className="relative z-10 mb-6 flex items-center justify-center">
-                <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
-                  <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
-                  <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
-                  <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
-                  <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
-                  <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
-                  <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
-                    <Search size={20} className="text-white" />
+            {summary?.recentActivity && summary.recentActivity.length > 0 ? (
+              <div className="flex flex-col gap-2 px-2">
+                {summary.recentActivity.slice(0, 4).map((item, i) => {
+                  const dateObj = item.date ? new Date(item.date) : null;
+                  const formattedDate = dateObj && !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown';
+                  return (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-[12px] bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                      <div className="flex flex-col text-left max-w-[65%]">
+                        <span className="text-xs font-bold text-slate-800 truncate">{item.title || 'Transaction'}</span>
+                        <span className="text-[10px] text-slate-500">{item.type} &bull; {formattedDate} &bull; {item.status}</span>
+                      </div>
+                      <div className="text-right flex flex-col">
+                        <span className={`text-xs font-bold ${item.type === 'Payment' ? 'text-green-600' : 'text-slate-900'}`}>
+                          {item.type === 'Payment' ? '+' : ''}{formatAmount(item.amount)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <div className="relative z-10 mb-6 flex items-center justify-center">
+                  <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                    <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
+                    <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
+                    <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
+                    <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
+                    <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
+                    <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
+                      <Search size={20} className="text-white" />
+                    </div>
                   </div>
                 </div>
+                <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No recent activity</h4>
+                <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
               </div>
-              <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No recent activity</h4>
-              <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
-            </div>
+            )}
           </div>
         </Card>
 
@@ -526,23 +550,44 @@ export function DashboardPage() {
               <h3 className="text-sm font-bold text-slate-800">Pending Payables</h3>
               <p className="text-[10px] text-slate-500">Bills and expenses awaiting payment</p>
             </div>
+            <Link to="/app/expenses" className="ml-auto text-[11px] font-bold flex items-center gap-1 transition-all hover:gap-1.5" style={{ color: 'var(--primary)' }}>
+              View All <span aria-hidden="true">&rarr;</span>
+            </Link>
           </div>
           
-          <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <div className="relative z-10 mb-6 flex items-center justify-center">
-              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
-                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
-                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
-                <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
-                <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
-                <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
-                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
-                  <Search size={20} className="text-white" />
-                </div>
+          <div className="flex-1 flex flex-col overflow-auto -mx-2">
+            {pendingPayables && pendingPayables.length > 0 ? (
+              <div className="flex flex-col gap-2 px-2">
+                {pendingPayables.slice(0, 4).map((item, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-[12px] bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                    <div className="flex flex-col text-left max-w-[65%]">
+                      <span className="text-xs font-bold text-slate-800 truncate">{item.title || item.vendorName || item.partnerName || item.employeeName || 'Payable'}</span>
+                      <span className="text-[10px] text-slate-500">{item.type || 'Expense'}</span>
+                    </div>
+                    <div className="text-right flex flex-col">
+                      <span className="text-xs font-bold text-slate-900">{formatAmount(item.amount || item.payable || 0)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-            <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No records found</h4>
-            <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <div className="relative z-10 mb-6 flex items-center justify-center">
+                  <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                    <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
+                    <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
+                    <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
+                    <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
+                    <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
+                    <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
+                      <Search size={20} className="text-white" />
+                    </div>
+                  </div>
+                </div>
+                <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No records found</h4>
+                <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -557,23 +602,49 @@ export function DashboardPage() {
               <h3 className="text-sm font-bold text-slate-800">Renewals & AMC Due</h3>
               <p className="text-[10px] text-slate-500">Upcoming renewals and AMC expiries</p>
             </div>
+            <Link to="/app/reports" className="ml-auto text-[11px] font-bold flex items-center gap-1 transition-all hover:gap-1.5" style={{ color: 'var(--primary)' }}>
+              View All <span aria-hidden="true">&rarr;</span>
+            </Link>
           </div>
           
-          <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <div className="relative z-10 mb-6 flex items-center justify-center">
-              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
-                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
-                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
-                <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
-                <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
-                <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
-                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
-                  <Search size={20} className="text-white" />
-                </div>
+          <div className="flex-1 flex flex-col overflow-auto -mx-2">
+            {renewalRows && renewalRows.length > 0 ? (
+              <div className="flex flex-col gap-2 px-2">
+                {renewalRows.slice(0, 4).map((item, i) => {
+                  const dateStr = item.renewalDate || item.endDate || item.expiryDate;
+                  const dateObj = dateStr ? new Date(dateStr) : null;
+                  const formattedDate = dateObj && !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unknown';
+                  return (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-[12px] bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors">
+                      <div className="flex flex-col text-left max-w-[65%]">
+                        <span className="text-xs font-bold text-slate-800 truncate">{item.domainName || item.hostingName || item.softwareName || item.amcType || item.title || 'Renewal'}</span>
+                        <span className="text-[10px] text-slate-500">{item.clientName || item.rowStatus || 'Renewal'} &bull; {formattedDate}</span>
+                      </div>
+                      <div className="text-right flex flex-col">
+                        <span className="text-xs font-bold text-slate-900">{formatAmount(item.renewalPrice || item.amcAmount || item.amount || 0)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-            <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No records found</h4>
-            <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <div className="relative z-10 mb-6 flex items-center justify-center">
+                  <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                    <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
+                    <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
+                    <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
+                    <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
+                    <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
+                    <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
+                      <Search size={20} className="text-white" />
+                    </div>
+                  </div>
+                </div>
+                <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No records found</h4>
+                <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
+              </div>
+            )}
           </div>
         </Card>
 

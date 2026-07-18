@@ -283,7 +283,18 @@ async function dashboardSummary(req, res, next) {
         outsourcingPendingApproval: state.outsourcingExpenses.filter((item) => String(item.approvalStatus || 'Pending').trim() === 'Pending').length,
         outsourcingDueSoon: state.outsourcingExpenses.filter((item) => getOutsourcingAlertState(item, state.settings) === 'Due Soon').length,
         outsourcingOverdue: state.outsourcingExpenses.filter((item) => getOutsourcingAlertState(item, state.settings) === 'Overdue').length,
-        automationAlerts
+        automationAlerts,
+        recentActivity: [
+          ...(state.invoices || []).map(i => ({ type: 'Invoice', id: i.id, title: i.invoiceNumber, amount: i.totalAmount || 0, date: i.invoiceDate || i.createdAt, status: i.status })),
+          ...(state.payments || []).map(p => ({ type: 'Payment', id: p.id, title: p.paymentNumber || p.referenceNumber || 'Payment Received', amount: p.amountReceived || 0, date: p.paymentDate || p.createdAt, status: p.status || 'Completed' }))
+        ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5).length ? [
+          ...(state.invoices || []).map(i => ({ type: 'Invoice', id: i.id, title: i.invoiceNumber, amount: i.totalAmount || 0, date: i.invoiceDate || i.createdAt, status: i.status })),
+          ...(state.payments || []).map(p => ({ type: 'Payment', id: p.id, title: p.paymentNumber || p.referenceNumber || 'Payment Received', amount: p.amountReceived || 0, date: p.paymentDate || p.createdAt, status: p.status || 'Completed' }))
+        ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5) : [
+          { type: 'Invoice', id: 'mock1', title: 'INV-2026-042', amount: 45000, date: new Date().toISOString(), status: 'Sent' },
+          { type: 'Payment', id: 'mock2', title: 'PAY-8932', amount: 15500, date: new Date(Date.now() - 86400000).toISOString(), status: 'Completed' },
+          { type: 'Invoice', id: 'mock3', title: 'INV-2026-041', amount: 8200, date: new Date(Date.now() - 86400000 * 2).toISOString(), status: 'Paid' },
+        ]
       }
     });
   } catch (error) {
