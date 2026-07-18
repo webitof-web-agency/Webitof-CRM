@@ -55,6 +55,7 @@ async function ensureDatabase() {
   if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
     await seedDefaultData();
     await seedAutomationDemoData();
+    await seedNotificationDemoData();
   }
   await seedRbac();
 }
@@ -765,6 +766,173 @@ async function seedAutomationDemoData() {
       isoDateTimeOffset(-55)
     ]
   );
+}
+
+async function seedNotificationDemoData() {
+  const bootstrapEmail = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@webitof.com');
+  const bootstrapUsername = normalizeUsername(process.env.BOOTSTRAP_ADMIN_USERNAME || bootstrapEmail);
+
+  const userResult = await query(
+    `select id, email
+     from users
+     where lower(email) = $1 or lower(username) = $2
+     order by created_at asc
+     limit 1`,
+    [bootstrapEmail, bootstrapUsername]
+  );
+
+  const adminUserId = userResult.rows[0]?.id || null;
+  const adminEmail = userResult.rows[0]?.email || bootstrapEmail;
+  if (!adminUserId) return;
+
+  const countResult = await query('select count(*)::int as count from notifications where user_id = $1', [adminUserId]);
+  if ((countResult.rows[0]?.count || 0) > 0) return;
+
+  const notifications = [
+    {
+      id: 'notif-demo-1',
+      moduleName: 'invoices',
+      eventKey: 'invoice_created',
+      entityType: 'invoice',
+      entityId: 'inv-demo-2508',
+      title: 'Invoice INV-2508 created',
+      message: 'Invoice generated for Orbit Portal AMC. Amount: Rs. 14,160.',
+      severity: 'success',
+      isRead: false,
+      emailTo: adminEmail,
+      emailStatus: 'pending',
+      routePath: '/app/invoices',
+      channels: ['inApp', 'email'],
+      payload: { source: 'demo', amount: 14160, invoiceNumber: 'INV-2508' },
+      createdAt: isoDateTimeOffset(-45)
+    },
+    {
+      id: 'notif-demo-2',
+      moduleName: 'payments',
+      eventKey: 'payment_received',
+      entityType: 'payment',
+      entityId: 'pay-demo-9001',
+      title: 'Payment received from Nova Health',
+      message: 'Rs. 59,000 payment recorded against invoice INV-003.',
+      severity: 'success',
+      isRead: false,
+      emailTo: adminEmail,
+      emailStatus: 'pending',
+      routePath: '/app/payments',
+      channels: ['inApp'],
+      payload: { source: 'demo', amount: 59000, invoiceNumber: 'INV-003' },
+      createdAt: isoDateTimeOffset(-120)
+    },
+    {
+      id: 'notif-demo-3',
+      moduleName: 'projects',
+      eventKey: 'project_updated',
+      entityType: 'project',
+      entityId: 'project-demo-portal',
+      title: 'Project status updated',
+      message: 'Nova Support Portal moved to In Progress.',
+      severity: 'info',
+      isRead: true,
+      readAt: isoDateTimeOffset(-95),
+      routePath: '/app/projects',
+      channels: ['inApp'],
+      payload: { source: 'demo', status: 'In Progress' },
+      createdAt: isoDateTimeOffset(-96)
+    },
+    {
+      id: 'notif-demo-4',
+      moduleName: 'amc',
+      eventKey: 'amc_due_soon',
+      entityType: 'amc',
+      entityId: 'amc-demo-portal',
+      title: 'AMC renewal due in 4 days',
+      message: 'Orbit Portal AMC is due for renewal on 22 Jul 2026.',
+      severity: 'warning',
+      isRead: false,
+      routePath: '/app/amc',
+      channels: ['inApp'],
+      payload: { source: 'demo', daysRemaining: 4 },
+      createdAt: isoDateTimeOffset(-18)
+    },
+    {
+      id: 'notif-demo-5',
+      moduleName: 'renewals',
+      eventKey: 'renewal_expired',
+      entityType: 'renewal',
+      entityId: 'renewal-demo-hosting',
+      title: 'Hosting renewal expired',
+      message: 'Nova Health hosting expired 2 days ago and needs immediate follow-up.',
+      severity: 'danger',
+      isRead: false,
+      routePath: '/app/renewals',
+      channels: ['inApp'],
+      payload: { source: 'demo', daysRemaining: -2 },
+      createdAt: isoDateTimeOffset(-12)
+    },
+    {
+      id: 'notif-demo-6',
+      moduleName: 'outsourcing',
+      eventKey: 'payable_overdue',
+      entityType: 'outsourcing',
+      entityId: 'outsource-demo-design',
+      title: 'Outsourcing payable overdue',
+      message: 'Freelance Graphic Designer payment is 2 days overdue.',
+      severity: 'warning',
+      isRead: false,
+      routePath: '/app/outsourcing',
+      channels: ['inApp', 'email'],
+      payload: { source: 'demo', daysRemaining: -2, amount: 17700 },
+      createdAt: isoDateTimeOffset(-8)
+    },
+    {
+      id: 'notif-demo-7',
+      moduleName: 'automation',
+      eventKey: 'automation_completed',
+      entityType: 'automation',
+      entityId: 'run-demo-automation',
+      title: 'Automation run completed',
+      message: 'AMC and outsourcing automation finished successfully.',
+      severity: 'success',
+      isRead: true,
+      readAt: isoDateTimeOffset(-5),
+      routePath: '/app/automation',
+      channels: ['inApp'],
+      payload: { source: 'demo', modules: ['amc', 'outsourcing'] },
+      createdAt: isoDateTimeOffset(-6)
+    }
+  ];
+
+  for (const notification of notifications) {
+    await query(
+      `insert into notifications (
+        id, recipient_type, user_id, module_name, event_key, entity_type, entity_id, title, message, severity,
+        is_read, read_at, email_to, email_status, actor_user_id, route_path, channels, payload, created_at, updated_at
+      ) values (
+        $1, 'user', $2, $3, $4, $5, $6, $7, $8, $9,
+        $10, $11, $12, $13, null, $14, $15::jsonb, $16::jsonb, $17, $17
+      )
+      on conflict (id) do nothing`,
+      [
+        notification.id,
+        adminUserId,
+        notification.moduleName,
+        notification.eventKey,
+        notification.entityType,
+        notification.entityId,
+        notification.title,
+        notification.message,
+        notification.severity,
+        notification.isRead,
+        notification.readAt || null,
+        notification.emailTo || null,
+        notification.emailStatus || 'pending',
+        notification.routePath || '',
+        JSON.stringify(notification.channels || ['inApp']),
+        JSON.stringify(notification.payload || {}),
+        notification.createdAt
+      ]
+    );
+  }
 }
 
 async function seedRbac() {

@@ -9,16 +9,16 @@ export function EmptyState({ title, description, actionLabel, onAction }) {
       
       {/* Illustration */}
       <div className="relative z-10 mb-6 flex items-center justify-center">
-        <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl bg-indigo-100 p-3 shadow-inner">
+        <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
           {/* Folded corner */}
-          <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full bg-indigo-50 mix-blend-multiply blur-xl"></div>
-          <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl bg-indigo-200"></div>
+          <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
+          <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
           {/* Lines */}
           <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
           <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
           <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
           {/* Magnifying Glass */}
-          <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 shadow-lg border-4 border-white transform rotate-12">
+          <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
             <Search size={20} className="text-white" />
           </div>
         </div>

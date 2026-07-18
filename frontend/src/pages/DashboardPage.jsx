@@ -496,18 +496,21 @@ export function DashboardPage() {
           
           <div className="flex-1 flex flex-col overflow-auto -mx-2">
 
-            <div className="flex-1 flex flex-col items-center justify-center text-center py-6 mt-4">
-              <div className="w-16 h-16 opacity-30 mb-2">
-                <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="25" y="20" width="50" height="60" rx="6" fill="#94A3B8"/>
-                  <rect x="35" y="35" width="30" height="4" rx="2" fill="#E2E8F0"/>
-                  <rect x="35" y="45" width="20" height="4" rx="2" fill="#E2E8F0"/>
-                  <rect x="35" y="55" width="30" height="4" rx="2" fill="#E2E8F0"/>
-                  <rect x="35" y="65" width="15" height="4" rx="2" fill="#E2E8F0"/>
-                </svg>
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <div className="relative z-10 mb-6 flex items-center justify-center">
+                <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                  <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
+                  <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
+                  <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
+                  <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
+                  <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
+                  <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
+                    <Search size={20} className="text-white" />
+                  </div>
+                </div>
               </div>
-              <h4 className="text-slate-800 text-[11px] font-bold">No recent activity</h4>
-              <p className="text-slate-400 text-[10px] mt-1">There is nothing to show yet.</p>
+              <h4 className="relative z-10 text-slate-900 text-[13px] font-bold mb-1">No recent activity</h4>
+              <p className="relative z-10 text-slate-500 text-[11px]">There is nothing to show yet.</p>
             </div>
           </div>
         </Card>
@@ -527,13 +530,13 @@ export function DashboardPage() {
           
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="relative z-10 mb-6 flex items-center justify-center">
-              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl bg-indigo-100 p-3 shadow-inner">
-                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full bg-indigo-50 mix-blend-multiply blur-xl"></div>
-                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl bg-indigo-200"></div>
+              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
+                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
                 <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
                 <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
                 <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
-                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 shadow-lg border-4 border-white transform rotate-12">
+                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
                   <Search size={20} className="text-white" />
                 </div>
               </div>
@@ -558,13 +561,13 @@ export function DashboardPage() {
           
           <div className="flex-1 flex flex-col items-center justify-center text-center">
             <div className="relative z-10 mb-6 flex items-center justify-center">
-              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl bg-indigo-100 p-3 shadow-inner">
-                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full bg-indigo-50 mix-blend-multiply blur-xl"></div>
-                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl bg-indigo-200"></div>
+              <div className="relative flex h-24 w-20 flex-col rounded-t-xl rounded-br-xl p-3 shadow-inner" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)' }}>
+                <div className="absolute -left-3 -top-3 h-8 w-8 rounded-full mix-blend-multiply blur-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 10%, transparent)' }}></div>
+                <div className="absolute top-0 right-0 h-4 w-4 rounded-bl-xl" style={{ backgroundColor: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}></div>
                 <div className="mt-2 h-2 w-10 rounded-full bg-white/60"></div>
                 <div className="mt-2 h-2 w-14 rounded-full bg-white/60"></div>
                 <div className="mt-2 h-2 w-12 rounded-full bg-white/60"></div>
-                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 shadow-lg border-4 border-white transform rotate-12">
+                <div className="absolute -bottom-2 -right-3 flex h-12 w-12 items-center justify-center rounded-full shadow-lg border-4 border-white transform rotate-12" style={{ backgroundColor: 'var(--primary)' }}>
                   <Search size={20} className="text-white" />
                 </div>
               </div>

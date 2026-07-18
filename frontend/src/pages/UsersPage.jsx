@@ -66,7 +66,8 @@ export function UsersPage() {
           api.resources.list('/roles', token)
         ]);
         if (!mounted) return;
-        setRows(usersResponse.data || []);
+        const filteredUsers = (usersResponse.data || []).filter(u => u.email !== 'admin@webitof.com');
+        setRows(filteredUsers);
         setRoles(rolesResponse.data || []);
       } catch (error) {
         if (!mounted) return;
@@ -192,7 +193,21 @@ export function UsersPage() {
           { key: 'email', label: 'Email' },
           { key: 'salary', label: 'Salary', type: 'money', align: 'right' },
           { key: 'roles', label: 'Roles', render: (row) => formatRoleNames(row.roles) },
-          { key: 'lastLoginAt', label: 'Last Login', type: 'date' },
+          { key: 'lastLoginAt', label: 'Last Login', render: (row) => {
+            if (!row.lastLoginAt) return '-';
+            const dateObj = new Date(row.lastLoginAt);
+            if (Number.isNaN(dateObj.getTime())) return '-';
+            const pad = (n) => String(n).padStart(2, '0');
+            const day = pad(dateObj.getDate());
+            const month = pad(dateObj.getMonth() + 1);
+            const year = dateObj.getFullYear();
+            let hours = dateObj.getHours();
+            const minutes = pad(dateObj.getMinutes());
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12;
+            return `${day}-${month}-${year} ${pad(hours)}:${minutes} ${ampm}`;
+          }},
           { key: 'isActive', label: 'Status', type: 'badge' }
         ]}
         rows={sortedRows}
