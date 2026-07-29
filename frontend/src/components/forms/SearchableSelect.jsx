@@ -86,7 +86,8 @@ export function SearchableSelect({
   const normalizedOptions = useMemo(() => options.map(normalizeOption).filter((option) => option.label), [options]);
 
   const selectedValues = multiple ? (Array.isArray(value) ? value : []) : (value !== undefined && value !== null ? [value] : []);
-  const selectedItems = normalizedOptions.filter((option) => selectedValues.includes(option.value));
+  const selectedValueSet = useMemo(() => new Set(selectedValues.map((item) => String(item))), [selectedValues]);
+  const selectedItems = normalizedOptions.filter((option) => selectedValueSet.has(String(option.value)));
 
   const filteredOptions = useMemo(() => {
     const searchable = query.trim().toLowerCase();
@@ -102,10 +103,10 @@ export function SearchableSelect({
     const option = normalizedOptions.find((item) => String(item.value) === String(nextValue));
     if (option?.disabled) return;
     if (multiple) {
-      const next = new Set(selectedValues);
-      if (next.has(nextValue)) next.delete(nextValue);
-      else next.add(nextValue);
-      onChange?.([...next]);
+      const next = new Map(selectedValues.map((item) => [String(item), item]));
+      if (next.has(String(nextValue))) next.delete(String(nextValue));
+      else next.set(String(nextValue), nextValue);
+      onChange?.([...next.values()]);
       return;
     }
 
@@ -119,7 +120,7 @@ export function SearchableSelect({
       onChange?.('');
       return;
     }
-    onChange?.(selectedValues.filter((item) => item !== nextValue));
+    onChange?.(selectedValues.filter((item) => String(item) !== String(nextValue)));
   }
 
   function renderChip(item) {
@@ -223,7 +224,7 @@ export function SearchableSelect({
           </div>
           <div className="max-h-60 overflow-y-auto p-1.5 flex flex-col gap-0.5">
             {filteredOptions.length ? filteredOptions.map((option) => {
-              const active = selectedValues.includes(option.value);
+              const active = selectedValueSet.has(String(option.value));
               const color = option.color || '';
               const optionDisabled = Boolean(option.disabled);
               return (

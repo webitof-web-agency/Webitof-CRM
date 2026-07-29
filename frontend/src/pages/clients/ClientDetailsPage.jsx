@@ -1203,7 +1203,7 @@ export function ClientDetailsPage() {
           api.resources.get('/clients', `${id}/summary`, token),
           api.files.list(token, '', 'clients', id),
           api.settings.get(token),
-          api.resources.list('/users', token, ''),
+          api.resources.list('/users/lookup', token, ''),
           api.resources.list('/masters/amc_type', token, ''),
           api.resources.list('/masters/billing_cycle', token, '')
         ]);

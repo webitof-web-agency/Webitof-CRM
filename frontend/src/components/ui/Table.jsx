@@ -136,7 +136,11 @@ export function DataTable({
             <tr>
               {selectable ? (
                 <th className="sticky left-0 z-10 border-b border-slate-200 bg-slate-50 px-4 py-4 text-left text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] w-12">
-                  #
+                  <Checkbox
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    aria-label="Select visible rows"
+                  />
                 </th>
               ) : null}
               {columns.map((column) => {
@@ -191,7 +195,12 @@ export function DataTable({
                 >
                   {selectable ? (
                     <td className="sticky left-0 border-b border-slate-100 bg-white px-4 py-4 align-middle text-sm text-[var(--text-muted)]">
-                      {startIndex + index + 1}
+                      <Checkbox
+                        checked={selectedIds.includes(id)}
+                        onChange={() => toggleRow(id)}
+                        onClick={(event) => event.stopPropagation()}
+                        aria-label={`Select row ${startIndex + index + 1}`}
+                      />
                     </td>
                   ) : null}
                   {columns.map((column) => {

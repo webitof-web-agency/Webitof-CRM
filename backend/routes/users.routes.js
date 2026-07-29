@@ -4,7 +4,7 @@ const { requirePermission } = require('../middlewares/auth');
 
 const router = express.Router();
 
-router.get('/lookup', requirePermission('leads.read'), controller.lookupController);
+router.get('/lookup', requirePermission(), controller.lookupController);
 router.get('/', requirePermission('users.manage'), controller.listController);
 router.post('/', requirePermission('users.manage'), controller.createController);
 router.get('/:id', requirePermission('users.manage'), controller.getController);

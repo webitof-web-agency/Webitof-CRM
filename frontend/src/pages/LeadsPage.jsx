@@ -1,6 +1,6 @@
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Search, List, LayoutGrid, Eye, Tag, ArrowLeft } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, List, LayoutGrid, Eye, Tag, ArrowLeft, GitBranch, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -10,6 +10,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { DataTable } from '../components/ui/Table';
 import { ConfirmModal } from '../components/ui/ConfirmModal';
+import { Modal } from '../components/ui/Modal';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { LeadFormModal } from '../components/forms/LeadFormModal';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
@@ -84,21 +85,177 @@ function formatPhoneDisplay(value) {
   return `+${digits}`;
 }
 
+const EMPTY_PIPELINE_FORM = {
+  name: '',
+  description: '',
+  color: '#2563eb',
+  sortOrder: 0,
+  isActive: true
+};
+
+function PipelineManagerModal({ open, onClose, pipelines = [], token, onSaved }) {
+  const [draft, setDraft] = useState(EMPTY_PIPELINE_FORM);
+  const [editingId, setEditingId] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  useEffect(() => {
+    if (!open) {
+      setDraft(EMPTY_PIPELINE_FORM);
+      setEditingId(null);
+      setDeleteTarget(null);
+    }
+  }, [open]);
+
+  function editPipeline(pipeline) {
+    setEditingId(pipeline.id);
+    setDraft({
+      name: pipeline.name || '',
+      description: pipeline.description || '',
+      color: pipeline.color || '#2563eb',
+      sortOrder: Number(pipeline.sortOrder || 0),
+      isActive: pipeline.isActive !== false
+    });
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setDraft(EMPTY_PIPELINE_FORM);
+  }
+
+  async function savePipeline(event) {
+    event.preventDefault();
+    if (!draft.name.trim()) {
+      toast.error('Pipeline name is required');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      if (editingId) {
+        await api.resources.update('/lead-pipelines', editingId, draft, token);
+        toast.success('Pipeline updated');
+      } else {
+        await api.resources.create('/lead-pipelines', draft, token);
+        toast.success('Pipeline created');
+      }
+      resetForm();
+      onSaved?.();
+    } catch (error) {
+      toast.error(error.message || 'Unable to save pipeline');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmDeletePipeline() {
+    if (!deleteTarget) return;
+    setBusy(true);
+    try {
+      await api.resources.remove('/lead-pipelines', deleteTarget.id, token);
+      toast.success('Pipeline removed');
+      setDeleteTarget(null);
+      resetForm();
+      onSaved?.();
+    } catch (error) {
+      toast.error(error.message || 'Unable to remove pipeline');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Modal open={open} onClose={onClose} title="Lead Pipelines" subtitle="Create pipeline buckets and assign users to only the pipelines they should see." width="min(980px, 96vw)">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-3">
+            {pipelines.map((pipeline) => (
+              <div key={pipeline.id} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: pipeline.color || '#64748b' }} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-semibold text-slate-900">{pipeline.name}</p>
+                    {pipeline.isActive === false ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-slate-500">Inactive</span>
+                    ) : null}
+                  </div>
+                  <p className="truncate text-xs text-slate-500">{pipeline.description || pipeline.code || 'No description'}</p>
+                </div>
+                <Button type="button" variant="ghost" size="icon" onClick={() => editPipeline(pipeline)} title="Edit pipeline">
+                  <Pencil size={15} />
+                </Button>
+                {pipeline.id !== 'pipe-default' ? (
+                  <Button type="button" variant="ghost" size="icon" onClick={() => setDeleteTarget(pipeline)} title="Delete pipeline" className="text-red-500 hover:bg-red-50 hover:text-red-600">
+                    <Trash2 size={15} />
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={savePipeline} className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-900">{editingId ? 'Edit pipeline' : 'New pipeline'}</h3>
+              {editingId ? (
+                <Button type="button" variant="ghost" size="icon" onClick={resetForm} title="Cancel edit">
+                  <X size={16} />
+                </Button>
+              ) : null}
+            </div>
+            <Input value={draft.name} onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="Pipeline name" />
+            <Input value={draft.description} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Description" />
+            <div className="grid grid-cols-[1fr_96px] gap-3">
+              <Input type="color" value={draft.color} onChange={(event) => setDraft((prev) => ({ ...prev, color: event.target.value }))} title="Pipeline color" />
+              <Input type="number" value={draft.sortOrder} onChange={(event) => setDraft((prev) => ({ ...prev, sortOrder: Number(event.target.value || 0) }))} placeholder="Sort" />
+            </div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={draft.isActive}
+                onChange={(event) => setDraft((prev) => ({ ...prev, isActive: event.target.checked }))}
+                className="!appearance-auto"
+                style={{ accentColor: 'var(--primary)' }}
+              />
+              Active
+            </label>
+            <Button type="submit" disabled={busy} className="w-full">
+              <Save size={16} className="mr-2" />
+              {busy ? 'Saving...' : editingId ? 'Update Pipeline' : 'Create Pipeline'}
+            </Button>
+          </form>
+        </div>
+      </Modal>
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete pipeline"
+        description={`Delete ${deleteTarget?.name}? Pipelines with existing leads will be disabled instead of removed.`}
+        confirmText="Delete"
+        type="danger"
+        isLoading={busy}
+        onConfirm={confirmDeletePipeline}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    </>
+  );
+}
+
 export function LeadsPage() {
   const { token, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [leadContacts, setLeadContacts] = useState([]);
   const [users, setUsers] = useState([]);
+  const [pipelines, setPipelines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortKey, setSortKey] = useState('updated_at');
+  const [sortKey, setSortKey] = useState('updatedAt');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedIds, setSelectedIds] = useState([]);
   const [statusFilter, setStatusFilter] = useState('');
+  const [pipelineFilter, setPipelineFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [viewType, setViewType] = useState('table');
 
@@ -112,12 +269,14 @@ export function LeadsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingData, setEditingData] = useState(null);
   const [labelsOpen, setLabelsOpen] = useState(false);
+  const [pipelinesOpen, setPipelinesOpen] = useState(false);
   const [panelData, setPanelData] = useState(null);
   const [panelType, setPanelType] = useState(null);
   const [panelLeadData, setPanelLeadData] = useState(null);
 
   const canCreate = hasPermission('leads.manage') || hasPermission('leads.write');
   const canDelete = hasPermission('leads.manage') || hasPermission('leads.delete');
+  const canManagePipelines = hasPermission('users.manage');
 
   const primaryContactsByLeadId = useMemo(() => {
     const grouped = new Map();
@@ -137,12 +296,28 @@ export function LeadsPage() {
   }, [leadContacts]);
 
   const userNameById = useMemo(() => new Map(users.map((user) => [String(user.id), user.fullName || user.username || user.email || user.id])), [users]);
+  const pipelineById = useMemo(() => new Map(pipelines.map((pipeline) => [String(pipeline.id), pipeline])), [pipelines]);
 
   const columns = useMemo(() => [
     {
       key: 'name', label: 'Lead Name', render: (row) => (
         <div className="font-medium text-[var(--text-main)]">{row.name}</div>
       )
+    },
+    {
+      key: 'pipelineId', label: 'Pipeline', render: (row) => {
+        const pipeline = pipelineById.get(String(row.pipelineId));
+        const color = pipeline?.color || '#64748b';
+        return (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold"
+            style={{ backgroundColor: `${color}14`, borderColor: `${color}30`, color }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+            {pipeline?.name || 'Default Pipeline'}
+          </span>
+        );
+      }
     },
     {
       key: 'primaryContact', label: 'Primary contact', render: (row) => {
@@ -260,7 +435,7 @@ export function LeadsPage() {
         );
       }
     }
-  ], [labelColors, statusColors, primaryContactsByLeadId, userNameById]);
+  ], [labelColors, statusColors, primaryContactsByLeadId, userNameById, pipelineById]);
 
 
 
@@ -270,7 +445,7 @@ export function LeadsPage() {
       setLoading(true);
       try {
         const [res, settingsRes] = await Promise.allSettled([
-          api.resources.list('/leads', token, debouncedSearch),
+          api.resources.list('/leads', token, debouncedSearch, pipelineFilter ? { pipelineId: pipelineFilter } : {}),
           api.settings.get(token)
         ]);
 
@@ -299,15 +474,23 @@ export function LeadsPage() {
           }
         }
 
-        const [contactsRes, usersRes] = await Promise.allSettled([
+        const [contactsRes, usersRes, pipelinesRes] = await Promise.allSettled([
           api.resources.list('/lead-contacts', token),
-          api.resources.list('/users/lookup', token)
+          api.resources.list('/users/lookup', token),
+          api.resources.list('/lead-pipelines', token)
         ]);
         if (active && contactsRes.status === 'fulfilled') {
           setLeadContacts(contactsRes.value.data || []);
         }
         if (active && usersRes.status === 'fulfilled') {
           setUsers(usersRes.value.data || []);
+        }
+        if (active && pipelinesRes.status === 'fulfilled') {
+          const nextPipelines = pipelinesRes.value.data || [];
+          setPipelines(nextPipelines);
+          if (pipelineFilter && !nextPipelines.some((pipeline) => String(pipeline.id) === String(pipelineFilter))) {
+            setPipelineFilter('');
+          }
         }
       } catch (error) {
         if (active) toast.error('Failed to load data');
@@ -317,7 +500,7 @@ export function LeadsPage() {
     }
     load();
     return () => { active = false; };
-  }, [token, debouncedSearch, reloadTick]);
+  }, [token, debouncedSearch, pipelineFilter, reloadTick]);
 
   const sortedRows = useMemo(() => {
     let filtered = [...rows];
@@ -326,8 +509,12 @@ export function LeadsPage() {
       filtered = filtered.filter(r => r.status === statusFilter);
     }
 
+    if (pipelineFilter) {
+      filtered = filtered.filter(r => String(r.pipelineId || '') === String(pipelineFilter));
+    }
+
     if (dateFilter) {
-      filtered = filtered.filter(r => r.created_at?.startsWith(dateFilter) || r.followUpDate?.startsWith(dateFilter));
+      filtered = filtered.filter(r => r.createdAt?.startsWith(dateFilter) || r.followUpDate?.startsWith(dateFilter));
     }
 
     return filtered.sort((a, b) => {
@@ -336,9 +523,11 @@ export function LeadsPage() {
       if (typeof aVal === 'string') {
         return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
-      return sortDirection === 'asc' ? (aVal || 0) - (bVal || 0) : (bVal || 0) - (aVal || 0);
+      const aNum = Number(aVal ?? 0);
+      const bNum = Number(bVal ?? 0);
+      return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
     });
-  }, [rows, sortKey, sortDirection, statusFilter, dateFilter]);
+  }, [rows, sortKey, sortDirection, statusFilter, pipelineFilter, dateFilter]);
 
   const kanbanLeads = useMemo(() => sortedRows.map((row) => {
     const primaryContact = primaryContactsByLeadId.get(String(row.id));
@@ -442,6 +631,11 @@ export function LeadsPage() {
               <Tag size={16} className="mr-2" /> Manage labels
             </Button>
           )}
+          {canManagePipelines && (
+            <Button type="button" variant="outline" onClick={() => setPipelinesOpen(true)}>
+              <GitBranch size={16} className="mr-2" /> Pipelines
+            </Button>
+          )}
           {canCreate && (
             <Button type="button" onClick={() => { setEditingData(null); setFormOpen(true); }}>
               <Plus size={16} className="mr-2" /> New Lead
@@ -465,6 +659,17 @@ export function LeadsPage() {
           }
           toolbarRight={
             <div className="flex items-center gap-3">
+              <div className="w-52">
+                <SearchableSelect
+                  value={pipelineFilter}
+                  onChange={val => { setPipelineFilter(val); setPage(1); }}
+                  options={[
+                    { label: 'All Pipelines', value: '' },
+                    ...pipelines.map((pipeline) => ({ label: pipeline.name, value: pipeline.id }))
+                  ]}
+                  placeholder="All Pipelines"
+                />
+              </div>
               <div className="w-48">
                 <SearchableSelect
                   value={statusFilter}
@@ -559,6 +764,17 @@ export function LeadsPage() {
                 />
               </div>
               <div className="flex items-center gap-3">
+                <div className="w-52">
+                  <SearchableSelect
+                    value={pipelineFilter}
+                    onChange={val => { setPipelineFilter(val); setPage(1); }}
+                    options={[
+                      { label: 'All Pipelines', value: '' },
+                      ...pipelines.map((pipeline) => ({ label: pipeline.name, value: pipeline.id }))
+                    ]}
+                    placeholder="All Pipelines"
+                  />
+                </div>
                 <div className="w-48">
                   <SearchableSelect
                     value={statusFilter}
@@ -608,6 +824,14 @@ export function LeadsPage() {
       <LabelManagerModal
         open={labelsOpen}
         onClose={() => setLabelsOpen(false)}
+        onSaved={() => setReloadTick((c) => c + 1)}
+      />
+
+      <PipelineManagerModal
+        open={pipelinesOpen}
+        onClose={() => setPipelinesOpen(false)}
+        pipelines={pipelines}
+        token={token}
         onSaved={() => setReloadTick((c) => c + 1)}
       />
 

@@ -195,7 +195,7 @@ export function ClientFormPage({
         const initialRecord = initialDataProp ? { ...initialDataProp } : null;
         const [settingsRes, usersRes, clientRes] = await Promise.allSettled([
           api.settings.get(token),
-          api.resources.list('/users', token, ''),
+          api.resources.list('/users/lookup', token, ''),
           isEdit && effectiveClientId
             ? api.resources.get('/clients', effectiveClientId, token)
             : Promise.resolve(null)

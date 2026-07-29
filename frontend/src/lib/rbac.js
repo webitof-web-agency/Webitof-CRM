@@ -9,7 +9,12 @@ export function normalizePermissionIds(permissions = []) {
 export function mapUserForForm(user = {}) {
   return {
     ...user,
-    roleIds: normalizeRoleIds(user.roles || [])
+    roleIds: normalizeRoleIds(user.roles || []),
+    allowedLeadPipelineIds: Array.isArray(user.allowedLeadPipelineIds)
+      ? user.allowedLeadPipelineIds
+      : Array.isArray(user.payload?.allowedLeadPipelineIds)
+        ? user.payload.allowedLeadPipelineIds
+        : []
   };
 }
 

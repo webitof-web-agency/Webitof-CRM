@@ -37,7 +37,8 @@ const lookupSourceByFieldName = {
   linkedExpenseId: 'expenses',
   bankAccountId: 'bankAccounts',
   roleIds: 'roles',
-  permissionIds: 'permissions'
+  permissionIds: 'permissions',
+  allowedLeadPipelineIds: 'leadPipelines'
 };
 
 function formatLookupLabel(parts = []) {
@@ -152,6 +153,16 @@ export function getFieldOptions(field, lookups = {}) {
         value: permission.id,
         label: permission.name,
         description: `${permission.module}.${permission.action}`
+      })
+    );
+  }
+
+  if (field.name === 'allowedLeadPipelineIds') {
+    return getLookupItems(field, lookups).map((pipeline) =>
+      normalizeOption({
+        value: pipeline.id,
+        label: pipeline.name,
+        description: pipeline.description || pipeline.code
       })
     );
   }

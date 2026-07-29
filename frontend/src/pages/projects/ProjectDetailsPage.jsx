@@ -1136,7 +1136,7 @@ export function ProjectDetailsPage() {
           api.resources.get('/projects', `${id}/summary`, token),
           api.resources.list('/clients', token),
           api.settings.get(token),
-          api.resources.list('/users', token)
+          api.resources.list('/users/lookup', token)
         ]);
 
         if (!active) return;

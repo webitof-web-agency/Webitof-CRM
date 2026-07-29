@@ -10,6 +10,7 @@ module.exports = createRepository({
     column({ key: 'email', db: 'email' }),
     column({ key: 'phone', db: 'phone' }),
     column({ key: 'website', db: 'website' }),
+    column({ key: 'pipelineId', db: 'pipeline_id' }),
     column({ key: 'status', db: 'status' }),
     column({ key: 'source', db: 'source' }),
     column({ key: 'value', db: 'value', type: 'number' }),

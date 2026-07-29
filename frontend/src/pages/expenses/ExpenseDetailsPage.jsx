@@ -43,7 +43,7 @@ export function ExpenseDetailsPage() {
     let active = true;
     async function load() {
       try {
-        const response = await api.resources.list(`/expenses/${id}`, token);
+        const response = await api.resources.get('/expenses', id, token);
         if (!active) return;
         const data = response.data;
         if (!data) throw new Error('Expense not found');

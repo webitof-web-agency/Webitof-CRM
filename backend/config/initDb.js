@@ -42,6 +42,7 @@ async function ensureDatabase() {
     await runSqlFile(schemaPath);
     await runSqlFile(path.join(__dirname, '..', 'database', 'storage.sql'));
   }
+  await ensureLeadPipelineSchema();
   await ensureLeadEventsSchema();
   await ensureExpenseSchema();
   await ensureOutsourcingSchema();
@@ -58,6 +59,45 @@ async function ensureDatabase() {
     await seedNotificationDemoData();
   }
   await seedRbac();
+}
+
+async function ensureLeadPipelineSchema() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS lead_pipelines (
+      id text PRIMARY KEY,
+      name text NOT NULL UNIQUE,
+      code text NOT NULL UNIQUE,
+      description text,
+      color text NOT NULL DEFAULT '#2563eb',
+      sort_order integer NOT NULL DEFAULT 0,
+      is_active boolean NOT NULL DEFAULT true,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS pipeline_id text REFERENCES lead_pipelines(id) ON DELETE SET NULL;`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_lead_pipelines_active ON lead_pipelines(is_active);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_lead_pipelines_sort ON lead_pipelines(sort_order, name);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_pipeline_id ON leads(pipeline_id);`);
+
+  const pipelines = [
+    ['pipe-default', 'Default Pipeline', 'default', 'Default lead pipeline', '#2563eb', 0],
+    ['pipe-it-service', 'IT Service', 'it-service', 'Service and project sales leads', '#0f766e', 10],
+    ['pipe-course-leads', 'Course Leads', 'course-leads', 'Course inquiry and admission leads', '#7c3aed', 20],
+    ['pipe-course-students', 'Course Students', 'course-students', 'Converted course student records', '#ea580c', 30]
+  ];
+
+  for (const pipeline of pipelines) {
+    await query(
+      `insert into lead_pipelines (id, name, code, description, color, sort_order, is_active, payload)
+       values ($1, $2, $3, $4, $5, $6, true, '{}'::jsonb)
+       on conflict (id) do nothing`,
+      pipeline
+    );
+  }
+
+  await query(`UPDATE leads SET pipeline_id = 'pipe-default' WHERE pipeline_id IS NULL OR pipeline_id = '';`);
 }
 
 async function ensureLeadEventsSchema() {

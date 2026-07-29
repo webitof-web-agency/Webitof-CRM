@@ -8,6 +8,14 @@ const { withTransaction } = require('../config/db');
 const { getSettings } = require('../models/settings.model');
 const { buildLeadSummary } = require('../services/analytics.service');
 const { notifyBusinessEvent } = require('../services/notification.service');
+const {
+  DEFAULT_PIPELINE_ID,
+  canAccessPipeline,
+  ensureDefaultLeadPipeline,
+  getPipelineIdOrDefault,
+  getUserAllowedPipelineIds,
+  userHasAllPipelineAccess
+} = require('../services/leadPipelineAccess.service');
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -129,9 +137,46 @@ function getLeadPatch(body = {}, current = null, req = null) {
     phone,
     ownerName,
     labels,
+    pipelineId: body.pipelineId || current?.pipelineId || DEFAULT_PIPELINE_ID,
     createdBy: current?.createdBy || req?.user?.id || null,
     assignedTo: current?.assignedTo || req?.user?.id || null
   };
+}
+
+function forbiddenPipelineError() {
+  const error = new Error('You do not have access to this lead pipeline');
+  error.statusCode = 403;
+  return error;
+}
+
+async function resolveLeadPipelineId(body = {}, current = null, req = null, db = null) {
+  await ensureDefaultLeadPipeline(db);
+  const hasPipelineInput = Object.prototype.hasOwnProperty.call(body, 'pipelineId')
+    || Object.prototype.hasOwnProperty.call(body, 'pipeline_id');
+  const requested = hasPipelineInput ? (body.pipelineId || body.pipeline_id) : current?.pipelineId;
+  const allowed = getUserAllowedPipelineIds(req?.user);
+  const fallback = !requested && !userHasAllPipelineAccess(req?.user) && allowed.length ? allowed[0] : DEFAULT_PIPELINE_ID;
+  const pipelineId = await getPipelineIdOrDefault(requested || fallback, db);
+
+  if (!canAccessPipeline(req?.user, pipelineId)) {
+    throw forbiddenPipelineError();
+  }
+
+  return pipelineId;
+}
+
+function filterLeadsByPipelineAccess(rows = [], req = null) {
+  if (userHasAllPipelineAccess(req?.user)) return rows;
+  return rows.filter((row) => canAccessPipeline(req?.user, row.pipelineId || DEFAULT_PIPELINE_ID));
+}
+
+async function findAccessibleLeadById(leadId, req, db = null) {
+  const lead = await leadModel.findById(leadId, db);
+  if (!lead) return null;
+  if (!canAccessPipeline(req?.user, lead.pipelineId || DEFAULT_PIPELINE_ID)) {
+    throw forbiddenPipelineError();
+  }
+  return lead;
 }
 
 function getFieldChangeSummary(current = {}, next = {}) {
@@ -139,6 +184,7 @@ function getFieldChangeSummary(current = {}, next = {}) {
     ['type', 'Type'],
     ['name', 'Name'],
     ['companyName', 'Company name'],
+    ['pipelineId', 'Pipeline'],
     ['ownerName', 'Owner'],
     ['phone', 'Phone'],
     ['email', 'Email'],
@@ -283,10 +329,44 @@ const baseController = createCrudController(leadModel, {
 
 const leadsController = {
   ...baseController,
+  list: async (req, res, next) => {
+    try {
+      await ensureDefaultLeadPipeline();
+      const { search, limit, offset, orderBy, ...filters } = req.query || {};
+      let rows = await leadModel.list({
+        where: filters,
+        search,
+        orderBy: orderBy || 'updated_at DESC'
+      });
+      rows = filterLeadsByPipelineAccess(rows, req);
+
+      if (limit || offset) {
+        const start = Number(offset || 0);
+        const end = limit ? start + Number(limit) : undefined;
+        rows = rows.slice(start, end);
+      }
+
+      res.json({ success: true, data: rows });
+    } catch (error) {
+      next(error);
+    }
+  },
+  getById: async (req, res, next) => {
+    try {
+      const record = await findAccessibleLeadById(req.params.id, req);
+      if (!record) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+      res.json({ success: true, data: record });
+    } catch (error) {
+      next(error);
+    }
+  },
   create: async (req, res, next) => {
     try {
       const record = await withTransaction(async (db) => {
-        const body = getLeadPatch(req.body || {}, null, req);
+        const pipelineId = await resolveLeadPipelineId(req.body || {}, null, req, db);
+        const body = getLeadPatch({ ...(req.body || {}), pipelineId }, null, req);
         const created = await leadModel.create(body, db);
         await createLeadTimelineEvent(db, created, req, {
           kind: 'created',
@@ -314,6 +394,7 @@ const leadsController = {
   },
   summary: async (req, res, next) => {
     try {
+      await findAccessibleLeadById(req.params.id, req);
       const result = await buildLeadSummary(req.params.id);
       if (!result) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
@@ -326,10 +407,11 @@ const leadsController = {
   update: async (req, res, next) => {
     try {
       const record = await withTransaction(async (db) => {
-        const current = await leadModel.findById(req.params.id, db);
+        const current = await findAccessibleLeadById(req.params.id, req, db);
         if (!current) return null;
 
-        const patch = getLeadPatch(req.body || {}, current, req);
+        const pipelineId = await resolveLeadPipelineId(req.body || {}, current, req, db);
+        const patch = getLeadPatch({ ...(req.body || {}), pipelineId }, current, req);
         const updated = await leadModel.update(req.params.id, patch, db);
         const changes = getFieldChangeSummary(current, updated);
         const statusChanged = String(current.status || '').trim() !== String(updated.status || '').trim();
@@ -389,6 +471,7 @@ const leadsController = {
   },
   convert: async (req, res, next) => {
     try {
+      await findAccessibleLeadById(req.params.id, req);
       const settings = await getSettings();
       const converted = await withTransaction(async (db) => convertLeadRecord(req.params.id, settings, db));
       if (!converted) {
@@ -414,6 +497,18 @@ const leadsController = {
         clientId: converted.client.id,
         deletedLead: true
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+  remove: async (req, res, next) => {
+    try {
+      await findAccessibleLeadById(req.params.id, req);
+      const ok = await leadModel.remove(req.params.id);
+      if (!ok) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+      res.json({ success: true, message: 'Deleted successfully' });
     } catch (error) {
       next(error);
     }

@@ -10,7 +10,7 @@ import { Input, Textarea } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { DEFAULT_SETTINGS } from '../config/defaultSettings';
-import { applyTheme } from '../config/theme';
+import { applyTheme, applyUiSettings, persistAndApplyThemeSettings } from '../config/theme';
 import { cn } from '../lib/cn';
 import { FileBrowserModal } from '../components/ui/FileBrowserModal';
 
@@ -87,7 +87,9 @@ export function SettingsPage() {
       try {
         const response = await api.settings.get(token);
         if (!mounted) return;
-        setSettings((current) => mergeDeep(DEFAULT_SETTINGS, response.data || current));
+        const loadedSettings = mergeDeep(DEFAULT_SETTINGS, response.data || {});
+        setSettings(loadedSettings);
+        persistAndApplyThemeSettings(loadedSettings);
       } catch (error) {
         if (!mounted) return;
         toast.error(error.message || 'Unable to load settings');
@@ -101,9 +103,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     if (settings.ui) {
-      document.documentElement.style.setProperty('--radius-input', settings.ui.inputRadius || '0.75rem');
-      document.documentElement.style.setProperty('--radius-button', settings.ui.buttonRadius || '0.5rem');
-      document.documentElement.style.setProperty('--radius-card', settings.ui.cardRadius || '1.5rem');
+      applyUiSettings(settings.ui);
     }
   }, [settings.ui]);
 
@@ -202,9 +202,7 @@ export function SettingsPage() {
       const saveRes = await api.settings.save(token, payload);
       const merged = mergeDeep(settings, saveRes.data || payload);
       setSettings(merged);
-      if (sectionKeys.includes('ui') && merged.ui) window.localStorage.setItem('webitof-ui-settings', JSON.stringify(merged.ui));
-      if (sectionKeys.includes('logos') && merged.logos) { window.localStorage.setItem('webitof-logos', JSON.stringify(merged.logos)); window.dispatchEvent(new Event('logos-updated')); }
-      if (sectionKeys.includes('branding') && merged.branding) { window.localStorage.setItem('webitof-branding', JSON.stringify(merged.branding)); if (merged.branding.primaryColor) applyTheme(merged.branding.primaryColor); }
+      persistAndApplyThemeSettings(merged);
       toast.success(successMessage || 'Settings saved successfully');
     } catch (error) {
       toast.error(error.message || 'Unable to save settings');

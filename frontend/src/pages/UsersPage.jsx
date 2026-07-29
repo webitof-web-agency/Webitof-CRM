@@ -26,7 +26,8 @@ const userFields = [
   { name: 'salary', label: 'Salary', type: 'money', description: 'Monthly salary used for office expense tracking.' },
   { name: 'password', label: 'Password', type: 'password', description: 'Leave blank while editing if you do not want to change it.' },
   { name: 'isActive', label: 'Active', type: 'checkbox', defaultValue: true },
-  { name: 'roleIds', label: 'Roles', type: 'multiselect' }
+  { name: 'roleIds', label: 'Roles', type: 'multiselect' },
+  { name: 'allowedLeadPipelineIds', label: 'Lead Pipelines', type: 'multiselect', description: 'Leave blank to allow all lead pipelines.' }
 ];
 
 function formatRoleNames(roles = []) {
@@ -38,6 +39,7 @@ export function UsersPage() {
   const { token, hasPermission } = useAuth();
   const [rows, setRows] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [leadPipelines, setLeadPipelines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState('updatedAt');
@@ -61,14 +63,16 @@ export function UsersPage() {
     async function load() {
       setLoading(true);
       try {
-        const [usersResponse, rolesResponse] = await Promise.all([
+        const [usersResponse, rolesResponse, pipelinesResponse] = await Promise.all([
           api.resources.list('/users', token, debouncedSearch),
-          api.resources.list('/roles', token)
+          api.resources.list('/roles', token),
+          api.resources.list('/lead-pipelines', token)
         ]);
         if (!mounted) return;
         const filteredUsers = (usersResponse.data || []).filter(u => u.email !== 'admin@webitof.com');
         setRows(filteredUsers);
         setRoles(rolesResponse.data || []);
+        setLeadPipelines(pipelinesResponse.data || []);
       } catch (error) {
         if (!mounted) return;
         toast.error(error.message || 'Unable to load users');
@@ -273,7 +277,7 @@ export function UsersPage() {
           key={`user:${activeRecord?.id || 'new'}`}
           fields={userFields}
           record={activeRecord}
-          lookups={{ roles }}
+          lookups={{ roles, leadPipelines }}
           onSubmit={saveRecord}
           onCancel={() => {
             setEditorOpen(false);

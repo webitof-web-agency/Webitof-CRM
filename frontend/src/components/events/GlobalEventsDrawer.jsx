@@ -157,7 +157,7 @@ export function GlobalEventsDrawer({ open, onClose, token, user, sharedLabels = 
     try {
       const [eventsRes, usersRes, leadsRes, clientsRes, projectsRes, settingsRes] = await Promise.allSettled([
         api.resources.list('/events', token),
-        api.resources.list('/users', token),
+        api.resources.list('/users/lookup', token),
         api.resources.list('/leads', token),
         api.resources.list('/clients', token),
         api.resources.list('/projects', token),

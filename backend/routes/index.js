@@ -1,5 +1,6 @@
 const express = require('express');
 const leadsRoutes = require('./leads.routes');
+const leadPipelinesRoutes = require('./leadPipelines.routes');
 const leadContactsRoutes = require('./leadContacts.routes');
 const leadEventsRoutes = require('./leadEvents.routes');
 const eventsRoutes = require('./events.routes');
@@ -51,6 +52,7 @@ router.use('/invoices', invoicesPublicRouter);
 router.use(requireAuth);
 router.use('/events', eventsRoutes);
 router.use('/leads', leadsRoutes);
+router.use('/lead-pipelines', leadPipelinesRoutes);
 router.use('/lead-contacts', leadContactsRoutes);
 router.use('/lead-events', leadEventsRoutes);
 router.use('/client-contacts', clientContactsRoutes);

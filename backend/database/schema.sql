@@ -103,6 +103,19 @@ CREATE TABLE IF NOT EXISTS master_items (
   UNIQUE (type, name)
 );
 
+CREATE TABLE IF NOT EXISTS lead_pipelines (
+  id text PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  code text NOT NULL UNIQUE,
+  description text,
+  color text NOT NULL DEFAULT '#2563eb',
+  sort_order integer NOT NULL DEFAULT 0,
+  is_active boolean NOT NULL DEFAULT true,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS clients (
   id text PRIMARY KEY,
   name text NOT NULL,
@@ -150,6 +163,7 @@ CREATE TABLE IF NOT EXISTS leads (
   phone text,
   website text,
   status text NOT NULL DEFAULT 'New',
+  pipeline_id text REFERENCES lead_pipelines(id) ON DELETE SET NULL,
   source text,
   value numeric(14,2) NOT NULL DEFAULT 0,
   follow_up_date date,
@@ -554,6 +568,8 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_master_items_type ON master_items(type);
+CREATE INDEX IF NOT EXISTS idx_lead_pipelines_active ON lead_pipelines(is_active);
+CREATE INDEX IF NOT EXISTS idx_lead_pipelines_sort ON lead_pipelines(sort_order, name);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON leads(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);

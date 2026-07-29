@@ -108,7 +108,7 @@ export function ResourcePage({ schema }) {
         const lookupResults = await Promise.allSettled([
           lookupNeeds.clients ? api.resources.list('/clients', token) : Promise.resolve({ data: [] }),
           lookupNeeds.vendors ? api.resources.list('/masters/vendor', token) : Promise.resolve({ data: [] }),
-          lookupNeeds.users ? api.resources.list('/users', token) : Promise.resolve({ data: [] }),
+          lookupNeeds.users ? api.resources.list('/users/lookup', token) : Promise.resolve({ data: [] }),
           lookupNeeds.expenseCategories ? api.resources.list('/masters/expense_category', token) : Promise.resolve({ data: [] }),
           lookupNeeds.renewalProviders ? api.resources.list('/masters/renewal_provider', token) : Promise.resolve({ data: [] }),
           lookupNeeds.amcTypes ? api.resources.list('/masters/amc_type', token) : Promise.resolve({ data: [] }),

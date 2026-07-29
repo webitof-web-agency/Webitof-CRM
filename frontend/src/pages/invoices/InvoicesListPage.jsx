@@ -27,7 +27,7 @@ export function InvoicesListPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortKey, setSortKey] = useState('updated_at');
+  const [sortKey, setSortKey] = useState('updatedAt');
   const [sortDirection, setSortDirection] = useState('desc');
   const [selectedIds, setSelectedIds] = useState([]);
   
@@ -121,7 +121,9 @@ export function InvoicesListPage() {
       if (typeof aVal === 'string') {
         return sortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       }
-      return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
+      const aNum = Number(aVal ?? 0);
+      const bNum = Number(bVal ?? 0);
+      return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
     });
   }, [rows, sortKey, sortDirection, statusFilter, dateFilter, clientFilter]);
 

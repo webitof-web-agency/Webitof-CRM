@@ -8,6 +8,7 @@ const roleModel = require('../models/role.model');
 const permissionModel = require('../models/permission.model');
 const { sendPasswordResetOtpEmail } = require('./mailer.service');
 const { deleteFile } = require('./driveStorage.service');
+const { normalizeAllowedPipelineIds } = require('./leadPipelineAccess.service');
 
 const PASSWORD_RESET_OTP_MINUTES = Math.max(1, toNumber(process.env.PASSWORD_RESET_OTP_MINUTES, 10));
 const PASSWORD_RESET_MAX_ATTEMPTS = Math.max(1, toNumber(process.env.PASSWORD_RESET_MAX_ATTEMPTS, 5));
@@ -111,6 +112,7 @@ async function getUserAccessProfile(userId) {
     avatarUrl: user.avatarUrl,
     avatarFileId: user.avatarFileId,
     social: (user.payload && user.payload.social) ? user.payload.social : {},
+    allowedLeadPipelineIds: normalizeAllowedPipelineIds(user.payload?.allowedLeadPipelineIds),
     payload: user.payload || {},
     isActive: Boolean(user.isActive),
     lastLoginAt: user.lastLoginAt,
@@ -321,6 +323,10 @@ async function syncRolePermissions(client, roleId, permissionIds = [], grantedBy
 async function createUser(data = {}, meta = {}) {
   return withTransaction(async (client) => {
     const passwordHash = await hashPassword(data.password || data.passwordHash || data.tempPassword || 'ChangeMe123!');
+    const payload = {
+      ...(data.payload || {}),
+      allowedLeadPipelineIds: normalizeAllowedPipelineIds(data.allowedLeadPipelineIds ?? data.payload?.allowedLeadPipelineIds)
+    };
     const user = await userModel.create({
       fullName: data.fullName || data.full_name || data.name,
       username: normalizeUsername(data.username || data.email),
@@ -331,7 +337,7 @@ async function createUser(data = {}, meta = {}) {
       gender: data.gender,
       passwordHash,
       isActive: data.isActive !== false,
-      payload: data.payload || {}
+      payload
     }, client);
 
     await syncUserRoles(client, user.id, data.roleIds || [], meta.assignedBy || null);
@@ -345,10 +351,13 @@ async function updateUser(userId, data = {}, meta = {}) {
     const currentUser = await userModel.findById(userId, client);
     const currentPayload = (currentUser && currentUser.payload) ? currentUser.payload : {};
 
-    // Merge social into payload
-    const newPayload = Object.keys(data).includes('social')
-      ? { ...currentPayload, social: data.social || {} }
-      : currentPayload;
+    const newPayload = { ...currentPayload };
+    if (Object.keys(data).includes('social')) {
+      newPayload.social = data.social || {};
+    }
+    if (Object.keys(data).includes('allowedLeadPipelineIds')) {
+      newPayload.allowedLeadPipelineIds = normalizeAllowedPipelineIds(data.allowedLeadPipelineIds);
+    }
 
     const patch = {
       fullName: data.fullName || data.full_name || data.name,

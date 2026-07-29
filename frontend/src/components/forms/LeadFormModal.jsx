@@ -14,6 +14,7 @@ const EMPTY_FORM = {
   type: 'Organization',
   name: '',
   companyName: '',
+  pipelineId: '',
   status: '',
   ownerName: '',
   managers: '',
@@ -111,6 +112,7 @@ export function LeadFormModal({ open, onClose, onSuccess, initialData = null }) 
   const [statuses, setStatuses] = useState([]);
   const [sources, setSources] = useState([]);
   const [labelOptions, setLabelOptions] = useState([]);
+  const [pipelines, setPipelines] = useState([]);
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [users, setUsers] = useState([]);
 
@@ -119,14 +121,17 @@ export function LeadFormModal({ open, onClose, onSuccess, initialData = null }) 
 
     async function load() {
       try {
-        const [settingsRes, usersRes] = await Promise.allSettled([
+        const [settingsRes, usersRes, pipelinesRes] = await Promise.allSettled([
           api.settings.get(token),
-          api.resources.list('/users', token)
+          api.resources.list('/users/lookup', token),
+          api.resources.list('/lead-pipelines', token)
         ]);
         const data = settingsRes.status === 'fulfilled' ? settingsRes.value.data : {};
         if (usersRes.status === 'fulfilled') {
           setUsers(usersRes.value.data || []);
         }
+        const loadedPipelines = pipelinesRes.status === 'fulfilled' ? (pipelinesRes.value.data || []) : [];
+        setPipelines(loadedPipelines);
 
         let loadedStatuses = [{ label: 'New', color: '#3b82f6' }];
         let loadedSources = ['Website'];
@@ -142,6 +147,7 @@ export function LeadFormModal({ open, onClose, onSuccess, initialData = null }) 
           const firstSource = typeof loadedSources[0] === 'string' ? loadedSources[0] : loadedSources[0]?.label || '';
           setFormData({
             ...EMPTY_FORM,
+            pipelineId: loadedPipelines[0]?.id || '',
             status: firstStatus,
             source: firstSource,
             country: 'India'
@@ -151,6 +157,7 @@ export function LeadFormModal({ open, onClose, onSuccess, initialData = null }) 
             type: initialData.type || 'Organization',
             name: initialData.name || '',
             companyName: initialData.companyName || '',
+            pipelineId: initialData.pipelineId || loadedPipelines[0]?.id || '',
             status: initialData.status || '',
             ownerName: initialData.ownerName || '',
             assignedTo: initialData.assignedTo ? String(initialData.assignedTo) : '',
@@ -204,6 +211,11 @@ export function LeadFormModal({ open, onClose, onSuccess, initialData = null }) 
       return;
     }
 
+    if (!formData.pipelineId) {
+      toast.error('Please select a pipeline');
+      return;
+    }
+
     setBusy(true);
     try {
       const payload = {
@@ -241,6 +253,7 @@ export function LeadFormModal({ open, onClose, onSuccess, initialData = null }) 
     const label = typeof source === 'string' ? source : source.label;
     return { value: label, label };
   });
+  const pipelineOptions = pipelines.map((pipeline) => ({ value: pipeline.id, label: pipeline.name }));
 
   const leadLabelOptions = mergeSharedLabelOptions(labelOptions, formData.labels);
   const cityOptions = getCitiesByState(formData.state).map((city) => ({ value: city, label: city }));
@@ -301,6 +314,16 @@ export function LeadFormModal({ open, onClose, onSuccess, initialData = null }) 
             <Input name="companyName" value={formData.companyName} onChange={(e) => set('companyName', e.target.value)} placeholder="Company name" />
           </LeadFormRow>
         )}
+
+        <LeadFormRow label="Pipeline" required>
+          <SearchableSelect
+            value={formData.pipelineId}
+            onChange={(val) => set('pipelineId', val)}
+            options={pipelineOptions}
+            placeholder="Select Pipeline"
+            allowClear={false}
+          />
+        </LeadFormRow>
 
         <LeadFormRow label="Status">
           <SearchableSelect

@@ -23,9 +23,15 @@ import {
 
 export const navigationGroups = [
   {
+    title: '',
+    standalone: true,
+    items: [
+      { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, permission: 'dashboard.view' }
+    ]
+  },
+  {
     title: 'Workspace',
     items: [
-      { label: 'Dashboard', path: '/app/dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
       { label: 'Leads', path: '/app/leads', icon: Target, permission: 'leads.read' },
       { label: 'Clients', path: '/app/clients', icon: Building2, permission: 'clients.read' },
       { label: 'Projects', path: '/app/projects', icon: BriefcaseBusiness, permission: 'projects.read' },

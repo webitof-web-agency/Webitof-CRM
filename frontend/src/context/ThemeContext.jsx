@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { themes } from '../config/themes';
-import { applyTheme } from '../config/theme';
+import { applyTheme, applyUiSettings } from '../config/theme';
 
 const STORAGE_KEY = 'webitof-theme-preference';
 
@@ -36,9 +36,7 @@ export function ThemeProvider({ children }) {
       const raw = window.localStorage.getItem('webitof-ui-settings');
       if (raw) {
         const ui = JSON.parse(raw);
-        if (ui.inputRadius) document.documentElement.style.setProperty('--radius-input', ui.inputRadius);
-        if (ui.buttonRadius) document.documentElement.style.setProperty('--radius-button', ui.buttonRadius);
-        if (ui.cardRadius) document.documentElement.style.setProperty('--radius-card', ui.cardRadius);
+        applyUiSettings(ui);
       }
       const rawLogos = window.localStorage.getItem('webitof-logos');
       if (rawLogos) {

@@ -7,6 +7,7 @@ import { Topbar } from './Topbar';
 import { cn } from '../../lib/cn';
 import { api } from '../../api/client';
 import { GlobalEventsDrawer } from '../events/GlobalEventsDrawer';
+import { persistAndApplyThemeSettings } from '../../config/theme';
 
 function resolveTitle(pathname) {
   const item = navigationGroups.flatMap((group) => group.items).find((navItem) => pathname === navItem.path || pathname.startsWith(`${navItem.path}/`));
@@ -34,18 +35,9 @@ export function AppLayout() {
     let mounted = true;
     api.settings.get(token).then((res) => {
       if (!mounted) return;
-      setSettings(res.data || null);
-      const ui = res.data?.ui;
-      if (ui) {
-        if (ui.inputRadius) document.documentElement.style.setProperty('--radius-input', ui.inputRadius);
-        if (ui.buttonRadius) document.documentElement.style.setProperty('--radius-button', ui.buttonRadius);
-        if (ui.cardRadius) document.documentElement.style.setProperty('--radius-card', ui.cardRadius);
-        window.localStorage.setItem('webitof-ui-settings', JSON.stringify(ui));
-      }
-      const logos = res.data?.logos;
-      if (logos) {
-        window.localStorage.setItem('webitof-logos', JSON.stringify(logos));
-      }
+      const loadedSettings = res.data || null;
+      setSettings(loadedSettings);
+      if (loadedSettings) persistAndApplyThemeSettings(loadedSettings);
     }).catch(() => {});
     return () => { mounted = false; };
   }, [token]);

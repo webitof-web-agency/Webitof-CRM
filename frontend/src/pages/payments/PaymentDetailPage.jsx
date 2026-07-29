@@ -65,7 +65,7 @@ export function PaymentDetailPage() {
 
         if (paymentData.bankAccountId) {
           promises.push(
-            api.resources.get('/bank-accounts', paymentData.bankAccountId, token)
+            api.resources.get('/banking/accounts', paymentData.bankAccountId, token)
               .then(res => setBankAccount(res.data))
               .catch(() => {})
           );

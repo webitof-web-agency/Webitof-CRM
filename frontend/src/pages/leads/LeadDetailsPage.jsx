@@ -1326,6 +1326,7 @@ export function LeadDetailsPage() {
   const [editingLeadOpen, setEditingLeadOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [users, setUsers] = useState([]);
+  const [pipelines, setPipelines] = useState([]);
   const [calendarView, setCalendarView] = useState('month');
   const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [files, setFiles] = useState([]);
@@ -1347,11 +1348,12 @@ export function LeadDetailsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [summaryRes, filesRes, settingsRes, usersRes] = await Promise.allSettled([
+      const [summaryRes, filesRes, settingsRes, usersRes, pipelinesRes] = await Promise.allSettled([
         api.resources.get('/leads', `${id}/summary`, token),
-        api.resources.list('/files', token, { parentId: id, parentType: 'lead' }),
+        api.files.list(token, '', 'leads', id),
         api.settings.get(token),
-        api.resources.list('/users/lookup', token)
+        api.resources.list('/users/lookup', token),
+        api.resources.list('/lead-pipelines', token)
       ]);
 
       if (summaryRes.status === 'fulfilled') {
@@ -1373,6 +1375,9 @@ export function LeadDetailsPage() {
       if (usersRes.status === 'fulfilled') {
         setUsers(usersRes.value.data || []);
       }
+      if (pipelinesRes.status === 'fulfilled') {
+        setPipelines(pipelinesRes.value.data || []);
+      }
     } catch (error) {
       toast.error(error.message || 'Failed to load lead details');
       navigate('/app/leads');
@@ -1392,6 +1397,7 @@ export function LeadDetailsPage() {
   const timeline = data?.timeline || [];
   const summary = data?.summary || {};
   const userOptions = useMemo(() => normalizeUserOptions(users), [users]);
+  const pipeline = useMemo(() => pipelines.find((item) => String(item.id) === String(lead?.pipelineId)) || null, [pipelines, lead?.pipelineId]);
   const primaryContact = data?.primaryContact || contacts[0] || null;
 
   const labelOptions = useMemo(() => {
@@ -2097,6 +2103,20 @@ export function LeadDetailsPage() {
               <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
                 <Hexagon size={16} className="text-slate-500 shrink-0" />
                 <span className="text-sm text-slate-700">{lead.type || 'Organization'}</span>
+              </div>
+              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
+                <Layers size={16} className="text-slate-500 shrink-0" />
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold"
+                  style={{
+                    backgroundColor: `${(pipeline?.color || '#64748b')}1A`,
+                    borderColor: `${(pipeline?.color || '#64748b')}33`,
+                    color: pipeline?.color || '#64748b'
+                  }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: pipeline?.color || '#64748b' }} />
+                  {pipeline?.name || 'Default Pipeline'}
+                </span>
               </div>
               <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
                 <CheckCircle size={16} className="text-slate-500 shrink-0" />
