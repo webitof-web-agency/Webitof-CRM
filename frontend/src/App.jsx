@@ -26,7 +26,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { ResourcePage } from './pages/ResourcePage';
 import { ProfilePage } from './pages/ProfilePage';
 import { LeadsPage } from './pages/LeadsPage';
-import { LeadDetailsPage } from './pages/leads/LeadDetailsPage';
+import { LeadDetailsPage, LeadQuotationPage } from './pages/leads/LeadDetailsPage';
 import { schemaRegistry } from './config/resourceSchemas';
 
 const resourceSchemas = [
@@ -53,6 +53,7 @@ import { PaymentBuilderPage } from './pages/payments/PaymentBuilderPage';
 import { PaymentDetailPage } from './pages/payments/PaymentDetailPage';
 import { AutomationPage } from './pages/AutomationPage';
 import { NotificationsPage } from './pages/NotificationsPage';
+import { FollowUpsPage } from './pages/followups/FollowUpsPage';
 
 function AppRoutes() {
   return (
@@ -84,6 +85,22 @@ function AppRoutes() {
           element={
             <PermissionRoute permission="leads.read">
               <LeadsPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="leads/:id/quotations/new"
+          element={
+            <PermissionRoute permission="leads.read">
+              <LeadQuotationPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="leads/:id/quotations/:quotationId"
+          element={
+            <PermissionRoute permission="leads.read">
+              <LeadQuotationPage />
             </PermissionRoute>
           }
         />
@@ -218,6 +235,14 @@ function AppRoutes() {
         <Route
           path="notifications"
           element={<NotificationsPage />}
+        />
+        <Route
+          path="follow-ups"
+          element={
+            <PermissionRoute permissions={['followups.view_own', 'followups.view_team', 'followups.view_all']}>
+              <FollowUpsPage />
+            </PermissionRoute>
+          }
         />
         <Route
           path="automation"
@@ -363,6 +388,7 @@ function TitleUpdater() {
       if (path.includes('/settings')) pageName = 'Settings';
       else if (path.includes('/dashboard')) pageName = 'Dashboard';
       else if (path.includes('/notifications')) pageName = 'Notifications';
+      else if (path.includes('/follow-ups')) pageName = 'Follow-ups';
       else if (path.includes('/automation')) pageName = 'Automation';
       else if (path.includes('/clients')) pageName = 'Clients';
       else if (path.includes('/projects')) pageName = 'Projects';

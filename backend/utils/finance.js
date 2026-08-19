@@ -178,9 +178,11 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
     ? getDefaultInvoiceTypeForClient(client, settings)
     : invoice?.invoiceType || 'Regular';
 
-  const rows = invoiceItems.map((item) => {
+  const rows = invoiceItems.filter((item) => !item?.hidden).map((item) => {
     const quantity = toNumber(item.quantity ?? item.qty ?? 1);
-    const grossLineAmount = round2(quantity * toNumber(item.rate) - toNumber(item.discount));
+    const lineAmount = round2(quantity * toNumber(item.rate));
+    const lineDiscount = round2(lineAmount * toNumber(item.discount) / 100);
+    const grossLineAmount = round2(Math.max(0, lineAmount - lineDiscount));
     const rate = gstEnabled ? toNumber(item.gstRate ?? item.taxRate, settings?.gst?.defaultRate ?? 18) : 0;
     const preview = calculateGstBreakdown({
       taxableAmount: 0,
@@ -218,6 +220,7 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
       ...item,
       qty: quantity,
       quantity,
+      discountAmount: lineDiscount,
       taxableAmount: gst.taxableAmount,
       cgst: gst.cgst,
       sgst: gst.sgst,
@@ -228,7 +231,46 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
     };
   });
 
-  const totals = rows.reduce((acc, item) => {
+  const subtotal = round2(rows.reduce((sum, item) => sum + toNumber(item.taxableAmount), 0));
+  const discountValue = toNumber(invoice.discountValue);
+  const discountAmount = discountValue > 0
+    ? round2(String(invoice.discountType || 'percent').toLowerCase() === 'flat'
+      ? discountValue
+      : subtotal * discountValue / 100)
+    : 0;
+  const discountRatio = subtotal > 0 ? Math.min(discountAmount, subtotal) / subtotal : 0;
+
+  const discountedRows = discountAmount > 0
+    ? rows.map((item) => {
+        const nextTaxableAmount = round2(Math.max(0, toNumber(item.taxableAmount) - (toNumber(item.taxableAmount) * discountRatio)));
+        const gst = calculateGstBreakdown({
+          taxableAmount: nextTaxableAmount,
+          gstRate: item.gstRate || 0,
+          companyState,
+          companyCountry,
+          companyGstin,
+          clientState: client?.state,
+          clientCountry: client?.country,
+          clientGstin: client?.gstin,
+          placeOfSupply,
+          invoiceType,
+          gstRegistered,
+          lutEnabled
+        });
+        return {
+          ...item,
+          taxableAmount: gst.taxableAmount,
+          cgst: gst.cgst,
+          sgst: gst.sgst,
+          utgst: gst.utgst,
+          igst: gst.igst,
+          gstAmount: gst.gstAmount,
+          total: amountType === 'GST Inclusive' ? round2(nextTaxableAmount + gst.gstAmount) : gst.totalAmount
+        };
+      })
+    : rows;
+
+  const discountedTotals = discountedRows.reduce((acc, item) => {
     acc.taxableAmount += toNumber(item.taxableAmount);
     acc.cgst += toNumber(item.cgst);
     acc.sgst += toNumber(item.sgst);
@@ -239,24 +281,37 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
     return acc;
   }, { taxableAmount: 0, cgst: 0, sgst: 0, utgst: 0, igst: 0, gstAmount: 0, totalAmount: 0 });
 
-  return {
-    gstType: !gstEnabled ? 'NONE' : rows[0] ? calculateGstBreakdown({
-      taxableAmount: rows[0].taxableAmount,
-      gstRate: rows[0].gstRate || 0,
-      companyState,
-      companyCountry,
-      companyGstin,
-      clientState: client?.state,
-      clientCountry: client?.country,
-      clientGstin: client?.gstin,
-      placeOfSupply,
-      invoiceType,
-      gstRegistered,
-      lutEnabled
-    }).gstType : 'NONE',
+  const advanceAmount = Math.max(0, toNumber(invoice.advanceAmount));
+  discountedTotals.totalAmount = Math.max(0, discountedTotals.totalAmount - advanceAmount);
+  const gstType = !gstEnabled ? 'NONE' : discountedRows[0] ? calculateGstBreakdown({
+    taxableAmount: discountedRows[0].taxableAmount,
+    gstRate: discountedRows[0].gstRate || 0,
+    companyState,
+    companyCountry,
+    companyGstin,
+    clientState: client?.state,
+    clientCountry: client?.country,
+    clientGstin: client?.gstin,
     placeOfSupply,
-    items: rows,
-    ...Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, round2(value)]))
+    invoiceType,
+    gstRegistered,
+    lutEnabled
+  }).gstType : 'NONE';
+  const taxType = gstType === 'CGST_SGST' || gstType === 'CGST_UTGST'
+    ? 'cgst_sgst'
+    : gstType === 'IGST'
+      ? 'igst'
+      : 'none';
+
+  return {
+    gstType,
+    taxType,
+    taxRate: discountedRows[0]?.gstRate || invoice.taxRate || settings?.gst?.defaultRate || 0,
+    placeOfSupply,
+    discountAmount: round2(Math.min(discountAmount, subtotal)),
+    advanceAmount: round2(advanceAmount),
+    items: discountedRows,
+    ...Object.fromEntries(Object.entries(discountedTotals).map(([key, value]) => [key, round2(value)]))
   };
 }
 

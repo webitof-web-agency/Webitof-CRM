@@ -3,13 +3,8 @@ const path = require('path');
 const { Pool, types } = require('pg');
 require('dotenv').config({
   path: path.join(__dirname, '..', '.env'),
-  override: true
+  override: false
 });
-
-console.log('ENV PATH TEST');
-console.log('CWD:', process.cwd());
-console.log('DATABASE_URL:', process.env.DATABASE_URL);
-console.log('DB_SSL:', process.env.DB_SSL);
 
 // Keep DATE columns as plain strings so calendar dates do not shift by timezone.
 types.setTypeParser(1082, (value) => value);

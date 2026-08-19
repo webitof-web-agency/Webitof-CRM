@@ -5,6 +5,7 @@ const { withTransaction } = require('../config/db');
 const { syncInvoiceFinancialState } = require('../services/finance.service');
 const { toNumber } = require('../utils/format');
 const { notifyBusinessEvent } = require('../services/notification.service');
+const followUpEngine = require('../services/followUpEngine.service');
 
 const paymentsController = createCrudController(paymentModel, {
   defaultOrder: 'payment_date DESC'
@@ -53,6 +54,19 @@ paymentsController.create = async (req, res, next) => {
       const body = await normalizePayment(req.body || {}, null);
       const created = await paymentModel.create(body, db);
       await syncInvoicesForPaymentChange(db, null, created);
+      if (created.invoiceId) {
+        const invoice = await invoiceModel.findById(created.invoiceId, db);
+        if (String(invoice?.status || '').toLowerCase() === 'paid') {
+          await followUpEngine.autoCloseEntityFollowUps('Invoice', created.invoiceId, 'Payment fully received', req.user, { db });
+          await followUpEngine.handleBusinessTrigger('payment_received', 'Invoice', created.invoiceId, req.user, { db });
+          await db.query(
+            `update payment_promises set status='Fulfilled', fulfilled_amount=promised_amount,
+             fulfilled_date=$2, missed=false, updated_by=$3, updated_at=now()
+             where invoice_id=$1 and status in ('Pending','Missed')`,
+            [created.invoiceId, created.paymentDate, req.user?.id || null]
+          );
+        }
+      }
       return paymentModel.findById(created.id, db);
     });
 
@@ -84,6 +98,19 @@ paymentsController.update = async (req, res, next) => {
       const body = await normalizePayment(req.body || {}, current);
       const updated = await paymentModel.update(req.params.id, body, db);
       await syncInvoicesForPaymentChange(db, current, updated);
+      if (updated.invoiceId) {
+        const invoice = await invoiceModel.findById(updated.invoiceId, db);
+        if (String(invoice?.status || '').toLowerCase() === 'paid') {
+          await followUpEngine.autoCloseEntityFollowUps('Invoice', updated.invoiceId, 'Payment fully received', req.user, { db });
+          await followUpEngine.handleBusinessTrigger('payment_received', 'Invoice', updated.invoiceId, req.user, { db });
+          await db.query(
+            `update payment_promises set status='Fulfilled', fulfilled_amount=promised_amount,
+             fulfilled_date=$2, missed=false, updated_by=$3, updated_at=now()
+             where invoice_id=$1 and status in ('Pending','Missed')`,
+            [updated.invoiceId, updated.paymentDate, req.user?.id || null]
+          );
+        }
+      }
       return paymentModel.findById(updated.id, db);
     });
 

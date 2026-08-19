@@ -43,7 +43,7 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
       <div className="flex flex-col md:flex-row gap-6">
         
         {/* Left Side: Preview */}
-        <div className="w-full md:w-[55%] lg:w-[60%] flex-shrink-0 bg-slate-50 rounded-[var(--radius-card,0.75rem)] border border-slate-200 flex items-center justify-center overflow-hidden min-h-[300px]">
+        <div className="w-full md:w-[55%] lg:w-[60%] shrink-0 bg-[var(--surface-2)]/50 rounded-2xl border border-[var(--border)] flex items-center justify-center overflow-hidden min-h-[300px]">
           {isImage && file.driveFileId ? (
             <img 
               src={`${API_BASE_URL}/files/drive/${file.driveFileId}/view`} 
@@ -55,55 +55,55 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
               }}
             />
           ) : null}
-          <div className={cn("flex-col items-center justify-center text-slate-400 gap-4", (isImage && file.driveFileId) ? 'hidden' : 'flex')}>
-            <Icon size={80} strokeWidth={1} />
-            <span className="text-sm font-medium">No preview available</span>
+          <div className={cn("flex-col items-center justify-center text-[var(--text-muted)] gap-3", (isImage && file.driveFileId) ? 'hidden' : 'flex')}>
+            <Icon size={64} strokeWidth={1} />
+            <span className="text-xs font-semibold">No preview available</span>
           </div>
         </div>
 
         {/* Right Side: Details */}
-        <div className="w-full md:w-[45%] lg:w-[40%] flex flex-col pt-2">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">File Information</h3>
+        <div className="w-full md:w-[45%] lg:w-[40%] flex flex-col pt-1">
+          <h3 className="text-sm font-bold text-[var(--text-main)] mb-5">File Information</h3>
           
-          <div className="space-y-5 flex-1">
+          <div className="space-y-4 flex-1">
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">File Name</label>
-              <p className="text-sm font-medium text-slate-800 break-all">{name}</p>
+              <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">File Name</label>
+              <p className="text-xs font-semibold text-[var(--text-main)] break-all">{name}</p>
             </div>
             
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Display Name</label>
-              <p className="text-sm font-medium text-slate-800 break-all">{file.originalName || name}</p>
+              <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Display Name</label>
+              <p className="text-xs font-semibold text-[var(--text-main)] break-all">{file.originalName || name}</p>
             </div>
             
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">File Type</label>
-              <div className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">File Type</label>
+              <div className="inline-flex items-center rounded-full bg-[var(--surface-2)] border border-[var(--border)] px-2.5 py-0.5 text-xs font-medium text-[var(--text-muted)]">
                 {file.mimeType || 'unknown'}
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">File Size</label>
-              <p className="text-sm font-medium text-slate-800">{formatSize(file.sizeBytes)}</p>
+              <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">File Size</label>
+              <p className="text-xs font-semibold text-[var(--text-main)]">{formatSize(file.sizeBytes)}</p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">Upload Date</label>
-              <p className="text-sm font-medium text-slate-800">{new Date(file.createdAt || Date.now()).toLocaleDateString()}</p>
+              <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Upload Date</label>
+              <p className="text-xs font-semibold text-[var(--text-main)]">{new Date(file.createdAt || Date.now()).toLocaleDateString()}</p>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-500 mb-1">File URL</label>
-              <div className="flex items-center gap-2 mt-1 rounded-[var(--radius-input,0.5rem)] border border-slate-200 bg-slate-50 px-3 py-2">
+              <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">File URL</label>
+              <div className="flex items-center gap-2 mt-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2">
                 <input 
                   readOnly 
                   value={file.driveWebViewLink || file.driveWebContentLink || ''} 
-                  className="flex-1 bg-transparent text-xs text-slate-600 focus:outline-none"
+                  className="flex-1 bg-transparent text-xs text-[var(--text-muted)] focus:outline-none"
                 />
                 <button 
                   onClick={handleCopyUrl}
-                  className="flex shrink-0 items-center justify-center text-slate-500 hover:text-[var(--primary)] transition-colors"
+                  className="flex shrink-0 items-center justify-center text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors cursor-pointer"
                   title="Copy URL"
                 >
                   {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
@@ -112,16 +112,16 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
             </div>
           </div>
 
-          <div className="mt-8 pt-6">
-            <h4 className="text-sm font-bold text-slate-800 mb-3">Actions</h4>
-            <div className="flex flex-wrap items-center gap-3">
+          <div className="mt-6 pt-4 border-t border-[var(--border)]">
+            <h4 className="text-xs font-bold text-[var(--text-main)] mb-3">Actions</h4>
+            <div className="flex flex-wrap items-center gap-2">
               {file.driveWebViewLink && (
                 <button 
                   type="button"
                   onClick={() => window.open(file.driveWebViewLink, '_blank')}
-                  className="flex items-center justify-center gap-2 rounded-[var(--radius-button,0.5rem)] border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors shadow-2xs cursor-pointer"
                 >
-                  <Eye size={16} className="text-blue-500" />
+                  <Eye size={14} className="text-blue-500" />
                   View
                 </button>
               )}
@@ -129,9 +129,9 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
                 <button 
                   type="button"
                   onClick={() => window.open(file.driveWebContentLink, '_blank')}
-                  className="flex items-center justify-center gap-2 rounded-[var(--radius-button,0.5rem)] border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors shadow-sm"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors shadow-2xs cursor-pointer"
                 >
-                  <Download size={16} className="text-emerald-500" />
+                  <Download size={14} className="text-emerald-500" />
                   Download
                 </button>
               )}
@@ -139,9 +139,9 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
                 <button 
                   type="button"
                   onClick={() => onDelete(file)}
-                  className="flex items-center justify-center gap-2 rounded-[var(--radius-button,0.5rem)] border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-rose-50 hover:border-rose-200 transition-colors shadow-sm"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors shadow-2xs cursor-pointer"
                 >
-                  <Trash2 size={16} className="text-rose-500" />
+                  <Trash2 size={14} className="text-rose-500" />
                   Delete
                 </button>
               )}

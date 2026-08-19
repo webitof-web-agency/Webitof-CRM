@@ -25,6 +25,8 @@ const authRoutes = require('./auth.routes');
 const usersRoutes = require('./users.routes');
 const rolesRoutes = require('./roles.routes');
 const permissionsRoutes = require('./permissions.routes');
+const followUpsRoutes = require('./followUps.routes');
+const followUpConfigRoutes = require('./followUpConfig.routes');
 const { requireAuth } = require('../middlewares/auth');
 
 const router = express.Router();
@@ -75,5 +77,10 @@ router.use('/notifications', notificationsRoutes);
 router.use('/users', usersRoutes);
 router.use('/roles', rolesRoutes);
 router.use('/permissions', permissionsRoutes);
+router.use('/follow-ups', followUpsRoutes);
+router.use('/follow-up-templates', followUpConfigRoutes.templates);
+router.use('/follow-up-sequences', followUpConfigRoutes.sequences);
+router.use('/follow-up-automation-rules', followUpConfigRoutes.automationRules);
+router.use('/follow-up-escalation-rules', followUpConfigRoutes.escalationRules);
 
 module.exports = router;

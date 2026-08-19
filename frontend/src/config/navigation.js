@@ -18,7 +18,8 @@ import {
   Cog,
   UserCog,
   Target,
-  AlarmClock
+  AlarmClock,
+  ListChecks
 } from 'lucide-react';
 
 export const navigationGroups = [
@@ -33,6 +34,7 @@ export const navigationGroups = [
     title: 'Workspace',
     items: [
       { label: 'Leads', path: '/app/leads', icon: Target, permission: 'leads.read' },
+      { label: 'Follow-ups', path: '/app/follow-ups', icon: ListChecks, permissions: ['followups.view_own', 'followups.view_team', 'followups.view_all'] },
       { label: 'Clients', path: '/app/clients', icon: Building2, permission: 'clients.read' },
       { label: 'Projects', path: '/app/projects', icon: BriefcaseBusiness, permission: 'projects.read' },
       { label: 'Invoices', path: '/app/invoices', icon: ReceiptText, permission: 'invoices.read' },

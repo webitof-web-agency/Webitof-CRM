@@ -213,8 +213,8 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
       <div 
         key={file.id} 
         className={cn(
-          "group relative flex cursor-pointer flex-col overflow-hidden rounded-[var(--radius-card,0.75rem)] border bg-white p-3 shadow-sm transition-all hover:border-[var(--primary)] hover:shadow-md",
-          isSelected ? "border-[var(--primary)] ring-1 ring-[var(--primary)]" : "border-slate-200"
+          "group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-[var(--surface)] p-3 shadow-2xs transition-all hover:border-[var(--primary)] hover:shadow-xs",
+          isSelected ? "border-[var(--primary)] ring-1 ring-[var(--primary)] bg-[var(--primary-subtle)]/30" : "border-[var(--border)]"
         )}
         onClick={() => {
           if (allowSelect) onSelectFile?.(file);
@@ -224,8 +224,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
         }}
       >
         <div 
-          className="flex h-32 items-center justify-center bg-slate-50 mb-3 overflow-hidden border border-slate-100"
-          style={{ borderRadius: 'calc(var(--radius-card, 0.75rem) - 4px)' }}
+          className="flex h-32 items-center justify-center bg-[var(--surface-2)]/50 mb-3 overflow-hidden border border-[var(--border)] rounded-xl"
         >
           {isImage && file.driveFileId ? (
             <img 
@@ -239,63 +238,61 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
             />
           ) : null}
           <div className={cn("flex items-center justify-center", (isImage && file.driveFileId) ? 'hidden' : 'flex')}>
-            <Icon size={40} strokeWidth={1} className="text-slate-400" />
+            <Icon size={36} strokeWidth={1.5} className="text-[var(--text-muted)]" />
           </div>
         </div>
         <div className="flex items-center justify-between gap-1 px-1">
           <div className="flex flex-col min-w-0">
-            <span className="truncate text-sm font-medium text-slate-700" title={name}>{name}</span>
-            <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="truncate text-xs font-semibold text-[var(--text-main)]" title={name}>{name}</span>
+            <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mt-0.5">
               <span>{formatSize(file.sizeBytes)}</span>
             </div>
           </div>
         </div>
 
         {isSelected && (
-          <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[var(--primary)] text-white flex items-center justify-center shadow-sm">
-            <Check size={12} strokeWidth={3} />
+          <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-[var(--primary)] text-white flex items-center justify-center shadow-xs">
+            <Check size={11} strokeWidth={3} />
           </div>
         )}
       </div>
     );
   };
 
-
-
   return (
     <>
-      <div className={cn("flex h-full bg-white rounded-[var(--radius-card,0.75rem)] overflow-hidden shadow-sm relative", showSidebar ? "" : "border border-slate-200 flex-col")}>
+      <div className={cn("flex h-full bg-[var(--surface)] text-[var(--text-main)] rounded-2xl overflow-hidden shadow-2xs relative", showSidebar ? "" : "border border-[var(--border)] flex-col")}>
         
         {/* Left Sidebar */}
         {showSidebar && (
-          <div className="w-64 shrink-0 border-r border-slate-200 bg-slate-50/30 flex flex-col hidden md:flex">
+          <div className="w-64 shrink-0 border-r border-[var(--border)] bg-[var(--surface-2)]/30 flex flex-col hidden md:flex">
             <div className="p-4 space-y-6 flex-1 overflow-y-auto">
               
               <div>
-                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Quick Access</h4>
+                <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 px-2">Quick Access</h4>
                 <button
                   type="button"
                   onClick={() => handleBreadcrumbClick(0)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 rounded-[var(--radius-button,0.5rem)] px-3 py-2 text-sm font-medium transition-colors",
-                    currentPath.length === 1 ? "bg-[var(--primary)]/10 text-[var(--primary)]" : "text-slate-600 hover:bg-slate-100"
+                    "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition-colors cursor-pointer",
+                    currentPath.length === 1 ? "bg-[var(--primary-subtle)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)]"
                   )}
                 >
-                  <div className="flex items-center gap-3">
-                    <Home size={16} />
+                  <div className="flex items-center gap-2.5">
+                    <Home size={15} />
                     All Files
                   </div>
                   <span className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] font-bold",
-                    currentPath.length === 1 ? "bg-[var(--primary)]/20" : "bg-slate-100 text-slate-500"
+                    currentPath.length === 1 ? "bg-[var(--primary)]/20 text-[var(--primary)]" : "bg-[var(--surface-2)] text-[var(--text-muted)]"
                   )}>{files.length + folders.length}</span>
                 </button>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-2 px-2">
-                  <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Folders</h4>
-                  <button onClick={() => setNewFolderOpen(true)} className="text-slate-400 hover:text-slate-700">
+                  <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Folders</h4>
+                  <button onClick={() => setNewFolderOpen(true)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer">
                     <FolderPlus size={14} />
                   </button>
                 </div>
@@ -305,24 +302,24 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                       key={folder.id}
                       type="button"
                       onClick={() => handleFolderClick(folder.id, folder.name)}
-                      className="flex w-full items-center justify-between gap-3 rounded-[var(--radius-button,0.5rem)] px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
+                      className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] cursor-pointer"
                     >
-                      <div className="flex items-center gap-3 truncate">
-                        <Folder size={16} className="text-slate-400" />
+                      <div className="flex items-center gap-2.5 truncate">
+                        <Folder size={15} className="text-[var(--text-muted)]" />
                         <span className="truncate">{folder.name}</span>
                       </div>
                     </button>
                   ))}
                   {folders.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-slate-400">No folders</div>
+                    <div className="px-3 py-2 text-xs text-[var(--text-muted)]">No folders</div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 border-t border-slate-200">
-              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3 px-2">Storage Usage</h4>
-              <div className="flex items-center justify-between px-2 text-sm font-medium text-slate-700">
+            <div className="p-4 border-t border-[var(--border)]">
+              <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 px-2">Storage Usage</h4>
+              <div className="flex items-center justify-between px-2 text-xs font-semibold text-[var(--text-main)]">
                 <div className="flex items-center gap-2">
                   <div className="h-2 w-2 rounded-full bg-[var(--primary)]" />
                   Used Space
@@ -334,11 +331,11 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
         )}
 
         {/* Main Content Area */}
-        <div className={cn("flex flex-col flex-1 min-w-0", showSidebar ? "border border-slate-200 m-4 rounded-xl shadow-sm overflow-hidden bg-white" : "")}>
+        <div className={cn("flex flex-col flex-1 min-w-0 bg-[var(--surface)]", showSidebar ? "border border-[var(--border)] m-4 rounded-2xl shadow-2xs overflow-hidden" : "")}>
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/50 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-2)]/40 p-4">
         {/* Breadcrumbs */}
-        <div className="flex items-center flex-wrap gap-1.5 text-sm">
+        <div className="flex items-center flex-wrap gap-1.5 text-xs font-medium">
           {currentPath.map((part, index) => {
             const isLast = index === currentPath.length - 1;
             return (
@@ -347,14 +344,15 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                   type="button"
                   onClick={() => handleBreadcrumbClick(index)}
                   className={cn(
-                    "flex items-center hover:text-[var(--primary)] transition-colors rounded-[var(--radius-button,0.5rem)] px-2 py-1 -mx-2 hover:bg-slate-100",
-                    isLast ? "font-semibold text-slate-800 cursor-default hover:bg-transparent hover:text-slate-800" : "font-medium text-slate-500"
+                    "flex items-center hover:text-[var(--primary)] transition-colors rounded-lg px-2 py-1 -mx-2 hover:bg-[var(--hover-bg)] cursor-pointer",
+                    isLast ? "font-bold text-[var(--text-main)] cursor-default hover:bg-transparent hover:text-[var(--text-main)]" : "text-[var(--text-muted)]"
                   )}
                   disabled={isLast}
                 >
-                  {index === 0 ? <Home size={16} className={isLast ? "text-[var(--primary)]" : ""} /> : part.name}
+                  {index === 0 ? <Home size={15} className={isLast ? "text-[var(--primary)] mr-1" : "mr-1"} /> : null}
+                  {index === 0 ? 'Home' : part.name}
                 </button>
-                {!isLast && <ChevronRight size={14} className="text-slate-400 mt-0.5" />}
+                {!isLast && <ChevronRight size={13} className="text-[var(--text-muted)] mt-0.5" />}
               </div>
             );
           })}
@@ -367,7 +365,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
               <button
                 type="button"
                 onClick={() => setNewFolderOpen(true)}
-                className="inline-flex items-center justify-center rounded-[var(--radius-button,0.5rem)] font-medium transition text-xs h-9 px-4 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                className="inline-flex items-center justify-center rounded-xl font-semibold transition text-xs h-9 px-3.5 bg-[var(--surface-2)] text-[var(--text-main)] hover:bg-[var(--hover-bg)] border border-[var(--border)] cursor-pointer"
               >
                 <FolderPlus size={14} className="mr-1.5" />
                 New Folder
@@ -383,7 +381,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center justify-center rounded-[var(--radius-button,0.5rem)] font-medium transition text-xs h-9 px-4 bg-[var(--primary)] text-white hover:opacity-90"
+                className="inline-flex items-center justify-center rounded-xl font-semibold transition text-xs h-9 px-3.5 bg-[var(--primary)] text-white hover:opacity-90 shadow-2xs cursor-pointer"
               >
                 <Upload size={14} className="mr-1.5" />
                 Upload File
@@ -392,84 +390,84 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
           )}
           <div className="relative flex-1 sm:w-64">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-              <Search size={14} className="text-slate-400" />
+              <Search size={14} className="text-[var(--text-muted)]" />
             </div>
             <Input 
               placeholder="Search in folder..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm"
+              className="pl-9 h-9 text-xs"
             />
           </div>
-          <div className="flex items-center rounded-[var(--radius-button,0.5rem)] border border-slate-200 bg-white p-1">
+          <div className="flex items-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 p-1">
             <button 
               type="button"
               onClick={() => setViewMode('grid')}
-              className={cn("rounded-[calc(var(--radius-button,0.5rem)-4px)] p-1.5 transition-colors", viewMode === 'grid' ? "bg-slate-100 text-slate-800" : "text-slate-400 hover:text-slate-600")}
+              className={cn("rounded-lg p-1.5 transition-colors cursor-pointer", viewMode === 'grid' ? "bg-[var(--surface)] text-[var(--text-main)] shadow-2xs" : "text-[var(--text-muted)] hover:text-[var(--text-main)]")}
             >
-              <GridIcon size={16} />
+              <GridIcon size={15} />
             </button>
             <button 
               type="button"
               onClick={() => setViewMode('list')}
-              className={cn("rounded-[calc(var(--radius-button,0.5rem)-4px)] p-1.5 transition-colors", viewMode === 'list' ? "bg-slate-100 text-slate-800" : "text-slate-400 hover:text-slate-600")}
+              className={cn("rounded-lg p-1.5 transition-colors cursor-pointer", viewMode === 'list' ? "bg-[var(--surface)] text-[var(--text-main)] shadow-2xs" : "text-[var(--text-muted)] hover:text-[var(--text-main)]")}
             >
-              <ListIcon size={16} />
+              <ListIcon size={15} />
             </button>
           </div>
         </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50/20 min-h-[400px]">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-[var(--background)] min-h-[400px]">
         {loading && (
-           <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+           <div className="absolute inset-0 bg-[var(--surface)]/70 backdrop-blur-xs flex items-center justify-center z-10">
              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--primary)] border-t-transparent" />
            </div>
         )}
         
         {search.trim() ? (
-          <div className="mb-4 text-sm font-medium text-slate-500">
+          <div className="mb-4 text-xs font-semibold text-[var(--text-muted)]">
             Search results for "{search}" ({filteredFolders.length + filteredFiles.length} found)
           </div>
         ) : null}
 
         {!loading && filteredFolders.length === 0 && filteredFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400 py-12">
-            <Folder size={48} strokeWidth={1} className="mb-4 opacity-50" />
-            <p className="text-sm font-medium">This folder is empty</p>
+          <div className="flex flex-col items-center justify-center h-full text-[var(--text-muted)] py-12">
+            <Folder size={44} strokeWidth={1} className="mb-3 opacity-40" />
+            <p className="text-xs font-semibold">This folder is empty</p>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-6">
             
             {/* Folders */}
             {filteredFolders.length > 0 && viewMode === 'grid' && (
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">Folders</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3">Folders</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                   {filteredFolders.map(folder => (
                     <button
                       key={folder.id}
                       type="button"
                       onClick={() => handleFolderClick(folder.id, folder.name)}
-                      className="group flex items-center gap-3 rounded-[var(--radius-card,0.75rem)] border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition-all hover:border-[var(--primary)] hover:shadow-md hover:bg-blue-50/50"
+                      className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left shadow-2xs transition-all hover:border-[var(--primary)] hover:shadow-xs cursor-pointer"
                     >
                       <div className="flex items-center justify-between w-full">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                          <Folder size={20} className="text-blue-400 group-hover:text-[var(--primary)] shrink-0" fill="currentColor" fillOpacity={0.2} />
-                          <span className="truncate text-sm font-medium text-slate-700">{folder.name}</span>
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          <Folder size={18} className="text-blue-500 group-hover:text-[var(--primary)] shrink-0" fill="currentColor" fillOpacity={0.2} />
+                          <span className="truncate text-xs font-semibold text-[var(--text-main)]">{folder.name}</span>
                         </div>
                         {/* Folder Action Menu */}
                         <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
                           <button
                             type="button"
                             onClick={() => setActiveMenuId(activeMenuId === folder.id ? null : folder.id)}
-                            className="p-1 rounded-[var(--radius-button,0.5rem)] text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors opacity-0 group-hover:opacity-100"
+                            className="p-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                           >
-                            <MoreVertical size={16} />
+                            <MoreVertical size={15} />
                           </button>
                           {activeMenuId === folder.id && (
-                            <div className="absolute right-0 top-full mt-1 w-36 rounded-[calc(var(--radius-card,0.75rem)-4px)] border border-slate-200 bg-white shadow-lg z-20 overflow-hidden text-sm">
+                            <div className="absolute right-0 top-full mt-1 w-36 rounded-xl border border-[var(--border-glass)] bg-[var(--surface)] shadow-[var(--shadow-modal)] z-20 overflow-hidden text-xs">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -478,9 +476,9 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                                   setRenameValue(folder.name);
                                   setRenameOpen(true);
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-slate-700 hover:bg-slate-50 transition-colors"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
                               >
-                                <Edit2 size={14} />
+                                <Edit2 size={13} />
                                 Rename
                               </button>
                               <button
@@ -490,9 +488,9 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                                   setDeleteTarget(folder);
                                   setDeleteOpen(true);
                                 }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-600 hover:bg-rose-50 transition-colors"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
                               >
-                                <Trash2 size={14} />
+                                <Trash2 size={13} />
                                 Trash
                               </button>
                             </div>
@@ -508,38 +506,38 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
             {/* Files */}
             {(filteredFiles.length > 0 || (filteredFolders.length > 0 && viewMode === 'list')) && (
               <div>
-                {viewMode === 'grid' && <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-4">Files</h4>}
+                {viewMode === 'grid' && <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3">Files</h4>}
                 
                 {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                     {filteredFiles.map(renderGridFile)}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden shadow-2xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[var(--surface-2)]/50 text-[var(--text-muted)] border-b border-[var(--border)]">
                         <tr>
                           <th className="px-4 py-3 font-semibold">Name</th>
                           <th className="px-4 py-3 font-semibold">Size</th>
                           <th className="px-4 py-3 font-semibold">Date modified</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-[var(--border)]">
                         {/* Folders in List Mode */}
                         {filteredFolders.map(folder => (
                           <tr 
                             key={`folder-${folder.id}`} 
                             onClick={() => handleFolderClick(folder.id, folder.name)}
-                            className="cursor-pointer hover:bg-slate-50/80 transition-colors group"
+                            className="cursor-pointer hover:bg-[var(--hover-bg)] transition-colors group"
                           >
                             <td className="px-4 py-3">
-                              <div className="flex items-center gap-3">
-                                <Folder size={18} className="text-blue-400 group-hover:text-[var(--primary)]" fill="currentColor" fillOpacity={0.2} />
-                                <span className="font-medium text-slate-700">{folder.name}</span>
+                              <div className="flex items-center gap-2.5">
+                                <Folder size={16} className="text-blue-500 group-hover:text-[var(--primary)]" fill="currentColor" fillOpacity={0.2} />
+                                <span className="font-semibold text-[var(--text-main)]">{folder.name}</span>
                               </div>
                             </td>
-                            <td className="px-4 py-3 text-slate-400">-</td>
-                            <td className="px-4 py-3 text-slate-400">{new Date(folder.updatedAt).toLocaleDateString()}</td>
+                            <td className="px-4 py-3 text-[var(--text-muted)]">-</td>
+                            <td className="px-4 py-3 text-[var(--text-muted)]">{new Date(folder.updatedAt).toLocaleDateString()}</td>
                           </tr>
                         ))}
                         
@@ -553,7 +551,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                               key={file.id} 
                               className={cn(
                                 "cursor-pointer transition-colors group",
-                                isSelected ? "bg-blue-50/50" : "hover:bg-slate-50/80"
+                                isSelected ? "bg-[var(--primary-subtle)]" : "hover:bg-[var(--hover-bg)]"
                               )}
                               onClick={() => {
                                 if (allowSelect) onSelectFile?.(file);
@@ -563,20 +561,20 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                               }}
                             >
                               <td className="px-4 py-3">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2.5">
                                   <div className="relative">
-                                    <Icon size={18} className={isSelected ? "text-[var(--primary)]" : "text-slate-400 group-hover:text-slate-600"} />
+                                    <Icon size={16} className={isSelected ? "text-[var(--primary)]" : "text-[var(--text-muted)] group-hover:text-[var(--text-main)]"} />
                                     {isSelected && (
-                                      <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-[var(--primary)] text-white flex items-center justify-center ring-2 ring-white">
-                                        <Check size={8} strokeWidth={4} />
+                                      <div className="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-[var(--primary)] text-white flex items-center justify-center ring-2 ring-[var(--surface)]">
+                                        <Check size={7} strokeWidth={4} />
                                       </div>
                                     )}
                                   </div>
-                                  <span className={cn("font-medium", isSelected ? "text-[var(--primary)]" : "text-slate-700")}>{name}</span>
+                                  <span className={cn("font-medium", isSelected ? "text-[var(--primary)] font-bold" : "text-[var(--text-main)]")}>{name}</span>
                                 </div>
                               </td>
-                              <td className="px-4 py-3 text-slate-500">{formatSize(file.sizeBytes)}</td>
-                              <td className="px-4 py-3 text-slate-500">{new Date(file.updatedAt).toLocaleDateString()}</td>
+                              <td className="px-4 py-3 text-[var(--text-muted)]">{formatSize(file.sizeBytes)}</td>
+                              <td className="px-4 py-3 text-[var(--text-muted)]">{new Date(file.updatedAt).toLocaleDateString()}</td>
                             </tr>
                           );
                         })}

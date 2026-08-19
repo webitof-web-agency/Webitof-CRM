@@ -1,6 +1,46 @@
 const multer = require('multer');
+const path = require('path');
 const fileAssetModel = require('../models/fileAsset.model');
+const leadModel = require('../models/lead.model');
 const { archiveFile, listFiles, uploadBuffer, listDriveDirectory, createNewFolder } = require('../services/driveStorage.service');
+const { DEFAULT_PIPELINE_ID, canAccessPipeline } = require('../services/leadPipelineAccess.service');
+
+const LEAD_ATTACHMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.zip']);
+const LEAD_ATTACHMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/jpeg',
+  'image/png',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/octet-stream'
+]);
+
+async function assertLeadFileAccess(moduleName, entityId, req) {
+  if (String(moduleName || '').toLowerCase() !== 'leads' || !entityId || String(entityId).startsWith('lead-draft-')) return;
+  const lead = await leadModel.findById(entityId);
+  if (!lead || !canAccessPipeline(req?.user, lead.pipelineId || DEFAULT_PIPELINE_ID)) {
+    const error = new Error('You do not have access to this lead file');
+    error.statusCode = 403;
+    throw error;
+  }
+}
+
+function validateLeadAttachments(files = [], moduleName = '') {
+  if (String(moduleName).toLowerCase() !== 'leads') return;
+  for (const file of files) {
+    const extension = path.extname(String(file.originalname || '')).toLowerCase();
+    if (!LEAD_ATTACHMENT_EXTENSIONS.has(extension) || !LEAD_ATTACHMENT_MIME_TYPES.has(String(file.mimetype || '').toLowerCase())) {
+      const error = new Error(`Unsupported lead attachment type: ${extension || 'unknown'}`);
+      error.statusCode = 400;
+      throw error;
+    }
+    file.originalname = path.basename(String(file.originalname || 'attachment')).replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 180);
+  }
+}
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -15,6 +55,7 @@ async function list(req, res, next) {
     if (req.query.moduleName) filters.moduleName = req.query.moduleName;
     if (req.query.entityId) filters.entityId = req.query.entityId;
     if (req.query.folderKey) filters.folderKey = req.query.folderKey;
+    await assertLeadFileAccess(filters.moduleName, filters.entityId, req);
     const rows = await listFiles(filters, req.query.search || '');
     res.json({ success: true, data: rows });
   } catch (error) {
@@ -61,6 +102,8 @@ async function uploadFiles(req, res, next) {
     const entityId = String(req.body.entityId || '').trim();
     const folderKey = req.body.folderKey || '';
     const folderId = req.body.folderId || null;
+    await assertLeadFileAccess(moduleName, entityId, req);
+    validateLeadAttachments(files, moduleName);
     const reservedKeys = new Set(['moduleName', 'entityId', 'folderKey', 'folderId', 'isPublic', 'file', 'files']);
     const extraPayload = {};
     Object.entries(req.body || {}).forEach(([key, value]) => {
@@ -113,6 +156,7 @@ async function getById(req, res, next) {
     if (!record) {
       return res.status(404).json({ success: false, message: 'File not found' });
     }
+    await assertLeadFileAccess(record.moduleName, record.entityId, req);
     res.json({ success: true, data: record });
   } catch (error) {
     next(error);
@@ -121,6 +165,11 @@ async function getById(req, res, next) {
 
 async function archive(req, res, next) {
   try {
+    const current = await fileAssetModel.findById(req.params.id);
+    if (!current) {
+      return res.status(404).json({ success: false, message: 'File not found' });
+    }
+    await assertLeadFileAccess(current.moduleName, current.entityId, req);
     const record = await archiveFile(req.params.id, req.body?.reason || 'archived');
     if (!record) {
       return res.status(404).json({ success: false, message: 'File not found' });
@@ -138,6 +187,7 @@ async function viewDriveFile(req, res, next) {
     const drive = await getDriveClient();
 
     const record = (await fileAssetModel.list({ where: { driveFileId: req.params.driveFileId } }))[0];
+    await assertLeadFileAccess(record?.moduleName, record?.entityId, req);
     const mimeType = record?.mimeType || 'image/png';
 
     const response = await drive.files.get(
@@ -173,6 +223,8 @@ async function renameDriveFile(req, res, next) {
     if (!name) {
       return res.status(400).json({ success: false, message: 'Name is required' });
     }
+    const current = (await fileAssetModel.list({ where: { driveFileId: req.params.driveFileId } }))[0];
+    await assertLeadFileAccess(current?.moduleName, current?.entityId, req);
     const { renameFile } = require('../services/driveStorage.service');
     const result = await renameFile(req.params.driveFileId, name);
     res.json({ success: true, data: result });
@@ -183,6 +235,8 @@ async function renameDriveFile(req, res, next) {
 
 async function deleteDriveFile(req, res, next) {
   try {
+    const current = (await fileAssetModel.list({ where: { driveFileId: req.params.driveFileId } }))[0];
+    await assertLeadFileAccess(current?.moduleName, current?.entityId, req);
     const { deleteFileByDriveId } = require('../services/driveStorage.service');
     await deleteFileByDriveId(req.params.driveFileId);
     res.json({ success: true, message: 'Moved to trash' });

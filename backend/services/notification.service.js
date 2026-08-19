@@ -16,6 +16,7 @@ const DEFAULT_INTERNAL_ROLES_BY_MODULE = {
   'lead-commissions': ['admin', 'accountant', 'sales'],
   leads: ['admin', 'sales'],
   'lead-events': ['admin', 'sales'],
+  followups: ['admin', 'accountant', 'sales'],
   amc: ['admin', 'accountant', 'sales'],
   renewals: ['admin', 'accountant', 'sales'],
   banking: ['admin', 'accountant'],
@@ -33,6 +34,7 @@ const DEFAULT_ROUTE_BY_MODULE = {
   outsourcing: (entity) => `/app/outsourcing/${entity?.id || ''}`,
   'lead-commissions': (entity) => `/app/lead-commissions/${entity?.id || ''}`,
   leads: (entity) => `/app/leads/${entity?.id || ''}`,
+  followups: (entity) => `/app/follow-ups?focus=${entity?.id || ''}`,
   amc: (entity) => `/app/amc/${entity?.id || ''}`,
   renewals: (entity) => `/app/renewals/${entity?.id || ''}`
 };

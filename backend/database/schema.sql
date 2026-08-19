@@ -156,19 +156,77 @@ CREATE TABLE IF NOT EXISTS clients (
 
 CREATE TABLE IF NOT EXISTS leads (
   id text PRIMARY KEY,
+  lead_number text,
   name text NOT NULL,
   company_name text,
+  contact_person text,
   type text NOT NULL DEFAULT 'Organization',
   email text,
   phone text,
+  alternate_phone text,
+  whatsapp_number text,
   website text,
+  preferred_language text,
+  preferred_contact_method text,
+  preferred_contact_time text,
   status text NOT NULL DEFAULT 'New',
   pipeline_id text REFERENCES lead_pipelines(id) ON DELETE SET NULL,
   source text,
+  campaign_name text,
+  source_reference text,
+  utm_source text,
+  utm_medium text,
+  utm_campaign text,
+  referrer_type text,
+  referrer_name text,
+  referrer_contact text,
+  referrer_reference_id text,
+  commission_applicable boolean NOT NULL DEFAULT false,
+  commission_type text,
+  commission_value numeric(14,2),
+  commission_notes text,
+  required_services jsonb NOT NULL DEFAULT '[]'::jsonb,
+  requirement_title text,
+  requirement_summary text,
+  requirement_description text,
+  client_pain_points text,
+  expected_features text,
+  reference_url text,
+  preferred_technology text,
+  existing_system_details text,
+  expected_start_date date,
+  expected_delivery_date date,
+  requirement_attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
   value numeric(14,2) NOT NULL DEFAULT 0,
+  estimated_budget numeric(14,2),
+  budget_min numeric(14,2),
+  budget_max numeric(14,2),
+  budget_range text,
+  budget_confirmed text,
+  billing_type text,
+  gst_invoice_required text,
+  expected_closing_date date,
+  payment_preference text,
+  purchase_timeline text,
+  lead_temperature text,
+  priority text,
+  conversion_probability numeric(5,2),
+  lead_score integer,
+  status_note text,
+  last_status_changed_at timestamptz,
+  last_status_changed_by text REFERENCES users(id) ON DELETE SET NULL,
   follow_up_date date,
+  next_follow_up_time text,
+  follow_up_mode text,
+  reminder text,
+  follow_up_note text,
+  assigned_team text,
+  follow_up_priority text,
   assigned_to text REFERENCES users(id) ON DELETE SET NULL,
+  lead_owner text REFERENCES users(id) ON DELETE SET NULL,
+  secondary_assignees jsonb NOT NULL DEFAULT '[]'::jsonb,
   created_by text REFERENCES users(id) ON DELETE SET NULL,
+  updated_by text REFERENCES users(id) ON DELETE SET NULL,
   managers text,
   address text,
   city text,
@@ -182,6 +240,35 @@ CREATE TABLE IF NOT EXISTS leads (
   labels jsonb NOT NULL DEFAULT '[]'::jsonb,
   owner_name text,
   notes text,
+  first_conversation_summary text,
+  last_conversation_summary text,
+  client_expectations text,
+  internal_notes text,
+  preferred_communication_channel text,
+  last_contact_date date,
+  last_contact_time text,
+  decision_maker_identified text,
+  contact_is_decision_maker boolean,
+  requirement_confirmed text,
+  timeline_confirmed text,
+  authority_confirmed text,
+  need_confirmed text,
+  qualification_notes text,
+  lost_reason text,
+  lost_reason_notes text,
+  competitor_name text,
+  competitor_price numeric(14,2),
+  reconnect_in_future boolean NOT NULL DEFAULT false,
+  reconnect_date date,
+  lost_at timestamptz,
+  lost_by text REFERENCES users(id) ON DELETE SET NULL,
+  original_lead_id text REFERENCES leads(id) ON DELETE SET NULL,
+  converted_client_id text REFERENCES clients(id) ON DELETE SET NULL,
+  converted_project_id text,
+  converted_at timestamptz,
+  converted_by text REFERENCES users(id) ON DELETE SET NULL,
+  reopened_at timestamptz,
+  reopened_by text REFERENCES users(id) ON DELETE SET NULL,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -263,6 +350,18 @@ CREATE TABLE IF NOT EXISTS lead_events (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS lead_conversion_mappings (
+  id text PRIMARY KEY,
+  lead_id text NOT NULL UNIQUE REFERENCES leads(id) ON DELETE RESTRICT,
+  client_id text REFERENCES clients(id) ON DELETE SET NULL,
+  project_id text REFERENCES projects(id) ON DELETE SET NULL,
+  converted_by text REFERENCES users(id) ON DELETE SET NULL,
+  converted_at timestamptz NOT NULL DEFAULT now(),
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS invoices (
   id text PRIMARY KEY,
   invoice_number text NOT NULL UNIQUE,
@@ -279,6 +378,13 @@ CREATE TABLE IF NOT EXISTS invoices (
   recurring_interval text NOT NULL DEFAULT 'None',
   source_renewal_id text,
   source_amc_id text,
+  source_quotation_id text REFERENCES lead_events(id) ON DELETE SET NULL,
+  discount_type text NOT NULL DEFAULT 'percent',
+  discount_value numeric(14,2) NOT NULL DEFAULT 0,
+  discount_amount numeric(14,2) NOT NULL DEFAULT 0,
+  advance_amount numeric(14,2) NOT NULL DEFAULT 0,
+  tax_type text NOT NULL DEFAULT 'none',
+  tax_rate numeric(8,2) NOT NULL DEFAULT 0,
   taxable_amount numeric(14,2) NOT NULL DEFAULT 0,
   cgst numeric(14,2) NOT NULL DEFAULT 0,
   sgst numeric(14,2) NOT NULL DEFAULT 0,
@@ -291,6 +397,10 @@ CREATE TABLE IF NOT EXISTS invoices (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_source_quotation_id
+  ON invoices(source_quotation_id)
+  WHERE source_quotation_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS payments (
   id text PRIMARY KEY,
@@ -572,6 +682,15 @@ CREATE INDEX IF NOT EXISTS idx_lead_pipelines_active ON lead_pipelines(is_active
 CREATE INDEX IF NOT EXISTS idx_lead_pipelines_sort ON lead_pipelines(sort_order, name);
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON leads(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone);
+CREATE INDEX IF NOT EXISTS idx_leads_email_lower ON leads(lower(email));
+CREATE INDEX IF NOT EXISTS idx_leads_follow_up_date ON leads(follow_up_date);
+CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);
+CREATE INDEX IF NOT EXISTS idx_leads_converted_client_id ON leads(converted_client_id);
+CREATE INDEX IF NOT EXISTS idx_leads_temperature ON leads(lead_temperature);
+CREATE INDEX IF NOT EXISTS idx_leads_priority ON leads(priority);
+CREATE INDEX IF NOT EXISTS idx_lead_conversion_client_id ON lead_conversion_mappings(client_id);
+CREATE INDEX IF NOT EXISTS idx_lead_conversion_project_id ON lead_conversion_mappings(project_id);
 CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
 CREATE INDEX IF NOT EXISTS idx_clients_mobile ON clients(mobile);
 CREATE INDEX IF NOT EXISTS idx_projects_client_id ON projects(client_id);

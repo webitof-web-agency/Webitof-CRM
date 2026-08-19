@@ -43,8 +43,8 @@ export function InvoiceExportModal({ open, onClose, invoices = [], onGenerate })
     >
       <div className="space-y-5">
         <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/40 p-4">
+            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               <CalendarRange size={14} />
               Financial year
             </div>
@@ -56,34 +56,34 @@ export function InvoiceExportModal({ open, onClose, invoices = [], onGenerate })
               searchPlaceholder="Search financial year..."
               allowClear={false}
             />
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-[var(--text-muted)]">
               Only invoices dated inside the selected financial year will be included.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs">
+            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               <FileText size={14} />
               Export summary
             </div>
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                <span className="text-slate-500">Selected FY</span>
-                <span className="font-semibold text-slate-900">{selectedYear ? `FY ${selectedYear}` : '-'}</span>
+            <div className="mt-4 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] px-3 py-2">
+                <span className="text-[var(--text-muted)]">Selected FY</span>
+                <span className="font-bold text-[var(--text-main)]">{selectedYear ? `FY ${selectedYear}` : '-'}</span>
               </div>
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                <span className="text-slate-500">Invoices</span>
-                <span className="font-semibold text-slate-900">{selectedInvoices.length}</span>
+              <div className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] px-3 py-2">
+                <span className="text-[var(--text-muted)]">Invoices</span>
+                <span className="font-bold text-[var(--text-main)]">{selectedInvoices.length}</span>
               </div>
-              <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                <span className="text-slate-500">Total amount</span>
-                <span className="font-semibold text-slate-900">{totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}</span>
+              <div className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] px-3 py-2">
+                <span className="text-[var(--text-muted)]">Total amount</span>
+                <span className="font-bold text-[var(--text-main)]">{totalAmount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+        <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/30 px-4 py-3 text-xs text-[var(--text-muted)]">
           {selectedYear
             ? (selectedInvoices.length
                 ? `${selectedInvoices.length} invoice${selectedInvoices.length === 1 ? '' : 's'} are ready for export.`

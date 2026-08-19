@@ -41,9 +41,11 @@ async function ensureDatabase() {
   if (String(process.env.AUTO_INIT_DB || 'true').toLowerCase() === 'true') {
     await runSqlFile(schemaPath);
     await runSqlFile(path.join(__dirname, '..', 'database', 'storage.sql'));
+    await runSqlFile(path.join(__dirname, '..', 'database', 'follow-up-engine.sql'));
   }
   await ensureLeadPipelineSchema();
   await ensureLeadEventsSchema();
+  await ensureLeadManagementSchema();
   await ensureExpenseSchema();
   await ensureOutsourcingSchema();
   await ensureRenewalSchema();
@@ -136,6 +138,155 @@ async function ensureLeadEventsSchema() {
       event_type = COALESCE(event_type, 'event')
   `);
   await query(`CREATE INDEX IF NOT EXISTS idx_lead_events_scope ON lead_events(scope_type, scope_id);`);
+}
+
+async function ensureLeadManagementSchema() {
+  await query(`CREATE SEQUENCE IF NOT EXISTS lead_number_seq START WITH 1 INCREMENT BY 1;`);
+
+  const columns = [
+    ['lead_number', 'text'],
+    ['contact_person', 'text'],
+    ['alternate_phone', 'text'],
+    ['whatsapp_number', 'text'],
+    ['preferred_language', 'text'],
+    ['preferred_contact_method', 'text'],
+    ['preferred_contact_time', 'text'],
+    ['campaign_name', 'text'],
+    ['source_reference', 'text'],
+    ['utm_source', 'text'],
+    ['utm_medium', 'text'],
+    ['utm_campaign', 'text'],
+    ['referrer_type', 'text'],
+    ['referrer_name', 'text'],
+    ['referrer_contact', 'text'],
+    ['referrer_reference_id', 'text'],
+    ['commission_applicable', 'boolean NOT NULL DEFAULT false'],
+    ['commission_type', 'text'],
+    ['commission_value', 'numeric(14,2)'],
+    ['commission_notes', 'text'],
+    ['required_services', `jsonb NOT NULL DEFAULT '[]'::jsonb`],
+    ['requirement_title', 'text'],
+    ['requirement_summary', 'text'],
+    ['requirement_description', 'text'],
+    ['client_pain_points', 'text'],
+    ['expected_features', 'text'],
+    ['reference_url', 'text'],
+    ['preferred_technology', 'text'],
+    ['existing_system_details', 'text'],
+    ['expected_start_date', 'date'],
+    ['expected_delivery_date', 'date'],
+    ['requirement_attachments', `jsonb NOT NULL DEFAULT '[]'::jsonb`],
+    ['estimated_budget', 'numeric(14,2)'],
+    ['budget_min', 'numeric(14,2)'],
+    ['budget_max', 'numeric(14,2)'],
+    ['budget_range', 'text'],
+    ['budget_confirmed', 'text'],
+    ['billing_type', 'text'],
+    ['gst_invoice_required', 'text'],
+    ['expected_closing_date', 'date'],
+    ['payment_preference', 'text'],
+    ['purchase_timeline', 'text'],
+    ['lead_temperature', 'text'],
+    ['priority', 'text'],
+    ['conversion_probability', 'numeric(5,2)'],
+    ['lead_score', 'integer'],
+    ['status_note', 'text'],
+    ['last_status_changed_at', 'timestamptz'],
+    ['last_status_changed_by', 'text REFERENCES users(id) ON DELETE SET NULL'],
+    ['next_follow_up_time', 'text'],
+    ['follow_up_mode', 'text'],
+    ['reminder', 'text'],
+    ['follow_up_note', 'text'],
+    ['assigned_team', 'text'],
+    ['follow_up_priority', 'text'],
+    ['lead_owner', 'text REFERENCES users(id) ON DELETE SET NULL'],
+    ['secondary_assignees', `jsonb NOT NULL DEFAULT '[]'::jsonb`],
+    ['updated_by', 'text REFERENCES users(id) ON DELETE SET NULL'],
+    ['first_conversation_summary', 'text'],
+    ['last_conversation_summary', 'text'],
+    ['client_expectations', 'text'],
+    ['internal_notes', 'text'],
+    ['preferred_communication_channel', 'text'],
+    ['last_contact_date', 'date'],
+    ['last_contact_time', 'text'],
+    ['decision_maker_identified', 'text'],
+    ['contact_is_decision_maker', 'boolean'],
+    ['requirement_confirmed', 'text'],
+    ['timeline_confirmed', 'text'],
+    ['authority_confirmed', 'text'],
+    ['need_confirmed', 'text'],
+    ['qualification_notes', 'text'],
+    ['lost_reason', 'text'],
+    ['lost_reason_notes', 'text'],
+    ['competitor_name', 'text'],
+    ['competitor_price', 'numeric(14,2)'],
+    ['reconnect_in_future', 'boolean NOT NULL DEFAULT false'],
+    ['reconnect_date', 'date'],
+    ['lost_at', 'timestamptz'],
+    ['lost_by', 'text REFERENCES users(id) ON DELETE SET NULL'],
+    ['original_lead_id', 'text REFERENCES leads(id) ON DELETE SET NULL'],
+    ['converted_client_id', 'text REFERENCES clients(id) ON DELETE SET NULL'],
+    ['converted_project_id', 'text REFERENCES projects(id) ON DELETE SET NULL'],
+    ['converted_at', 'timestamptz'],
+    ['converted_by', 'text REFERENCES users(id) ON DELETE SET NULL'],
+    ['reopened_at', 'timestamptz'],
+    ['reopened_by', 'text REFERENCES users(id) ON DELETE SET NULL']
+  ];
+
+  for (const [name, definition] of columns) {
+    await query(`ALTER TABLE leads ADD COLUMN IF NOT EXISTS ${name} ${definition};`);
+  }
+
+  await query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'leads_converted_project_id_fkey'
+      ) THEN
+        ALTER TABLE leads
+        ADD CONSTRAINT leads_converted_project_id_fkey
+        FOREIGN KEY (converted_project_id) REFERENCES projects(id) ON DELETE SET NULL;
+      END IF;
+    END $$;
+  `);
+
+  await query(`
+    ALTER TABLE leads
+    ALTER COLUMN lead_number SET DEFAULT (
+      'LD-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('lead_number_seq')::text, 6, '0')
+    );
+  `);
+  await query(`
+    UPDATE leads
+    SET lead_number = 'LD-' || to_char(COALESCE(created_at, now()), 'YYYY') || '-' || lpad(nextval('lead_number_seq')::text, 6, '0')
+    WHERE lead_number IS NULL OR trim(lead_number) = '';
+  `);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_lead_number ON leads(lead_number);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_phone ON leads(phone);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_email_lower ON leads(lower(email));`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_assigned_to ON leads(assigned_to);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_follow_up_date ON leads(follow_up_date);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_converted_client_id ON leads(converted_client_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_temperature ON leads(lead_temperature);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_leads_priority ON leads(priority);`);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS lead_conversion_mappings (
+      id text PRIMARY KEY,
+      lead_id text NOT NULL UNIQUE REFERENCES leads(id) ON DELETE RESTRICT,
+      client_id text REFERENCES clients(id) ON DELETE SET NULL,
+      project_id text REFERENCES projects(id) ON DELETE SET NULL,
+      converted_by text REFERENCES users(id) ON DELETE SET NULL,
+      converted_at timestamptz NOT NULL DEFAULT now(),
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_lead_conversion_client_id ON lead_conversion_mappings(client_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_lead_conversion_project_id ON lead_conversion_mappings(project_id);`);
 }
 
 async function ensureExpenseSchema() {
@@ -348,7 +499,15 @@ async function ensurePaymentStatusSchema() {
 }
 
 async function ensureInvoiceSourceIndexes() {
+  await query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS source_quotation_id text REFERENCES lead_events(id) ON DELETE SET NULL;`);
+  await query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_type text NOT NULL DEFAULT 'percent';`);
+  await query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_value numeric(14,2) NOT NULL DEFAULT 0;`);
+  await query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS discount_amount numeric(14,2) NOT NULL DEFAULT 0;`);
+  await query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS advance_amount numeric(14,2) NOT NULL DEFAULT 0;`);
+  await query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tax_type text NOT NULL DEFAULT 'none';`);
+  await query(`ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tax_rate numeric(8,2) NOT NULL DEFAULT 0;`);
   await query(`CREATE INDEX IF NOT EXISTS idx_invoices_source_amc_id ON invoices(source_amc_id);`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_invoices_source_quotation_id ON invoices(source_quotation_id) WHERE source_quotation_id IS NOT NULL;`);
 }
 
 async function seedDefaultData() {
@@ -1109,5 +1268,7 @@ async function seedRbac() {
 }
 
 module.exports = {
-  ensureDatabase
+  ensureDatabase,
+  ensureInvoiceSourceIndexes,
+  ensureLeadManagementSchema
 };

@@ -1,5 +1,7 @@
 # Webitof CRM Backend
 
+Advanced Follow-up Engine architecture, migration, API, permissions, QA and rollback guidance: [`../docs/ADVANCED_FOLLOW_UP_ENGINE.md`](../docs/ADVANCED_FOLLOW_UP_ENGINE.md).
+
 Node.js + PostgreSQL backend for the Webitof client management CRM.
 
 ## Setup

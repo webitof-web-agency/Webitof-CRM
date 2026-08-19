@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { themes } from '../config/themes';
-import { applyTheme, applyUiSettings } from '../config/theme';
+import { applyTheme, applyThemeMode, applyUiSettings } from '../config/theme';
 
 const STORAGE_KEY = 'webitof-theme-preference';
 
@@ -14,7 +14,7 @@ function readStoredTheme() {
     const parsed = JSON.parse(raw);
     return {
       theme: themes.some((item) => item.key === parsed.theme) ? parsed.theme : 'aurora',
-      mode: 'light'
+      mode: ['light', 'dark', 'system'].includes(parsed.mode) ? parsed.mode : 'light'
     };
   } catch {
     return { theme: 'aurora', mode: 'light' };
@@ -22,15 +22,29 @@ function readStoredTheme() {
 }
 
 export function ThemeProvider({ children }) {
-  const [theme, setTheme] = useState(() => readStoredTheme().theme);
-  const [mode, setMode] = useState(() => readStoredTheme().mode);
+  const [theme, setThemeState] = useState(() => readStoredTheme().theme);
+  const [mode, setModeState] = useState(() => readStoredTheme().mode);
 
+  // Sync mode changes with DOM & Storage
   useEffect(() => {
-    // Only keeping this for compatibility with old toggle switch if it exists,
-    // though the user wants to remove dark mode. 
-    // The main heavy lifting is done in the other useEffect via applyTheme.
-  }, []);
+    applyThemeMode(mode);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme, mode }));
+    } catch (e) {}
+  }, [mode, theme]);
 
+  // Listen to OS system color scheme changes if mode is 'system'
+  useEffect(() => {
+    if (mode !== 'system' || typeof window === 'undefined') return;
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const listener = () => applyThemeMode('system');
+
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
+  }, [mode]);
+
+  // Initial load of custom UI settings, logos, and branding
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem('webitof-ui-settings');
@@ -52,7 +66,7 @@ export function ThemeProvider({ children }) {
         }
       }
 
-      // Apply Branding colors and modes
+      // Apply Branding colors
       const rawBranding = window.localStorage.getItem('webitof-branding');
       let primaryColor = null;
       if (rawBranding) {
@@ -65,6 +79,35 @@ export function ThemeProvider({ children }) {
     } catch (err) {}
   }, []);
 
+  const setTheme = (newTheme) => {
+    setThemeState(newTheme);
+    const targetTheme = themes.find((item) => item.key === newTheme);
+    if (targetTheme?.accent) {
+      applyTheme(targetTheme.accent);
+    }
+  };
+
+  const setMode = (newMode) => {
+    setModeState(newMode);
+    applyThemeMode(newMode);
+  };
+
+  const toggleMode = () => {
+    setModeState((current) => {
+      let isCurrentlyDark = false;
+      if (current === 'system') {
+        isCurrentlyDark =
+          typeof window !== 'undefined' &&
+          window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+      } else {
+        isCurrentlyDark = current === 'dark';
+      }
+      const next = isCurrentlyDark ? 'light' : 'dark';
+      applyThemeMode(next);
+      return next;
+    });
+  };
+
   const value = useMemo(() => {
     const activeTheme = themes.find((item) => item.key === theme) || themes[0];
     return {
@@ -74,7 +117,7 @@ export function ThemeProvider({ children }) {
       accent: activeTheme.accent,
       setTheme,
       setMode,
-      toggleMode: () => setMode((current) => (current === 'dark' ? 'light' : 'dark'))
+      toggleMode
     };
   }, [mode, theme]);
 

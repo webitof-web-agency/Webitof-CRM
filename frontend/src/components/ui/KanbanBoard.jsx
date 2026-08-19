@@ -117,33 +117,39 @@ export function KanbanBoard({
     <div className="flex min-h-[600px] w-full items-start gap-4 overflow-x-auto pb-4">
       {statuses.map((status) => {
         const columnLeads = leadsByStatus[status.label] || [];
-        const color = statusColors[status.label] || '#64748b';
+        const color = statusColors[status.label] || 'var(--primary)';
         const isDragOver = dragOverStatus === status.label;
 
         return (
           <div
             key={status.label}
-            className="flex w-[320px] shrink-0 flex-col overflow-hidden rounded-[var(--radius-card,1.25rem)] border border-transparent"
+            className="flex w-[320px] shrink-0 flex-col overflow-hidden rounded-[var(--radius-card,1.25rem)] border border-[var(--border)] bg-[var(--surface-2)]/50 transition-colors"
             onDragOver={(e) => handleDragOver(e, status.label)}
             onDrop={(e) => handleDrop(e, status.label)}
             style={{
-              backgroundColor: isDragOver ? `${color}10` : `${color}05`,
-              borderColor: isDragOver ? `${color}45` : 'transparent'
+              borderColor: isDragOver ? color : undefined
             }}
           >
-            <div className="mb-2 flex items-center justify-between gap-3 px-4 py-3" style={{ backgroundColor: `${color}18` }}>
+            {/* Column Header */}
+            <div
+              className="mb-2 flex items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border)] bg-[var(--surface)]"
+            >
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold" style={{ color }}>{status.label}</h3>
-                <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: `${color}2A`, color }}>
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color }} />
+                <h3 className="text-xs font-bold text-[var(--text-main)] truncate">{status.label}</h3>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-bold bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]"
+                >
                   {columnLeads.length}
                 </span>
               </div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                {draggedLeadId ? 'Drop to move' : ' '}
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                {draggedLeadId ? 'Drop here' : ' '}
               </div>
             </div>
 
-            <div className="flex min-h-[150px] flex-col gap-3 px-2 pb-2">
+            {/* Column Body / Cards */}
+            <div className="flex min-h-[160px] flex-col gap-2.5 px-2.5 pb-2.5">
               {columnLeads.map((lead) => {
                 const labels = normalizeLabels(lead.labels);
                 return (
@@ -162,16 +168,22 @@ export function KanbanBoard({
                       }
                     }}
                     className={cn(
-                      'group relative cursor-pointer rounded-[var(--radius-card,1rem)] border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md',
+                      'group relative cursor-pointer rounded-[var(--radius-card,1rem)] border border-[var(--border)] bg-[var(--surface)] p-3.5 shadow-2xs transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xs hover:border-[var(--border-hover)]',
                       draggedLeadId === lead.id && 'opacity-50'
                     )}
                   >
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <h4 className="truncate text-sm font-semibold text-[var(--text-main)]">{lead.name}</h4>
-                        {lead.companyName ? <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{lead.companyName}</p> : null}
+                        <h4 className="truncate text-xs font-bold text-[var(--text-main)]">
+                          {lead.name}
+                        </h4>
+                        {lead.companyName ? (
+                          <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">
+                            {lead.companyName}
+                          </p>
+                        ) : null}
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="relative flex items-center gap-1">
                         <button
                           type="button"
                           onMouseDown={(e) => e.stopPropagation()}
@@ -179,45 +191,45 @@ export function KanbanBoard({
                             e.stopPropagation();
                             setOpenMenuId((current) => (current === lead.id ? null : lead.id));
                           }}
-                          className="rounded-full p-1.5 text-slate-500 opacity-0 transition hover:bg-slate-100 hover:text-slate-900 group-hover:opacity-100"
+                          className="rounded-lg p-1 text-[var(--text-muted)] opacity-0 transition hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] group-hover:opacity-100 cursor-pointer"
                           aria-label="Lead actions"
                         >
-                          <MoreVertical size={16} />
+                          <MoreVertical size={15} />
                         </button>
                         {openMenuId === lead.id && (
                           <div
-                            className="absolute right-3 top-10 z-20 w-44 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1 shadow-lg"
+                            className="absolute right-0 top-7 z-20 w-36 overflow-hidden rounded-xl border border-[var(--border-glass)] bg-[var(--surface)] p-1 shadow-[var(--shadow-modal)] animate-fade-scale"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
                               onClick={() => {
                                 setOpenMenuId(null);
                                 onLeadClick?.(lead);
                               }}
                             >
-                              <Eye size={14} /> View
+                              <Eye size={13} /> View
                             </button>
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
                               onClick={() => {
                                 setOpenMenuId(null);
                                 onLeadEdit?.(lead);
                               }}
                             >
-                              <Pencil size={14} /> Edit
+                              <Pencil size={13} /> Edit
                             </button>
                             <button
                               type="button"
-                              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-rose-600 hover:bg-rose-50"
+                              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
                               onClick={() => {
                                 setOpenMenuId(null);
                                 onLeadDelete?.(lead);
                               }}
                             >
-                              <Trash2 size={14} /> Delete
+                              <Trash2 size={13} /> Delete
                             </button>
                           </div>
                         )}
@@ -225,37 +237,41 @@ export function KanbanBoard({
                     </div>
 
                     {labels.length ? (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
+                      <div className="mt-2.5 flex flex-wrap gap-1">
                         {labels.slice(0, 2).map((label) => renderLabelChip(label))}
                         {labels.length > 2 ? (
-                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                          <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-0.2 text-[10px] font-semibold text-[var(--text-muted)]">
                             +{labels.length - 2}
                           </span>
                         ) : null}
                       </div>
                     ) : null}
 
-                    <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
-                      <div className="flex min-w-0 items-center gap-1.5 truncate">
-                        <Phone size={13} className="shrink-0 text-slate-400" />
-                        <span className="truncate">{formatPhoneDisplay(lead.ownerPhone || lead.phone)}</span>
+                    <div className="mt-2.5 flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+                      <div className="flex min-w-0 items-center gap-1 truncate">
+                        <Phone size={12} className="shrink-0 opacity-70" />
+                        <span className="truncate">
+                          {formatPhoneDisplay(lead.ownerPhone || lead.phone)}
+                        </span>
                       </div>
                       {lead.value > 0 ? (
-                        <div className="flex shrink-0 items-center gap-1 font-medium text-emerald-600">
-                          <IndianRupee size={13} />
+                        <div className="flex shrink-0 items-center gap-0.5 font-bold text-emerald-600 dark:text-emerald-400">
+                          <IndianRupee size={11} />
                           {Number(lead.value || 0).toLocaleString('en-IN')}
                         </div>
                       ) : null}
                     </div>
 
-                    <div className="mt-2 flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
-                        <CircleUser size={13} className="shrink-0 text-slate-400" />
-                        <span className="truncate">{lead.primaryContactName || 'No primary contact'}</span>
+                    <div className="mt-2 flex items-center justify-between gap-2 pt-1 border-t border-[var(--border-muted)]">
+                      <div className="flex min-w-0 items-center gap-1 text-[10px] text-[var(--text-muted)]">
+                        <CircleUser size={12} className="shrink-0 opacity-70" />
+                        <span className="truncate">
+                          {lead.primaryContactName || 'No primary contact'}
+                        </span>
                       </div>
                       {lead.followUpDate ? (
-                        <div className="flex shrink-0 items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-600">
-                          <Calendar size={12} />
+                        <div className="flex shrink-0 items-center gap-1 rounded-full border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                          <Calendar size={10} />
                           {String(lead.followUpDate).substring(0, 10)}
                         </div>
                       ) : null}

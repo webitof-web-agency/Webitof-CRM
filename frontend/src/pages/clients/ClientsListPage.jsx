@@ -47,6 +47,41 @@ function renderLabelPill(label, color) {
   );
 }
 
+function LabelsCell({ labels = [] }) {
+  const normalized = Array.isArray(labels) ? labels.filter(Boolean) : [];
+  if (!normalized.length) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+
+  const first = normalized[0];
+  const remainingCount = normalized.length - 1;
+  const allText = normalized.map((l) => l.label || l).join(', ');
+
+  return (
+    <div className="relative group inline-flex items-center gap-1.5" title={allText}>
+      <span className="max-w-[130px] truncate">
+        {renderLabelPill(first.label || first, first.color)}
+      </span>
+      {remainingCount > 0 && (
+        <span className="inline-flex items-center justify-center rounded-full border border-black/10 dark:border-white/15 bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 backdrop-blur-md cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 transition-all select-none">
+          +{remainingCount}
+        </span>
+      )}
+      {remainingCount > 0 && (
+        <div className="pointer-events-none opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 ease-out scale-95 group-hover:scale-100 origin-bottom-left absolute bottom-full left-0 mb-2 z-50 p-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/80 dark:border-white/15 shadow-2xl min-w-[180px] max-w-[300px] flex flex-wrap gap-1.5 items-center">
+          <div className="w-full text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
+            All Labels ({normalized.length})
+          </div>
+          {normalized.map((item, idx) => (
+            <span key={`${item.label || item}-${idx}`}>
+              {renderLabelPill(item.label || item, item.color)}
+            </span>
+          ))}
+          <div className="absolute top-full left-4 -mt-[1px] border-4 border-transparent border-t-white/95 dark:border-t-slate-900/95" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ClientsListPage() {
   const { token, hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -60,9 +95,6 @@ export function ClientsListPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortKey, setSortKey] = useState('updatedAt');
-  const [sortDirection, setSortDirection] = useState('desc');
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [viewType, setViewType] = useState('table');
   

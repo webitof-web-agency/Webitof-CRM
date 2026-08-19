@@ -16,6 +16,8 @@ export function AttachmentPicker({
   uploadModule = 'general',
   uploadEntityId = '',
   uploadFields = {},
+  accept,
+  maxSizeBytes = 25 * 1024 * 1024,
   onAddFile,
   onRemoveFile
 }) {
@@ -28,6 +30,12 @@ export function AttachmentPicker({
   async function handleDirectUpload(event) {
     const files = event.target.files;
     if (!files || !files.length) return;
+    const oversized = Array.from(files).find((file) => file.size > maxSizeBytes);
+    if (oversized) {
+      toast.error(`${oversized.name} exceeds the ${Math.round(maxSizeBytes / (1024 * 1024))} MB limit`);
+      event.target.value = '';
+      return;
+    }
 
     setUploading(true);
     try {
@@ -72,21 +80,21 @@ export function AttachmentPicker({
   }
 
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
+    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/30 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-slate-700">{title}</div>
-          <div className="text-xs text-slate-500">
+          <div className="text-xs font-bold text-[var(--text-main)]">{title}</div>
+          <div className="text-[11px] text-[var(--text-muted)]">
             {Array.isArray(attachments) && attachments.length ? `${attachments.length} file(s) attached` : emptyText}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="secondary" onClick={() => inputRef.current?.click()} disabled={uploading}>
-            <Upload size={16} className="mr-2" />
+          <Button type="button" variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={uploading}>
+            <Upload size={14} className="mr-1.5" />
             {uploading ? 'Uploading...' : uploadLabel}
           </Button>
-          <Button type="button" variant="outline" onClick={() => setBrowserOpen(true)}>
-            <Paperclip size={16} className="mr-2" />
+          <Button type="button" variant="outline" size="sm" onClick={() => setBrowserOpen(true)}>
+            <Paperclip size={14} className="mr-1.5" />
             {browseLabel}
           </Button>
         </div>
@@ -97,10 +105,10 @@ export function AttachmentPicker({
           {attachments.map((file) => (
             <span
               key={file.driveFileId || file.id}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--text-main)]"
             >
               {file.driveWebViewLink ? (
-                <a href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="max-w-[240px] truncate hover:underline">
+                <a href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="max-w-[240px] truncate hover:underline hover:text-[var(--primary)]">
                   {file.name}
                 </a>
               ) : (
@@ -111,7 +119,7 @@ export function AttachmentPicker({
                   type="button"
                   onClick={() => handleRemove(file)}
                   disabled={removingId === String(file.driveFileId || file.id || '')}
-                  className="text-slate-400 hover:text-rose-500"
+                  className="text-[var(--text-muted)] hover:text-rose-500 cursor-pointer"
                   aria-label={`Remove ${file.name}`}
                 >
                   <X size={14} />
@@ -121,12 +129,12 @@ export function AttachmentPicker({
           ))}
         </div>
       ) : (
-        <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+        <div className="mt-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] px-4 py-6 text-center text-xs text-[var(--text-muted)]">
           Use Upload File or Browse files to attach documents.
         </div>
       )}
 
-      <input ref={inputRef} type="file" multiple className="hidden" onChange={handleDirectUpload} />
+      <input ref={inputRef} type="file" multiple accept={accept} className="hidden" onChange={handleDirectUpload} />
 
       <FileBrowserModal
         open={browserOpen}

@@ -10,7 +10,7 @@ router.post('/upload', requirePermission('files.write'), controller.upload.any()
 router.get('/drive/browse', requirePermission('files.read'), controller.browseDrive);
 router.get('/drive/usage', requirePermission('files.read'), controller.getUsage);
 router.post('/drive/folder', requirePermission('files.write'), controller.createDriveFolderController);
-router.get('/drive/:driveFileId/view', controller.viewDriveFile);
+router.get('/drive/:driveFileId/view', requirePermission('files.read'), controller.viewDriveFile);
 router.put('/drive/:driveFileId/rename', requirePermission('files.write'), controller.renameDriveFile);
 router.delete('/drive/:driveFileId', requirePermission('files.write'), controller.deleteDriveFile);
 router.patch('/:id/archive', requirePermission('files.write'), controller.archive);

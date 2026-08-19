@@ -19,7 +19,9 @@ const TYPE_ALIASES = {
   billing_cycle: 'billing_cycle',
   billing_cycles: 'billing_cycle',
   invoice_term: 'invoice_term',
-  invoice_terms: 'invoice_term'
+  invoice_terms: 'invoice_term',
+  follow_up_type: 'follow_up_type',
+  follow_up_types: 'follow_up_type'
 };
 
 const ALLOWED_TYPES = new Set(Object.values(TYPE_ALIASES));

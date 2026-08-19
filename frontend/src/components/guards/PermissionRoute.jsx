@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AccessDeniedPage } from '../../pages/AccessDeniedPage';
 
-export function PermissionRoute({ permission, children }) {
+export function PermissionRoute({ permission, permissions = [], children }) {
   const { token, loading, hasPermission } = useAuth();
 
   if (loading) {
@@ -17,8 +17,9 @@ export function PermissionRoute({ permission, children }) {
     return <Navigate to="/login" replace />;
   }
 
-  if (permission && !hasPermission(permission)) {
-    return <AccessDeniedPage requiredPermission={permission} />;
+  const required = [permission, ...(permissions || [])].filter(Boolean);
+  if (required.length && !hasPermission(...required)) {
+    return <AccessDeniedPage requiredPermission={required.join(' OR ')} />;
   }
 
   return children;

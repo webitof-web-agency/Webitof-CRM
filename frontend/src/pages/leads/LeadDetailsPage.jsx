@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User } from 'lucide-react';
+import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -24,6 +24,7 @@ import { formatDateOnlyInput } from '../../lib/dateOnly';
 import { EventFormModal } from '../../components/events/EventFormModal';
 import { EventFeedPanel } from '../../components/events/EventFeedPanel';
 import { normalizeEventAttachment, normalizeEventAttachments } from '../../components/events/eventAttachments';
+import { DEFAULT_LEAD_OPTIONS } from '../../config/leadManagement';
 
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
@@ -104,6 +105,24 @@ const EMPTY_REMINDER = {
   time: '',
   repeat: false,
   color: '#f59e0b'
+};
+
+const EMPTY_QUOTATION = {
+  title: '',
+  serviceNames: [],
+  proposalDate: '',
+  validUntil: '',
+  amount: '',
+  discountEnabled: false,
+  discountType: 'percent',
+  discountValue: '',
+  gstApplicable: false,
+  gstRate: '18',
+  status: 'Draft',
+  quotationLink: '',
+  comments: '',
+  reminders: [],
+  postedComments: []
 };
 
 function normalizeLabels(value) {
@@ -270,6 +289,238 @@ function formatPhoneDisplay(value) {
   const digits = raw.replace(/\D/g, '');
   if (!digits) return raw;
   return `+${digits}`;
+}
+
+function formatLeadAmount(value, currency = 'INR') {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return '-';
+  try {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'INR', maximumFractionDigits: 0 }).format(amount);
+  } catch {
+    return `${currency || 'INR'} ${amount.toLocaleString('en-IN')}`;
+  }
+}
+
+function toAmountNumber(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const normalized = String(value).replace(/,/g, '').trim();
+  if (!normalized) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function pickAmount(...values) {
+  for (const value of values) {
+    const amount = toAmountNumber(value);
+    if (amount != null) return amount;
+  }
+  return null;
+}
+
+function extractAmountFromText(text) {
+  const raw = String(text || '');
+  if (!raw.trim()) return null;
+  const currencyMatch = raw.match(/(?:rs\.?|inr|usd|\$)\s*([0-9][0-9,]*(?:\.\d+)?)/i);
+  if (currencyMatch) return toAmountNumber(currencyMatch[1]);
+  const labelledMatch = raw.match(/(?:amount|quotation|quote|total)\D{0,24}([0-9][0-9,]*(?:\.\d+)?)/i);
+  return labelledMatch ? toAmountNumber(labelledMatch[1]) : null;
+}
+
+function getStructuredField(text, label) {
+  const lines = String(text || '').split(/\r?\n/);
+  const needle = String(label || '').trim().toLowerCase();
+  const line = lines.find((item) => item.trim().toLowerCase().startsWith(`${needle}:`));
+  return line ? line.slice(line.indexOf(':') + 1).trim() : '';
+}
+
+function getStructuredFields(text, label) {
+  const lines = String(text || '').split(/\r?\n/);
+  const needle = String(label || '').trim().toLowerCase();
+  return lines
+    .filter((item) => item.trim().toLowerCase().startsWith(`${needle}:`))
+    .map((item) => item.slice(item.indexOf(':') + 1).trim())
+    .filter(Boolean);
+}
+
+function removeStructuredQuotationLines(text) {
+  return String(text || '')
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*(service|amount|discount type|discount value|gst applicable|gst rate|total amount|status|quotation link|task|reminder|comments?)\s*:/i.test(line))
+    .join('\n')
+    .trim();
+}
+
+function cleanSingleLine(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function splitStructuredParts(value) {
+  return String(value || '').split('|').map((item) => item.trim());
+}
+
+function addDaysToDate(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function parseQuotationServices(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  return String(value || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toBooleanValue(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  const normalized = String(value ?? '').trim().toLowerCase();
+  if (['true', 'yes', '1', 'on', 'gst'].includes(normalized)) return true;
+  if (['false', 'no', '0', 'off', 'none', 'no tax'].includes(normalized)) return false;
+  return fallback;
+}
+
+function calculateQuotationTotals({ amount, discountEnabled, discountType, discountValue, gstApplicable, gstRate }) {
+  const roundAmount = (value) => Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+  const subtotal = Math.max(0, toAmountNumber(amount) ?? 0);
+  const rawDiscount = discountEnabled ? Math.max(0, toAmountNumber(discountValue) ?? 0) : 0;
+  const discountAmount = Math.min(
+    subtotal,
+    discountType === 'flat' ? rawDiscount : (subtotal * Math.min(rawDiscount, 100)) / 100
+  );
+  const roundedDiscount = roundAmount(discountAmount);
+  const taxableAmount = roundAmount(Math.max(0, subtotal - roundedDiscount));
+  const taxRate = gstApplicable ? Math.max(0, toAmountNumber(gstRate) ?? 0) : 0;
+  const gstAmount = roundAmount((taxableAmount * taxRate) / 100);
+  return {
+    subtotal: roundAmount(subtotal),
+    discountAmount: roundedDiscount,
+    taxableAmount,
+    gstAmount,
+    totalAmount: roundAmount(taxableAmount + gstAmount)
+  };
+}
+
+function getLeadServiceNames(lead) {
+  const services = normalizeLabels(lead?.requiredServices);
+  const otherDetails = String(lead?.otherServiceDetails || '').trim();
+  if (otherDetails && services.includes('Other')) {
+    return services.map((item) => item === 'Other' ? `Other: ${otherDetails}` : item);
+  }
+  if (otherDetails && !services.length) return [otherDetails];
+  return services;
+}
+
+function getQuotationDate(event) {
+  return String(event?.startDate || event?.endDate || event?.createdAt || event?.updatedAt || '');
+}
+
+function getLatestQuotationEvent(events = []) {
+  return [...events]
+    .filter((event) => {
+      const type = String(event?.eventType || event?.type || '').toLowerCase();
+      const text = `${event?.title || ''} ${event?.description || ''}`.toLowerCase();
+      return type === 'quotation' || text.includes('quotation') || text.includes('quote');
+    })
+    .sort((a, b) => getQuotationDate(b).localeCompare(getQuotationDate(a)))[0] || null;
+}
+
+function getQuotationAmount(lead, quotationEvent) {
+  const directAmount = pickAmount(
+    lead?.quotationAmount,
+    lead?.quotedAmount,
+    lead?.quoteAmount,
+    lead?.quotationValue,
+    quotationEvent?.quotationAmount,
+    quotationEvent?.quotedAmount,
+    quotationEvent?.quoteAmount,
+    quotationEvent?.totalAmount,
+    quotationEvent?.amount,
+    quotationEvent?.value,
+    getStructuredField(quotationEvent?.description, 'Amount')
+  );
+  if (directAmount != null) return directAmount;
+  return extractAmountFromText(`${quotationEvent?.title || ''} ${quotationEvent?.description || ''}`);
+}
+
+function getQuotationStatus(lead, quotationEvent) {
+  const structuredStatus = getStructuredField(quotationEvent?.description, 'Status');
+  if (structuredStatus) return structuredStatus;
+  const directStatus = displayValue(
+    lead?.quotationStatus || lead?.quoteStatus || lead?.quotationSendStatus || quotationEvent?.quotationStatus || quotationEvent?.quoteStatus || quotationEvent?.status,
+    ''
+  );
+  if (directStatus) return directStatus;
+  const sentFlag = lead?.quotationSent ?? lead?.quoteSent ?? lead?.isQuotationSent;
+  if (sentFlag === true) return 'Sent';
+  if (sentFlag === false) return 'Not sent';
+  if (!quotationEvent) return 'Not sent';
+  const text = `${quotationEvent.title || ''} ${quotationEvent.description || ''}`.toLowerCase();
+  if (/(sent|send|shared|emailed|mail|whatsapp|delivered)/.test(text)) return 'Sent';
+  if (/(draft|pending|not sent)/.test(text)) return 'Draft';
+  return 'Logged';
+}
+
+function getQuotationDetails(event, lead = null) {
+  const serviceNames = getLeadServiceNames(lead);
+  const description = String(event?.description || '');
+  const quotedServices = parseQuotationServices(event?.serviceNames || event?.payload?.serviceNames || getStructuredField(description, 'Service'));
+  const selectedServices = quotedServices.length ? quotedServices : serviceNames.slice(0, 1);
+  const structuredAmount = getStructuredField(description, 'Amount');
+  const amount = pickAmount(
+    event?.quotationAmount,
+    event?.quotedAmount,
+    event?.quoteAmount,
+    event?.totalAmount,
+    event?.amount,
+    event?.value,
+    structuredAmount
+  ) ?? extractAmountFromText(`${event?.title || ''} ${description}`);
+  const discountType = String(event?.discountType || event?.payload?.discountType || getStructuredField(description, 'Discount Type') || 'percent').toLowerCase() === 'flat' ? 'flat' : 'percent';
+  const discountValue = pickAmount(event?.discountValue, event?.payload?.discountValue, getStructuredField(description, 'Discount Value')) ?? 0;
+  const gstApplicable = toBooleanValue(event?.gstApplicable ?? event?.payload?.gstApplicable ?? getStructuredField(description, 'GST Applicable'), false);
+  const gstRate = pickAmount(event?.gstRate, event?.payload?.gstRate, getStructuredField(description, 'GST Rate')) ?? 18;
+  const totals = calculateQuotationTotals({
+    amount,
+    discountEnabled: discountValue > 0,
+    discountType,
+    discountValue,
+    gstApplicable,
+    gstRate
+  });
+  return {
+    id: event?.id || '',
+    title: event?.title || 'Quotation',
+    serviceNames: selectedServices,
+    serviceName: selectedServices.join(', '),
+    proposalDate: event?.startDate || event?.createdAt || '',
+    validUntil: event?.endDate || '',
+    amount,
+    discountEnabled: discountValue > 0,
+    discountType,
+    discountValue,
+    gstApplicable,
+    gstRate,
+    ...totals,
+    status: getQuotationStatus(null, event),
+    invoiceId: event?.invoiceId || event?.payload?.invoiceId || '',
+    invoiceNumber: event?.invoiceNumber || event?.payload?.invoiceNumber || '',
+    quotationLink: getStructuredField(description, 'Quotation Link'),
+    comments: getStructuredField(description, 'Comments') || removeStructuredQuotationLines(description),
+    reminders: getStructuredFields(description, 'Reminder').map((item) => {
+      const [title, date, time] = splitStructuredParts(item);
+      return { title: title || '', date: date || '', time: time || '' };
+    }),
+    postedComments: getStructuredFields(description, 'Comment').map((item) => {
+      const [author, createdAt, ...messageParts] = splitStructuredParts(item);
+      return {
+        author: author || 'User',
+        createdAt: createdAt || '',
+        message: messageParts.join(' | ') || item
+      };
+    })
+  };
 }
 
 function mergeLabelOptions(baseOptions = [], selectedLabels = []) {
@@ -784,6 +1035,84 @@ function SectionRow({ label, children }) {
         {label}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+function displayValue(value, fallback = '-') {
+  if (value === true) return 'Yes';
+  if (value === false) return 'No';
+  if (value == null) return fallback;
+  const text = String(value).trim();
+  return text || fallback;
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
+      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</div>
+      <div className="mt-0.5 min-w-0 whitespace-normal break-words text-[13px] font-medium leading-5 text-slate-800 [overflow-wrap:anywhere] [&_a]:break-all">
+        {value || '-'}
+      </div>
+    </div>
+  );
+}
+
+function DetailCard({ title, items = [], children, open = false, onToggle }) {
+  return (
+    <Card className="overflow-hidden rounded-xl border-slate-200 p-0 shadow-sm">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 bg-white px-4 py-2.5 text-left transition hover:bg-slate-50"
+      >
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        <ChevronRight size={16} className={cn('shrink-0 text-slate-400 transition-transform', open && 'rotate-90')} />
+      </button>
+      {open ? (
+        <div className="grid grid-cols-1 gap-2.5 border-t border-slate-100 p-3 sm:grid-cols-2 2xl:grid-cols-3">
+          {items.map((item) => (
+            <DetailRow key={item.label} label={item.label} value={item.value} />
+          ))}
+          {children}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+function ChipList({ items = [] }) {
+  const values = normalizeLabels(items);
+  if (!values.length) return '-';
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {values.map((item) => (
+        <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function AttachmentList({ items = [] }) {
+  const files = Array.isArray(items) ? items : [];
+  if (!files.length) return '-';
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {files.map((file) => {
+        const key = file.driveFileId || file.id || file.name;
+        const label = file.name || file.originalName || 'File';
+        if (file.driveWebViewLink) {
+          return (
+            <a key={key} href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-[var(--primary)] hover:underline">
+              {label}
+            </a>
+          );
+        }
+        return <span key={key} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">{label}</span>;
+      })}
     </div>
   );
 }
@@ -1315,16 +1644,751 @@ function ReminderModal({ open, onClose, onSave, leadId, initialValue = null, bus
   );
 }
 
+function QuotationEditor({
+  onClose,
+  onSave,
+  leadId,
+  initialValue = null,
+  busy = false,
+  serviceOptions = [],
+  currency = 'INR',
+  defaultAmount = '',
+  defaultGstApplicable = false,
+  defaultGstRate = 18
+}) {
+  const [formData, setFormData] = useState(EMPTY_QUOTATION);
+  const [reminderDraft, setReminderDraft] = useState({ title: '', date: '', time: '' });
+  const [commentDraft, setCommentDraft] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  useEffect(() => {
+    if (initialValue?.id) {
+      const details = getQuotationDetails(initialValue);
+      setFormData({
+        ...EMPTY_QUOTATION,
+        title: details.title || '',
+        serviceNames: details.serviceNames || [],
+        proposalDate: formatDateInput(details.proposalDate),
+        validUntil: formatDateInput(details.validUntil),
+        amount: details.amount != null ? String(details.amount) : '',
+        discountEnabled: details.discountEnabled,
+        discountType: details.discountType || 'percent',
+        discountValue: details.discountValue ? String(details.discountValue) : '',
+        gstApplicable: details.gstApplicable,
+        gstRate: String(details.gstRate ?? defaultGstRate),
+        status: details.status || 'Draft',
+        quotationLink: details.quotationLink || '',
+        comments: details.comments || '',
+        reminders: details.reminders || [],
+        postedComments: details.postedComments || []
+      });
+      setReminderDraft({ title: '', date: '', time: '' });
+      setCommentDraft('');
+      return;
+    }
+    const today = new Date();
+    const defaultServices = serviceOptions.length ? serviceOptions : [];
+    setFormData({
+      ...EMPTY_QUOTATION,
+      serviceNames: defaultServices,
+      title: defaultServices.length ? `${defaultServices.join(', ')} quotation` : '',
+      proposalDate: toDateOnlyString(today),
+      validUntil: toDateOnlyString(addDaysToDate(today, 30)),
+      amount: defaultAmount != null && defaultAmount !== '' ? String(defaultAmount) : '',
+      gstApplicable: Boolean(defaultGstApplicable),
+      gstRate: String(defaultGstRate || 18)
+    });
+    setReminderDraft({ title: '', date: '', time: '' });
+    setCommentDraft('');
+  }, [initialValue, serviceOptions, defaultAmount, defaultGstApplicable, defaultGstRate]);
+
+  const serviceSelectOptions = useMemo(() => {
+    const values = [...serviceOptions, ...(formData.serviceNames || [])].map(cleanSingleLine).filter(Boolean);
+    return Array.from(new Set(values)).map((item) => ({ value: item, label: item }));
+  }, [serviceOptions, formData.serviceNames]);
+
+  const selectedServices = Array.isArray(formData.serviceNames) ? formData.serviceNames.filter(Boolean) : [];
+  const serviceSummary = selectedServices.join(', ');
+  const proposalTitle = formData.title.trim() || (serviceSummary ? `${serviceSummary} quotation` : 'Quotation');
+  const amount = toAmountNumber(formData.amount);
+  const quotationTotals = calculateQuotationTotals(formData);
+
+  function setField(key, value) {
+    setFormData((cur) => ({ ...cur, [key]: value }));
+  }
+
+  function addReminder() {
+    const title = cleanSingleLine(reminderDraft.title);
+    if (!title) return;
+    setFormData((cur) => ({ ...cur, reminders: [...(cur.reminders || []), { ...reminderDraft, title }] }));
+    setReminderDraft({ title: '', date: '', time: '' });
+  }
+
+  function addComment() {
+    const message = cleanSingleLine(commentDraft);
+    if (!message) return;
+    setFormData((cur) => ({
+      ...cur,
+      postedComments: [
+        ...(cur.postedComments || []),
+        { author: 'You', createdAt: new Date().toISOString(), message }
+      ]
+    }));
+    setCommentDraft('');
+  }
+
+  function removeReminder(index) {
+    setFormData((cur) => ({ ...cur, reminders: (cur.reminders || []).filter((_, itemIndex) => itemIndex !== index) }));
+  }
+
+  function removeComment(index) {
+    setFormData((cur) => ({ ...cur, postedComments: (cur.postedComments || []).filter((_, itemIndex) => itemIndex !== index) }));
+  }
+
+  function getSummaryLines() {
+    return [
+      ['Quotation', proposalTitle],
+      ['Service', serviceSummary || '-'],
+      ['Proposal date', formData.proposalDate || '-'],
+      ['Valid until', formData.validUntil || '-'],
+      ['Base amount', amount != null ? formatLeadAmount(amount, currency) : '-'],
+      ['Discount', formData.discountEnabled ? formatLeadAmount(quotationTotals.discountAmount, currency) : '-'],
+      ['GST', formData.gstApplicable ? `${formatLeadAmount(quotationTotals.gstAmount, currency)} (${formData.gstRate || 0}%)` : 'Not applicable'],
+      ['Total', amount != null ? formatLeadAmount(quotationTotals.totalAmount, currency) : '-'],
+      ['Status', formData.status || 'Draft'],
+      ['Link', formData.quotationLink || '-'],
+      ['Comments', formData.comments || '-']
+    ];
+  }
+
+  function openPreview({ print = false } = {}) {
+    const preview = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
+    if (!preview) {
+      toast.error('Popup blocked. Allow popups to preview quotation.');
+      return;
+    }
+    const rows = getSummaryLines().map(([label, value]) => `<tr><th>${label}</th><td>${String(value).replace(/[<>&]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[char]))}</td></tr>`).join('');
+    preview.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>${proposalTitle}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #0f172a; margin: 32px; }
+            h1 { font-size: 24px; margin: 0 0 6px; }
+            p { color: #64748b; margin: 0 0 24px; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border-bottom: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 14px; }
+            th { width: 180px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+          </style>
+        </head>
+        <body>
+          <h1>${proposalTitle}</h1>
+          <p>Quotation summary</p>
+          <table>${rows}</table>
+        </body>
+      </html>
+    `);
+    preview.document.close();
+    if (print) {
+      preview.setTimeout(() => {
+        preview.focus();
+        preview.print();
+      }, 300);
+    }
+  }
+
+  async function generatePdf(download = false) {
+    setPdfBusy(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      pdf.setFontSize(18);
+      pdf.text(proposalTitle, 14, 18);
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text('Quotation summary', 14, 26);
+      pdf.setTextColor(15, 23, 42);
+      let y = 40;
+      getSummaryLines().forEach(([label, value]) => {
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(label, 14, y);
+        pdf.setFontSize(11);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(String(value || '-'), 62, y);
+        y += 9;
+      });
+      const fileName = `${proposalTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'quotation'}.pdf`;
+      if (download) {
+        pdf.save(fileName);
+      } else {
+        window.open(pdf.output('bloburl'), '_blank', 'noopener,noreferrer');
+      }
+    } catch (error) {
+      toast.error(error.message || 'Failed to generate PDF');
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!formData.title.trim() && !selectedServices.length) {
+      toast.error('Quotation title or service name is required');
+      return;
+    }
+    if (formData.amount !== '' && amount == null) {
+      toast.error('Enter a valid quotation amount');
+      return;
+    }
+    const discountValue = formData.discountEnabled ? (toAmountNumber(formData.discountValue) ?? 0) : 0;
+    if (formData.discountEnabled && formData.discountType === 'percent' && discountValue > 100) {
+      toast.error('Discount percentage cannot exceed 100');
+      return;
+    }
+    if (formData.discountEnabled && formData.discountType === 'flat' && amount != null && discountValue > amount) {
+      toast.error('Flat discount cannot exceed the quotation amount');
+      return;
+    }
+    if (formData.status === 'Approved' && (!amount || amount <= 0)) {
+      toast.error('Enter an amount greater than zero before approval');
+      return;
+    }
+
+    const title = formData.title.trim() || `${serviceSummary} quotation`;
+    const description = [
+      serviceSummary ? `Service: ${cleanSingleLine(serviceSummary)}` : '',
+      amount != null ? `Amount: ${amount}` : '',
+      `Discount Type: ${formData.discountType || 'percent'}`,
+      `Discount Value: ${discountValue}`,
+      `GST Applicable: ${formData.gstApplicable ? 'Yes' : 'No'}`,
+      `GST Rate: ${formData.gstApplicable ? (toAmountNumber(formData.gstRate) ?? 0) : 0}`,
+      `Total Amount: ${quotationTotals.totalAmount}`,
+      `Status: ${formData.status || 'Draft'}`,
+      formData.quotationLink.trim() ? `Quotation Link: ${cleanSingleLine(formData.quotationLink)}` : '',
+      formData.comments.trim() ? `Comments: ${cleanSingleLine(formData.comments)}` : '',
+      ...(formData.reminders || []).map((item) => `Reminder: ${cleanSingleLine(item.title)} | ${item.date || ''} | ${item.time || ''}`),
+      ...(formData.postedComments || []).map((item) => `Comment: ${cleanSingleLine(item.author || 'User')} | ${item.createdAt || new Date().toISOString()} | ${cleanSingleLine(item.message)}`)
+    ].filter(Boolean).join('\n');
+
+    await onSave({
+      leadId,
+      eventType: 'quotation',
+      title,
+      description,
+      startDate: formData.proposalDate || '',
+      endDate: formData.validUntil || '',
+      color: '#0891b2',
+      labels: ['Quotation', formData.status || 'Draft'],
+      serviceNames: selectedServices,
+      amount: amount ?? 0,
+      discountType: formData.discountType || 'percent',
+      discountValue,
+      gstApplicable: Boolean(formData.gstApplicable),
+      gstRate: formData.gstApplicable ? (toAmountNumber(formData.gstRate) ?? 0) : 0,
+      subtotal: quotationTotals.subtotal,
+      discountAmount: quotationTotals.discountAmount,
+      taxableAmount: quotationTotals.taxableAmount,
+      gstAmount: quotationTotals.gstAmount,
+      totalAmount: quotationTotals.totalAmount
+    });
+  }
+
+  return (
+    <Card className="p-0 border-slate-200">
+      <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">{initialValue?.id ? 'Edit quotation' : 'Add quotation'}</h2>
+          <p className="text-sm text-slate-500">Create proposal details, actions, reminders and comments in one page</p>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button type="submit" form="lead-quotation-form" disabled={busy}>{busy ? 'Saving...' : 'Save quotation'}</Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <form id="lead-quotation-form" onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <label className="md:col-span-2">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Quotation title</span>
+              <Input className="h-10 px-3 py-2" value={formData.title} onChange={(event) => setField('title', event.target.value)} placeholder="Website development quotation" autoFocus />
+            </label>
+            <label className="md:col-span-2">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Service</span>
+              <SearchableSelect
+                value={selectedServices}
+                onChange={(value) => {
+                  const nextServices = Array.isArray(value) ? value : [];
+                  setFormData((cur) => ({
+                    ...cur,
+                    serviceNames: nextServices,
+                    title: cur.title || (nextServices.length ? `${nextServices.join(', ')} quotation` : '')
+                  }));
+                }}
+                options={serviceSelectOptions}
+                placeholder="Select service"
+                searchPlaceholder="Search service..."
+                multiple
+                triggerClassName="min-h-10 py-2"
+              />
+            </label>
+            <label>
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Proposal date</span>
+              <Input className="h-10 px-3 py-2" type="date" value={formData.proposalDate} onChange={(event) => setField('proposalDate', event.target.value)} />
+            </label>
+            <label>
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Valid until</span>
+              <Input className="h-10 px-3 py-2" type="date" value={formData.validUntil} onChange={(event) => setField('validUntil', event.target.value)} />
+            </label>
+            <label>
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Base amount ({currency || 'INR'})</span>
+              <Input className="h-10 px-3 py-2" type="number" min="0" step="0.01" value={formData.amount} onChange={(event) => setField('amount', event.target.value)} placeholder="0.00" />
+            </label>
+            <label>
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Status</span>
+              <SearchableSelect
+                value={formData.status}
+                onChange={(value) => setField('status', value)}
+                options={['Draft', 'Sent', 'Approved', 'Rejected', 'Expired'].map((item) => ({ value: item, label: item }))}
+                placeholder="Draft"
+                triggerClassName="h-10 py-2"
+              />
+            </label>
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 md:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.discountEnabled)}
+                    onChange={(event) => setField('discountEnabled', event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
+                  />
+                  Apply discount
+                </label>
+                {formData.discountEnabled ? (
+                  <span className="text-xs font-medium text-emerald-700">-{formatLeadAmount(quotationTotals.discountAmount, currency)}</span>
+                ) : null}
+              </div>
+              {formData.discountEnabled ? (
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <SearchableSelect
+                    value={formData.discountType}
+                    onChange={(value) => setField('discountType', value)}
+                    options={[{ value: 'percent', label: 'Percent (%)' }, { value: 'flat', label: `Flat (${currency || 'INR'})` }]}
+                    triggerClassName="h-9 py-1.5"
+                  />
+                  <Input
+                    className="h-9 px-3 py-1.5"
+                    type="number"
+                    min="0"
+                    max={formData.discountType === 'percent' ? 100 : undefined}
+                    step="0.01"
+                    value={formData.discountValue}
+                    onChange={(event) => setField('discountValue', event.target.value)}
+                    placeholder={formData.discountType === 'percent' ? 'Discount %' : 'Discount amount'}
+                  />
+                </div>
+              ) : null}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 md:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.gstApplicable)}
+                    onChange={(event) => setField('gstApplicable', event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
+                  />
+                  Apply GST
+                </label>
+                {formData.gstApplicable ? (
+                  <div className="w-36">
+                    <SearchableSelect
+                      value={String(formData.gstRate)}
+                      onChange={(value) => setField('gstRate', value)}
+                      options={['0', '5', '12', '18', '28'].map((rate) => ({ value: rate, label: `GST ${rate}%` }))}
+                      triggerClassName="h-9 py-1.5"
+                    />
+                  </div>
+                ) : <span className="text-xs font-medium text-slate-500">No tax</span>}
+              </div>
+            </div>
+            <label className="md:col-span-2">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Quotation link</span>
+              <Input className="h-10 px-3 py-2" value={formData.quotationLink} onChange={(event) => setField('quotationLink', event.target.value)} placeholder="https://docs.google.com/..." />
+            </label>
+            <label className="md:col-span-2">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Internal comments</span>
+              <Textarea className="min-h-[80px] px-3 py-2" value={formData.comments} onChange={(event) => setField('comments', event.target.value)} rows={3} placeholder="Short note for this quotation" />
+            </label>
+          </div>
+        </form>
+
+        <aside className="space-y-3">
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <div className="flex items-center gap-2 font-semibold text-slate-900"><Anchor size={16} /> Proposal info</div>
+              <MoreHorizontal size={18} className="text-slate-400" />
+            </div>
+            <div className="divide-y divide-slate-100 px-4 text-sm">
+              <div className="flex items-start gap-2 py-3 text-blue-700"><Layers size={16} className="mt-0.5 shrink-0" /><span className="min-w-0 truncate">{proposalTitle}</span></div>
+              <div className="flex justify-between gap-3 py-3"><span className="font-semibold">Proposal date:</span><span>{formData.proposalDate || '-'}</span></div>
+              <div className="flex justify-between gap-3 py-3"><span className="font-semibold">Valid until:</span><span>{formData.validUntil || '-'}</span></div>
+              <div className="space-y-2 py-3">
+                <div className="flex justify-between gap-3 text-slate-600"><span>Base amount</span><span>{formatLeadAmount(quotationTotals.subtotal, currency)}</span></div>
+                {formData.discountEnabled ? <div className="flex justify-between gap-3 text-emerald-700"><span>Discount</span><span>-{formatLeadAmount(quotationTotals.discountAmount, currency)}</span></div> : null}
+                {formData.gstApplicable ? <div className="flex justify-between gap-3 text-slate-600"><span>GST ({formData.gstRate || 0}%)</span><span>{formatLeadAmount(quotationTotals.gstAmount, currency)}</span></div> : null}
+                <div className="flex justify-between gap-3 border-t border-slate-100 pt-2 text-base font-bold text-slate-900"><span>Total</span><span>{formatLeadAmount(quotationTotals.totalAmount, currency)}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-white text-sm text-blue-700">
+            <button type="button" onClick={() => openPreview()} className="flex items-center gap-2 border-b border-r border-slate-100 px-4 py-3 hover:bg-slate-50"><Eye size={16} /> Preview</button>
+            <button type="button" onClick={() => openPreview({ print: true })} className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 hover:bg-slate-50"><Printer size={16} /> Print</button>
+            <button type="button" onClick={() => generatePdf(false)} disabled={pdfBusy} className="flex items-center gap-2 border-r border-slate-100 px-4 py-3 hover:bg-slate-50 disabled:opacity-50"><FileText size={16} /> View PDF</button>
+            <button type="button" onClick={() => generatePdf(true)} disabled={pdfBusy} className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50 disabled:opacity-50"><Download size={16} /> Download PDF</button>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900"><Clock3 size={16} className="mr-2 inline" />Reminders</div>
+            <div className="space-y-2 p-4">
+              <Input className="h-9 px-3 py-2" value={reminderDraft.title} onChange={(event) => setReminderDraft((cur) => ({ ...cur, title: event.target.value }))} placeholder="Reminder title" />
+              <div className="grid grid-cols-2 gap-2">
+                <Input className="h-9 px-3 py-2" type="date" value={reminderDraft.date} onChange={(event) => setReminderDraft((cur) => ({ ...cur, date: event.target.value }))} />
+                <Input className="h-9 px-3 py-2" type="time" value={reminderDraft.time} onChange={(event) => setReminderDraft((cur) => ({ ...cur, time: event.target.value }))} />
+              </div>
+              <Button type="button" variant="outline" className="w-full" onClick={addReminder}><PlusCircle size={16} /> Add reminder</Button>
+              {(formData.reminders || []).map((reminder, index) => (
+                <div key={`${reminder.title}-${index}`} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+                  <span className="min-w-0 truncate">{reminder.title} {reminder.date ? `- ${reminder.date}` : ''} {reminder.time || ''}</span>
+                  <button type="button" onClick={() => removeReminder(index)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white">
+            <div className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900"><MessageSquare size={16} className="mr-2 inline" />Comments</div>
+            <div className="space-y-3 p-4">
+              <Textarea className="min-h-[74px] bg-slate-50 px-3 py-2" value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} rows={2} placeholder="Write a comment..." />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex gap-2">
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500"><Paperclip size={16} /></span>
+                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500"><Mic size={16} /></span>
+                </div>
+                <Button type="button" onClick={addComment}><Send size={16} /> Post Comment</Button>
+              </div>
+              {(formData.postedComments || []).map((comment, index) => (
+                <div key={`${comment.createdAt}-${index}`} className="border-t border-slate-100 pt-3 text-sm">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-900">{comment.author || 'User'}</span>
+                    <button type="button" onClick={() => removeComment(index)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
+                  </div>
+                  <div className="mt-0.5 text-xs text-slate-400">{comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}</div>
+                  <div className="mt-1 whitespace-pre-wrap text-slate-700">{comment.message}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
+    </Card>
+  );
+}
+
+export function LeadQuotationPage() {
+  const { id, quotationId } = useParams();
+  const navigate = useNavigate();
+  const { token, user, hasPermission } = useAuth();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const response = await api.resources.get('/leads', `${id}/summary`, token);
+      setData(response.data || null);
+    } catch (error) {
+      toast.error(error.message || 'Failed to load lead');
+      navigate('/app/leads');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, quotationId, token]);
+
+  const lead = data?.lead || null;
+  const events = data?.events || [];
+  const serviceNames = useMemo(() => getLeadServiceNames(lead), [lead]);
+  const quotationEvent = useMemo(() => {
+    if (!quotationId) return null;
+    return events.find((event) => String(event.id) === String(quotationId)) || null;
+  }, [events, quotationId]);
+  const latestQuotation = useMemo(() => getLatestQuotationEvent(events), [events]);
+  const defaultAmount = getQuotationAmount(lead, latestQuotation) ?? lead?.estimatedBudget ?? lead?.value ?? '';
+  const canWriteLead = hasPermission('leads.write') || hasPermission('leads.manage');
+
+  useEffect(() => {
+    if (!loading && quotationId && data && !quotationEvent) {
+      toast.error('Quotation not found');
+      navigate(`/app/leads/${id}`);
+    }
+  }, [loading, quotationId, data, quotationEvent, navigate, id]);
+
+  async function saveQuotation(payload) {
+    if (!canWriteLead) {
+      toast.error('You do not have permission to save quotation');
+      return;
+    }
+    setBusy(true);
+    try {
+      let response;
+      if (quotationEvent?.id) {
+        response = await api.resources.update('/lead-events', quotationEvent.id, {
+          ...payload,
+          eventType: 'quotation',
+          scopeType: 'lead',
+          scopeId: id,
+          leadId: id,
+          clientId: '',
+          projectId: '',
+          visibility: payload.visibility || 'all_team'
+        }, token);
+      } else {
+        response = await api.resources.create('/lead-events', {
+          ...payload,
+          eventType: 'quotation',
+          scopeType: 'lead',
+          scopeId: id,
+          leadId: id,
+          clientId: '',
+          projectId: '',
+          visibility: payload.visibility || 'all_team',
+          ownerUserId: user?.id || payload.ownerUserId || ''
+        }, token);
+      }
+      api.cache.invalidate('/leads');
+      api.cache.invalidate('/invoices');
+      const invoice = response?.automation?.invoice;
+      if (response?.automation?.invoiceCreated && invoice) {
+        toast.success(`Quotation approved. Invoice ${invoice.invoiceNumber} created and payment reminder scheduled.`);
+      } else if (invoice) {
+        toast.success(`Quotation updated. Linked invoice ${invoice.invoiceNumber} is ready.`);
+      } else {
+        toast.success(quotationEvent ? 'Quotation updated' : 'Quotation added');
+      }
+      navigate(`/app/leads/${id}`);
+    } catch (error) {
+      toast.error(error.message || 'Failed to save quotation');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading || !lead || (quotationId && !quotationEvent)) return <PageLoader />;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        <button type="button" onClick={() => navigate(`/app/leads/${id}`)} className="inline-flex items-center gap-2 font-medium text-slate-600 hover:text-[var(--primary)]">
+          <ArrowLeft size={16} /> Back to Lead
+        </button>
+        <span>/</span>
+        <span className="font-semibold text-slate-900">{lead.companyName || lead.name || lead.contactPerson || 'Lead'}</span>
+        <span className="text-slate-400">{lead.leadNumber || ''}</span>
+      </div>
+      <QuotationEditor
+        onClose={() => navigate(`/app/leads/${id}`)}
+        onSave={saveQuotation}
+        leadId={id}
+        initialValue={quotationEvent}
+        busy={busy}
+        serviceOptions={serviceNames}
+        currency={lead.currency || 'INR'}
+        defaultAmount={defaultAmount}
+        defaultGstApplicable={toBooleanValue(lead.gstInvoiceRequired, false)}
+        defaultGstRate={18}
+      />
+    </div>
+  );
+}
+
+function LeadStatusModal({ open, status, options, busy = false, onClose, onSubmit }) {
+  const [formData, setFormData] = useState({ lostReason: '', lostReasonNotes: '' });
+
+  useEffect(() => {
+    if (open) setFormData({ lostReason: '', lostReasonNotes: '' });
+  }, [open, status]);
+
+  if (!open) return null;
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    if (!formData.lostReason) {
+      toast.error('Select a reason');
+      return;
+    }
+    if (formData.lostReason === 'Other' && !formData.lostReasonNotes.trim()) {
+      toast.error('Enter reason notes');
+      return;
+    }
+    onSubmit?.({
+      status,
+      lostReason: formData.lostReason,
+      lostReasonNotes: formData.lostReasonNotes.trim()
+    });
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={`Mark as ${status}`}
+      width="520px"
+      footer={(
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button type="submit" form="lead-status-form" disabled={busy}>{busy ? 'Saving...' : 'Update status'}</Button>
+        </div>
+      )}
+    >
+      <form id="lead-status-form" onSubmit={handleSubmit} className="space-y-4">
+        <label>
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Reason</span>
+          <SearchableSelect
+            value={formData.lostReason}
+            onChange={(value) => setFormData((current) => ({ ...current, lostReason: value }))}
+            options={(options.lostReasons || []).map((item) => ({ value: item, label: item }))}
+            placeholder="Select reason"
+            allowClear={false}
+          />
+        </label>
+        <label>
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Notes</span>
+          <Textarea
+            value={formData.lostReasonNotes}
+            onChange={(event) => setFormData((current) => ({ ...current, lostReasonNotes: event.target.value }))}
+            rows={3}
+            placeholder="Short reason note"
+          />
+        </label>
+      </form>
+    </Modal>
+  );
+}
+
+function CallLogModal({ open, onClose, onSave, options, canManageRecording = false, defaultNumber = '', busy = false }) {
+  const [formData, setFormData] = useState({
+    callType: 'Outgoing', callDateTime: '', callDuration: '', callerNumber: '', callOutcome: 'Connected',
+    callRecordingUrl: '', callNotes: '', consentConfirmed: false
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    setFormData({
+      callType: 'Outgoing',
+      callDateTime: now.toISOString().slice(0, 16),
+      callDuration: '',
+      callerNumber: defaultNumber || '',
+      callOutcome: 'Connected',
+      callRecordingUrl: '',
+      callNotes: '',
+      consentConfirmed: false
+    });
+  }, [open, defaultNumber]);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    if (!formData.callType || !formData.callDateTime) {
+      toast.error('Call type and date are required');
+      return;
+    }
+    if (formData.callRecordingUrl && !formData.consentConfirmed) {
+      toast.error('Confirm recording consent before saving the recording reference');
+      return;
+    }
+    await onSave({ ...formData, callDuration: Number(formData.callDuration || 0) });
+  }
+
+  const selectOptions = (items = []) => items.map((item) => ({ value: item, label: item }));
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Log Call"
+      width="620px"
+      footer={(
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button type="submit" form="lead-call-form" disabled={busy}>{busy ? 'Saving...' : 'Save Call'}</Button>
+        </div>
+      )}
+    >
+      <form id="lead-call-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <label>
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Call type</span>
+          <SearchableSelect value={formData.callType} onChange={(value) => setFormData((current) => ({ ...current, callType: value }))} options={selectOptions(options.callTypes)} allowClear={false} />
+        </label>
+        <label>
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Date and time</span>
+          <Input type="datetime-local" value={formData.callDateTime} onChange={(event) => setFormData((current) => ({ ...current, callDateTime: event.target.value }))} />
+        </label>
+        <label>
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Caller number</span>
+          <Input value={formData.callerNumber} onChange={(event) => setFormData((current) => ({ ...current, callerNumber: event.target.value }))} />
+        </label>
+        <label>
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Duration in seconds</span>
+          <Input type="number" min="0" value={formData.callDuration} onChange={(event) => setFormData((current) => ({ ...current, callDuration: event.target.value }))} />
+        </label>
+        <label className="md:col-span-2">
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Outcome</span>
+          <SearchableSelect value={formData.callOutcome} onChange={(value) => setFormData((current) => ({ ...current, callOutcome: value }))} options={selectOptions(options.callOutcomes)} allowClear={false} />
+        </label>
+        <label className="md:col-span-2">
+          <span className="mb-1.5 block text-sm font-medium text-slate-600">Call notes</span>
+          <Textarea value={formData.callNotes} onChange={(event) => setFormData((current) => ({ ...current, callNotes: event.target.value }))} rows={3} />
+        </label>
+        {canManageRecording ? (
+          <>
+            <label className="md:col-span-2">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600">Recording URL</span>
+              <Input type="url" value={formData.callRecordingUrl} onChange={(event) => setFormData((current) => ({ ...current, callRecordingUrl: event.target.value }))} />
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 md:col-span-2">
+              <input type="checkbox" checked={formData.consentConfirmed} onChange={(event) => setFormData((current) => ({ ...current, consentConfirmed: event.target.checked }))} />
+              Recording consent confirmed
+            </label>
+          </>
+        ) : null}
+      </form>
+    </Modal>
+  );
+}
+
 export function LeadDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, user, hasPermission } = useAuth();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingMeta, setSavingMeta] = useState(false);
   const [editingLeadOpen, setEditingLeadOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [statusChange, setStatusChange] = useState(null);
+  const [callOpen, setCallOpen] = useState(false);
+  const [callBusy, setCallBusy] = useState(false);
+  const [leadOptions, setLeadOptions] = useState(DEFAULT_LEAD_OPTIONS);
   const [users, setUsers] = useState([]);
   const [pipelines, setPipelines] = useState([]);
   const [calendarView, setCalendarView] = useState('month');
@@ -1344,16 +2408,18 @@ export function LeadDetailsPage() {
 
   const [settings, setSettings] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [openDetailSections, setOpenDetailSections] = useState({});
 
   async function load() {
     setLoading(true);
     try {
-      const [summaryRes, filesRes, settingsRes, usersRes, pipelinesRes] = await Promise.allSettled([
+      const [summaryRes, filesRes, settingsRes, usersRes, pipelinesRes, leadOptionsRes] = await Promise.allSettled([
         api.resources.get('/leads', `${id}/summary`, token),
         api.files.list(token, '', 'leads', id),
         api.settings.get(token),
         api.resources.list('/users/lookup', token),
-        api.resources.list('/lead-pipelines', token)
+        api.resources.list('/lead-pipelines', token),
+        api.resources.list('/leads/options', token)
       ]);
 
       if (summaryRes.status === 'fulfilled') {
@@ -1378,6 +2444,9 @@ export function LeadDetailsPage() {
       if (pipelinesRes.status === 'fulfilled') {
         setPipelines(pipelinesRes.value.data || []);
       }
+      if (leadOptionsRes.status === 'fulfilled') {
+        setLeadOptions((current) => ({ ...current, ...(leadOptionsRes.value.data || {}) }));
+      }
     } catch (error) {
       toast.error(error.message || 'Failed to load lead details');
       navigate('/app/leads');
@@ -1391,6 +2460,10 @@ export function LeadDetailsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, token]);
 
+  useEffect(() => {
+    setOpenDetailSections({});
+  }, [id]);
+
   const lead = data?.lead || null;
   const contacts = data?.contacts || [];
   const events = data?.events || [];
@@ -1399,6 +2472,21 @@ export function LeadDetailsPage() {
   const userOptions = useMemo(() => normalizeUserOptions(users), [users]);
   const pipeline = useMemo(() => pipelines.find((item) => String(item.id) === String(lead?.pipelineId)) || null, [pipelines, lead?.pipelineId]);
   const primaryContact = data?.primaryContact || contacts[0] || null;
+  const serviceNames = useMemo(() => getLeadServiceNames(lead), [lead]);
+  const latestQuotationEvent = useMemo(() => getLatestQuotationEvent(events), [events]);
+  const quotationAmount = useMemo(() => getQuotationAmount(lead, latestQuotationEvent), [lead, latestQuotationEvent]);
+  const quotationStatus = useMemo(() => getQuotationStatus(lead, latestQuotationEvent), [lead, latestQuotationEvent]);
+  const clientBudget = lead?.estimatedBudget ?? lead?.value;
+  const quotationRows = useMemo(() => {
+    return events
+      .filter((event) => {
+        const type = String(event?.eventType || event?.type || '').toLowerCase();
+        const text = `${event?.title || ''} ${event?.description || ''}`.toLowerCase();
+        return type === 'quotation' || text.includes('quotation') || text.includes('quote');
+      })
+      .sort((a, b) => getQuotationDate(b).localeCompare(getQuotationDate(a)))
+      .map((event) => ({ event, ...getQuotationDetails(event, lead) }));
+  }, [events, lead]);
 
   const labelOptions = useMemo(() => {
     return mergeSharedLabelOptions(normalizeSharedLabels(settings?.labels || []), normalizeLabels(lead?.labels));
@@ -1439,18 +2527,186 @@ export function LeadDetailsPage() {
     return won?.label || 'Won';
   }, [settings]);
 
+  const leadStatusOptions = useMemo(() => {
+    const values = [
+      lead?.status,
+      ...(settings?.statuses?.leads || []).map((item) => typeof item === 'string' ? item : item?.label || item?.value || ''),
+      ...(leadOptions.statuses || []),
+      'New',
+      'Follow-up',
+      wonStatusLabel,
+      'Lost',
+      'Not Interested'
+    ].map((item) => String(item || '').trim()).filter(Boolean);
+    return Array.from(new Set(values)).map((item) => ({ value: item, label: item }));
+  }, [lead?.status, settings, leadOptions.statuses, wonStatusLabel]);
+
+  const canWriteLead = hasPermission('leads.write') || hasPermission('leads.manage');
+  const canConvertLead = canWriteLead || hasPermission('leads.convert');
+  const canManageRecording = hasPermission('leads.view_call_recording');
+  const isWon = String(lead?.status || '').trim().toLowerCase() === String(wonStatusLabel || 'Won').trim().toLowerCase()
+    || String(lead?.status || '').trim().toLowerCase() === 'won';
+  const isLost = ['lost', 'not interested'].includes(String(lead?.status || '').trim().toLowerCase());
+
   const leadInfoItems = [
+    { label: 'Lead ID', value: lead?.leadNumber || lead?.id || '-' },
+    { label: 'Company / business name', value: displayValue(lead?.companyName || lead?.name) },
     { label: 'Type', value: lead?.type || '-' },
+    { label: 'Pipeline', value: pipeline?.name || 'Default Pipeline' },
+    { label: 'Status', value: displayValue(lead?.status) },
     { label: 'Source', value: lead?.source || '-' },
     { label: 'Owner', value: ownerName, tooltip: 'Who manages this lead' },
-    { label: 'Company number', value: formatPhoneDisplay(lead?.phone) },
+    { label: 'Contact person', value: lead?.contactPerson || (primaryContact ? `${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() || '-' : '-') },
+    { label: 'Primary mobile', value: formatPhoneDisplay(lead?.phone) },
     { label: 'Created by', value: createdByName },
-    { label: 'Primary contact', value: primaryContact ? `${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() || '-' : '-' },
-    { label: 'Primary phone', value: formatPhoneDisplay(primaryContact?.phone) },
+    { label: 'Required services', value: <ChipList items={lead?.requiredServices} /> },
+    { label: 'Temperature', value: lead?.leadTemperature || '-' },
+    { label: 'Priority', value: lead?.priority || '-' },
+    { label: 'Estimated budget', value: formatLeadAmount(lead?.estimatedBudget ?? lead?.value, lead?.currency) },
+    { label: 'Next follow-up', value: lead?.followUpDate ? `${lead.followUpDate}${lead.nextFollowUpTime ? ` ${lead.nextFollowUpTime}` : ''}` : '-' },
     { label: 'State', value: lead?.state || '-' },
     { label: 'City', value: lead?.city || '-' },
     { label: 'Country', value: lead?.country || '-' }
   ];
+
+  const contactDetailItems = [
+    { label: 'Alternate mobile', value: formatPhoneDisplay(lead?.alternatePhone) },
+    { label: 'WhatsApp number', value: formatPhoneDisplay(lead?.whatsappNumber) },
+    { label: 'Email', value: displayValue(lead?.email) },
+    {
+      label: 'Website',
+      value: lead?.website ? (
+        <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
+          {lead.website}
+        </a>
+      ) : '-'
+    },
+    { label: 'Country', value: displayValue(lead?.country) },
+    { label: 'State', value: displayValue(lead?.state) },
+    { label: 'City', value: displayValue(lead?.city) },
+    { label: 'PIN code', value: displayValue(lead?.pincode) },
+    { label: 'Preferred language', value: displayValue(lead?.preferredLanguage) },
+    { label: 'Preferred contact method', value: displayValue(lead?.preferredContactMethod) },
+    { label: 'Preferred contact time', value: displayValue(lead?.preferredContactTime) },
+    { label: 'Address', value: displayValue(lead?.address) }
+  ];
+
+  const requirementDetailItems = [
+    { label: 'Required services', value: <ChipList items={lead?.requiredServices} /> },
+    { label: 'Other service details', value: displayValue(lead?.otherServiceDetails) },
+    { label: 'Requirement summary', value: displayValue(lead?.requirementSummary) },
+    { label: 'Project title', value: displayValue(lead?.requirementTitle) },
+    { label: 'Detailed requirement', value: displayValue(lead?.requirementDescription) },
+    { label: 'Client pain points', value: displayValue(lead?.clientPainPoints) },
+    { label: 'Expected features', value: displayValue(lead?.expectedFeatures) },
+    {
+      label: 'Reference website / app',
+      value: lead?.referenceUrl ? (
+        <a href={lead.referenceUrl.startsWith('http') ? lead.referenceUrl : `https://${lead.referenceUrl}`} target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
+          {lead.referenceUrl}
+        </a>
+      ) : '-'
+    },
+    { label: 'Preferred technology', value: displayValue(lead?.preferredTechnology) },
+    { label: 'Existing system details', value: displayValue(lead?.existingSystemDetails) },
+    { label: 'Expected start date', value: formatDate(lead?.expectedStartDate) },
+    { label: 'Expected delivery date', value: formatDate(lead?.expectedDeliveryDate) },
+    { label: 'Requirement attachments', value: <AttachmentList items={lead?.requirementAttachments} /> }
+  ];
+
+  const commercialDetailItems = [
+    { label: 'Estimated budget', value: formatLeadAmount(lead?.estimatedBudget ?? lead?.value, lead?.currency) },
+    { label: 'Budget minimum', value: formatLeadAmount(lead?.budgetMin, lead?.currency) },
+    { label: 'Budget maximum', value: formatLeadAmount(lead?.budgetMax, lead?.currency) },
+    { label: 'Budget range', value: displayValue(lead?.budgetRange) },
+    { label: 'Currency', value: displayValue(lead?.currency) },
+    { label: 'Budget confirmed', value: displayValue(lead?.budgetConfirmed) },
+    { label: 'Billing type', value: displayValue(lead?.billingType) },
+    { label: 'GST invoice required', value: displayValue(lead?.gstInvoiceRequired) },
+    { label: 'Purchase timeline', value: displayValue(lead?.purchaseTimeline) },
+    { label: 'Expected closing date', value: formatDate(lead?.expectedClosingDate) },
+    { label: 'Payment preference', value: displayValue(lead?.paymentPreference) }
+  ];
+
+  const qualificationDetailItems = [
+    { label: 'Decision maker identified', value: displayValue(lead?.decisionMakerIdentified) },
+    { label: 'Contact is decision maker', value: displayValue(Boolean(lead?.contactIsDecisionMaker)) },
+    { label: 'Requirement confirmed', value: displayValue(lead?.requirementConfirmed) },
+    { label: 'Timeline confirmed', value: displayValue(lead?.timelineConfirmed) },
+    { label: 'Authority confirmed', value: displayValue(lead?.authorityConfirmed) },
+    { label: 'Need confirmed', value: displayValue(lead?.needConfirmed) },
+    { label: 'Lead score', value: lead?.leadScore != null ? String(lead.leadScore) : '-' },
+    { label: 'Conversion probability', value: lead?.conversionProbability != null ? `${lead.conversionProbability}%` : '-' },
+    { label: 'Qualification notes', value: displayValue(lead?.qualificationNotes) }
+  ];
+
+  const followUpDetailItems = [
+    { label: 'Follow-up date', value: formatDate(lead?.followUpDate) },
+    { label: 'Follow-up time', value: displayValue(lead?.nextFollowUpTime) },
+    { label: 'Follow-up mode', value: displayValue(lead?.followUpMode) },
+    { label: 'Reminder', value: displayValue(lead?.reminder) },
+    { label: 'Follow-up priority', value: displayValue(lead?.followUpPriority) },
+    { label: 'Assigned team', value: displayValue(lead?.assignedTeam) },
+    { label: 'Follow-up note', value: displayValue(lead?.followUpNote) },
+    { label: 'Notes', value: displayValue(lead?.notes) }
+  ];
+
+  const sourceCampaignItems = [
+    { label: 'Lead source', value: displayValue(lead?.source) },
+    { label: 'Campaign name', value: displayValue(lead?.campaignName) },
+    { label: 'Source reference', value: displayValue(lead?.sourceReference) },
+    { label: 'UTM source', value: displayValue(lead?.utmSource) },
+    { label: 'UTM medium', value: displayValue(lead?.utmMedium) },
+    { label: 'UTM campaign', value: displayValue(lead?.utmCampaign) }
+  ];
+
+  const referralCommissionItems = [
+    { label: 'Referrer type', value: displayValue(lead?.referrerType) },
+    { label: 'Referrer name', value: displayValue(lead?.referrerName) },
+    { label: 'Referrer contact', value: formatPhoneDisplay(lead?.referrerContact) },
+    { label: 'Client / employee / partner ID', value: displayValue(lead?.referrerReferenceId) },
+    { label: 'Commission applicable', value: displayValue(Boolean(lead?.commissionApplicable)) },
+    { label: 'Commission type', value: displayValue(lead?.commissionType) },
+    { label: 'Commission value', value: lead?.commissionValue != null ? String(lead.commissionValue) : '-' },
+    { label: 'Commission notes', value: displayValue(lead?.commissionNotes) }
+  ];
+
+  const lostDuplicateItems = [
+    { label: 'Lost reason', value: displayValue(lead?.lostReason) },
+    { label: 'Lost reason notes', value: displayValue(lead?.lostReasonNotes) },
+    { label: 'Competitor name', value: displayValue(lead?.competitorName) },
+    { label: 'Competitor price', value: formatLeadAmount(lead?.competitorPrice, lead?.currency) },
+    { label: 'Reconnect in future', value: displayValue(Boolean(lead?.reconnectInFuture)) },
+    { label: 'Reconnect date', value: formatDate(lead?.reconnectDate) },
+    { label: 'Original lead', value: displayValue(lead?.originalLeadId) }
+  ];
+
+  const detailSections = [
+    { key: 'quick', title: 'Quick Lead Details', items: leadInfoItems },
+    { key: 'contact', title: 'Contact Details', items: contactDetailItems },
+    { key: 'requirement', title: 'Requirement Details', items: requirementDetailItems },
+    { key: 'commercial', title: 'Commercial Details', items: commercialDetailItems },
+    { key: 'qualification', title: 'Qualification', items: qualificationDetailItems },
+    { key: 'followup', title: 'Follow-up', items: followUpDetailItems },
+    { key: 'source', title: 'Source and Campaign', items: sourceCampaignItems },
+    ...(lead?.referrerType || lead?.referrerName || lead?.referrerContact || lead?.commissionApplicable || lead?.commissionType || lead?.commissionValue || lead?.commissionNotes
+      ? [{ key: 'referral', title: 'Referral / Expected Commission', items: referralCommissionItems }]
+      : []),
+    ...(isLost || lead?.lostReason || lead?.competitorName || lead?.reconnectInFuture || lead?.originalLeadId
+      ? [{ key: 'lost', title: 'Lost / Duplicate Details', items: lostDuplicateItems }]
+      : [])
+  ];
+
+  function toggleDetailSection(key) {
+    setOpenDetailSections((current) => ({ ...current, [key]: !current[key] }));
+  }
+
+  function setAllDetailSections(open) {
+    setOpenDetailSections(open
+      ? Object.fromEntries(detailSections.map((section) => [section.key, true]))
+      : {}
+    );
+  }
 
   function openActivity(type) {
     const baseDate = toDateOnlyString(calendarDate);
@@ -1484,18 +2740,27 @@ export function LeadDetailsPage() {
         startDate: baseDate,
         endDate: baseDate
       });
+      return;
+    }
+    if (type === 'quotation') {
+      navigate(`/app/leads/${id}/quotations/new`);
     }
   }
 
   function openEditActivity(event) {
     if (!event || event.isSynthetic) return;
+    const nextType = String(event.eventType || event.type || 'task').toLowerCase();
+    if (nextType === 'quotation') {
+      navigate(`/app/leads/${id}/quotations/${event.id}`);
+      return;
+    }
     const nextDate = parseDateOnly(event?.startDate || event?.endDate || '');
     if (nextDate) setCalendarDate(nextDate);
-    const nextType = String(event.eventType || event.type || 'task').toLowerCase();
     setActivityType(
       nextType === 'note' ? 'note' :
         nextType === 'reminder' ? 'reminder' :
-          nextType === 'event' ? 'event' : 'task'
+          nextType === 'event' ? 'event' :
+            nextType === 'quotation' ? 'quotation' : 'task'
     );
     setActivityEdit(event);
   }
@@ -1532,27 +2797,93 @@ export function LeadDetailsPage() {
     { key: 'tasks', label: `Tasks (${activityBuckets.task.length || 0})`, icon: CheckCircle2 },
     { key: 'notes', label: `Notes (${activityBuckets.note.length || 0})`, icon: Tag },
     { key: 'reminders', label: `Reminders (${activityBuckets.reminder.length || 0})`, icon: Clock3 },
+    { key: 'quotations', label: `Quotations (${quotationRows.length || 0})`, icon: PlusCircle },
     { key: 'timeline', label: `Timeline (${timeline.length || 0})`, icon: Clock3 },
     { key: 'contacts', label: `Contacts (${contacts.length || 0})`, icon: Users },
     { key: 'events', label: `Events (${events.filter((e) => String(e.eventType || e.type || '').toLowerCase() === 'event').length || 0})`, icon: CalendarDays },
     { key: 'files', label: `Files (${files.length || 0})`, icon: Paperclip }
-  ], [activityBuckets, timeline.length, contacts.length, events, files.length]);
+  ], [activityBuckets, quotationRows.length, timeline.length, contacts.length, events, files.length]);
+
+  function buildLeadMetaPatch(nextPatch = {}) {
+    const patch = { ...nextPatch };
+    if (!Object.prototype.hasOwnProperty.call(patch, 'status')) return patch;
+
+    const requiredServices = normalizeLabels(lead?.requiredServices);
+    if (requiredServices.length) patch.requiredServices = requiredServices;
+
+    if (requiredServices.includes('Other')) {
+      const explicitOther = String(lead?.otherServiceDetails || '').trim();
+      const displayedOther = serviceNames
+        .map((item) => String(item || '').trim())
+        .find((item) => item.toLowerCase().startsWith('other:'));
+      const derivedOther = displayedOther ? displayedOther.slice(displayedOther.indexOf(':') + 1).trim() : '';
+      patch.otherServiceDetails = explicitOther || derivedOther || 'Other service';
+    }
+
+    return patch;
+  }
 
   async function saveLeadMeta(nextPatch) {
     setSavingMeta(true);
     try {
-      const response = await api.resources.update('/leads', id, nextPatch, token);
+      const response = await api.resources.update('/leads', id, buildLeadMetaPatch(nextPatch), token);
       api.cache.invalidate('/leads');
       if (response?.deletedLead && response?.clientId) {
         api.cache.invalidate('/clients');
         toast.success('Lead converted to client');
         navigate(`/app/clients/${response.clientId}`);
-        return;
+        return true;
       }
       toast.success('Lead updated');
       await load();
+      return true;
     } catch (error) {
       toast.error(error.message || 'Failed to update lead');
+      return false;
+    } finally {
+      setSavingMeta(false);
+    }
+  }
+
+  async function changeLeadStatus(nextStatus) {
+    const normalized = String(nextStatus || '').trim();
+    if (!normalized || normalized === lead?.status) return;
+    if (['Lost', 'Not Interested'].includes(normalized) && !lead?.lostReason) {
+      setStatusChange({ status: normalized });
+      return;
+    }
+    await saveLeadMeta({ status: normalized });
+  }
+
+  async function submitStatusChange(payload) {
+    const ok = await saveLeadMeta(payload);
+    if (ok) setStatusChange(null);
+  }
+
+  async function saveCall(payload) {
+    setCallBusy(true);
+    try {
+      await api.resources.create(`/leads/${id}/calls`, payload, token);
+      api.cache.invalidate('/leads');
+      toast.success('Call logged');
+      setCallOpen(false);
+      await load();
+    } catch (error) {
+      toast.error(error.message || 'Failed to log call');
+    } finally {
+      setCallBusy(false);
+    }
+  }
+
+  async function reopenLead() {
+    setSavingMeta(true);
+    try {
+      await api.resources.create(`/leads/${id}/reopen`, { status: 'Follow-up' }, token);
+      api.cache.invalidate('/leads');
+      toast.success('Lead reopened');
+      await load();
+    } catch (error) {
+      toast.error(error.message || 'Failed to reopen lead');
     } finally {
       setSavingMeta(false);
     }
@@ -1652,9 +2983,10 @@ export function LeadDetailsPage() {
   if (!lead) return null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
+    <div className="space-y-5 overflow-hidden">
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -1665,9 +2997,10 @@ export function LeadDetailsPage() {
               Back to Leads
             </button>
             <span className="text-slate-300">/</span>
-            <h1 className="text-base font-semibold tracking-tight text-[var(--text-main)]">
+            <h1 className="min-w-0 max-w-full truncate text-base font-semibold tracking-tight text-[var(--text-main)]">
               {lead.companyName || lead.name}
             </h1>
+            {lead.leadNumber ? <span className="text-xs font-semibold text-slate-400">{lead.leadNumber}</span> : null}
           </div>
           <div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -1683,19 +3016,53 @@ export function LeadDetailsPage() {
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" className="shadow-sm" onClick={() => setEditingLeadOpen(true)}>
-            <Edit3 size={16} className="mr-2" />
-            Edit Lead
-          </Button>
-          <Button variant="outline" className="shadow-sm" onClick={() => setConvertOpen(true)}>
-            <Wand2 size={16} className="mr-2" />
-            Convert to client
-          </Button>
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+          {canWriteLead ? (
+            <div className="w-44">
+              <SearchableSelect
+                value={lead.status || ''}
+                onChange={changeLeadStatus}
+                options={leadStatusOptions}
+                placeholder="Change status"
+                triggerClassName="h-10 py-2 shadow-sm"
+              />
+            </div>
+          ) : null}
+          {canWriteLead ? (
+            <Button variant="outline" className="h-10 shadow-sm" onClick={() => setCallOpen(true)}>
+              <Phone size={16} className="mr-2" /> Log Call
+            </Button>
+          ) : null}
+          {canWriteLead ? (
+            <Button variant="outline" className="h-10 shadow-sm" onClick={() => setEditingLeadOpen(true)}>
+              <Edit3 size={16} className="mr-2" /> Edit Lead
+            </Button>
+          ) : null}
+          {canWriteLead && isLost ? (
+            <Button variant="outline" className="h-10 shadow-sm" onClick={reopenLead} disabled={savingMeta}>
+              <RefreshCcw size={16} className="mr-2" /> Reopen
+            </Button>
+          ) : null}
+          {canWriteLead && !isWon && !isLost ? (
+            <Button variant="outline" className="h-10 shadow-sm" onClick={() => changeLeadStatus(wonStatusLabel)} disabled={savingMeta}>
+              <CheckCircle2 size={16} className="mr-2" /> Mark Won
+            </Button>
+          ) : null}
+          {canConvertLead && isWon && !lead.convertedClientId ? (
+            <Button variant="outline" className="h-10 shadow-sm" onClick={() => setConvertOpen(true)}>
+              <Wand2 size={16} className="mr-2" /> Convert Lead
+            </Button>
+          ) : null}
+          {lead.convertedClientId ? (
+            <Button className="h-10 shadow-sm" onClick={() => navigate(`/app/clients/${lead.convertedClientId}`)}>
+              <UserPlus size={16} className="mr-2" /> View Client
+            </Button>
+          ) : null}
         </div>
       </div>
+      </div>
 
-      <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -1704,10 +3071,10 @@ export function LeadDetailsPage() {
               type="button"
               onClick={() => setActiveTab(tab.key)}
               className={cn(
-                'inline-flex items-center gap-2 px-1 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap',
+                'inline-flex shrink-0 items-center gap-2 rounded-t-lg border-b-2 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap',
                 activeTab === tab.key
-                  ? 'border-[var(--primary)] text-[var(--primary)]'
-                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                  ? 'border-[var(--primary)] bg-blue-50/50 text-[var(--primary)]'
+                  : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'
               )}
             >
               {Icon && <Icon size={16} className={activeTab === tab.key ? 'text-[var(--primary)]' : 'text-slate-400'} />}
@@ -1717,53 +3084,159 @@ export function LeadDetailsPage() {
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_380px]">
+      <div className={cn('grid gap-6', activeTab === 'overview' ? 'xl:grid-cols-[minmax(0,1.8fr)_380px]' : 'xl:grid-cols-1')}>
         <div className="space-y-6">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
-                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
-                  <Users size={24} strokeWidth={2} />
+            <div>
+              <Card className="flex min-w-0 items-center gap-4 rounded-2xl border border-cyan-100 bg-cyan-50/30 px-4 py-4 shadow-sm">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-600">
+                  <Tag size={22} strokeWidth={2} />
                 </div>
-                <div className="overflow-hidden">
-                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Contacts</p>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.contactsCount || contacts.length || 0}</h3>
-                  <p className="mt-1 text-xs text-slate-400 truncate">Total linked contacts</p>
+                <div className="min-w-0 flex-1">
+                  <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Budget & Quotation</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">Client</span>
+                      <span className="block text-base font-bold text-slate-800">{formatLeadAmount(clientBudget, lead.currency)}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">Quoted</span>
+                      <span className="block text-base font-bold text-slate-800">{quotationAmount != null ? formatLeadAmount(quotationAmount, lead.currency) : '-'}</span>
+                      <span className={cn(
+                        'mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+                        String(quotationStatus).toLowerCase() === 'sent'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : String(quotationStatus).toLowerCase() === 'not sent'
+                            ? 'border-slate-200 bg-slate-50 text-slate-600'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                      )}>
+                        {quotationStatus}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex min-w-0 items-center">
+                    <span className="min-w-0 truncate text-xs text-slate-400" title={serviceNames.join(', ')}>
+                      {serviceNames.join(', ') || 'No service'}
+                    </span>
+                  </div>
                 </div>
               </Card>
+            </div>
+          )}
 
-              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
-                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
-                  <Activity size={24} strokeWidth={2} />
+          {activeTab === 'quotations' && (
+            <Card className="p-0 border-slate-200">
+              <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Quotations</h2>
+                  <p className="text-sm text-slate-500">Proposal amount, status, validity and service details</p>
                 </div>
-                <div className="overflow-hidden">
-                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Activities</p>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.eventsCount || events.length || 0}</h3>
-                  <p className="mt-1 text-xs text-slate-400 truncate">Logged events & calls</p>
-                </div>
-              </Card>
+                {canWriteLead ? (
+                  <Button variant="outline" className="shadow-sm bg-white hover:bg-slate-50" onClick={() => openActivity('quotation')}>
+                    <PlusCircle size={16} className="mr-2" />
+                    Add quotation
+                  </Button>
+                ) : null}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-separate border-spacing-0">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      {['Quotation', 'Service', 'Proposal date', 'Valid until', 'Amount', 'Status', 'Invoice', 'Comments', ''].map((heading) => (
+                        <th key={heading || 'actions'} className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {quotationRows.length ? quotationRows.map((item) => (
+                      <tr key={item.id} className="transition hover:bg-slate-50">
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">{item.title}</td>
+                        <td className="max-w-[220px] truncate border-b border-slate-100 px-4 py-3 text-sm text-slate-600" title={item.serviceName}>{item.serviceName || '-'}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">{formatDate(item.proposalDate)}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">{formatDate(item.validUntil)}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">{item.totalAmount != null ? formatLeadAmount(item.totalAmount, lead.currency) : '-'}</td>
+                        <td className="border-b border-slate-100 px-4 py-3">
+                          <span className={cn(
+                            'inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold',
+                            String(item.status).toLowerCase() === 'sent'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : String(item.status).toLowerCase() === 'draft'
+                                ? 'border-slate-200 bg-slate-50 text-slate-600'
+                                : String(item.status).toLowerCase() === 'approved'
+                                  ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                  : 'border-amber-200 bg-amber-50 text-amber-700'
+                          )}>
+                            {item.status || 'Draft'}
+                          </span>
+                        </td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-sm">
+                          {item.invoiceId ? (
+                            <button type="button" onClick={() => navigate(`/app/invoices/${item.invoiceId}`)} className="font-semibold text-[var(--primary)] hover:underline">
+                              {item.invoiceNumber || 'View invoice'}
+                            </button>
+                          ) : <span className="text-slate-400">-</span>}
+                        </td>
+                        <td className="max-w-[260px] truncate border-b border-slate-100 px-4 py-3 text-sm text-slate-600" title={item.comments}>{item.comments || '-'}</td>
+                        <td className="border-b border-slate-100 px-4 py-3 text-right">
+                          {canWriteLead ? (
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="icon" onClick={() => openEditActivity(item.event)} title="Edit quotation">
+                                <Edit3 size={16} />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => setActivityDeleteTarget(item.event)} title="Delete quotation" className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-500">
+                          No quotation added yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
 
-              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
-                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
-                  <CheckCircle2 size={24} strokeWidth={2} />
+          {activeTab === 'overview' && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-3 px-1">
+                <h2 className="text-sm font-semibold text-slate-900">Lead Details</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAllDetailSections(true)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Open all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAllDetailSections(false)}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Close all
+                  </button>
                 </div>
-                <div className="overflow-hidden">
-                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Tasks</p>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.tasksCount || 0}</h3>
-                  <p className="mt-1 text-xs text-slate-400 truncate">Action items</p>
-                </div>
-              </Card>
-
-              <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
-                <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
-                  <Clock3 size={24} strokeWidth={2} />
-                </div>
-                <div className="overflow-hidden">
-                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Reminders</p>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.remindersCount || 0}</h3>
-                  <p className="mt-1 text-xs text-slate-400 truncate">Upcoming alerts</p>
-                </div>
-              </Card>
+              </div>
+              <div className="grid grid-cols-1 gap-2.5">
+                {detailSections.map((section) => (
+                  <DetailCard
+                    key={section.key}
+                    title={section.title}
+                    items={section.items}
+                    open={Boolean(openDetailSections[section.key])}
+                    onToggle={() => toggleDetailSection(section.key)}
+                  />
+                ))}
+              </div>
             </div>
           )}
 
@@ -2088,7 +3561,8 @@ export function LeadDetailsPage() {
           )}
         </div>
 
-        <div className="space-y-6">
+        {activeTab === 'overview' ? (
+        <div className="space-y-4">
           <Card className="p-0 border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div className="flex items-center gap-2">
@@ -2118,6 +3592,42 @@ export function LeadDetailsPage() {
                   {pipeline?.name || 'Default Pipeline'}
                 </span>
               </div>
+              <div className="flex items-start gap-4 border-b border-slate-100 px-5 py-3.5">
+                <Tag size={16} className="text-slate-500 shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Service name</div>
+                  <div className="mt-1"><ChipList items={serviceNames} /></div>
+                </div>
+              </div>
+              <div className="flex items-start gap-4 border-b border-slate-100 px-5 py-3.5">
+                <Tag size={16} className="text-slate-500 shrink-0 mt-0.5" />
+                <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Client budget</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-800">{formatLeadAmount(clientBudget, lead.currency)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Quotation</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-800">{quotationAmount != null ? formatLeadAmount(quotationAmount, lead.currency) : '-'}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
+                <CheckCircle size={16} className="text-slate-500 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Quotation status</div>
+                  <span className={cn(
+                    'mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold',
+                    quotationStatus === 'Sent'
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : quotationStatus === 'Not sent'
+                        ? 'border-slate-200 bg-slate-50 text-slate-600'
+                        : 'border-amber-200 bg-amber-50 text-amber-700'
+                  )}>
+                    {quotationStatus}
+                  </span>
+                </div>
+              </div>
               <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
                 <CheckCircle size={16} className="text-slate-500 shrink-0" />
                 <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600" style={{ backgroundColor: `${(statusColors[lead.status] || '#64748b')}1A`, borderColor: `${(statusColors[lead.status] || '#64748b')}33`, color: statusColors[lead.status] || '#64748b' }}>
@@ -2136,7 +3646,7 @@ export function LeadDetailsPage() {
                   {normalizeLabels(lead.labels).length ? normalizeLabels(lead.labels).map((label) => {
                     const color = labelColorMap.get(label) || '#2563eb';
                     return <span key={label}>{renderLabelPill(label, color)}</span>;
-                  }) : <button type="button" onClick={() => setLabelsOpen && setLabelsOpen(true)} className="text-sm text-[var(--primary)] font-medium hover:underline">Add Label</button>}
+                  }) : <span className="text-sm text-slate-500">-</span>}
                 </div>
               </div>
               <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
@@ -2208,6 +3718,7 @@ export function LeadDetailsPage() {
             </div>
           </Card>
         </div>
+        ) : null}
       </div>
 
       <LeadFormModal
@@ -2224,6 +3735,16 @@ export function LeadDetailsPage() {
         }}
       />
 
+      <CallLogModal
+        open={callOpen}
+        onClose={() => setCallOpen(false)}
+        onSave={saveCall}
+        options={leadOptions}
+        canManageRecording={canManageRecording}
+        defaultNumber={lead.phone || primaryContact?.phone || ''}
+        busy={callBusy}
+      />
+
       <ConvertLeadModal
         open={convertOpen}
         onClose={() => setConvertOpen(false)}
@@ -2237,6 +3758,15 @@ export function LeadDetailsPage() {
             navigate('/app/leads');
           }
         }}
+      />
+
+      <LeadStatusModal
+        open={Boolean(statusChange)}
+        status={statusChange?.status || ''}
+        options={leadOptions}
+        busy={savingMeta}
+        onClose={() => { if (!savingMeta) setStatusChange(null); }}
+        onSubmit={submitStatusChange}
       />
 
       <ContactModal

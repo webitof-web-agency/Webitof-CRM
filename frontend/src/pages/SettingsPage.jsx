@@ -13,6 +13,7 @@ import { DEFAULT_SETTINGS } from '../config/defaultSettings';
 import { applyTheme, applyUiSettings, persistAndApplyThemeSettings } from '../config/theme';
 import { cn } from '../lib/cn';
 import { FileBrowserModal } from '../components/ui/FileBrowserModal';
+import { ThemeSwitcher } from '../components/layout/ThemeSwitcher';
 
 function mergeDeep(target = {}, source = {}) {
   const result = Array.isArray(target) ? [...target] : { ...target };
@@ -497,50 +498,63 @@ export function SettingsPage() {
                 <Card className="space-y-4 p-6 lg:col-span-2">
                   <div className="mb-6 border-b border-slate-100 pb-4">
                     <div className="flex items-center gap-2">
-                      <Palette size={20} className="text-slate-800" />
-                      <h3 className="text-lg font-semibold text-slate-800">Theme colors</h3>
+                      <Palette size={20} className="text-[var(--text-main)]" />
+                      <h3 className="text-lg font-semibold text-[var(--text-main)]">Theme & Appearance</h3>
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">Primary colors for the application interface.</p>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">Interface mode and primary brand colors.</p>
                   </div>
-                  <div className="flex flex-col gap-3">
-                    <label className="text-sm font-medium text-slate-700">Primary Brand Color</label>
-                    <div className="flex items-center gap-4">
-                      {['#3b82f6', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b'].map(color => {
-                        const isActive = (settings.branding?.primaryColor || '#3b82f6').toLowerCase() === color.toLowerCase();
-                        return (
-                          <button
-                            key={color}
-                            type="button"
-                            className={cn(
-                              "relative flex items-center justify-center h-10 w-10 rounded-full shadow-sm border border-black/10 transition-all hover:scale-110",
-                              isActive ? "scale-110" : "hover:ring-2 hover:ring-offset-2 hover:ring-slate-300"
-                            )}
-                            style={{ backgroundColor: color }}
-                            onClick={() => {
-                              updateSection(setSettings, 'branding', 'primaryColor', color);
-                              applyTheme(color);
+
+                  <div className="space-y-6">
+                    {/* Theme Mode Selector */}
+                    <div>
+                      <label className="text-sm font-medium text-[var(--text-main)] block mb-2">Theme Mode</label>
+                      <ThemeSwitcher showPresets={false} />
+                    </div>
+
+                    <div className="flex flex-col gap-3 pt-2 border-t border-[var(--border)]">
+                      <label className="text-sm font-medium text-[var(--text-main)]">Primary Brand Color</label>
+                      <div className="flex items-center gap-4">
+                        {['#3b82f6', '#8b5cf6', '#f43f5e', '#10b981', '#f59e0b', '#06b6d4', '#4361ee'].map((color) => {
+                          const isActive =
+                            (settings.branding?.primaryColor || '#3b82f6').toLowerCase() ===
+                            color.toLowerCase();
+                          return (
+                            <button
+                              key={color}
+                              type="button"
+                              className={cn(
+                                'relative flex items-center justify-center h-10 w-10 rounded-full shadow-sm border border-black/10 transition-all hover:scale-110 cursor-pointer',
+                                isActive
+                                  ? 'scale-110 ring-2 ring-offset-2 ring-[var(--primary)]'
+                                  : 'hover:ring-2 hover:ring-offset-2 hover:ring-slate-300'
+                              )}
+                              style={{ backgroundColor: color }}
+                              onClick={() => {
+                                updateSection(setSettings, 'branding', 'primaryColor', color);
+                                applyTheme(color);
+                              }}
+                            >
+                              {isActive && <Check size={18} className="text-white drop-shadow-md" />}
+                            </button>
+                          );
+                        })}
+
+                        <div className="w-px h-8 bg-[var(--border)] mx-1"></div>
+
+                        <div className="relative h-10 w-10 rounded-full shadow-sm border border-black/10 overflow-hidden hover:scale-110 transition-all hover:ring-2 hover:ring-offset-2 hover:ring-slate-300 group cursor-pointer">
+                          <input
+                            type="color"
+                            className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 m-0 border-0"
+                            value={settings.branding?.primaryColor || '#3b82f6'}
+                            onChange={(event) => {
+                              updateSection(setSettings, 'branding', 'primaryColor', event.target.value);
+                              applyTheme(event.target.value);
                             }}
-                          >
-                            {isActive && <Check size={20} className="text-white drop-shadow-md" />}
-                          </button>
-                        );
-                      })}
-
-                      <div className="w-px h-8 bg-slate-200 mx-2"></div>
-
-                      <div className="relative h-10 w-10 rounded-full shadow-sm border border-black/10 overflow-hidden hover:scale-110 transition-all hover:ring-2 hover:ring-offset-2 hover:ring-slate-300 group">
-                        <input
-                          type="color"
-                          className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 m-0 border-0"
-                          value={settings.branding?.primaryColor || '#3b82f6'}
-                          onChange={(event) => {
-                            updateSection(setSettings, 'branding', 'primaryColor', event.target.value);
-                            applyTheme(event.target.value);
-                          }}
-                          title="Custom Color"
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 rounded-full">
-                          <Palette size={16} className="text-white drop-shadow-md" />
+                            title="Custom Color"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/10 rounded-full">
+                            <Palette size={16} className="text-white drop-shadow-md" />
+                          </div>
                         </div>
                       </div>
                     </div>

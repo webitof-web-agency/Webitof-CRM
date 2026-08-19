@@ -71,6 +71,10 @@ export function InvoicesListPage() {
 
   const formatDateTime = (dateString) => {
     if (!dateString) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateString))) {
+      const [yyyy, mm, dd] = String(dateString).split('-');
+      return <span className="text-sm text-slate-600">{`${dd}-${mm}-${yyyy}`}</span>;
+    }
     const d = new Date(dateString);
     if (Number.isNaN(d.getTime())) return <span className="text-sm text-[var(--text-muted)]">-</span>;
     const dd = String(d.getDate()).padStart(2, '0');
@@ -92,7 +96,10 @@ export function InvoicesListPage() {
   const columns = [
     { key: 'invoiceNumber', label: 'Invoice #', render: (row) => normalizeInvoiceNumber(row.invoiceNumber) || '-' },
     { key: 'financialYear', label: 'FY', render: (row) => formatFinancialYear(row.invoiceDate || row.createdAt) },
-    { key: 'clientId', label: 'Client', render: (row) => clients.find(c => String(c.id) === String(row.clientId))?.name || '-' },
+    { key: 'clientId', label: 'Client', render: (row) => {
+      const client = clients.find(c => String(c.id) === String(row.clientId));
+      return client?.companyName || client?.name || '-';
+    } },
     { key: 'projectId', label: 'Project', render: (row) => projects.find(p => String(p.id) === String(row.projectId))?.title || '-' },
     { key: 'invoiceDate', label: 'Issue Date', render: (row) => formatDateTime(row.invoiceDate) },
     { key: 'dueDate', label: 'Due Date', render: (row) => formatDateTime(row.dueDate) },
@@ -183,7 +190,7 @@ export function InvoicesListPage() {
                 onChange={val => { setClientFilter(val); setPage(1); }}
                 options={[
                   { label: 'All Clients', value: '' },
-                  ...clients.map(c => ({ label: c.name, value: String(c.id) }))
+                  ...clients.map(c => ({ label: c.companyName || c.name || 'Unknown', value: String(c.id) }))
                 ]}
                 placeholder="All Clients"
               />
@@ -226,7 +233,7 @@ export function InvoicesListPage() {
             <Button variant="ghost" size="icon" onClick={() => navigate(`/app/invoices/${row.id}`)} title="View Document">
               <Eye size={16} />
             </Button>
-            {canCreate && row.status === 'Draft' && (
+            {canCreate && ['Draft', 'Sent'].includes(row.status) && (
               <Button variant="ghost" size="icon" onClick={() => navigate(`/app/invoices/${row.id}/edit`)} title="Edit Draft">
                 <Edit3 size={16} />
               </Button>

@@ -9,12 +9,12 @@ import { API_BASE_URL, api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
 
-const FIELD_CLASS = 'bg-transparent shadow-none border-b border-slate-200 border-x-0 border-t-0 rounded-none px-0 focus:ring-0 focus:border-[var(--primary)] h-8';
+const FIELD_CLASS = 'bg-transparent shadow-none border-b border-[var(--border)] border-x-0 border-t-0 rounded-none px-0 focus:ring-0 focus:border-[var(--primary)] h-8 text-xs text-[var(--text-main)]';
 
 function FieldRow({ label, children }) {
   return (
     <div className="grid grid-cols-[130px_1fr] items-center gap-4 py-1">
-      <label className="text-sm font-medium text-slate-500">{label}</label>
+      <label className="text-xs font-semibold text-[var(--text-muted)]">{label}</label>
       <div>{children}</div>
     </div>
   );
@@ -67,7 +67,7 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
 
   const generalInfoTab = (
     <form className="p-6 space-y-4">
-      <h4 className="text-lg font-semibold text-slate-800">General Info</h4>
+      <h4 className="text-sm font-bold text-[var(--text-main)]">General Info</h4>
       <div className="grid grid-cols-1 gap-3 max-w-lg">
         <FieldRow label="First name">
           <Input name="firstName" defaultValue={data.firstName || name.split(' ')[0]} className={FIELD_CLASS} />
@@ -99,7 +99,7 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
                     className="h-4 w-4 !appearance-auto"
                     style={{ accentColor: 'var(--primary)' }}
                   />
-                  <span className="text-sm text-slate-700">{g}</span>
+                  <span className="text-xs font-medium text-[var(--text-main)]">{g}</span>
                 </label>
               ))}
             </div>
@@ -118,13 +118,13 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
         )}
         {!isOwner && (
           <FieldRow label="Notes">
-            <Textarea name="notes" defaultValue={data.notes || ''} rows={3} className="border border-slate-200 rounded px-2 py-1 w-full text-sm focus:ring-0 focus:border-[var(--primary)]" />
+            <Textarea name="notes" defaultValue={data.notes || ''} rows={3} className="border border-[var(--border)] rounded-xl px-3 py-2 w-full text-xs bg-[var(--surface-2)]/40 focus:ring-0 focus:border-[var(--primary)]" />
           </FieldRow>
         )}
       </div>
       <div className="pt-4">
-        <Button type="button" disabled={saving} onClick={handleGeneralSave}>
-          {saving ? 'Saving...' : 'Save Changes'}
+        <Button type="button" size="sm" loading={saving} onClick={handleGeneralSave}>
+          Save Changes
         </Button>
       </div>
     </form>
@@ -161,7 +161,7 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
 
   const companyTab = (
     <form className="p-6 space-y-4">
-      <h4 className="text-lg font-semibold text-slate-800">Company Info</h4>
+      <h4 className="text-sm font-bold text-[var(--text-main)]">Company Info</h4>
       <div className="grid grid-cols-1 gap-3 max-w-lg">
         <FieldRow label="Company Name">
           <Input name="companyName" defaultValue={ld.companyName || ld.name || ''} className={FIELD_CLASS} />
@@ -201,8 +201,8 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
         </FieldRow>
       </div>
       <div className="pt-4">
-        <Button type="button" disabled={saving || !ld.id} onClick={handleCompanySave}>
-          {saving ? 'Saving...' : 'Save Changes'}
+        <Button type="button" size="sm" disabled={saving || !ld.id} loading={saving} onClick={handleCompanySave}>
+          Save Changes
         </Button>
       </div>
     </form>
@@ -282,12 +282,12 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
 
   const socialTab = (
     <form className="p-6 space-y-4">
-      <h4 className="text-lg font-semibold text-slate-800">Social Links</h4>
+      <h4 className="text-sm font-bold text-[var(--text-main)]">Social Links</h4>
       <div className="grid grid-cols-1 gap-3 max-w-lg">
         {SOCIAL_FIELDS.map(({ key, label, Icon, placeholder }) => (
           <FieldRow key={key} label={label}>
             <div className="flex items-center gap-2">
-              <Icon size={15} className="text-slate-400 shrink-0" />
+              <Icon size={15} className="text-[var(--text-muted)] shrink-0" />
               <Input
                 name={key}
                 defaultValue={social[key] || ''}
@@ -299,8 +299,8 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
         ))}
       </div>
       <div className="pt-4">
-        <Button type="button" disabled={saving} onClick={handleSocialSave}>
-          {saving ? 'Saving...' : 'Save Changes'}
+        <Button type="button" size="sm" loading={saving} onClick={handleSocialSave}>
+          Save Changes
         </Button>
       </div>
     </form>
@@ -315,69 +315,69 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
 
   if (isOwner) {
     tabs.push({ id: 'account', label: 'Account Settings', content: (
-      <div className="p-12 text-center text-slate-500">Account settings coming soon.</div>
+      <div className="p-12 text-center text-xs text-[var(--text-muted)]">Account settings coming soon.</div>
     )});
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--text-main)]">
       {/* Profile Header */}
-      <div className="bg-[var(--primary)] px-8 pt-10 pb-8 text-white relative flex-shrink-0">
+      <div className="bg-[var(--primary)] px-8 pt-10 pb-8 text-white relative shrink-0">
         <div className="flex items-start gap-8">
           {/* Avatar with camera button */}
           <div className="flex flex-col items-center">
             <div className="relative group">
-              <div className="h-32 w-32 rounded-full overflow-hidden border-4 border-white/30 shadow-md bg-white">
+              <div className="h-28 w-28 rounded-full overflow-hidden border-4 border-white/30 shadow-md bg-[var(--surface)]">
                 {avatarUrl ? (
                   <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
                 ) : (
-                  <UserAvatar name={name} className="h-full w-full rounded-none" fallbackSize={60} />
+                  <UserAvatar name={name} className="h-full w-full rounded-none" fallbackSize={56} />
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={avatarUploading}
-                className="absolute bottom-1 right-1 p-1.5 bg-white rounded-full text-slate-500 shadow border border-slate-200 hover:text-[var(--primary)] transition-colors"
+                className="absolute bottom-1 right-1 p-1.5 bg-[var(--surface)] rounded-full text-[var(--text-muted)] shadow border border-[var(--border)] hover:text-[var(--primary)] transition-colors cursor-pointer"
                 title="Change profile picture"
               >
-                <Camera size={16} />
+                <Camera size={15} />
               </button>
             </div>
-            <h2 className="mt-4 text-2xl font-semibold tracking-tight text-center">{name}</h2>
+            <h2 className="mt-3 text-xl font-bold tracking-tight text-center text-white">{name}</h2>
           </div>
 
           {/* Info block */}
-          <div className="flex flex-col gap-4 pt-2">
+          <div className="flex flex-col gap-3 pt-2">
             {jobTitle && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-white/20 text-white border border-white/30 self-start">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/30 self-start">
                 {jobTitle}
               </span>
             )}
-            <div className="flex flex-col gap-3 mt-1 text-white text-sm font-medium">
+            <div className="flex flex-col gap-2 mt-1 text-white text-xs font-medium">
               {email && (
-                <div className="flex items-center gap-2.5">
-                  <Mail size={16} className="text-white/80" />
+                <div className="flex items-center gap-2">
+                  <Mail size={15} className="text-white/80" />
                   <span>{email}</span>
                 </div>
               )}
               {phone && (
-                <div className="flex items-center gap-2.5">
-                  <Phone size={16} className="text-white/80" />
+                <div className="flex items-center gap-2">
+                  <Phone size={15} className="text-white/80" />
                   <span>{phone}</span>
                 </div>
               )}
             </div>
             {isOwner && (
-              <div className="flex items-center gap-3 mt-2">
-                <button className="h-8 w-8 rounded-full border border-white/30 flex items-center justify-center hover:bg-white/10 transition-colors">
+              <div className="flex items-center gap-2 mt-2">
+                <button className="h-8 w-8 rounded-full border border-white/30 flex items-center justify-center hover:bg-white/10 transition-colors cursor-pointer">
                   <Globe size={14} />
                 </button>
-                <button className="h-8 px-3 rounded text-xs font-medium border border-white/30 flex items-center justify-center hover:bg-white/10 transition-colors gap-2">
-                  <MessageSquare size={14} /> Send message
+                <button className="h-8 px-3 rounded-full text-xs font-semibold border border-white/30 flex items-center justify-center hover:bg-white/10 transition-colors gap-1.5 cursor-pointer">
+                  <MessageSquare size={14} /> Send Message
                 </button>
-                <button className="h-8 px-3 rounded text-xs font-medium border border-white/30 flex items-center justify-center hover:bg-white/10 transition-colors gap-2">
+                <button className="h-8 px-3 rounded-full text-xs font-semibold border border-white/30 flex items-center justify-center hover:bg-white/10 transition-colors gap-1.5 cursor-pointer">
                   <Clock size={14} /> Reminder
                 </button>
               </div>
@@ -387,7 +387,7 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
       </div>
 
       {/* Tabs */}
-      <div className="bg-white flex-1 overflow-auto">
+      <div className="bg-[var(--surface)] flex-1 overflow-auto">
         <Tabs tabs={tabs} defaultTab="general" />
       </div>
 

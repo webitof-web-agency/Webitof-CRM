@@ -9,6 +9,7 @@ function errorHandler(error, req, res, next) {
   res.status(statusCode).json({
     success: false,
     message,
+    ...(statusCode < 500 && error.details ? { details: error.details } : {}),
     ...(process.env.NODE_ENV !== 'production' ? { stack: error.stack } : {})
   });
 }

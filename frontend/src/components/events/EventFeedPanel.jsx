@@ -49,9 +49,9 @@ export function EventFeedPanel({
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
             <CalendarDays size={16} className="text-[var(--primary)]" />
-            <div className="text-sm font-semibold text-slate-900">Events</div>
+            <div className="text-xs font-bold text-[var(--text-main)]">Events</div>
           </div>
-          <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+          <div className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-0.5 text-xs font-bold text-[var(--text-muted)]">
             {displayEvents.length} event(s)
           </div>
         </div>
@@ -69,22 +69,22 @@ export function EventFeedPanel({
                   onEditEvent?.(event);
                 }
               }}
-              className="group w-full rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition hover:border-[var(--primary)] hover:bg-[color-mix(in_srgb,var(--primary)_4%,white)]"
+              className="group w-full rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 text-left shadow-2xs transition hover:border-[var(--primary)] hover:shadow-xs cursor-pointer"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]"
+                      className="rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
                       style={{ backgroundColor: `${(event.color || '#3b82f6')}18`, color: event.color || '#3b82f6' }}
                     >
                       {getScopeTypeLabel(event.scopeType)}
                     </span>
-                    <span className="text-xs text-slate-400">{formatTimeRange(event)}</span>
+                    <span className="text-xs text-[var(--text-muted)]">{formatTimeRange(event)}</span>
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-slate-900">{event.title || 'Untitled event'}</div>
-                  {event.description ? <div className="mt-1 text-sm text-slate-600">{event.description}</div> : null}
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <div className="mt-2 text-xs font-bold text-[var(--text-main)]">{event.title || 'Untitled event'}</div>
+                  {event.description ? <div className="mt-1 text-xs text-[var(--text-muted)]">{event.description}</div> : null}
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
                     {event.location ? (
                       <span className="inline-flex items-center gap-1">
                         <MapPin size={12} />
@@ -105,7 +105,7 @@ export function EventFeedPanel({
                     title="Edit event"
                     className="h-8 w-8"
                   >
-                    <Edit3 size={15} />
+                    <Edit3 size={14} />
                   </Button>
                   {onDeleteEvent ? (
                     <Button
@@ -116,16 +116,16 @@ export function EventFeedPanel({
                         onDeleteEvent?.(event);
                       }}
                       title="Delete event"
-                      className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                      className="h-8 w-8 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600"
                     >
-                      <Trash2 size={15} />
+                      <Trash2 size={14} />
                     </Button>
                   ) : null}
                 </div>
               </div>
             </div>
           )) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+            <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/30 px-4 py-4 text-center text-xs text-[var(--text-muted)]">
               No events found.
             </div>
           )}

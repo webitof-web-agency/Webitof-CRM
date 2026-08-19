@@ -445,13 +445,15 @@ function buildLeadTimeline(leadId, state) {
       }[eventType] || 'Activity';
 
       return {
-        date: event.startDate || event.endDate || event.createdAt,
+        date: eventType === 'system'
+          ? event.createdAt || event.startDate || event.endDate
+          : event.startDate || event.endDate || event.createdAt,
         title: eventType === 'system'
           ? event.payload?.kind === 'created'
             ? 'Lead created'
             : event.payload?.kind === 'status_changed'
               ? `Status changed to ${event.payload?.meta?.nextStatus || event.title || 'Updated'}`
-              : 'Lead updated'
+              : event.title || 'Lead updated'
           : event.title || activityLabel,
         detail: eventType === 'system'
           ? event.description || (event.payload?.meta?.changes?.length
@@ -463,6 +465,8 @@ function buildLeadTimeline(leadId, state) {
           ? event.payload?.actorName || 'System'
           : getUserDisplayName(event.ownerUserId, state),
         meta: event.payload?.meta || {},
+        attachments: event.attachments || [],
+        color: event.color || null,
         amount: 0
       };
     }),

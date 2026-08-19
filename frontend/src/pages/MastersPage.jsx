@@ -25,7 +25,8 @@ const masterTypes = [
   { key: 'renewal_provider', label: 'Renewal Providers' },
   { key: 'amc_type', label: 'AMC Types' },
   { key: 'billing_cycle', label: 'Billing Cycles' },
-  { key: 'invoice_term', label: 'Invoice Terms' }
+  { key: 'invoice_term', label: 'Invoice Terms' },
+  { key: 'follow_up_type', label: 'Follow-up Types' }
 ];
 
 function singularLabel(label = 'Item') {
@@ -38,7 +39,8 @@ function singularLabel(label = 'Item') {
     'Renewal Providers': 'Renewal Provider',
     'AMC Types': 'AMC Type',
     'Billing Cycles': 'Billing Cycle',
-    'Invoice Terms': 'Invoice Term'
+    'Invoice Terms': 'Invoice Term',
+    'Follow-up Types': 'Follow-up Type'
   };
   return map[label] || label.replace(/s$/, '') || 'Item';
 }
@@ -285,6 +287,7 @@ export function MastersPage() {
       }));
       if (activeType === 'service' || activeType === 'service_category') {
         api.cache.invalidate('/invoices/service-catalog');
+        api.cache.invalidate('/leads/options');
       }
       setEditorOpen(false);
       setActiveRecord(null);
@@ -307,6 +310,7 @@ export function MastersPage() {
       }));
       if (activeType === 'service' || activeType === 'service_category') {
         api.cache.invalidate('/invoices/service-catalog');
+        api.cache.invalidate('/leads/options');
       }
       setDeleteTarget(null);
     } catch (error) {

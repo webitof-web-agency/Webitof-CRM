@@ -14,6 +14,7 @@ const { scheduleAmcAutomation } = require('./services/amcAutomation.service');
 const { scheduleRenewalAutomation } = require('./services/renewalAutomation.service');
 const { scheduleOutsourcingAutomation } = require('./services/outsourcingAutomation.service');
 const { registerSocketHub } = require('./services/socketHub.service');
+const { createFollowUpScheduler } = require('./services/followUpEngine.service');
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
@@ -111,6 +112,15 @@ async function start() {
     console.log(`✅ Outsourcing automation scheduled — runs at ${OUTSOURCING_AUTOMATION_SCHEDULE} (Asia/Kolkata)`);
   } catch (automationErr) {
     console.error('⚠️  Could not start outsourcing automation cron:', automationErr.message);
+  }
+
+  try {
+    const FOLLOW_UP_AUTOMATION_SCHEDULE = process.env.FOLLOW_UP_AUTOMATION_CRON || '*/10 * * * *';
+    const FOLLOW_UP_TIMEZONE = process.env.FOLLOW_UP_TIMEZONE || 'Asia/Kolkata';
+    createFollowUpScheduler({ schedule: FOLLOW_UP_AUTOMATION_SCHEDULE, timezone: FOLLOW_UP_TIMEZONE });
+    console.log(`Advanced follow-up automation scheduled at ${FOLLOW_UP_AUTOMATION_SCHEDULE} (${FOLLOW_UP_TIMEZONE})`);
+  } catch (automationErr) {
+    console.error('Could not start follow-up automation cron:', automationErr.message);
   }
 
   const shutdown = async () => {

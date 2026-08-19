@@ -41,7 +41,7 @@ function normalizeForDb(value, type) {
 function hydrateRow(row, columns) {
   if (!row) return null;
   const payload = row.payload || {};
-  const record = { ...payload };
+  const record = { ...payload, payload };
 
   columns.forEach((col) => {
     if (Object.prototype.hasOwnProperty.call(row, col.db)) {

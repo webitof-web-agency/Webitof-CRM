@@ -90,7 +90,7 @@ function buildLineTaxBreakdown({
   const amount = roundToTwo(taxableAmount);
   const rate = Number(gstRate) || 0;
 
-  if (taxType === 'none' || rate <= 0) {
+  if (taxType === 'none' || taxType === 'igst_zero' || rate <= 0) {
     return {
       taxableAmount: amount,
       cgst: 0,
@@ -466,6 +466,8 @@ export function InvoiceBuilderPage() {
               items
             });
             setShowGST(inv.amountType === 'GST Extra');
+            setShowDiscount(Number(inv.discountValue || inv.discountAmount || 0) > 0);
+            setShowAdvance(Number(inv.advanceAmount || 0) > 0);
             setSelectedTemplateId(inv.templateId || def?.id || '');
           }
         } else {
@@ -607,7 +609,9 @@ export function InvoiceBuilderPage() {
       const quantity = Number(item.quantity) || 0;
       const service = item.serviceId ? serviceLookup.get(String(item.serviceId)) : null;
       const rate = resolveItemRate(item, service?.defaultPrice ?? 0, service);
-      const grossLine = (quantity * rate) - Number(item.discount || 0);
+      const lineAmount = quantity * rate;
+      const lineDiscount = (lineAmount * (Number(item.discount) || 0)) / 100;
+      const grossLine = lineAmount - lineDiscount;
       const effectiveRate = showGST && draft.amountType === 'GST Extra'
         ? resolveItemGstRate(item, draft.taxRate, service)
         : 0;
@@ -631,7 +635,8 @@ export function InvoiceBuilderPage() {
         ? (subtotal * Number(draft.discountValue)) / 100
         : Number(draft.discountValue);
     }
-    const taxableAmount = subtotal - discountAmount;
+    discountAmount = Math.min(discountAmount, subtotal);
+    const taxableAmount = Math.max(0, subtotal - discountAmount);
     const discountRatio = subtotal > 0 ? (discountAmount / subtotal) : 0;
 
     const taxTotals = lineRows.reduce((acc, row) => {
@@ -797,6 +802,9 @@ export function InvoiceBuilderPage() {
         status: statusOverride || draft.status,
         templateId: selectedTemplateId || draft.templateId || null,
         amountType: showGST ? 'GST Extra' : 'No Tax',
+        discountValue: showDiscount ? draft.discountValue : 0,
+        discountType: draft.discountType || 'percent',
+        advanceAmount: showAdvance ? draft.advanceAmount : 0,
         taxableAmount: totals.taxableAmount,
         cgst: totals.cgst,
         sgst: totals.sgst,

@@ -178,12 +178,12 @@ export function ResourceForm({
       if (field.type === 'radio') {
         const radioOptions = Array.isArray(field.options) ? field.options : [];
         return (
-          <div className="flex flex-wrap gap-4 rounded-[var(--radius-input,0.75rem)] border border-slate-200 bg-white px-4 py-3">
+          <div className="flex flex-wrap gap-4 rounded-[var(--radius-input,0.75rem)] border border-[var(--border)] bg-[var(--surface-2)]/40 px-4 py-3">
             {radioOptions.map((option) => {
               const optionValue = typeof option === 'string' ? option : option.value;
               const optionLabel = typeof option === 'string' ? option : option.label;
               return (
-                <label key={String(optionValue)} className="inline-flex items-center gap-2 text-sm text-[var(--text)]">
+                <label key={String(optionValue)} className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-main)] cursor-pointer">
                   <input
                     type="radio"
                     name={field.name}
@@ -191,7 +191,7 @@ export function ResourceForm({
                     checked={String(value || '') === String(optionValue)}
                     onChange={(event) => updateField(field.name, event.target.value)}
                     disabled={busy}
-                    className="h-4 w-4 border-slate-300"
+                    className="h-4 w-4"
                     style={{ accentColor: 'var(--primary)' }}
                   />
                   <span>{optionLabel}</span>
@@ -243,7 +243,7 @@ export function ResourceForm({
 
       if (field.type === 'checkbox') {
         return isSplit ? (
-          <label className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-[var(--text)]">
+          <label className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-xs font-medium text-[var(--text-main)] cursor-pointer">
             <Checkbox
               checked={Boolean(value)}
               onChange={(event) => updateField(field.name, event.target.checked)}
@@ -252,7 +252,7 @@ export function ResourceForm({
             <span className="sr-only">{field.label}</span>
           </label>
         ) : (
-          <label className="inline-flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-[var(--text)]">
+          <label className="inline-flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-xs font-medium text-[var(--text-main)] cursor-pointer">
             <Checkbox
               checked={Boolean(value)}
               onChange={(event) => updateField(field.name, event.target.checked)}
@@ -339,7 +339,7 @@ export function ResourceForm({
   return (
     <form className="space-y-6" onSubmit={handleSubmit}>
       {error ? (
-        <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+        <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-xs font-semibold text-rose-600 dark:text-rose-400">
           {error}
         </div>
       ) : null}
@@ -348,12 +348,12 @@ export function ResourceForm({
         {visibleFields.map(renderField)}
       </div>
 
-      <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-wrap items-center justify-end gap-3 rounded-b-2xl border-t border-slate-200 bg-slate-50 px-6 py-4 z-10">
-        <Button type="button" variant="outline" className="bg-white shadow-sm" onClick={onCancel} disabled={busy}>
+      <div className="sticky -bottom-6 -mx-6 -mb-6 mt-6 flex flex-wrap items-center justify-end gap-3 rounded-b-2xl border-t border-[var(--border)] bg-[var(--surface)] px-6 py-4 z-10 shadow-xs">
+        <Button type="button" variant="outline" size="sm" onClick={onCancel} disabled={busy}>
           {cancelLabel}
         </Button>
-        <Button type="submit" disabled={busy}>
-          {busy ? 'Saving...' : submitLabel}
+        <Button type="submit" size="sm" loading={busy}>
+          {submitLabel}
         </Button>
       </div>
     </form>

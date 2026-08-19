@@ -10,6 +10,8 @@ const { generateInvoiceNumber, getFinancialYear, normalizeInvoiceNumber } = requ
 const { getInvoiceSnapshot, syncInvoiceFinancialState } = require('../services/finance.service');
 const { notifyBusinessEvent } = require('../services/notification.service');
 const { hasPermission } = require('../middlewares/auth');
+const { withTransaction } = require('../config/db');
+const followUpEngine = require('../services/followUpEngine.service');
 
 function buildPaymentMap(payments = []) {
   const map = new Map();
@@ -132,7 +134,9 @@ function normalizeInvoiceItems(items = [], serviceMap = new Map(), user = null) 
     const defaultRate = Number(service.defaultPrice ?? 0);
     const currentGstRate = Number(current.gstRate ?? current.taxRate ?? service.gstRate ?? 18);
     const serviceGstRate = Number(service.gstRate ?? currentGstRate ?? 18);
-    const nextRate = allowOverride
+    const nextRate = current.quotedRateLocked
+      ? currentRate
+      : allowOverride
       ? ((current.manualRateOverride || (hasRateValue && currentRate !== defaultRate)) ? currentRate : defaultRate)
       : defaultRate;
     const nextGstRate = Number.isFinite(serviceGstRate) ? serviceGstRate : currentGstRate;
@@ -149,7 +153,7 @@ function normalizeInvoiceItems(items = [], serviceMap = new Map(), user = null) 
       rate: nextRate,
       gstRate: nextGstRate,
       taxRate: nextGstRate,
-      manualRateOverride: allowOverride ? Boolean(current.manualRateOverride && hasRateValue) : false,
+      manualRateOverride: current.quotedRateLocked || (allowOverride ? Boolean(current.manualRateOverride && hasRateValue) : false),
       serviceSnapshot: {
         id: service.id,
         name: service.name || '',
@@ -205,7 +209,11 @@ async function normalizeInvoice(body = {}, current = null, user = null) {
     utgst: totals.utgst,
     igst: totals.igst,
     gstAmount: totals.gstAmount,
-    totalAmount: totals.totalAmount
+    totalAmount: totals.totalAmount,
+    discountAmount: totals.discountAmount,
+    advanceAmount: totals.advanceAmount,
+    taxType: totals.taxType,
+    taxRate: totals.taxRate
   };
 }
 
@@ -265,9 +273,28 @@ invoicesController.getById = async (req, res, next) => {
 invoicesController.create = async (req, res, next) => {
   try {
     const body = await normalizeInvoice(req.body || {}, null, req.user);
-    const record = await invoiceModel.create(body);
-    const snapshot = await syncInvoiceFinancialState(record.id);
-    const nextRecord = snapshot || record;
+    const result = await withTransaction(async (db) => {
+      const record = await invoiceModel.create(body, db);
+      const snapshot = await syncInvoiceFinancialState(record.id, db);
+      const nextRecord = snapshot || record;
+      if (!['draft', 'paid', 'cancelled', 'void'].includes(String(nextRecord.status || '').toLowerCase())) {
+        await followUpEngine.ensureEntityFollowUp('Invoice', record.id, {
+          title: `Payment follow-up for ${nextRecord.invoiceNumber}`,
+          followUpType: 'Payment follow-up',
+          purpose: 'Invoice payment',
+          dueAt: followUpEngine.parseDateTime('', nextRecord.dueDate || nextRecord.invoiceDate, '10:00', 'Asia/Kolkata'),
+          priorityContext: { outstandingAmount: nextRecord.outstandingAmount ?? nextRecord.totalAmount },
+          assignedTo: req.user?.id,
+          templateId: 'futpl-payment',
+          source: 'invoice_created'
+        }, req.user, { db });
+      }
+      await followUpEngine.handleBusinessTrigger('invoice_created', 'Invoice', record.id, req.user, {
+        db, eventId: record.id, payload: nextRecord
+      });
+      return { record, snapshot, nextRecord };
+    });
+    const { record, snapshot, nextRecord } = result;
     notifyBusinessEvent({
       moduleName: 'invoices',
       eventKey: 'created',

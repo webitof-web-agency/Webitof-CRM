@@ -1,35 +1,69 @@
+import { forwardRef } from 'react';
+import { Loader2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 const variants = {
   primary:
-    'bg-[var(--accent)] text-white shadow-[0_10px_30px_rgba(0,0,0,0.18)] hover:opacity-95 focus-visible:ring-[var(--accent)]',
+    'bg-gradient-to-r from-[#0077ED] via-[#0071E3] to-[#005bb5] hover:brightness-110 active:scale-[0.98] text-white shadow-md shadow-blue-500/25 border border-white/30 focus-visible:ring-[#0071E3]',
   secondary:
-    'border border-white/10 bg-white/5 text-[var(--text)] hover:bg-white/10 focus-visible:ring-white/30',
+    'bg-white/70 dark:bg-white/[0.08] hover:bg-white/95 dark:hover:bg-white/[0.14] text-slate-800 dark:text-slate-100 border border-black/10 dark:border-white/15 active:scale-[0.98] shadow-xs backdrop-blur-md focus-visible:ring-[#0071E3]',
   outline:
-    'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-slate-900 focus-visible:ring-slate-300',
+    'bg-white/60 dark:bg-white/[0.05] border border-black/10 dark:border-white/15 text-slate-800 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-white/10 active:scale-[0.98] shadow-xs backdrop-blur-md focus-visible:ring-[#0071E3]',
   ghost:
-    'bg-transparent text-[var(--text-muted)] hover:bg-white/5 hover:text-[var(--text)] focus-visible:ring-white/20',
+    'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white active:scale-[0.98] focus-visible:ring-[#0071E3]',
   destructive:
-    'bg-rose-500 text-white hover:bg-rose-400 focus-visible:ring-rose-300'
+    'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700 text-white hover:brightness-110 active:scale-[0.98] shadow-md shadow-rose-500/25 border border-white/20 focus-visible:ring-rose-400',
+  danger:
+    'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700 text-white hover:brightness-110 active:scale-[0.98] shadow-md shadow-rose-500/25 border border-white/20 focus-visible:ring-rose-400',
+  subtle:
+    'bg-[#0071E3]/12 dark:bg-[#0071E3]/20 hover:bg-[#0071E3]/20 dark:hover:bg-[#0071E3]/30 text-[#0071E3] dark:text-[#2997FF] border border-[#0071E3]/25 active:scale-[0.98] focus-visible:ring-[#0071E3]',
+  glass:
+    'bg-white/70 dark:bg-white/[0.08] hover:bg-white/95 dark:hover:bg-white/[0.16] border border-white/80 dark:border-white/20 text-slate-900 dark:text-white shadow-xs backdrop-blur-xl active:scale-[0.98] focus-visible:ring-[#0071E3]'
 };
 
 const sizes = {
-  sm: 'h-9 px-3 text-sm',
-  md: 'h-11 px-4 text-sm',
-  lg: 'h-12 px-5 text-base',
-  icon: 'h-10 w-10 p-0'
+  xs: 'h-7.5 px-3 text-xs rounded-[10px] gap-1.5 font-semibold',
+  sm: 'h-8.5 px-3.5 text-xs font-semibold rounded-[12px] gap-1.5',
+  md: 'h-10 px-4 text-xs sm:text-sm font-semibold rounded-[14px] gap-2',
+  lg: 'h-11.5 px-5.5 text-sm font-bold rounded-[16px] gap-2.5',
+  icon: 'h-9.5 w-9.5 p-0 rounded-[12px] justify-center',
+  'icon-sm': 'h-8 w-8 p-0 rounded-[10px] justify-center'
 };
 
-export function Button({ as: Tag = 'button', className = '', variant = 'primary', size = 'md', ...props }) {
+export const Button = forwardRef(function Button(
+  {
+    as: Tag = 'button',
+    className = '',
+    variant = 'primary',
+    size = 'md',
+    loading = false,
+    disabled = false,
+    children,
+    type = 'button',
+    ...props
+  },
+  ref
+) {
+  const isButton = Tag === 'button';
+
   return (
     <Tag
+      ref={ref}
+      type={isButton ? type : undefined}
+      disabled={isButton ? disabled || loading : undefined}
+      aria-disabled={disabled || loading ? true : undefined}
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-[var(--radius-button,1rem)] font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)] disabled:pointer-events-none disabled:opacity-50',
+        'inline-flex items-center justify-center whitespace-nowrap outline-none transition-all duration-150 select-none cursor-pointer focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--surface)] disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
         variants[variant] || variants.primary,
         sizes[size] || sizes.md,
         className
       )}
       {...props}
-    />
+    >
+      {loading ? (
+        <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+      ) : null}
+      {children}
+    </Tag>
   );
-}
+});

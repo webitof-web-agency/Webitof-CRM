@@ -5,9 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
     <title>CRM</title>
+    <script>
+      (function() {
+        try {
+          var raw = localStorage.getItem('webitof-theme-preference');
+          var mode = raw ? JSON.parse(raw).mode : 'light';
+          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.documentElement.style.colorScheme = 'dark';
+          } else {
+            document.documentElement.classList.remove('dark');
+            document.documentElement.setAttribute('data-theme', 'light');
+            document.documentElement.style.colorScheme = 'light';
+          }
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </head>
   <body>
     <div id="root"></div>
   </body>
-  </html>
+</html>

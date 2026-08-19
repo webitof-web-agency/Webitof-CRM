@@ -1,9 +1,9 @@
 import { cn } from '../../lib/cn';
 
-export function Skeleton({ className, ...props }) {
+export function Skeleton({ className = '', ...props }) {
   return (
     <div
-      className={cn('animate-pulse rounded-md bg-slate-200', className)}
+      className={cn('animate-pulse rounded-lg bg-[var(--surface-3)] opacity-70', className)}
       {...props}
     />
   );
