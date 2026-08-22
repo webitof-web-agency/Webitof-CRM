@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Search, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Eye, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
@@ -13,6 +13,7 @@ import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { SearchableSelect } from '../../components/forms/SearchableSelect';
 import { PaymentFormModal } from '../../components/forms/PaymentFormModal';
+import { exportToCsv } from '../../lib/exportCsv';
 import { getInvoiceStatusTone, getPaymentStatusTone, PAYMENT_STATUS_OPTIONS } from '../../lib/paymentStatus';
 
 const TONE_COLORS = {
@@ -88,93 +89,107 @@ export function PaymentsListPage() {
         const dd = String(d.getDate()).padStart(2, '0');
         const mm = String(d.getMonth() + 1).padStart(2, '0');
         const yyyy = d.getFullYear();
-        const dateStr = `${dd}-${mm}-${yyyy}`;
-        
-        const valStr = String(row.paymentDate);
-        const hasTime = valStr.includes('T') && !valStr.endsWith('T00:00:00.000Z') && !valStr.endsWith('T00:00:00Z');
-        
-        if (hasTime) {
-          const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-          return <span className="text-sm text-slate-600">{`${dateStr} ${timeStr}`}</span>;
-        }
-        return <span className="text-sm text-slate-600">{dateStr}</span>;
-      }
-    },
-    { key: 'clientId', label: 'Client', render: (row) => clients.find(c => String(c.id) === String(row.clientId))?.name || '-' },
-    {
-      key: 'invoiceId',
-      label: 'Invoice',
-      render: (row) => {
-        const invoice = invoices.find(i => String(i.id) === String(row.invoiceId));
-        return invoice?.invoiceNumber || '-';
+        return <span className="text-sm font-medium text-[var(--text-main)]">{`${dd}/${mm}/${yyyy}`}</span>;
       }
     },
     {
-      key: 'invoiceStatus',
-      label: 'Invoice Status',
-      sortable: false,
-      render: (row) => {
-        const invoice = invoices.find(i => String(i.id) === String(row.invoiceId));
-        if (!invoice) return <span className="text-slate-400">-</span>;
-        const status = invoice.status || 'Sent';
-        const color = TONE_COLORS[getInvoiceStatusTone(status)] || TONE_COLORS.neutral;
+      key: 'clientId', label: 'Client', render: (row) => {
+        const client = clients.find((c) => String(c.id) === String(row.clientId));
         return (
-          <span
-            className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border uppercase tracking-[0.16em]"
-            style={{ backgroundColor: `${color}1A`, color: color, borderColor: `${color}33` }}
-          >
-            {status}
-          </span>
+          <div>
+            <span className="font-semibold text-[var(--text-main)] text-sm">{client?.companyName || client?.name || 'Unknown'}</span>
+            {client?.companyName && client?.name && client.companyName !== client.name ? (
+              <span className="block text-xs text-[var(--text-muted)]">{client.name}</span>
+            ) : null}
+          </div>
         );
       }
     },
-
-    { key: 'amountReceived', label: 'Received', align: 'right', type: 'money' },
     {
-      key: 'balanceDue',
-      label: 'Balance Due',
-      align: 'right',
-      sortable: false,
-      render: (row) => {
-        const invoice = invoices.find(i => String(i.id) === String(row.invoiceId));
-        if (!invoice) return <span className="text-slate-400">-</span>;
-        return <span className="font-medium text-[var(--text-main)]">{Number(invoice.balanceDue || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 })}</span>;
+      key: 'invoiceId', label: 'Invoice', render: (row) => {
+        const inv = invoices.find((i) => String(i.id) === String(row.invoiceId));
+        if (!inv) return <span className="text-xs text-[var(--text-muted)] italic">Advance / Direct</span>;
+        return (
+          <div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); navigate(`/app/invoices/${inv.id}`); }}
+              className="text-xs font-semibold text-[var(--primary)] hover:underline"
+            >
+              #{inv.invoiceNumber || inv.id}
+            </button>
+            <div className="text-[11px] text-[var(--text-muted)]">
+              Total: ₹{Number(inv.totalAmount || 0).toLocaleString('en-IN')}
+            </div>
+          </div>
+        );
       }
     },
-    { key: 'paymentMode', label: 'Mode' },
     {
-      key: 'paymentStatus',
-      label: 'Payment Status',
-      render: (row) => {
-        const status = row.paymentStatus || 'Received';
-        const color = TONE_COLORS[getPaymentStatusTone(status)] || TONE_COLORS.neutral;
+      key: 'amountReceived', label: 'Amount', align: 'right', render: (row) => (
+        <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+          ₹{Number(row.amountReceived || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </span>
+      )
+    },
+    {
+      key: 'paymentMode', label: 'Mode', render: (row) => (
+        <span className="text-xs font-medium text-[var(--text-muted)] bg-[var(--surface-2)] px-2 py-0.5 rounded-md border border-[var(--border)]">
+          {row.paymentMode || 'Direct'}
+        </span>
+      )
+    },
+    {
+      key: 'paymentStatus', label: 'Status', render: (row) => {
+        const tone = getPaymentStatusTone(row.paymentStatus);
+        const color = TONE_COLORS[tone] || TONE_COLORS.neutral;
         return (
           <span
-            className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold border uppercase tracking-[0.16em]"
-            style={{ backgroundColor: `${color}1A`, color: color, borderColor: `${color}33` }}
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border"
+            style={{
+              backgroundColor: `${color}15`,
+              borderColor: `${color}40`,
+              color
+            }}
           >
-            {status}
+            {row.paymentStatus || 'Received'}
           </span>
         );
       }
     }
   ];
 
+  const handleExportCsv = () => {
+    if (!sortedRows || !sortedRows.length) {
+      toast.error('No payments available to export');
+      return;
+    }
+    const cols = [
+      { label: 'Date', key: 'paymentDate' },
+      { label: 'Client', accessor: (row) => clients.find((c) => String(c.id) === String(row.clientId))?.name || '' },
+      { label: 'Invoice #', accessor: (row) => invoices.find((i) => String(i.id) === String(row.invoiceId))?.invoiceNumber || '' },
+      { label: 'Amount Received (INR)', key: 'amountReceived' },
+      { label: 'TDS Deducted (INR)', key: 'tdsDeducted' },
+      { label: 'Payment Mode', key: 'paymentMode' },
+      { label: 'Status', key: 'paymentStatus' },
+      { label: 'Transaction ID', key: 'transactionId' },
+      { label: 'Notes', key: 'notes' }
+    ];
+    exportToCsv('payments_export', cols, sortedRows);
+    toast.success(`Exported ${sortedRows.length} payment records to CSV`);
+  };
+
   const sortedRows = useMemo(() => {
     let filtered = [...rows];
-
     if (paymentStatusFilter) {
-      filtered = filtered.filter(r => String(r.paymentStatus || 'Received') === String(paymentStatusFilter));
+      filtered = filtered.filter((r) => r.paymentStatus === paymentStatusFilter);
     }
-
     if (modeFilter) {
-      filtered = filtered.filter(r => r.paymentMode === modeFilter);
+      filtered = filtered.filter((r) => r.paymentMode === modeFilter);
     }
-
     if (dateFilter) {
-      filtered = filtered.filter(r => r.paymentDate?.startsWith(dateFilter));
+      filtered = filtered.filter((r) => (r.paymentDate || '').startsWith(dateFilter));
     }
-
     return filtered.sort((a, b) => {
       const aVal = a[sortKey];
       const bVal = b[sortKey];
@@ -210,95 +225,98 @@ export function PaymentsListPage() {
           <p className="mt-1 text-sm text-[var(--text-muted)]">Record and track all client payments against invoices.</p>
         </div>
         <div className="flex items-center gap-3">
+          <Button type="button" variant="secondary" onClick={handleExportCsv} className="bg-white shadow-sm border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer">
+            <Download size={16} className="mr-2 text-emerald-600" /> Export CSV
+          </Button>
           {canCreate && (
-            <Button type="button" onClick={() => { setEditData(null); setFormOpen(true); }}>
+            <Button type="button" onClick={() => { setEditData(null); setFormOpen(true); }} className="cursor-pointer">
               <Plus size={16} className="mr-2" /> Record Payment
             </Button>
           )}
         </div>
       </div>
 
-        <DataTable
-          toolbarLeft={
-            <div className="relative flex-1 w-full max-w-sm">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                value={search}
-                onChange={(e) => { setSearch(e.target.value); setPage(1); setSelectedIds([]); }}
-                placeholder="Search payments..."
-                className="pl-9 w-full"
+      <DataTable
+        toolbarLeft={
+          <div className="relative flex-1 w-full max-w-sm">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+            <Input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); setSelectedIds([]); }}
+              placeholder="Search payments..."
+              className="pl-9 w-full"
+            />
+          </div>
+        }
+        toolbarRight={
+          <div className="flex items-center gap-3">
+            <div className="w-48">
+              <SearchableSelect
+                value={paymentStatusFilter}
+                onChange={val => { setPaymentStatusFilter(val); setPage(1); }}
+                options={paymentStatusOptions}
+                placeholder="All Payment Statuses"
+                searchPlaceholder="Search payment status..."
               />
             </div>
-          }
-          toolbarRight={
-            <div className="flex items-center gap-3">
-              <div className="w-48">
-                <SearchableSelect
-                  value={paymentStatusFilter}
-                  onChange={val => { setPaymentStatusFilter(val); setPage(1); }}
-                  options={paymentStatusOptions}
-                  placeholder="All Payment Statuses"
-                  searchPlaceholder="Search payment status..."
-                />
-              </div>
-              <div className="w-40">
-                <SearchableSelect
-                  value={modeFilter}
-                  onChange={val => { setModeFilter(val); setPage(1); }}
-                  options={modeOptions}
-                  placeholder="All Modes"
-                  searchPlaceholder="Search mode..."
-                />
-              </div>
-              <Input
-                type="date"
-                value={dateFilter}
-                onChange={e => { setDateFilter(e.target.value); setPage(1); }}
-                className="w-auto py-2"
-                title="Filter by Date"
+            <div className="w-40">
+              <SearchableSelect
+                value={modeFilter}
+                onChange={val => { setModeFilter(val); setPage(1); }}
+                options={modeOptions}
+                placeholder="All Modes"
+                searchPlaceholder="Search mode..."
               />
             </div>
-          }
-          loading={loading}
-          columns={columns}
-          rows={sortedRows}
-          selectable={canDelete}
-          selectedIds={selectedIds}
-          onSelectedIdsChange={setSelectedIds}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSortChange={(k, d) => { setSortKey(k); setSortDirection(d); }}
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-          rowActions={(row) => (
-            <div className="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  navigate(`/app/payments/${row.id}`);
-                }}
-                title="View Payment"
-              >
-                <Eye size={16} />
+            <Input
+              type="date"
+              value={dateFilter}
+              onChange={e => { setDateFilter(e.target.value); setPage(1); }}
+              className="w-auto py-2"
+              title="Filter by Date"
+            />
+          </div>
+        }
+        loading={loading}
+        columns={columns}
+        rows={sortedRows}
+        selectable={canDelete}
+        selectedIds={selectedIds}
+        onSelectedIdsChange={setSelectedIds}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
+        onSortChange={(k, d) => { setSortKey(k); setSortDirection(d); }}
+        page={page}
+        pageSize={pageSize}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
+        rowActions={(row) => (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={(event) => {
+                event.stopPropagation();
+                navigate(`/app/payments/${row.id}`);
+              }}
+              title="View Payment"
+            >
+              <Eye size={16} />
+            </Button>
+            {canCreate && (
+              <Button variant="ghost" size="icon" onClick={() => { setEditData(row); setFormOpen(true); }} title="Edit">
+                <Pencil size={16} />
               </Button>
-              {canCreate && (
-                <Button variant="ghost" size="icon" onClick={() => { setEditData(row); setFormOpen(true); }} title="Edit">
-                  <Pencil size={16} />
-                </Button>
-              )}
-              {canDelete && (
-                <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                  <Trash2 size={16} />
-                </Button>
-              )}
-            </div>
-          )}
-        />
+            )}
+            {canDelete && (
+              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50">
+                <Trash2 size={16} />
+              </Button>
+            )}
+          </div>
+        )}
+      />
 
       <ConfirmModal
         open={Boolean(deleteTarget)}

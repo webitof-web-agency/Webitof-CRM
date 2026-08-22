@@ -5,7 +5,15 @@ import { AttachmentPicker } from '../ui/AttachmentPicker';
 import { SearchableSelect } from './SearchableSelect';
 import { PhoneInput } from './PhoneInput';
 import { INDIA_STATE_OPTIONS, getCitiesByState } from '../../data/indiaLocations';
-import { calculateLeadScore, toSelectOptions } from '../../config/leadManagement';
+import {
+  calculateLeadScore,
+  toSelectOptions,
+  getLeadStatusColor,
+  getLeadSourceColor,
+  getLeadServiceColor,
+  getLeadTemperatureColor,
+  getLeadPriorityColor
+} from '../../config/leadManagement';
 import { cn } from '../../lib/cn';
 
 function Field({ label, required = false, error = '', children, wide = false }) {
@@ -216,7 +224,14 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Required Services" required error={errors.requiredServices} wide>
-          <CompactSelect value={formData.requiredServices} onChange={(value) => set('requiredServices', value)} options={select(options.services)} placeholder="Select services" searchPlaceholder="Search services..." multiple />
+          <CompactSelect
+            value={formData.requiredServices}
+            onChange={(value) => set('requiredServices', value)}
+            options={(options.services || []).map((s) => typeof s === 'string' ? { value: s, label: s, color: getLeadServiceColor(s) } : { value: s.label || s.value, label: s.label || s.value, color: s.color || getLeadServiceColor(s.label || s.value) })}
+            placeholder="Select services"
+            searchPlaceholder="Search services..."
+            multiple
+          />
         </Field>
 
         {formData.requiredServices?.includes('Other') ? (
@@ -234,19 +249,41 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Lead Source" required error={errors.source}>
-          <CompactSelect value={formData.source} onChange={(value) => set('source', value)} options={select(options.sources)} placeholder="Select source" allowClear={false} />
+          <CompactSelect
+            value={formData.source}
+            onChange={(value) => set('source', value)}
+            options={(options.sources || []).map((s) => typeof s === 'string' ? { value: s, label: s, color: getLeadSourceColor(s) } : { value: s.label || s.value, label: s.label || s.value, color: s.color || getLeadSourceColor(s.label || s.value) })}
+            placeholder="Select source"
+            allowClear={false}
+          />
         </Field>
 
         <Field label="Status" required error={errors.status}>
-          <CompactSelect value={formData.status} onChange={(value) => set('status', value)} options={select(options.statuses)} placeholder="Select status" allowClear={false} />
+          <CompactSelect
+            value={formData.status}
+            onChange={(value) => set('status', value)}
+            options={(options.statuses || []).map((s) => typeof s === 'string' ? { value: s, label: s, color: getLeadStatusColor(s) } : { value: s.label || s.value, label: s.label || s.value, color: s.color || getLeadStatusColor(s.label || s.value) })}
+            placeholder="Select status"
+            allowClear={false}
+          />
         </Field>
 
         <Field label="Temperature">
-          <CompactSelect value={formData.leadTemperature} onChange={(value) => set('leadTemperature', value)} options={select(options.temperatures)} placeholder="Select temperature" />
+          <CompactSelect
+            value={formData.leadTemperature}
+            onChange={(value) => set('leadTemperature', value)}
+            options={(options.temperatures || []).map((t) => typeof t === 'string' ? { value: t, label: t, color: getLeadTemperatureColor(t) } : { value: t.label || t.value, label: t.label || t.value, color: t.color || getLeadTemperatureColor(t.label || t.value) })}
+            placeholder="Select temperature"
+          />
         </Field>
 
         <Field label="Priority">
-          <CompactSelect value={formData.priority} onChange={(value) => set('priority', value)} options={select(options.priorities)} placeholder="Select priority" />
+          <CompactSelect
+            value={formData.priority}
+            onChange={(value) => set('priority', value)}
+            options={(options.priorities || []).map((p) => typeof p === 'string' ? { value: p, label: p, color: getLeadPriorityColor(p) } : { value: p.label || p.value, label: p.label || p.value, color: p.color || getLeadPriorityColor(p.label || p.value) })}
+            placeholder="Select priority"
+          />
         </Field>
 
         <Field label="Next Follow-up Date" error={errors.followUpDate}>

@@ -50,3 +50,182 @@ export function calculateLeadScore(formData = {}, rules = DEFAULT_LEAD_OPTIONS.s
   if (formData.phone && (formData.email || formData.whatsappNumber)) score += Number(rules.validContactDetails || 0);
   return Math.min(100, Math.max(0, score));
 }
+
+export const DEFAULT_LEAD_STATUS_COLORS = {
+  'New': '#2563eb', // Vibrant Blue
+  'Contacted': '#6366f1', // Indigo
+  'Requirement Collected': '#0891b2', // Cyan
+  'Qualified': '#8b5cf6', // Violet
+  'Unqualified': '#f43f5e', // Rose
+  'Quotation Pending': '#ea580c', // Orange
+  'Quotation Sent': '#9333ea', // Deep Purple
+  'Negotiation': '#db2777', // Fuchsia / Pink
+  'Follow-up': '#0284c7', // Sky Blue
+  'Demo Scheduled': '#f59e0b', // Amber
+  'Meeting Scheduled': '#4f46e5', // Deep Indigo
+  'On Hold': '#d97706', // Warm Amber
+  'Won': '#16a34a', // Emerald Green
+  'Lost': '#dc2626', // Crimson Red
+  'Not Interested': '#e11d48', // Bright Rose Red
+  'Invalid Lead': '#64748b', // Slate Gray
+  'Duplicate': '#6b7280' // Gray
+};
+
+const FALLBACK_PALETTE = [
+  '#2563eb', '#16a34a', '#8b5cf6', '#ea580c', '#0891b2',
+  '#db2777', '#0284c7', '#d97706', '#6366f1', '#10b981',
+  '#ec4899', '#4f46e5', '#14b8a6', '#f59e0b'
+];
+
+export function getLeadStatusColor(status, customColors = {}) {
+  if (!status) return '#64748b';
+  const clean = String(status).trim();
+  if (customColors && customColors[clean]) return customColors[clean];
+
+  if (DEFAULT_LEAD_STATUS_COLORS[clean]) return DEFAULT_LEAD_STATUS_COLORS[clean];
+
+  const lower = clean.toLowerCase();
+  for (const [key, val] of Object.entries(DEFAULT_LEAD_STATUS_COLORS)) {
+    if (key.toLowerCase() === lower) return val;
+  }
+
+  if (customColors) {
+    for (const [key, val] of Object.entries(customColors)) {
+      if (key.toLowerCase() === lower && val) return val;
+    }
+  }
+
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = clean.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % FALLBACK_PALETTE.length;
+  return FALLBACK_PALETTE[index];
+}
+
+export const DEFAULT_LEAD_SOURCE_COLORS = {
+  'Website': '#0284c7', // Sky Blue
+  'Google Ads': '#ea580c', // Orange
+  'Facebook Ads': '#2563eb', // Blue
+  'Instagram Ads': '#db2777', // Magenta/Pink
+  'WhatsApp': '#16a34a', // Emerald Green
+  'Phone Call': '#0891b2', // Cyan
+  'Cold Call': '#0284c7', // Sky Blue
+  'LinkedIn': '#0a66c2', // LinkedIn Blue
+  'Email': '#8b5cf6', // Violet
+  'Referral': '#10b981', // Green
+  'Existing Client': '#059669', // Emerald
+  'IndiaMART': '#0d9488', // Teal
+  'Justdial': '#ea580c', // Orange
+  'Freelancer': '#16a34a', // Green
+  'Upwork': '#10b981', // Emerald
+  'Walk-in': '#7c3aed', // Purple
+  'Partner': '#9333ea', // Deep Purple
+  'Trade Show': '#f59e0b', // Amber
+  'Employee Reference': '#059669', // Green
+  'Other': '#64748b' // Slate
+};
+
+export const DEFAULT_LEAD_SERVICE_COLORS = {
+  'Web Development': '#2563eb', // Blue
+  'Website Development': '#2563eb', // Blue
+  'E-commerce Website': '#7c3aed', // Purple
+  'Mobile App Development': '#0891b2', // Cyan
+  'Custom Software Development': '#6366f1', // Indigo
+  'Custom Software': '#6366f1', // Indigo
+  'ERP Development': '#4f46e5', // Deep Indigo
+  'CRM Development': '#0d9488', // Teal
+  'Lead CRM': '#0d9488', // Teal
+  'LMS Development': '#0284c7', // Sky Blue
+  'UI/UX Design': '#db2777', // Pink
+  'Digital Marketing': '#ea580c', // Orange
+  'Search Engine Optimisation': '#16a34a', // Green
+  'Social Media Management': '#ec4899', // Fuchsia
+  'Google Ads': '#f59e0b', // Amber
+  'Meta Ads': '#2563eb', // Blue
+  'Graphic Design': '#a855f7', // Violet
+  'Branding': '#9333ea', // Purple
+  'Domain Registration': '#0284c7', // Sky Blue
+  'Web Hosting': '#0891b2', // Cyan
+  'Cloud Services': '#3b82f6', // Blue
+  'Software AMC': '#10b981', // Emerald
+  'Website Maintenance': '#059669', // Green
+  'App Maintenance': '#0891b2', // Cyan
+  'IT Consulting': '#6366f1', // Indigo
+  'Other': '#64748b' // Slate
+};
+
+export const DEFAULT_LEAD_TEMPERATURE_COLORS = {
+  'Hot': '#ef4444', // Red
+  'Warm': '#f59e0b', // Amber
+  'Cold': '#3b82f6' // Blue
+};
+
+export const DEFAULT_LEAD_PRIORITY_COLORS = {
+  'Urgent': '#ef4444', // Red
+  'High': '#ea580c', // Orange
+  'Medium': '#f59e0b', // Amber
+  'Low': '#10b981' // Green
+};
+
+export function getLeadSourceColor(source, customColors = {}) {
+  if (!source) return '#64748b';
+  const clean = String(source).trim();
+  if (customColors && customColors[clean]) return customColors[clean];
+  if (DEFAULT_LEAD_SOURCE_COLORS[clean]) return DEFAULT_LEAD_SOURCE_COLORS[clean];
+
+  const lower = clean.toLowerCase();
+  for (const [key, val] of Object.entries(DEFAULT_LEAD_SOURCE_COLORS)) {
+    if (key.toLowerCase() === lower) return val;
+  }
+  if (customColors) {
+    for (const [key, val] of Object.entries(customColors)) {
+      if (key.toLowerCase() === lower && val) return val;
+    }
+  }
+
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = clean.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % FALLBACK_PALETTE.length;
+  return FALLBACK_PALETTE[index];
+}
+
+export function getLeadServiceColor(service, customColors = {}) {
+  if (!service) return '#64748b';
+  const clean = String(service).trim();
+  if (customColors && customColors[clean]) return customColors[clean];
+  if (DEFAULT_LEAD_SERVICE_COLORS[clean]) return DEFAULT_LEAD_SERVICE_COLORS[clean];
+
+  const lower = clean.toLowerCase();
+  for (const [key, val] of Object.entries(DEFAULT_LEAD_SERVICE_COLORS)) {
+    if (key.toLowerCase() === lower) return val;
+  }
+  if (customColors) {
+    for (const [key, val] of Object.entries(customColors)) {
+      if (key.toLowerCase() === lower && val) return val;
+    }
+  }
+
+  let hash = 0;
+  for (let i = 0; i < clean.length; i++) {
+    hash = clean.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % FALLBACK_PALETTE.length;
+  return FALLBACK_PALETTE[index];
+}
+
+export function getLeadTemperatureColor(temperature) {
+  if (!temperature) return '#64748b';
+  const clean = String(temperature).trim();
+  return DEFAULT_LEAD_TEMPERATURE_COLORS[clean] || '#64748b';
+}
+
+export function getLeadPriorityColor(priority) {
+  if (!priority) return '#64748b';
+  const clean = String(priority).trim();
+  return DEFAULT_LEAD_PRIORITY_COLORS[clean] || '#64748b';
+}
+
+

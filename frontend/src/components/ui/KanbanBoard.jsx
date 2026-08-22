@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, CircleUser, IndianRupee, MoreVertical, Phone, Pencil, Trash2, Eye } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { getLeadStatusColor } from '../../config/leadManagement';
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -36,11 +37,12 @@ function renderLabelPill(label, color, compact = true) {
   const badgeColor = color || '#2563eb';
   return (
     <span
-      className={`inline-flex items-center rounded-full border font-semibold ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
-        }`}
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
       style={{
         backgroundColor: `${badgeColor}14`,
-        borderColor: `${badgeColor}2A`,
+        borderColor: `${badgeColor}2E`,
         color: badgeColor
       }}
     >
@@ -117,7 +119,7 @@ export function KanbanBoard({
     <div className="flex min-h-[600px] w-full items-start gap-4 overflow-x-auto pb-4">
       {statuses.map((status) => {
         const columnLeads = leadsByStatus[status.label] || [];
-        const color = statusColors[status.label] || 'var(--primary)';
+        const color = statusColors[status.label] || status.color || getLeadStatusColor(status.label, statusColors);
         const isDragOver = dragOverStatus === status.label;
 
         return (

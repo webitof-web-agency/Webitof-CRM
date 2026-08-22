@@ -170,7 +170,8 @@ function validateForm(formData, initialData, options) {
   return errors;
 }
 
-export function LeadFormModal({ open, onClose, initialData, options: externalOptions, users: externalUsers, pipelines: externalPipelines, onSuccess }) {
+export function LeadFormModal({ open, onClose, initialData: rawInitialData, lead, options: externalOptions, users: externalUsers, pipelines: externalPipelines, onSuccess }) {
+  const initialData = rawInitialData || lead || null;
   const { token, user } = useAuth();
   const [internalOptions, setInternalOptions] = useState(DEFAULT_LEAD_OPTIONS);
   const [internalUsers, setInternalUsers] = useState([]);
@@ -320,8 +321,8 @@ export function LeadFormModal({ open, onClose, initialData, options: externalOpt
       title={(
         <div className="flex items-center gap-2.5">
           <span>{initialData ? 'Edit Lead' : 'Add New Lead'}</span>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700 border border-blue-100">
-            <span className="h-1.5 w-1.5 rounded-full bg-blue-600 animate-pulse" />
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-500/20">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-pulse" />
             Lead Details
           </span>
         </div>
@@ -329,22 +330,22 @@ export function LeadFormModal({ open, onClose, initialData, options: externalOpt
       subtitle={initialData?.leadNumber || ''}
       width="min(820px, 95vw)"
       maxHeight="90vh"
-      headerClassName="px-6 py-3.5 border-b border-slate-100"
+      headerClassName="px-6 py-3.5 border-b border-[var(--border)]"
       headerActions={(
         <button
           type="button"
           onClick={() => setAllSectionsOpen((prev) => !prev)}
-          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none"
+          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 text-xs font-medium text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] transition-colors focus:outline-none cursor-pointer"
         >
           <ChevronDown size={14} className={cn('transition-transform', allSectionsOpen && 'rotate-180')} />
           {allSectionsOpen ? 'Collapse All' : 'Expand All'}
         </button>
       )}
       bodyClassName="px-6 py-4 overflow-y-auto"
-      footerClassName="px-6 py-3.5 bg-slate-50/90 border-t border-slate-100"
+      footerClassName="px-6 py-3.5 bg-[var(--surface-2)] border-t border-[var(--border)]"
       footer={(
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-slate-400">
+          <span className="text-xs font-medium text-[var(--text-muted)]">
             {dirty ? '● Unsaved changes' : ''}
           </span>
           <div className="flex items-center gap-2">

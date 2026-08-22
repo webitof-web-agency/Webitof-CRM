@@ -34,7 +34,7 @@ export function Modal({
   if (!open) return null;
 
   const handleBackdropClick = (e) => {
-    if (e.target?.closest?.('[data-modal-portal="true"]')) return;
+    if (e.target?.closest?.('[data-modal-portal="true"]') || e.target?.closest?.('[data-portal="true"]') || e.target?.closest?.('[role="listbox"]') || e.target?.closest?.('.fixed.z-\\[9999\\]')) return;
     if (modalRef.current && !modalRef.current.contains(e.target)) {
       onClose?.();
     }

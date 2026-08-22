@@ -27,18 +27,23 @@ import {
   Laptop,
   PlusCircle,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { api } from '../../api/client';
 import { cn } from '../../lib/cn';
 
 export function CommandPalette({ open, onClose }) {
   const navigate = useNavigate();
   const { mode, setMode } = useTheme();
-  const { hasPermission } = useAuth();
+  const { token, hasPermission } = useAuth();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [liveResults, setLiveResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
@@ -46,9 +51,95 @@ export function CommandPalette({ open, onClose }) {
     if (open) {
       setQuery('');
       setSelectedIndex(0);
+      setLiveResults([]);
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
+
+  // Live entity search with debounce
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2 || !token) {
+      setLiveResults([]);
+      setSearching(false);
+      return;
+    }
+
+    setSearching(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await api.search.global(token, trimmed);
+        if (res.data) {
+          const results = [];
+          const { leads = [], clients = [], invoices = [], projects = [] } = res.data;
+
+          leads.forEach((l) => {
+            results.push({
+              id: `lead-${l.id}`,
+              label: l.title,
+              subtitle: l.subtitle,
+              category: 'Leads',
+              icon: Target,
+              action: () => {
+                navigate(l.path);
+                onClose();
+              }
+            });
+          });
+
+          clients.forEach((c) => {
+            results.push({
+              id: `client-${c.id}`,
+              label: c.title,
+              subtitle: c.subtitle,
+              category: 'Clients',
+              icon: Building2,
+              action: () => {
+                navigate(c.path);
+                onClose();
+              }
+            });
+          });
+
+          invoices.forEach((inv) => {
+            results.push({
+              id: `invoice-${inv.id}`,
+              label: inv.title,
+              subtitle: inv.subtitle,
+              category: 'Invoices',
+              icon: ReceiptText,
+              action: () => {
+                navigate(inv.path);
+                onClose();
+              }
+            });
+          });
+
+          projects.forEach((p) => {
+            results.push({
+              id: `project-${p.id}`,
+              label: p.title,
+              subtitle: p.subtitle,
+              category: 'Projects',
+              icon: BriefcaseBusiness,
+              action: () => {
+                navigate(p.path);
+                onClose();
+              }
+            });
+          });
+
+          setLiveResults(results);
+        }
+      } catch {
+        setLiveResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timeout);
+  }, [query, token, navigate, onClose]);
 
   const allItems = useMemo(() => {
     const items = [];
@@ -56,8 +147,8 @@ export function CommandPalette({ open, onClose }) {
     // Navigation items
     const navItems = [
       { id: 'nav-dashboard', label: 'Dashboard', category: 'Navigation', icon: LayoutDashboard, path: '/app/dashboard', permission: 'dashboard.view' },
-      { id: 'nav-leads', label: 'Leads & Opportunities', category: 'Navigation', icon: Target, path: '/app/leads', permission: 'leads.read' },
       { id: 'nav-followups', label: 'Follow-ups & Tasks', category: 'Navigation', icon: ListChecks, path: '/app/follow-ups' },
+      { id: 'nav-leads', label: 'Leads & Opportunities', category: 'Navigation', icon: Target, path: '/app/leads', permission: 'leads.read' },
       { id: 'nav-clients', label: 'Clients & Accounts', category: 'Navigation', icon: Building2, path: '/app/clients', permission: 'clients.read' },
       { id: 'nav-projects', label: 'Projects & Workspaces', category: 'Navigation', icon: BriefcaseBusiness, path: '/app/projects', permission: 'projects.read' },
       { id: 'nav-invoices', label: 'Invoices & Billing', category: 'Navigation', icon: ReceiptText, path: '/app/invoices', permission: 'invoices.read' },
@@ -178,18 +269,20 @@ export function CommandPalette({ open, onClose }) {
   }, [hasPermission, navigate, onClose, setMode]);
 
   const filteredItems = useMemo(() => {
+    const list = [...liveResults];
     if (!query.trim()) return allItems;
     const q = query.toLowerCase().trim();
-    return allItems.filter(
+    const staticMatches = allItems.filter(
       (item) =>
         item.label.toLowerCase().includes(q) ||
         item.category.toLowerCase().includes(q)
     );
-  }, [allItems, query]);
+    return [...list, ...staticMatches];
+  }, [allItems, liveResults, query]);
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, [query, liveResults]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -232,11 +325,15 @@ export function CommandPalette({ open, onClose }) {
       >
         {/* Search Bar */}
         <div className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3.5 bg-[var(--surface)]">
-          <Search size={18} className="text-[var(--text-muted)] shrink-0" />
+          {searching ? (
+            <Loader2 size={18} className="text-[var(--primary)] animate-spin shrink-0" />
+          ) : (
+            <Search size={18} className="text-[var(--text-muted)] shrink-0" />
+          )}
           <input
             ref={inputRef}
             type="text"
-            placeholder="Type a command or search modules... (e.g. Leads, Invoices, Dark mode)"
+            placeholder="Search leads, clients, invoices, or type a command..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full bg-transparent text-sm text-[var(--text-main)] outline-none placeholder:text-[var(--text-muted)] font-medium"
@@ -247,10 +344,10 @@ export function CommandPalette({ open, onClose }) {
         </div>
 
         {/* Results List */}
-        <div ref={listRef} className="max-h-[340px] overflow-y-auto p-2 space-y-1">
+        <div ref={listRef} className="max-h-[360px] overflow-y-auto p-2 space-y-1">
           {filteredItems.length === 0 ? (
             <div className="py-10 text-center text-xs text-[var(--text-muted)]">
-              No matching commands or pages found.
+              No matching records, commands, or pages found.
             </div>
           ) : (
             filteredItems.map((item, idx) => {
@@ -263,7 +360,7 @@ export function CommandPalette({ open, onClose }) {
                   onClick={item.action}
                   onMouseEnter={() => setSelectedIndex(idx)}
                   className={cn(
-                    'flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-xs font-medium transition-colors cursor-pointer',
+                    'flex w-full items-center justify-between rounded-xl px-3.5 py-2 text-left text-xs font-medium transition-colors cursor-pointer',
                     isSelected
                       ? 'bg-[var(--primary-subtle)] text-[var(--primary)] font-semibold'
                       : 'text-[var(--text-main)] hover:bg-[var(--hover-bg)]'
@@ -280,10 +377,17 @@ export function CommandPalette({ open, onClose }) {
                     >
                       <Icon size={14} />
                     </div>
-                    <span className="truncate">{item.label}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-semibold">{item.label}</div>
+                      {item.subtitle && (
+                        <div className="truncate text-[11px] text-[var(--text-muted)] font-normal">
+                          {item.subtitle}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-[var(--text-muted)] font-normal hidden sm:inline">
+                  <div className="flex items-center gap-2 shrink-0 ml-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]">
                       {item.category}
                     </span>
                     {isSelected ? (
@@ -311,7 +415,7 @@ export function CommandPalette({ open, onClose }) {
           </div>
           <span className="flex items-center gap-1 font-medium text-[var(--primary)]">
             <Sparkles size={12} />
-            Spotlight CRM
+            Live Search & Spotlight
           </span>
         </div>
       </div>

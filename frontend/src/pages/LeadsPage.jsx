@@ -1,7 +1,14 @@
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { Plus, Pencil, Trash2, Search, List, LayoutGrid, Eye, Tag, ArrowLeft, GitBranch, Save, X, SlidersHorizontal, UserRoundCog, RefreshCw, CalendarClock, Download, Phone, Copy, Check, MoreVertical } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import {
+  Plus, Pencil, Trash2, Search, List, LayoutGrid, Eye, Tag, ArrowLeft,
+  GitBranch, Save, X, SlidersHorizontal, UserRoundCog, RefreshCw,
+  CalendarClock, Download, Phone, Copy, Check, MoreVertical,
+  Globe, Mail, Users, Building2, Store, Footprints, Briefcase, Handshake,
+  Flame, TrendingUp, Upload, ChevronDown, UserMinus, Trophy, XCircle
+} from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -14,6 +21,7 @@ import { ConfirmModal } from '../components/ui/ConfirmModal';
 import { Modal } from '../components/ui/Modal';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { LeadFormModal } from '../components/forms/LeadFormModal';
+import { LeadImportModal } from '../components/forms/LeadImportModal';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { KanbanBoard } from '../components/ui/KanbanBoard';
 import { LabelManagerModal } from '../components/labels/LabelManagerModal';
@@ -21,7 +29,17 @@ import { cn } from '../lib/cn';
 import { normalizeSharedLabels } from '../lib/labels';
 import { SlideOver } from '../components/ui/SlideOver';
 import { ProfilePanel } from '../components/panels/ProfilePanel';
-import { DEFAULT_LEAD_OPTIONS } from '../config/leadManagement';
+import { WhatsAppModal } from '../components/common/WhatsAppModal';
+import { exportToCsv } from '../lib/exportCsv';
+import {
+  DEFAULT_LEAD_OPTIONS,
+  DEFAULT_LEAD_STATUS_COLORS,
+  getLeadStatusColor,
+  getLeadSourceColor,
+  getLeadServiceColor,
+  getLeadTemperatureColor,
+  getLeadPriorityColor
+} from '../config/leadManagement';
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -48,11 +66,12 @@ function renderLabelPill(label, color, compact = false) {
   const badgeColor = color || '#2563eb';
   return (
     <span
-      className={`inline-flex items-center rounded-full border font-semibold ${compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
-        }`}
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
       style={{
         backgroundColor: `${badgeColor}14`,
-        borderColor: `${badgeColor}2A`,
+        borderColor: `${badgeColor}2E`,
         color: badgeColor
       }}
     >
@@ -61,8 +80,412 @@ function renderLabelPill(label, color, compact = false) {
   );
 }
 
+function renderStatusPill(status, color, compact = false) {
+  if (!status) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  const badgeColor = color || getLeadStatusColor(status);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
+      style={{
+        backgroundColor: `${badgeColor}14`,
+        borderColor: `${badgeColor}2E`,
+        color: badgeColor
+      }}
+    >
+      {status}
+    </span>
+  );
+}
+
+function InlineStatusCell({ status, leadId, statusColors, statusOptions = [], onStatusChange }) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef(null);
+  const color = getLeadStatusColor(status, statusColors);
+
+  const availableStatuses = statusOptions.length ? statusOptions : Object.keys(DEFAULT_LEAD_STATUS_COLORS);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative inline-flex items-center" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((prev) => !prev);
+        }}
+        className="group inline-flex items-center gap-1 cursor-pointer select-none transition-transform active:scale-95 focus:outline-none"
+        title="Click to quickly change status"
+      >
+        <span
+          className="inline-flex items-center rounded-full border font-semibold whitespace-nowrap px-2.5 py-0.5 text-xs transition-all group-hover:shadow-xs group-hover:brightness-105"
+          style={{
+            backgroundColor: `${color}14`,
+            borderColor: `${color}2E`,
+            color: color
+          }}
+        >
+          {status || 'New'}
+          <ChevronDown size={11} className="ml-1 -mr-0.5 opacity-60 group-hover:opacity-100 transition-opacity" />
+        </span>
+      </button>
+
+      {open && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="animate-in fade-in zoom-in-95 duration-150 absolute top-full left-0 mt-1.5 z-50 min-w-[170px] rounded-2xl bg-white/95 dark:bg-slate-900/95 p-1.5 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xl shadow-black/10 dark:shadow-black/50"
+        >
+          <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            Change Status
+          </div>
+          <div className="max-h-56 overflow-y-auto space-y-0.5 custom-scrollbar">
+            {availableStatuses.map((st) => {
+              const stLabel = typeof st === 'string' ? st : st?.label || st?.value;
+              const stColor = getLeadStatusColor(stLabel, statusColors);
+              const isSelected = stLabel === status;
+              return (
+                <button
+                  key={stLabel}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    if (stLabel !== status) {
+                      onStatusChange(leadId, stLabel);
+                    }
+                  }}
+                  className={cn(
+                    "w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer text-left",
+                    isSelected
+                      ? "bg-slate-100 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  )}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: stColor }} />
+                    <span className="truncate">{stLabel}</span>
+                  </span>
+                  {isSelected && <Check size={13} className="text-emerald-600 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportClick, onLabelsClick, onPipelinesClick }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open]);
+
+  return (
+    <div
+      className="relative inline-flex items-center"
+      ref={menuRef}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={cn(
+          "flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] transition-all hover:bg-[var(--surface-2)] hover:text-[var(--text-main)] cursor-pointer select-none",
+          open && "bg-[var(--surface-2)] text-[var(--text-main)] border-[var(--primary)]/30 ring-2 ring-[var(--primary)]/10"
+        )}
+        title="More actions (Export CSV, Import CSV, Labels, Pipelines)"
+      >
+        <MoreVertical size={16} />
+      </button>
+
+      {open && (
+        <div
+          className="animate-in fade-in zoom-in-95 duration-150 absolute right-0 top-full mt-1.5 z-50 min-w-[190px] rounded-2xl bg-white/95 dark:bg-slate-900/95 p-1.5 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-black/10 dark:shadow-black/50 space-y-0.5"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onExportClick?.();
+            }}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+          >
+            <Download size={14} className="text-emerald-500 shrink-0" />
+            <span>Export to CSV</span>
+          </button>
+
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onImportClick();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+            >
+              <Upload size={14} className="text-blue-500 shrink-0" />
+              <span>Import CSV</span>
+            </button>
+          )}
+
+          {canCreate && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onLabelsClick();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+            >
+              <Tag size={14} className="text-purple-500 shrink-0" />
+              <span>Manage Labels</span>
+            </button>
+          )}
+
+          {canManagePipelines && (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onPipelinesClick();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+            >
+              <GitBranch size={14} className="text-emerald-500 shrink-0" />
+              <span>Manage Pipelines</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GoogleIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+    </svg>
+  );
+}
+
+function FacebookIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+    </svg>
+  );
+}
+
+function InstagramIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+    </svg>
+  );
+}
+
+function LinkedInIcon({ className = "h-4 w-4" }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v7.6H9.2v-7.6H6.46M7.83 6.25c-.9 0-1.63.73-1.63 1.63s.73 1.63 1.63 1.63 1.63-.73 1.63-1.63-.73-1.63-1.63-1.63z"/>
+    </svg>
+  );
+}
+
+function getSourceIcon(source, className = "h-3.5 w-3.5") {
+  const s = String(source || '').toLowerCase().trim();
+  if (s.includes('google')) return <GoogleIcon className={className} />;
+  if (s.includes('facebook') || s.includes('meta')) return <FacebookIcon className={className} />;
+  if (s.includes('instagram') || s.includes('insta')) return <InstagramIcon className={className} />;
+  if (s.includes('linkedin')) return <LinkedInIcon className={className} />;
+  if (s.includes('whatsapp') || s.includes('wa')) return <WhatsAppIcon className={className} />;
+  if (s.includes('web') || s.includes('site') || s.includes('organic')) return <Globe className={className} />;
+  if (s.includes('call') || s.includes('phone')) return <Phone className={className} />;
+  if (s.includes('mail')) return <Mail className={className} />;
+  if (s.includes('refer') || s.includes('employee')) return <Users className={className} />;
+  if (s.includes('client')) return <Building2 className={className} />;
+  if (s.includes('trade') || s.includes('show') || s.includes('expo') || s.includes('event')) return <Store className={className} />;
+  if (s.includes('walk')) return <Footprints className={className} />;
+  if (s.includes('free') || s.includes('upwork') || s.includes('fiverr')) return <Briefcase className={className} />;
+  if (s.includes('partner')) return <Handshake className={className} />;
+  if (s.includes('mart') || s.includes('dial')) return <Store className={className} />;
+  return <Globe className={className} />;
+}
+
+function renderSourceIcon(source) {
+  if (!source) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  const color = getLeadSourceColor(source);
+  return (
+    <div
+      className="inline-flex items-center justify-center h-7 w-7 rounded-full border shadow-2xs transition-all duration-150 hover:scale-110 cursor-help"
+      style={{
+        backgroundColor: `${color}14`,
+        borderColor: `${color}2E`,
+        color: color
+      }}
+      title={`Source: ${source}`}
+    >
+      {getSourceIcon(source, "h-3.5 w-3.5")}
+    </div>
+  );
+}
+
+function renderSourcePill(source, color, compact = false) {
+  if (!source) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  const badgeColor = color || getLeadSourceColor(source);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
+      style={{
+        backgroundColor: `${badgeColor}14`,
+        borderColor: `${badgeColor}2E`,
+        color: badgeColor
+      }}
+    >
+      {source}
+    </span>
+  );
+}
+
+function renderServicePill(service, color, compact = false) {
+  if (!service) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  const badgeColor = color || getLeadServiceColor(service);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
+      style={{
+        backgroundColor: `${badgeColor}14`,
+        borderColor: `${badgeColor}2E`,
+        color: badgeColor
+      }}
+    >
+      {service}
+    </span>
+  );
+}
+
+function ServicesCell({ services = [] }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [coords, setCoords] = useState(null);
+  const cellRef = useRef(null);
+  const normalized = Array.isArray(services)
+    ? services.map((s) => (typeof s === 'string' ? s : s?.label || s?.value || '')).filter(Boolean)
+    : [];
+
+  if (!normalized.length) {
+    return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  }
+
+  const firstService = normalized[0];
+  const remainingCount = normalized.length - 1;
+  const allServicesTooltip = normalized.join(', ');
+
+  const handleMouseEnter = () => {
+    if (cellRef.current) {
+      const rect = cellRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUpwards = spaceBelow < 180;
+      setCoords({
+        top: openUpwards ? undefined : rect.bottom + 6,
+        bottom: openUpwards ? window.innerHeight - rect.top + 6 : undefined,
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - 330)),
+        openUpwards
+      });
+      setShowTooltip(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false);
+  };
+
+  return (
+    <div
+      ref={cellRef}
+      className="relative inline-flex items-center gap-1.5"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      title={allServicesTooltip}
+    >
+      {/* 1st Visible Service Pill */}
+      <span className="max-w-[140px] truncate">
+        {renderServicePill(firstService, getLeadServiceColor(firstService))}
+      </span>
+
+      {/* +N Remaining Counter Badge */}
+      {remainingCount > 0 && (
+        <span className="inline-flex items-center justify-center rounded-full border border-black/10 dark:border-white/15 bg-black/5 dark:bg-white/10 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 dark:text-slate-300 backdrop-blur-md cursor-pointer hover:bg-black/10 dark:hover:bg-white/20 transition-all select-none">
+          +{remainingCount}
+        </span>
+      )}
+
+      {/* Floating Glass Tooltip via Portal (Escapes table overflow and always on topmost z-index) */}
+      {remainingCount > 0 && showTooltip && coords && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed z-[999999] p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl shadow-black/25 dark:shadow-black/70 min-w-[200px] max-w-[320px] flex flex-wrap gap-1.5 items-center pointer-events-none animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            top: coords.top !== undefined ? `${coords.top}px` : undefined,
+            bottom: coords.bottom !== undefined ? `${coords.bottom}px` : undefined,
+            left: `${coords.left}px`
+          }}
+        >
+          <div className="w-full text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
+            Required Services ({normalized.length})
+          </div>
+          {normalized.map((service, idx) => (
+            <span key={`${service}-${idx}`}>
+              {renderServicePill(service, getLeadServiceColor(service))}
+            </span>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
 function LabelsCell({ labels = [], labelColors = {} }) {
   const [showTooltip, setShowTooltip] = useState(false);
+  const [coords, setCoords] = useState(null);
+  const cellRef = useRef(null);
   const normalized = Array.isArray(labels)
     ? labels.map((l) => (typeof l === 'string' ? l : l?.label || l?.value || '')).filter(Boolean)
     : [];
@@ -75,11 +498,31 @@ function LabelsCell({ labels = [], labelColors = {} }) {
   const remainingCount = normalized.length - 1;
   const allLabelsTooltip = normalized.join(', ');
 
+  const handleMouseEnter = () => {
+    if (cellRef.current) {
+      const rect = cellRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUpwards = spaceBelow < 180;
+      setCoords({
+        top: openUpwards ? undefined : rect.bottom + 6,
+        bottom: openUpwards ? window.innerHeight - rect.top + 6 : undefined,
+        left: Math.max(12, Math.min(rect.left, window.innerWidth - 330)),
+        openUpwards
+      });
+      setShowTooltip(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false);
+  };
+
   return (
     <div
+      ref={cellRef}
       className="relative inline-flex items-center gap-1.5"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
       title={allLabelsTooltip}
     >
       {/* 1st Visible Label */}
@@ -94,10 +537,17 @@ function LabelsCell({ labels = [], labelColors = {} }) {
         </span>
       )}
 
-      {/* Floating VisionOS Glass Tooltip only on this cell hover */}
-      {remainingCount > 0 && showTooltip && (
-        <div className="animate-in fade-in zoom-in-95 duration-150 origin-bottom-left absolute bottom-full left-0 mb-2 z-50 p-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-2xl border border-white/80 dark:border-white/15 shadow-2xl shadow-black/10 dark:shadow-black/40 min-w-[180px] max-w-[300px] flex flex-wrap gap-1.5 items-center pointer-events-auto">
-          <div className="w-full text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
+      {/* Floating Glass Tooltip via Portal */}
+      {remainingCount > 0 && showTooltip && coords && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed z-[999999] p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl shadow-black/25 dark:shadow-black/70 min-w-[200px] max-w-[320px] flex flex-wrap gap-1.5 items-center pointer-events-none animate-in fade-in zoom-in-95 duration-150"
+          style={{
+            top: coords.top !== undefined ? `${coords.top}px` : undefined,
+            bottom: coords.bottom !== undefined ? `${coords.bottom}px` : undefined,
+            left: `${coords.left}px`
+          }}
+        >
+          <div className="w-full text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">
             All Labels ({normalized.length})
           </div>
           {normalized.map((label, idx) => (
@@ -105,9 +555,8 @@ function LabelsCell({ labels = [], labelColors = {} }) {
               {renderLabelPill(label, labelColors[label])}
             </span>
           ))}
-          {/* Tooltip pointer triangle */}
-          <div className="absolute top-full left-4 -mt-[1px] border-4 border-transparent border-t-white/95 dark:border-t-slate-900/95" />
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -162,18 +611,17 @@ function RowActionsDropdown({ row, navigate, canCreate, canDelete, setEditingDat
 
       {open && (
         <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-[var(--surface)] p-1.5 shadow-modal border border-[var(--border)] z-50 text-left animate-in fade-in zoom-in-95 duration-100">
-          <button
-            type="button"
+          <Link
+            to={`/app/leads/${row.id}`}
             onClick={(e) => {
               e.stopPropagation();
               setOpen(false);
-              navigate(`/app/leads/${row.id}`);
             }}
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
           >
             <Eye className="h-3.5 w-3.5 text-[var(--text-muted)]" />
             View
-          </button>
+          </Link>
 
           {canCreate && (
             <button
@@ -354,7 +802,7 @@ const EMPTY_BULK_FORM = {
   followUpPriority: 'Medium'
 };
 
-function BulkLeadActionModal({ open, action, count, users, statuses, options, busy, onClose, onSubmit }) {
+function BulkLeadActionModal({ open, action, count, users, statuses, options, busy, onClose, onSubmit, statusColors = {} }) {
   const [form, setForm] = useState(EMPTY_BULK_FORM);
 
   useEffect(() => {
@@ -407,7 +855,11 @@ function BulkLeadActionModal({ open, action, count, users, statuses, options, bu
               <SearchableSelect
                 value={form.status}
                 onChange={(value) => setForm((current) => ({ ...current, status: value, lostReason: '', lostReasonNotes: '', reconnectInFuture: false, reconnectDate: '' }))}
-                options={statuses.map((status) => ({ value: status, label: status }))}
+                options={statuses.map((status) => ({
+                  value: status,
+                  label: status,
+                  color: getLeadStatusColor(status, statusColors)
+                }))}
                 placeholder="Select status"
               />
             </label>
@@ -665,6 +1117,8 @@ export function LeadsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [reloadTick, setReloadTick] = useState(0);
+  const [activeTab, setActiveTab] = useState('all');
+  const [importOpen, setImportOpen] = useState(false);
 
   const [allStatuses, setAllStatuses] = useState([]);
   const [leadOptions, setLeadOptions] = useState(DEFAULT_LEAD_OPTIONS);
@@ -678,6 +1132,32 @@ export function LeadsPage() {
   const [panelType, setPanelType] = useState(null);
   const [panelLeadData, setPanelLeadData] = useState(null);
   const [copiedPhoneId, setCopiedPhoneId] = useState(null);
+  const [whatsAppData, setWhatsAppData] = useState(null);
+
+  const handleExportCsv = () => {
+    if (!filteredRows || filteredRows.length === 0) {
+      toast.error('No leads available to export');
+      return;
+    }
+    const cols = [
+      { label: 'Lead ID', key: 'leadNumber' },
+      { label: 'Contact Person', key: 'contactPerson' },
+      { label: 'Company Name', key: 'companyName' },
+      { label: 'Phone', key: 'phone' },
+      { label: 'Email', key: 'email' },
+      { label: 'Status', key: 'status' },
+      { label: 'Source', key: 'source' },
+      { label: 'Priority', key: 'priority' },
+      { label: 'Temperature', key: 'leadTemperature' },
+      { label: 'Required Services', accessor: (row) => Array.isArray(row.requiredServices) ? row.requiredServices.join(', ') : (row.requiredServices || '') },
+      { label: 'Estimated Budget (INR)', key: 'estimatedBudget' },
+      { label: 'Follow-up Date', key: 'followUpDate' },
+      { label: 'Assigned User', accessor: (row) => users?.find((u) => u.id === row.assignedTo)?.fullName || row.assignedTo || '' },
+      { label: 'Created Date', accessor: (row) => row.createdAt ? new Date(row.createdAt).toLocaleDateString('en-IN') : '' }
+    ];
+    exportToCsv('leads_export', cols, filteredRows);
+    toast.success(`Exported ${filteredRows.length} leads to CSV`);
+  };
 
   const canCreate = hasPermission('leads.manage') || hasPermission('leads.write');
   const canDelete = hasPermission('leads.manage') || hasPermission('leads.delete');
@@ -687,6 +1167,42 @@ export function LeadsPage() {
   const canBulkExport = hasPermission('leads.manage') || hasPermission('leads.export');
   const canSelectLeads = canBulkAssign || canBulkStatus || canBulkFollowUp || canBulkExport;
   const canManagePipelines = hasPermission('users.manage');
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
+  const stats = useMemo(() => {
+    let total = rows.length;
+    let hot = 0;
+    let followUpsDue = 0;
+    let unassigned = 0;
+    let won = 0;
+    let lost = 0;
+    let totalPipelineValue = 0;
+
+    rows.forEach((r) => {
+      if (r.leadTemperature === 'Hot' || r.temperature === 'Hot') hot++;
+      if (r.followUpDate && r.followUpDate <= todayStr && !['Won', 'Lost', 'Not Interested'].includes(r.status)) {
+        followUpsDue++;
+      }
+      if (!r.assignedTo) unassigned++;
+      if (r.status === 'Won') won++;
+      if (['Lost', 'Not Interested'].includes(r.status)) lost++;
+      if (!['Lost', 'Not Interested', 'Invalid Lead', 'Duplicate'].includes(r.status)) {
+        const val = Number(r.estimatedBudget ?? r.value ?? 0);
+        if (!isNaN(val)) totalPipelineValue += val;
+      }
+    });
+
+    return {
+      total,
+      hot,
+      followUpsDue,
+      unassigned,
+      won,
+      lost,
+      totalPipelineValue
+    };
+  }, [rows, todayStr]);
 
   const bulkStatuses = useMemo(() => Array.from(new Set([
     ...(allStatuses || []).map((item) => typeof item === 'string' ? item : item?.label || item?.value || ''),
@@ -714,12 +1230,35 @@ export function LeadsPage() {
   const userNameById = useMemo(() => new Map(users.map((user) => [String(user.id), user.fullName || user.username || user.email || user.id])), [users]);
   const pipelineById = useMemo(() => new Map(pipelines.map((pipeline) => [String(pipeline.id), pipeline])), [pipelines]);
 
+  async function handleStatusChange(leadId, newStatus) {
+    const leadToUpdate = rows.find(r => r.id === leadId);
+    if (!leadToUpdate || leadToUpdate.status === newStatus) return;
+
+    setRows(curr => curr.map(r => r.id === leadId ? { ...r, status: newStatus } : r));
+
+    try {
+      await api.resources.update('/leads', leadId, { status: newStatus }, token);
+      toast.success(`Status updated to "${newStatus}"`);
+    } catch (error) {
+      setRows(curr => curr.map(r => r.id === leadId ? { ...r, status: leadToUpdate.status } : r));
+      toast.error(error.message || 'Failed to update status');
+    }
+  }
+
   const columns = useMemo(() => [
     {
       key: 'name', label: 'Lead', render: (row) => (
         <div className="min-w-36">
-          <div className="font-medium text-[var(--text-main)]">{row.contactPerson || row.name}</div>
-          {row.companyName && row.companyName !== row.contactPerson ? <div className="mt-0.5 text-xs text-slate-500">{row.companyName}</div> : null}
+          <Link
+            to={`/app/leads/${row.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="font-medium text-[var(--text-main)] hover:text-[var(--primary)] hover:underline transition-colors block"
+          >
+            {row.contactPerson || row.name}
+          </Link>
+          {row.companyName && row.companyName !== row.contactPerson ? (
+            <div className="mt-0.5 text-xs text-[var(--text-muted)]">{row.companyName}</div>
+          ) : null}
         </div>
       )
     },
@@ -730,12 +1269,12 @@ export function LeadsPage() {
         const rawPhone = primaryContact?.phone || row.phone || '';
         const phone = formatPhoneDisplay(rawPhone);
         const dpTooltip = contactName ? (phone && phone !== '-' ? `${contactName} (${phone})` : contactName) : (phone && phone !== '-' ? phone : 'Primary contact');
-        const phoneTooltip = phone && phone !== '-' ? phone : 'No phone number';
         const cleanDigits = String(rawPhone || '').replace(/\D/g, '');
+        const hasPhone = Boolean(rawPhone && rawPhone !== '-');
 
         const handleCopy = (e) => {
           e.stopPropagation();
-          if (!rawPhone || rawPhone === '-') {
+          if (!hasPhone) {
             toast.error('No phone number available');
             return;
           }
@@ -747,11 +1286,11 @@ export function LeadsPage() {
         };
 
         return (
-          <div className="flex items-center gap-1.5">
-            {/* Primary contact DP */}
+          <div className="flex items-center gap-2">
+            {/* Primary Contact Avatar */}
             <div
-              className="cursor-pointer group relative"
-              title={dpTooltip}
+              className="cursor-pointer group relative shrink-0"
+              title={`${dpTooltip} • Click to view profile`}
               onClick={(e) => {
                 e.stopPropagation();
                 if (primaryContact) {
@@ -761,92 +1300,105 @@ export function LeadsPage() {
                 }
               }}
             >
-              <UserAvatar name={contactName || 'Lead'} className="h-8 w-8 transition-transform group-hover:scale-105" fallbackSize={14} />
+              <UserAvatar
+                name={contactName || 'Lead'}
+                className="h-8 w-8 ring-2 ring-slate-100 dark:ring-slate-800 shadow-2xs transition-all duration-200 group-hover:scale-105 group-hover:ring-[var(--primary)]/30"
+                fallbackSize={14}
+              />
             </div>
 
-            {/* Call Icon */}
-            {rawPhone && rawPhone !== '-' ? (
-              <a
-                href={`tel:${rawPhone}`}
-                onClick={(e) => e.stopPropagation()}
-                title={phoneTooltip}
-                className="inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-              >
-                <Phone className="h-3.5 w-3.5" />
-              </a>
-            ) : (
-              <span title={phoneTooltip} className="inline-flex items-center justify-center h-7 w-7 text-slate-300 cursor-not-allowed">
-                <Phone className="h-3.5 w-3.5" />
-              </span>
-            )}
-
-            {/* WhatsApp Icon */}
-            {cleanDigits ? (
-              <a
-                href={`https://wa.me/${cleanDigits}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                title={phoneTooltip}
-                className="inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-              >
-                <WhatsAppIcon className="h-3.5 w-3.5" />
-              </a>
-            ) : (
-              <span title={phoneTooltip} className="inline-flex items-center justify-center h-7 w-7 text-slate-300 cursor-not-allowed">
-                <WhatsAppIcon className="h-3.5 w-3.5" />
-              </span>
-            )}
-
-            {/* Copy Number Icon */}
-            <button
-              type="button"
-              onClick={handleCopy}
-              title={phoneTooltip}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-md text-slate-400 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-            >
-              {copiedPhoneId === row.id ? (
-                <Check className="h-3.5 w-3.5 text-emerald-600" />
+            {/* Encapsulated Action Pill */}
+            <div className="flex items-center bg-slate-50 dark:bg-slate-800/70 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700/70 shadow-2xs gap-0.5">
+              {/* Call Action */}
+              {hasPhone ? (
+                <a
+                  href={`tel:${rawPhone}`}
+                  onClick={(e) => e.stopPropagation()}
+                  title={`Call: ${phone}`}
+                  className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-500/10 active:scale-95 transition-all"
+                >
+                  <Phone size={13} />
+                </a>
               ) : (
-                <Copy className="h-3.5 w-3.5" />
+                <span title="No phone number" className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-300 dark:text-slate-600 cursor-not-allowed">
+                  <Phone size={13} />
+                </span>
               )}
-            </button>
+
+              {/* WhatsApp Action */}
+              {cleanDigits ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setWhatsAppData({
+                      leadId: row.id,
+                      name: contactName,
+                      companyName: row.companyName,
+                      phone: rawPhone,
+                      services: row.requiredServices,
+                      amount: row.estimatedBudget || row.value
+                    });
+                  }}
+                  title={`WhatsApp Outreach: ${phone}`}
+                  className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-500/10 active:scale-95 transition-all cursor-pointer"
+                >
+                  <WhatsAppIcon className="h-3.5 w-3.5" />
+                </button>
+              ) : (
+                <span title="No phone number" className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-300 dark:text-slate-600 cursor-not-allowed">
+                  <WhatsAppIcon className="h-3.5 w-3.5" />
+                </span>
+              )}
+
+              {/* Copy Number Action */}
+              <button
+                type="button"
+                onClick={handleCopy}
+                title={hasPhone ? (copiedPhoneId === row.id ? 'Copied!' : `Copy: ${phone}`) : 'No phone number'}
+                disabled={!hasPhone}
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded-lg transition-all cursor-pointer",
+                  copiedPhoneId === row.id
+                    ? "text-emerald-600 bg-emerald-500/15 font-bold scale-105"
+                    : hasPhone
+                      ? "text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 active:scale-95"
+                      : "text-slate-300 dark:text-slate-600 cursor-not-allowed"
+                )}
+              >
+                {copiedPhoneId === row.id ? (
+                  <Check size={13} className="text-emerald-600" />
+                ) : (
+                  <Copy size={13} />
+                )}
+              </button>
+            </div>
           </div>
         );
       }
     },
     {
-      key: 'requiredServices', label: 'Service', render: (row) => {
-        const services = normalizeLabels(row.requiredServices);
-        if (!services.length) return <span className="text-sm text-[var(--text-muted)]">-</span>;
-        const allServicesText = services.join(', ');
-        return (
-          <div className="flex items-center gap-1.5 cursor-help" title={allServicesText}>
-            <span className="max-w-36 truncate text-sm font-medium text-slate-700">{services[0]}</span>
-            {services.length > 1 && (
-              <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
-                +{services.length - 1}
-              </span>
-            )}
-          </div>
-        );
-      }
+      key: 'requiredServices', label: 'Service', render: (row) => (
+        <ServicesCell services={row.requiredServices} />
+      )
     },
     {
-      key: 'estimatedBudget', label: 'Budget', render: (row) => <span className="whitespace-nowrap text-sm font-medium text-slate-700">{formatLeadAmount(row.estimatedBudget ?? row.value, row.currency)}</span>
+      key: 'estimatedBudget', label: 'Budget', render: (row) => (
+        <span className="whitespace-nowrap text-xs font-medium text-slate-600 dark:text-slate-300">
+          {formatLeadAmount(row.estimatedBudget ?? row.value, row.currency)}
+        </span>
+      )
     },
     {
-      key: 'status', label: 'Status', render: (row) => {
-        const color = statusColors[row.status] || '#64748b'; // default slate
-        return (
-          <span
-            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border"
-            style={{ backgroundColor: `${color}1A`, color: color, borderColor: `${color}33` }}
-          >
-            {row.status}
-          </span>
-        );
-      }
+      key: 'status', label: 'Status', render: (row) => (
+        <InlineStatusCell
+          status={row.status}
+          leadId={row.id}
+          statusColors={statusColors}
+          statusOptions={leadOptions.statuses}
+          onStatusChange={handleStatusChange}
+        />
+      )
     },
     {
       key: 'followUpDate', label: 'Follow-up', render: (row) => {
@@ -856,7 +1408,10 @@ export function LeadsPage() {
         return (
           <span
             title={fullText}
-            className={`whitespace-nowrap text-xs font-medium cursor-help ${overdue ? 'text-rose-500 font-semibold' : 'text-slate-500'}`}
+            className={cn(
+              "whitespace-nowrap text-xs font-medium cursor-help",
+              overdue ? "text-rose-500 font-bold" : "text-[var(--text-muted)]"
+            )}
           >
             {shortText}
           </span>
@@ -868,17 +1423,20 @@ export function LeadsPage() {
         <LabelsCell labels={row.labels} labelColors={labelColors} />
       )
     },
-    { key: 'source', label: 'Source', render: (row) => <span className="text-sm text-slate-600">{row.source || '-'}</span> },
+    {
+      key: 'source', label: 'Source', render: (row) => (
+        renderSourceIcon(row.source)
+      )
+    },
     {
       key: 'pipelineId', label: 'Pipeline', render: (row) => {
         const pipeline = pipelineById.get(String(row.pipelineId));
         const color = pipeline?.color || '#64748b';
         return (
           <span
-            className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap"
-            style={{ backgroundColor: `${color}14`, borderColor: `${color}30`, color }}
+            className="inline-flex items-center rounded-full border font-semibold px-2.5 py-0.5 text-xs whitespace-nowrap"
+            style={{ backgroundColor: `${color}14`, borderColor: `${color}2E`, color }}
           >
-            <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
             {pipeline?.name || 'Default Pipeline'}
           </span>
         );
@@ -889,13 +1447,13 @@ export function LeadsPage() {
         if (!row.createdAt) return <span className="text-sm text-[var(--text-muted)]">-</span>;
         const { shortText, fullText } = formatCreatedAtDisplay(row.createdAt);
         return (
-          <span className="text-xs text-slate-500 font-medium whitespace-nowrap cursor-help" title={fullText}>
+          <span className="text-xs text-[var(--text-muted)] font-medium whitespace-nowrap cursor-help" title={fullText}>
             {shortText}
           </span>
         );
       }
     }
-  ], [labelColors, statusColors, primaryContactsByLeadId, userNameById, pipelineById, copiedPhoneId]);
+  ], [labelColors, statusColors, leadOptions.statuses, primaryContactsByLeadId, userNameById, pipelineById, copiedPhoneId, rows]);
 
   useEffect(() => {
     let active = true;
@@ -977,6 +1535,21 @@ export function LeadsPage() {
   const sortedRows = useMemo(() => {
     let filtered = [...rows];
 
+    // Quick Tab Preset Filters
+    if (activeTab === 'followups') {
+      filtered = filtered.filter(
+        (r) => r.followUpDate && r.followUpDate <= todayStr && !['Won', 'Lost', 'Not Interested'].includes(r.status)
+      );
+    } else if (activeTab === 'hot') {
+      filtered = filtered.filter((r) => r.leadTemperature === 'Hot' || r.temperature === 'Hot');
+    } else if (activeTab === 'unassigned') {
+      filtered = filtered.filter((r) => !r.assignedTo);
+    } else if (activeTab === 'won') {
+      filtered = filtered.filter((r) => r.status === 'Won');
+    } else if (activeTab === 'lost') {
+      filtered = filtered.filter((r) => ['Lost', 'Not Interested'].includes(r.status));
+    }
+
     if (statusFilter) {
       filtered = filtered.filter(r => r.status === statusFilter);
     }
@@ -999,7 +1572,7 @@ export function LeadsPage() {
       const bNum = Number(bVal ?? 0);
       return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
     });
-  }, [rows, sortKey, sortDirection, statusFilter, pipelineFilter, dateFilter]);
+  }, [rows, activeTab, todayStr, sortKey, sortDirection, statusFilter, pipelineFilter, dateFilter]);
 
   const kanbanLeads = useMemo(() => sortedRows.map((row) => {
     const primaryContact = primaryContactsByLeadId.get(String(row.id));
@@ -1012,23 +1585,7 @@ export function LeadsPage() {
     };
   }), [sortedRows, primaryContactsByLeadId]);
 
-  async function handleStatusChange(leadId, newStatus) {
-    const leadToUpdate = rows.find(r => r.id === leadId);
-    if (!leadToUpdate || leadToUpdate.status === newStatus) return;
-
-    setRows(curr => curr.map(r => r.id === leadId ? { ...r, status: newStatus } : r));
-
-    try {
-      await api.resources.update('/leads', leadId, { status: newStatus }, token);
-      toast.success('Lead status updated');
-    } catch (error) {
-      setRows(curr => curr.map(r => r.id === leadId ? { ...r, status: leadToUpdate.status } : r));
-      toast.error(error.message || 'Failed to update status');
-    }
-  }
-
   async function confirmDelete() {
-    if (!deleteTarget) return;
     setDeleting(true);
     try {
       await api.resources.remove('/leads', deleteTarget.id, token);
@@ -1110,6 +1667,7 @@ export function LeadsPage() {
     toast.success(`${selected.length} leads exported`);
   }
 
+
   if (panelData) {
     return (
       <div className="flex flex-col h-[calc(100vh-8rem)] animate-in fade-in duration-200">
@@ -1127,7 +1685,7 @@ export function LeadsPage() {
             {panelType === 'owner' ? 'Owner Profile' : 'Contact Profile'}
           </span>
         </div>
-        <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+        <div className="flex-1 bg-[var(--surface)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden flex flex-col">
           <ProfilePanel
             data={panelData}
             type={panelType}
@@ -1141,71 +1699,232 @@ export function LeadsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">Leads</h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">{rows.length} total leads</p>
+    <div className="space-y-4">
+      {/* 1 Single Top Header Row: 6 KPI Cards on Left + Action Icons on Right */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        {/* 6 Compact KPI Cards */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:flex xl:items-center xl:gap-2 overflow-x-auto">
+          {/* Total Leads */}
+          <div
+            onClick={() => { setActiveTab('all'); setPage(1); }}
+            className={cn(
+              "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
+              activeTab === 'all'
+                ? "border-[var(--primary)]/40 ring-2 ring-[var(--primary)]/15 bg-[var(--primary)]/5"
+                : "border-[var(--border)] hover:border-slate-300 dark:hover:border-slate-700"
+            )}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0">
+              <Users size={15} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Total Leads</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black tracking-tight text-[var(--text-main)]">{stats.total}</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">records</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Hot Leads */}
+          <div
+            onClick={() => { setActiveTab('hot'); setPage(1); }}
+            className={cn(
+              "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
+              activeTab === 'hot'
+                ? "border-rose-500/40 ring-2 ring-rose-500/15 bg-rose-500/5"
+                : "border-[var(--border)] hover:border-rose-200 dark:hover:border-rose-900/50"
+            )}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform shrink-0">
+              <Flame size={15} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Hot Leads</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black tracking-tight text-rose-600 dark:text-rose-400">{stats.hot}</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">priority</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Due Follow-ups */}
+          <div
+            onClick={() => { setActiveTab('followups'); setPage(1); }}
+            className={cn(
+              "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
+              activeTab === 'followups'
+                ? "border-amber-500/40 ring-2 ring-amber-500/15 bg-amber-500/5"
+                : "border-[var(--border)] hover:border-amber-200 dark:hover:border-amber-900/50"
+            )}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform shrink-0">
+              <CalendarClock size={15} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Due Follow-ups</div>
+              <div className="flex items-baseline gap-1">
+                <span className={cn("text-base font-black tracking-tight", stats.followUpsDue > 0 ? "text-amber-600 dark:text-amber-400" : "text-[var(--text-main)]")}>
+                  {stats.followUpsDue}
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">due</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Unassigned */}
+          <div
+            onClick={() => { setActiveTab('unassigned'); setPage(1); }}
+            className={cn(
+              "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
+              activeTab === 'unassigned'
+                ? "border-violet-500/40 ring-2 ring-violet-500/15 bg-violet-500/5"
+                : "border-[var(--border)] hover:border-violet-200 dark:hover:border-violet-900/50"
+            )}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 group-hover:scale-110 transition-transform shrink-0">
+              <UserMinus size={15} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Unassigned</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black tracking-tight text-violet-600 dark:text-violet-400">{stats.unassigned}</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">leads</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Won / Converted */}
+          <div
+            onClick={() => { setActiveTab('won'); setPage(1); }}
+            className={cn(
+              "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
+              activeTab === 'won'
+                ? "border-emerald-500/40 ring-2 ring-emerald-500/15 bg-emerald-500/5"
+                : "border-[var(--border)] hover:border-emerald-200 dark:hover:border-emerald-900/50"
+            )}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
+              <Trophy size={15} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Won / Converted</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black tracking-tight text-emerald-600 dark:text-emerald-400">{stats.won}</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">closed</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Lost Leads */}
+          <div
+            onClick={() => { setActiveTab('lost'); setPage(1); }}
+            className={cn(
+              "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
+              activeTab === 'lost'
+                ? "border-rose-500/40 ring-2 ring-rose-500/15 bg-rose-500/5"
+                : "border-[var(--border)] hover:border-rose-200 dark:hover:border-rose-900/50"
+            )}
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform shrink-0">
+              <XCircle size={15} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Lost Leads</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black tracking-tight text-rose-600 dark:text-rose-400">{stats.lost}</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">dropped</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Pipeline Value */}
+          <div
+            onClick={() => { setActiveTab('all'); setPage(1); }}
+            className="group relative flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer select-none shrink-0"
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
+              <TrendingUp size={15} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Pipeline Value</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-base font-black tracking-tight text-emerald-600 dark:text-emerald-400 truncate">
+                  {formatLeadAmount(stats.totalPipelineValue, 'INR')}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+
+        {/* Action Icon Buttons on Right in Same Row */}
+        <div className="flex items-center gap-2 shrink-0 self-end lg:self-center">
           <Button
             type="button"
             variant={filtersOpen || activeFiltersCount > 0 ? "secondary" : "outline"}
+            size="icon"
             onClick={() => setFiltersOpen((value) => !value)}
-            title="Lead filters"
-            className={cn("!rounded-xl font-semibold relative", (filtersOpen || activeFiltersCount > 0) && "text-[var(--primary)] border-[var(--primary)]/30")}
+            title={activeFiltersCount > 0 ? `Filters (${activeFiltersCount} active)` : "Filters"}
+            className={cn(
+              "!rounded-xl h-9 w-9 relative",
+              (filtersOpen || activeFiltersCount > 0) && "text-[var(--primary)] border-[var(--primary)]/30 ring-2 ring-[var(--primary)]/10"
+            )}
           >
-            <SlidersHorizontal size={15} className="mr-1.5" />
-            Filters
+            <SlidersHorizontal size={15} />
             {activeFiltersCount > 0 && (
-              <span className="ml-1.5 rounded-full bg-[var(--primary)] text-white px-1.5 py-0.2 text-[10px] font-extrabold leading-none">
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--primary)] text-white text-[9px] font-black leading-none ring-2 ring-white dark:ring-slate-900">
                 {activeFiltersCount}
               </span>
             )}
           </Button>
 
-          <div className="flex bg-[var(--surface-2)] p-1 border border-[var(--border)] h-10 rounded-xl">
+          <div className="flex bg-[var(--surface-2)] p-0.5 border border-[var(--border)] h-9 rounded-xl items-center">
             <button
               type="button"
               onClick={() => setViewType('table')}
               className={cn(
-                'h-full px-3 transition-all flex items-center justify-center rounded-lg cursor-pointer',
+                'h-8 px-2.5 transition-all flex items-center justify-center rounded-lg cursor-pointer',
                 viewType === 'table'
                   ? 'bg-[var(--surface)] text-[var(--primary)] font-bold shadow-2xs'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
               )}
               title="Table view"
             >
-              <List size={16} />
+              <List size={15} />
             </button>
             <button
               type="button"
               onClick={() => setViewType('kanban')}
               className={cn(
-                'h-full px-3 transition-all flex items-center justify-center rounded-lg cursor-pointer',
+                'h-8 px-2.5 transition-all flex items-center justify-center rounded-lg cursor-pointer',
                 viewType === 'kanban'
                   ? 'bg-[var(--surface)] text-[var(--primary)] font-bold shadow-2xs'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
               )}
               title="Kanban view"
             >
-              <LayoutGrid size={16} />
+              <LayoutGrid size={15} />
             </button>
           </div>
 
+          <LeadsMoreMenu
+            canCreate={canCreate}
+            canManagePipelines={canManagePipelines}
+            onExportClick={handleExportCsv}
+            onImportClick={() => setImportOpen(true)}
+            onLabelsClick={() => setLabelsOpen(true)}
+            onPipelinesClick={() => setPipelinesOpen(true)}
+          />
+
           {canCreate && (
-            <Button type="button" variant="outline" onClick={() => setLabelsOpen(true)} className="!rounded-xl font-semibold">
-              <Tag size={15} className="mr-1.5" /> Manage labels
-            </Button>
-          )}
-          {canManagePipelines && (
-            <Button type="button" variant="outline" onClick={() => setPipelinesOpen(true)} className="!rounded-xl font-semibold">
-              <GitBranch size={15} className="mr-1.5" /> Pipelines
-            </Button>
-          )}
-          {canCreate && (
-            <Button type="button" onClick={() => { setEditingData(null); setFormOpen(true); }} className="!rounded-xl font-semibold shadow-2xs">
-              <Plus size={15} className="mr-1.5" /> New Lead
+            <Button
+              type="button"
+              size="icon"
+              onClick={() => { setEditingData(null); setFormOpen(true); }}
+              title="New Lead"
+              className="!rounded-xl h-9 w-9 font-semibold shadow-2xs bg-[var(--primary)] text-white hover:brightness-105 transition-all shrink-0"
+            >
+              <Plus size={18} />
             </Button>
           )}
         </div>
@@ -1249,7 +1968,14 @@ export function LeadsPage() {
               <SearchableSelect
                 value={sourceFilter}
                 onChange={(value) => { setSourceFilter(value); setPage(1); }}
-                options={[{ value: '', label: 'All sources' }, ...(leadOptions.sources || []).map((item) => ({ value: item, label: item }))]}
+                options={[
+                  { value: '', label: 'All sources' },
+                  ...(leadOptions.sources || []).map((item) => ({
+                    value: item,
+                    label: item,
+                    color: getLeadSourceColor(item)
+                  }))
+                ]}
                 placeholder="All sources"
               />
             </div>
@@ -1258,7 +1984,14 @@ export function LeadsPage() {
               <SearchableSelect
                 value={serviceFilter}
                 onChange={(value) => { setServiceFilter(value); setPage(1); }}
-                options={[{ value: '', label: 'All services' }, ...(leadOptions.services || []).map((item) => ({ value: item, label: item }))]}
+                options={[
+                  { value: '', label: 'All services' },
+                  ...(leadOptions.services || []).map((item) => ({
+                    value: item,
+                    label: item,
+                    color: getLeadServiceColor(item)
+                  }))
+                ]}
                 placeholder="All services"
               />
             </div>
@@ -1267,7 +2000,14 @@ export function LeadsPage() {
               <SearchableSelect
                 value={temperatureFilter}
                 onChange={(value) => { setTemperatureFilter(value); setPage(1); }}
-                options={[{ value: '', label: 'All temperatures' }, ...(leadOptions.temperatures || []).map((item) => ({ value: item, label: item }))]}
+                options={[
+                  { value: '', label: 'All temperatures' },
+                  ...(leadOptions.temperatures || []).map((item) => ({
+                    value: item,
+                    label: item,
+                    color: getLeadTemperatureColor(item)
+                  }))
+                ]}
                 placeholder="All temperatures"
               />
             </div>
@@ -1276,7 +2016,14 @@ export function LeadsPage() {
               <SearchableSelect
                 value={priorityFilter}
                 onChange={(value) => { setPriorityFilter(value); setPage(1); }}
-                options={[{ value: '', label: 'All priorities' }, ...(leadOptions.priorities || []).map((item) => ({ value: item, label: item }))]}
+                options={[
+                  { value: '', label: 'All priorities' },
+                  ...(leadOptions.priorities || []).map((item) => ({
+                    value: item,
+                    label: item,
+                    color: getLeadPriorityColor(item)
+                  }))
+                ]}
                 placeholder="All priorities"
               />
             </div>
@@ -1358,7 +2105,11 @@ export function LeadsPage() {
                   onChange={val => { setStatusFilter(val); setPage(1); }}
                   options={[
                     { label: 'All Statuses', value: '' },
-                    ...Array.from(new Set(rows.map(r => r.status))).filter(Boolean).map(s => ({ label: s, value: s }))
+                    ...Array.from(new Set(rows.map(r => r.status))).filter(Boolean).map(s => ({
+                      label: s,
+                      value: s,
+                      color: getLeadStatusColor(s, statusColors)
+                    }))
                   ]}
                   placeholder="All Statuses"
                 />
@@ -1395,7 +2146,13 @@ export function LeadsPage() {
         <div className="pt-2">
           <KanbanBoard
             leads={kanbanLeads}
-            statuses={allStatuses.length > 0 ? allStatuses : Array.from(new Set(rows.map(r => r.status))).filter(Boolean).map(s => ({ label: s }))}
+            statuses={allStatuses.length > 0 ? allStatuses.map(s => ({
+              ...s,
+              color: s.color || getLeadStatusColor(s.label, statusColors)
+            })) : Array.from(new Set(rows.map(r => r.status))).filter(Boolean).map(s => ({
+              label: s,
+              color: getLeadStatusColor(s, statusColors)
+            }))}
             statusColors={statusColors}
             labelColors={labelColors}
             onStatusChange={handleStatusChange}
@@ -1417,6 +2174,18 @@ export function LeadsPage() {
         users={users}
         pipelines={pipelines}
         onSuccess={() => setReloadTick(c => c + 1)}
+      />
+
+      <LeadImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => {
+          setImportOpen(false);
+          setReloadTick((c) => c + 1);
+        }}
+        pipelines={pipelines}
+        users={users}
+        token={token}
       />
 
       <LabelManagerModal
@@ -1443,20 +2212,25 @@ export function LeadsPage() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
       <BulkLeadActionModal
         open={Boolean(bulkAction)}
         action={bulkAction}
         count={selectedIds.length}
         users={users.filter((user) => user.isActive !== false)}
         statuses={bulkStatuses}
+        statusColors={statusColors}
         options={leadOptions}
         busy={bulkBusy}
         onClose={() => { if (!bulkBusy) setBulkAction(''); }}
         onSubmit={applyBulkAction}
       />
 
-
+      <WhatsAppModal
+        open={Boolean(whatsAppData)}
+        onClose={() => setWhatsAppData(null)}
+        recipient={whatsAppData}
+        onSent={() => setReloadTick((c) => c + 1)}
+      />
 
     </div>
   );

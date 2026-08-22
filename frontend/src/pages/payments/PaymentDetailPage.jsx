@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CreditCard, Calendar, Building, FileText, Briefcase, Hash, DollarSign, Activity, Edit3 } from 'lucide-react';
+import { ArrowLeft, CreditCard, Calendar, Building, FileText, Briefcase, Hash, DollarSign, Activity, Edit3, Printer, Download, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { PageLoader } from '../../components/ui/Loader';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { Modal } from '../../components/ui/Modal';
 import { PaymentFormModal } from '../../components/forms/PaymentFormModal';
 import { Badge } from '../../components/ui/Badge';
 import { getInvoiceStatusTone, getPaymentStatusTone } from '../../lib/paymentStatus';
@@ -21,8 +22,10 @@ export function PaymentDetailPage() {
   const [invoice, setInvoice] = useState(null);
   const [project, setProject] = useState(null);
   const [bankAccount, setBankAccount] = useState(null);
+  const [companySettings, setCompanySettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -37,7 +40,9 @@ export function PaymentDetailPage() {
         setPayment(paymentData);
         
         // Load related entities if they exist
-        const promises = [];
+        const promises = [
+          api.settings.get(token).then((res) => setCompanySettings(res.data)).catch(() => {})
+        ];
         
         if (paymentData.clientId) {
           promises.push(
@@ -101,26 +106,28 @@ export function PaymentDetailPage() {
   };
 
   const formatMoney = (amount) => {
-    return Number(amount || 0).toLocaleString('en-IN', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      maximumFractionDigits: 0
-    });
+      maximumFractionDigits: 2
+    }).format(amount || 0);
   };
 
-  const invoiceStatus = invoice?.status || 'Sent';
-  const invoiceBalance = Number(invoice?.balanceDue || 0);
   const paymentStatus = payment.paymentStatus || 'Received';
+  const invoiceStatus = invoice?.status || 'Sent';
+  const invoiceBalance = invoice ? Math.max(0, (invoice.totalAmount || 0) - (invoice.paidAmount || 0)) : 0;
+  const company = companySettings?.company || {};
+  const receiptNumber = `REC-${(payment.id || '').substring(0, 8).toUpperCase()}`;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => navigate('/app/payments')}
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"
+              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
             >
               <ArrowLeft size={16} />
               Back to Payments
@@ -140,14 +147,23 @@ export function PaymentDetailPage() {
             </div>
           </div>
         </div>
-        {hasPermission('payments.write') && (
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" className="shadow-sm" onClick={() => setEditOpen(true)}>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            className="shadow-xs cursor-pointer"
+            onClick={() => setReceiptOpen(true)}
+          >
+            <Printer size={16} className="mr-2 text-emerald-600" />
+            Print Receipt
+          </Button>
+          {hasPermission('payments.write') && (
+            <Button variant="outline" className="shadow-xs cursor-pointer" onClick={() => setEditOpen(true)}>
               <Edit3 size={16} className="mr-2" />
               Edit Payment
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -282,6 +298,91 @@ export function PaymentDetailPage() {
           </div>
         </Card>
       </div>
+
+      {/* Payment Receipt Modal */}
+      <Modal
+        open={receiptOpen}
+        onClose={() => setReceiptOpen(false)}
+        title="Official Payment Receipt"
+        subtitle={`Receipt voucher for payment #${receiptNumber}`}
+        width="680px"
+        footer={(
+          <div className="flex items-center justify-between w-full">
+            <Button variant="ghost" size="sm" onClick={() => setReceiptOpen(false)}>
+              Close
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => window.print()}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs cursor-pointer"
+            >
+              <Printer size={14} className="mr-1.5" />
+              Print Receipt
+            </Button>
+          </div>
+        )}
+      >
+        <div id="payment-receipt-print" className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-6 text-slate-800">
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">{company.name || 'Webitof'}</h2>
+              <p className="text-xs text-slate-500">{company.address || company.email || ''}</p>
+              {company.gstin && <p className="text-[11px] text-slate-500 font-mono">GSTIN: {company.gstin}</p>}
+            </div>
+            <div className="text-right">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                <CheckCircle2 size={12} className="mr-1" /> PAYMENT RECEIPT
+              </span>
+              <p className="text-xs font-bold text-slate-900 mt-1.5 font-mono">{receiptNumber}</p>
+              <p className="text-xs text-slate-500">Date: {formatDate(payment.paymentDate)}</p>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Received From</span>
+              <p className="font-bold text-sm text-slate-900">{client?.companyName || client?.name || 'Client'}</p>
+              {client?.email && <p className="text-slate-500">{client.email}</p>}
+              {client?.mobile && <p className="text-slate-500">{client.mobile}</p>}
+            </div>
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment Details</span>
+              <p className="font-semibold text-slate-800">Mode: <span className="font-bold">{payment.paymentMode || 'Direct'}</span></p>
+              {payment.transactionId && <p className="text-slate-600 font-mono">Txn: {payment.transactionId}</p>}
+              {invoice && <p className="text-slate-600">Against Invoice: <span className="font-bold">#{invoice.invoiceNumber}</span></p>}
+            </div>
+          </div>
+
+          {/* Amount Box */}
+          <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800">Amount Received</span>
+              <p className="text-xs text-emerald-700 font-medium mt-0.5">Payment successfully processed & verified</p>
+            </div>
+            <span className="text-2xl font-black text-emerald-700">
+              {formatMoney(payment.amountReceived)}
+            </span>
+          </div>
+
+          {payment.notes && (
+            <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+              <span className="font-bold text-slate-700">Notes: </span>{payment.notes}
+            </div>
+          )}
+
+          {/* Signatures */}
+          <div className="pt-6 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400">
+            <span>Generated electronically by Webitof CRM</span>
+            <div className="text-right">
+              <div className="w-32 border-b border-slate-300 pb-8 mb-1 text-center text-slate-600 font-semibold italic">
+                Authorised Signatory
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <PaymentFormModal
         open={editOpen}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send, Sparkles, ArrowRightCircle, PhoneCall, Bell, CheckSquare, MessageCircle, Zap, Volume2, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -23,8 +23,15 @@ import { normalizeSharedLabels, mergeSharedLabelOptions } from '../../lib/labels
 import { formatDateOnlyInput } from '../../lib/dateOnly';
 import { EventFormModal } from '../../components/events/EventFormModal';
 import { EventFeedPanel } from '../../components/events/EventFeedPanel';
+import { FollowUpFormModal } from '../../components/followups/FollowUpModals';
+import { WhatsAppModal } from '../../components/common/WhatsAppModal';
 import { normalizeEventAttachment, normalizeEventAttachments } from '../../components/events/eventAttachments';
-import { DEFAULT_LEAD_OPTIONS } from '../../config/leadManagement';
+import {
+  DEFAULT_LEAD_OPTIONS,
+  getLeadStatusColor,
+  getLeadSourceColor,
+  getLeadServiceColor
+} from '../../config/leadManagement';
 
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
@@ -101,6 +108,7 @@ const EMPTY_TASK = {
 
 const EMPTY_REMINDER = {
   title: '',
+  description: '',
   date: '',
   time: '',
   repeat: false,
@@ -146,18 +154,77 @@ function normalizeLabels(value) {
   return [];
 }
 
-function renderLabelPill(label, color) {
+function renderLabelPill(label, color, compact = false) {
   const badgeColor = color || '#2563eb';
   return (
     <span
-      className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
       style={{
         backgroundColor: `${badgeColor}14`,
-        borderColor: `${badgeColor}2A`,
+        borderColor: `${badgeColor}2E`,
         color: badgeColor
       }}
     >
       {label}
+    </span>
+  );
+}
+
+function renderStatusPill(status, color, compact = false) {
+  if (!status) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  const badgeColor = color || getLeadStatusColor(status);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
+      style={{
+        backgroundColor: `${badgeColor}14`,
+        borderColor: `${badgeColor}2E`,
+        color: badgeColor
+      }}
+    >
+      {status}
+    </span>
+  );
+}
+
+function renderSourcePill(source, color, compact = false) {
+  if (!source) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  const badgeColor = color || getLeadSourceColor(source);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
+      style={{
+        backgroundColor: `${badgeColor}14`,
+        borderColor: `${badgeColor}2E`,
+        color: badgeColor
+      }}
+    >
+      {source}
+    </span>
+  );
+}
+
+function renderServicePill(service, color, compact = false) {
+  if (!service) return <span className="text-sm text-[var(--text-muted)]">-</span>;
+  const badgeColor = color || getLeadServiceColor(service);
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border font-semibold whitespace-nowrap ${
+        compact ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-0.5 text-xs'
+      }`}
+      style={{
+        backgroundColor: `${badgeColor}14`,
+        borderColor: `${badgeColor}2E`,
+        color: badgeColor
+      }}
+    >
+      {service}
     </span>
   );
 }
@@ -543,6 +610,475 @@ function formatDate(value) {
   return String(value).slice(0, 10);
 }
 
+function formatActivityTimestamp(dateStr, timeStr) {
+  if (!dateStr) return { isUpcoming: false, relative: '', formatted: '-', dateOnly: '-', timeOnly: '' };
+  try {
+    const fullDate = timeStr && !String(dateStr).includes('T') ? `${String(dateStr).slice(0, 10)}T${timeStr}` : String(dateStr);
+    const d = new Date(fullDate);
+    if (isNaN(d.getTime())) {
+      return {
+        isUpcoming: false,
+        relative: '',
+        formatted: `${String(dateStr).slice(0, 10)}${timeStr ? ` at ${timeStr}` : ''}`,
+        dateOnly: String(dateStr).slice(0, 10),
+        timeOnly: timeStr || ''
+      };
+    }
+
+    const now = new Date();
+    // Compare date boundary
+    const isFuture = d.getTime() > now.getTime();
+    const diffMs = now.getTime() - d.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHours = Math.floor(diffMin / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    let relative = '';
+    if (isFuture) {
+      const futureMs = d.getTime() - now.getTime();
+      const futureHours = Math.floor(futureMs / (1000 * 60 * 60));
+      const futureDays = Math.ceil(futureMs / (1000 * 60 * 60 * 24));
+
+      if (futureDays <= 0) {
+        if (futureHours <= 1) relative = 'In a few minutes';
+        else relative = `Today in ${futureHours} hrs`;
+      } else if (futureDays === 1) {
+        relative = 'Tomorrow';
+      } else if (futureDays < 30) {
+        relative = `In ${futureDays} days`;
+      } else {
+        relative = `Due in ${futureDays} days`;
+      }
+    } else {
+      if (diffSec >= 0 && diffSec < 60) relative = 'Just now';
+      else if (diffMin > 0 && diffMin < 60) relative = `${diffMin} min${diffMin > 1 ? 's' : ''} ago`;
+      else if (diffHours > 0 && diffHours < 24) relative = `${diffHours} hr${diffHours > 1 ? 's' : ''} ago`;
+      else if (diffDays === 1) relative = 'Yesterday';
+      else if (diffDays > 1 && diffDays < 7) relative = `${diffDays} days ago`;
+    }
+
+    const formattedDate = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const formattedTime = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    return {
+      isUpcoming: isFuture,
+      relative,
+      formatted: `${formattedDate}${String(dateStr).includes('T') || timeStr ? ` • ${formattedTime}` : ''}`,
+      dateOnly: formattedDate,
+      timeOnly: formattedTime
+    };
+  } catch {
+    return {
+      isUpcoming: false,
+      relative: '',
+      formatted: String(dateStr).slice(0, 10),
+      dateOnly: String(dateStr).slice(0, 10),
+      timeOnly: ''
+    };
+  }
+}
+
+function getActivityMeta(item) {
+  const kind = String(item.kind || item.eventType || item.type || 'activity').toLowerCase();
+  const title = String(item.title || '').toLowerCase();
+
+  if (kind === 'follow_up' || title.includes('follow up') || title.includes('follow-up')) {
+    return {
+      label: 'Follow-up Due',
+      icon: Clock3,
+      color: '#f59e0b',
+      bg: 'bg-amber-500/15',
+      border: 'border-amber-500/30',
+      text: 'text-amber-700 dark:text-amber-300'
+    };
+  }
+  if (kind === 'created' || kind === 'lead_created' || title.includes('lead created')) {
+    return {
+      label: 'Lead Created',
+      icon: Sparkles,
+      color: '#0d9488',
+      bg: 'bg-teal-500/15',
+      border: 'border-teal-500/30',
+      text: 'text-teal-700 dark:text-teal-300'
+    };
+  }
+  if (kind === 'status_changed' || kind === 'status' || title.includes('status changed')) {
+    return {
+      label: 'Status Changed',
+      icon: ArrowRightCircle,
+      color: '#f59e0b',
+      bg: 'bg-amber-500/15',
+      border: 'border-amber-500/30',
+      text: 'text-amber-700 dark:text-amber-300'
+    };
+  }
+  if (kind === 'call' || kind === 'call_logged' || title.includes('call')) {
+    return {
+      label: 'Call Logged',
+      icon: PhoneCall,
+      color: '#10b981',
+      bg: 'bg-emerald-500/15',
+      border: 'border-emerald-500/30',
+      text: 'text-emerald-700 dark:text-emerald-300'
+    };
+  }
+  if (kind === 'quotation' || kind === 'proposal' || title.includes('quotation') || title.includes('proposal')) {
+    return {
+      label: 'Quotation',
+      icon: FileText,
+      color: '#6366f1',
+      bg: 'bg-indigo-500/15',
+      border: 'border-indigo-500/30',
+      text: 'text-indigo-700 dark:text-indigo-300'
+    };
+  }
+  if (kind === 'task' || title.includes('task')) {
+    return {
+      label: 'Task',
+      icon: CheckSquare,
+      color: '#0284c7',
+      bg: 'bg-sky-500/15',
+      border: 'border-sky-500/30',
+      text: 'text-sky-700 dark:text-sky-300'
+    };
+  }
+  if (kind === 'note' || title.includes('note')) {
+    return {
+      label: 'Note',
+      icon: MessageSquare,
+      color: '#8b5cf6',
+      bg: 'bg-purple-500/15',
+      border: 'border-purple-500/30',
+      text: 'text-purple-700 dark:text-purple-300'
+    };
+  }
+  if (kind === 'reminder' || title.includes('reminder')) {
+    return {
+      label: 'Reminder',
+      icon: Bell,
+      color: '#f97316',
+      bg: 'bg-orange-500/15',
+      border: 'border-orange-500/30',
+      text: 'text-orange-700 dark:text-orange-300'
+    };
+  }
+  return {
+    label: item.kind || 'Activity',
+    icon: Activity,
+    color: '#64748b',
+    bg: 'bg-slate-500/15',
+    border: 'border-slate-500/30',
+    text: 'text-slate-700 dark:text-slate-300'
+  };
+}
+
+function getTaskStatusMeta(status) {
+  const st = String(status || 'to do').toLowerCase().trim();
+  if (st === 'completed') {
+    return {
+      label: 'Completed',
+      bg: 'bg-emerald-500/15',
+      border: 'border-emerald-500/30',
+      text: 'text-emerald-700 dark:text-emerald-300',
+      dot: 'bg-emerald-500'
+    };
+  }
+  if (st === 'in progress') {
+    return {
+      label: 'In Progress',
+      bg: 'bg-sky-500/15',
+      border: 'border-sky-500/30',
+      text: 'text-sky-700 dark:text-sky-300',
+      dot: 'bg-sky-500'
+    };
+  }
+  if (st === 'blocked') {
+    return {
+      label: 'Blocked',
+      bg: 'bg-rose-500/15',
+      border: 'border-rose-500/30',
+      text: 'text-rose-700 dark:text-rose-300',
+      dot: 'bg-rose-500'
+    };
+  }
+  return {
+    label: status || 'To Do',
+    bg: 'bg-slate-500/15',
+    border: 'border-slate-500/30',
+    text: 'text-slate-700 dark:text-slate-300',
+    dot: 'bg-slate-500'
+  };
+}
+
+function getTaskPriorityMeta(priority) {
+  const pr = String(priority || 'medium').toLowerCase().trim();
+  if (pr === 'urgent') {
+    return {
+      label: 'Urgent',
+      bg: 'bg-rose-500/15',
+      border: 'border-rose-500/30',
+      text: 'text-rose-700 dark:text-rose-300'
+    };
+  }
+  if (pr === 'high') {
+    return {
+      label: 'High',
+      bg: 'bg-orange-500/15',
+      border: 'border-orange-500/30',
+      text: 'text-orange-700 dark:text-orange-300'
+    };
+  }
+  if (pr === 'low') {
+    return {
+      label: 'Low',
+      bg: 'bg-slate-500/15',
+      border: 'border-slate-500/30',
+      text: 'text-slate-600 dark:text-slate-400'
+    };
+  }
+  return {
+    label: 'Medium',
+    bg: 'bg-amber-500/15',
+    border: 'border-amber-500/30',
+    text: 'text-amber-700 dark:text-amber-300'
+  };
+}
+
+function getFollowUpStatus(item) {
+  if (!item) return { isCompleted: false, remark: '' };
+  const isCompleted = Boolean(
+    item.status === 'Completed' ||
+    item.isCompleted ||
+    (Array.isArray(item.labels) && item.labels.includes('completed')) ||
+    String(item.title || '').toLowerCase().startsWith('completed:') ||
+    String(item.description || '').includes('[Completed')
+  );
+
+  let remark = '';
+  if (item.remark) {
+    remark = item.remark;
+  } else if (item.outcome) {
+    remark = item.outcome;
+  } else if (item.description && item.description.includes('Remark:')) {
+    const parts = item.description.split('Remark:');
+    if (parts[1]) {
+      remark = parts[1].trim();
+    }
+  }
+
+  return { isCompleted, remark };
+}
+
+function getLocalDateStr() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function computeAutoCadence(currentAttempts = 0) {
+  const now = new Date();
+  const todayStr = getLocalDateStr();
+
+  if (currentAttempts <= 0) {
+    // Attempt 1: Call attempted -> No response. Schedule +3 Hours from now
+    const plus3 = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+    const hour = plus3.getHours();
+
+    if (hour >= 18 || hour < 9) {
+      // If +3 hours is late evening, push to next day 10:30 AM
+      const nextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      if (nextDay.getDay() === 0) nextDay.setDate(nextDay.getDate() + 1);
+      const nextDayStr = nextDay.toISOString().slice(0, 10);
+      return {
+        nextAttempt: 1,
+        date: nextDayStr,
+        time: '10:30',
+        remark: 'Attempt 1: Call not answered / No response. Auto-scheduled follow-up for next morning at 10:30 AM.',
+        isCold: false,
+        scheduleNext: true
+      };
+    } else {
+      const pad = (n) => String(n).padStart(2, '0');
+      const timeStr = `${pad(plus3.getHours())}:${pad(plus3.getMinutes())}`;
+      return {
+        nextAttempt: 1,
+        date: todayStr,
+        time: timeStr,
+        remark: `Attempt 1: Call not answered / No response. Auto-scheduled follow-up in 3 hours (${timeStr}).`,
+        isCold: false,
+        scheduleNext: true
+      };
+    }
+  } else if (currentAttempts === 1) {
+    // Attempt 2: Next day at 11:00 AM
+    const nextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    if (nextDay.getDay() === 0) nextDay.setDate(nextDay.getDate() + 1);
+    const nextDayStr = nextDay.toISOString().slice(0, 10);
+    return {
+      nextAttempt: 2,
+      date: nextDayStr,
+      time: '11:00',
+      remark: 'Attempt 2: Call not answered / No response. Auto-scheduled follow-up for next day at 11:00 AM.',
+      isCold: false,
+      scheduleNext: true
+    };
+  } else {
+    // Attempt 3: 3rd failed attempt -> Move to Unresponsive / Cold Lead
+    return {
+      nextAttempt: 3,
+      date: '',
+      time: '',
+      remark: 'Attempt 3: No response received after 3 attempts. Lead moved to Unresponsive / Cold Lead.',
+      isCold: true,
+      scheduleNext: false
+    };
+  }
+}
+
+function getWhatsAppMessage(leadName, templateKey = 'follow_up', service = '') {
+  const name = leadName || 'there';
+  const serviceText = service ? ` for ${service}` : '';
+
+  switch (templateKey) {
+    case 'connected':
+      return `Hi ${name}, it was great speaking with you${service ? ` regarding ${service}` : ''}. As discussed, we are proceeding with the next steps. Please let me know if you need any further details. Thanks!`;
+    case 'no_response':
+    case 'missed_call':
+      return `Hi ${name}, I tried calling you just now regarding your enquiry${serviceText}. Please let me know when would be a convenient time to connect over a quick call. Thanks!`;
+    case 'busy':
+      return `Hi ${name}, noted that you were occupied when I called. I will connect with you again today as requested. If you are free earlier, feel free to drop a message here. Thanks!`;
+    case 'switched_off':
+      return `Hi ${name}, tried reaching your number regarding your requirement${serviceText}, but your phone was unreachable/switched off. Please let me know when you are available or share an alternate number. Thanks!`;
+    case 'meeting_reminder':
+      return `Hi ${name}, gentle reminder regarding our scheduled follow-up discussion today. Looking forward to connecting with you. Thanks!`;
+    default:
+      return `Hi ${name}, following up on your requirement${serviceText}. Please let me know if you have any questions or if you would like to proceed. Thanks!`;
+  }
+}
+
+function openWhatsAppNudge(phone, leadName, templateKey = 'follow_up', service = '') {
+  if (!phone) {
+    toast.error('No phone number available for this lead');
+    return;
+  }
+  let cleanPhone = String(phone).replace(/[^0-9]/g, '');
+  if (cleanPhone.length === 10) {
+    cleanPhone = `91${cleanPhone}`;
+  }
+
+  const message = getWhatsAppMessage(leadName, templateKey, service);
+  const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+function playReminderChime() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.15); // A5
+
+    gain.gain.setValueAtTime(0.12, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.6);
+  } catch (e) {
+    // Ignore audio permission errors
+  }
+}
+
+function getQuickRescheduleOptions() {
+  const now = new Date();
+  const todayStr = getLocalDateStr();
+
+  // 1. +1 Hour
+  const plus1H = new Date(now.getTime() + 60 * 60 * 1000);
+  const pad = (n) => String(n).padStart(2, '0');
+  const plus1HTime = `${pad(plus1H.getHours())}:${pad(plus1H.getMinutes())}`;
+
+  // 2. Tomorrow
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+  // 3. +2 Days
+  const in2Days = new Date(now.getTime() + 2 * 24 * 60 * 1000);
+  const in2DaysStr = in2Days.toISOString().slice(0, 10);
+
+  // 4. Next Monday
+  const nextMon = new Date(now.getTime());
+  const day = nextMon.getDay();
+  const daysUntilMonday = day === 0 ? 1 : (8 - day);
+  nextMon.setDate(nextMon.getDate() + daysUntilMonday);
+  const nextMonStr = nextMon.toISOString().slice(0, 10);
+
+  return [
+    { key: 'plus1', label: '+1 Hr', date: todayStr, time: plus1HTime, display: `Today at ${plus1HTime}` },
+    { key: 'today5pm', label: 'Today 5 PM', date: todayStr, time: '17:00', display: 'Today at 05:00 PM' },
+    { key: 'tomorrow', label: 'Tomorrow 11 AM', date: tomorrowStr, time: '11:00', display: 'Tomorrow at 11:00 AM' },
+    { key: 'in2days', label: '+2 Days', date: in2DaysStr, time: '11:00', display: `${in2DaysStr} at 11:00 AM` },
+    { key: 'nextMon', label: 'Next Mon', date: nextMonStr, time: '11:00', display: 'Next Monday at 11:00 AM' }
+  ];
+}
+
+function PaginationBar({
+  currentPage = 1,
+  totalItems = 0,
+  pageSize = 10,
+  onPageChange,
+  className = ''
+}) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  if (totalItems <= pageSize) return null;
+
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  return (
+    <div className={cn('flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border-muted)] pt-3.5 mt-4 px-1 text-xs text-[var(--text-muted)]', className)}>
+      <div>
+        Showing <span className="font-semibold text-[var(--text-main)]">{totalItems ? startIndex + 1 : 0}</span> to <span className="font-semibold text-[var(--text-main)]">{endIndex}</span> of <span className="font-semibold text-[var(--text-main)]">{totalItems}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-2)] transition cursor-pointer"
+          title="Previous page"
+        >
+          <ChevronLeft size={14} />
+        </button>
+
+        <span className="px-2 font-semibold text-[var(--text-main)]">
+          {currentPage} / {totalPages}
+        </span>
+
+        <button
+          type="button"
+          disabled={currentPage >= totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[var(--surface-2)] transition cursor-pointer"
+          title="Next page"
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function formatDateInput(value) {
   return formatDateOnlyInput(value);
 }
@@ -676,7 +1212,6 @@ function getActivityLabel(eventType) {
   if (eventType === 'task') return 'Task';
   return 'Activity';
 }
-
 function getDaysInMonthGrid(date) {
   const firstDay = startOfMonth(date);
   const gridStart = startOfWeek(firstDay);
@@ -774,7 +1309,7 @@ function LeadEventsCalendar({
           }}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+          <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
           <span className="min-w-0 flex-1 truncate">{event.title}</span>
         </button>
         {onDeleteEvent ? (
@@ -784,7 +1319,7 @@ function LeadEventsCalendar({
               e.stopPropagation();
               onDeleteEvent(event);
             }}
-            className="rounded-full p-1 text-slate-500 transition hover:bg-white/80 hover:text-rose-600"
+            className="rounded-full p-1 text-[var(--text-muted)] transition hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
             aria-label="Delete event"
           >
             <Trash2 size={12} />
@@ -797,13 +1332,13 @@ function LeadEventsCalendar({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.08fr)_320px]">
       <div className="space-y-4">
-        <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 border-b border-[var(--border-muted)] pb-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-2">
-            <CalendarDays size={18} className="text-slate-800" />
-            <h3 className="text-lg font-semibold text-slate-900">Events</h3>
+            <CalendarDays size={18} className="text-[var(--text-main)]" />
+            <h3 className="text-lg font-semibold text-[var(--text-main)]">Events</h3>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-slate-200 bg-white p-1">
+            <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-[var(--border)] bg-[var(--surface-2)] p-1">
               <Button variant="ghost" size="icon" onClick={goPrev} className="h-9 w-9">
                 <ChevronLeft size={16} />
               </Button>
@@ -814,16 +1349,16 @@ function LeadEventsCalendar({
                 <ChevronRight size={16} />
               </Button>
             </div>
-            <div className="text-base font-semibold text-slate-900">{formatCalendarTitle(currentDate, view)}</div>
-            <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-slate-200 bg-white p-1">
+            <div className="text-base font-semibold text-[var(--text-main)]">{formatCalendarTitle(currentDate, view)}</div>
+            <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-[var(--border)] bg-[var(--surface-2)] p-1">
               {['month', 'week', 'day'].map((item) => (
                 <button
                   key={item}
                   type="button"
                   onClick={() => onViewChange(item)}
                   className={cn(
-                    'rounded-[var(--radius-button,1rem)] px-3 py-1.5 text-sm font-medium capitalize transition',
-                    view === item ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    'rounded-[var(--radius-button,1rem)] px-3 py-1.5 text-sm font-medium capitalize transition cursor-pointer',
+                    view === item ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)]'
                   )}
                 >
                   {item}
@@ -831,7 +1366,7 @@ function LeadEventsCalendar({
               ))}
             </div>
             {onAddEvent && (
-              <Button variant="outline" onClick={onAddEvent} className="shadow-sm bg-white hover:bg-slate-50 shrink-0 ml-1">
+              <Button variant="outline" onClick={onAddEvent} className="shadow-sm shrink-0 ml-1">
                 + Add event
               </Button>
             )}
@@ -839,10 +1374,10 @@ function LeadEventsCalendar({
         </div>
 
         {view === 'month' ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            <div className="grid grid-cols-7 border-b border-[var(--border)] bg-[var(--surface-2)]">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-                <div key={day} className="px-3 py-2 text-center text-sm font-semibold text-slate-700">{day}</div>
+                <div key={day} className="px-3 py-2 text-center text-sm font-semibold text-[var(--text-muted)]">{day}</div>
               ))}
             </div>
             <div className="grid grid-cols-7">
@@ -857,20 +1392,20 @@ function LeadEventsCalendar({
                     type="button"
                     onClick={() => onDateChange(day)}
                     className={cn(
-                      'min-h-28 border-b border-r border-slate-100 p-2 text-left transition hover:bg-slate-50',
-                      !inMonth && 'bg-slate-50/70 text-slate-400',
-                      isSelected && 'bg-[color-mix(in_srgb,var(--primary)_7%,white)]',
+                      'min-h-28 border-b border-r border-[var(--border-muted)] p-2 text-left transition hover:bg-[var(--hover-bg)] cursor-pointer',
+                      !inMonth && 'bg-[var(--surface-2)]/40 text-[var(--text-muted)] opacity-60',
+                      isSelected && 'bg-[var(--primary-subtle)]',
                       isToday && 'ring-1 ring-inset ring-[var(--primary)]'
                     )}
                   >
                     <div className="flex items-center justify-between">
-                      <span className={cn('text-sm font-semibold', isToday && 'text-[var(--primary)]')}>{day.getDate()}</span>
+                      <span className={cn('text-sm font-semibold text-[var(--text-main)]', isToday && 'text-[var(--primary)]')}>{day.getDate()}</span>
                       {isToday ? <span className="rounded-full bg-[var(--primary)] px-2 py-0.5 text-[10px] font-semibold uppercase text-white">today</span> : null}
                     </div>
                     <div className="mt-2 space-y-1">
                       {dayEvents.slice(0, 3).map((event) => renderEventChip(event))}
                       {dayEvents.length > 3 ? (
-                        <div className="px-1 text-[11px] font-medium text-slate-500">+{dayEvents.length - 3} more</div>
+                        <div className="px-1 text-[11px] font-medium text-[var(--text-muted)]">+{dayEvents.length - 3} more</div>
                       ) : null}
                     </div>
                   </button>
@@ -881,27 +1416,27 @@ function LeadEventsCalendar({
         ) : null}
 
         {view === 'week' ? (
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)]">
+            <div className="grid grid-cols-7 border-b border-[var(--border)] bg-[var(--surface-2)]">
               {Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)).map((day) => (
                 <button
                   key={day.toISOString()}
                   type="button"
                   onClick={() => onDateChange(day)}
-                  className={cn('px-3 py-3 text-left', isSameDay(day, currentDate) && 'bg-[color-mix(in_srgb,var(--primary)_7%,white)]')}
+                  className={cn('px-3 py-3 text-left cursor-pointer', isSameDay(day, currentDate) && 'bg-[var(--primary-subtle)]')}
                 >
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                  <div className={cn('mt-1 text-base font-semibold text-slate-900', isSameDay(day, today) && 'text-[var(--primary)]')}>{day.getDate()}</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                  <div className={cn('mt-1 text-base font-semibold text-[var(--text-main)]', isSameDay(day, today) && 'text-[var(--primary)]')}>{day.getDate()}</div>
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-7 divide-x divide-slate-100">
+            <div className="grid grid-cols-7 divide-x divide-[var(--border-muted)]">
               {Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(currentDate), index)).map((day) => {
                 const dayEvents = getEventsForDate(events, day);
                 return (
                   <div key={day.toISOString()} className="min-h-64 p-2">
                     <div className="space-y-1.5">
-                      {dayEvents.length ? dayEvents.map((event) => renderEventChip(event)) : <div className="px-1 py-2 text-xs text-slate-400">No activities</div>}
+                      {dayEvents.length ? dayEvents.map((event) => renderEventChip(event)) : <div className="px-1 py-2 text-xs text-[var(--text-muted)]">No activities</div>}
                     </div>
                   </div>
                 );
@@ -911,41 +1446,41 @@ function LeadEventsCalendar({
         ) : null}
 
         {view === 'day' ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Selected day</div>
-                <div className="mt-1 text-lg font-semibold text-slate-900">{formatCalendarTitle(currentDate, 'day')}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Selected day</div>
+                <div className="mt-1 text-lg font-semibold text-[var(--text-main)]">{formatCalendarTitle(currentDate, 'day')}</div>
               </div>
             </div>
             <div className="space-y-3">
               {visibleRangeEvents.length ? visibleRangeEvents.map((event) => (
                 <div
                   key={event.id}
-                  className="flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-white"
+                  className="flex w-full items-start gap-3 rounded-2xl border border-[var(--border-muted)] bg-[var(--surface-2)] p-4 text-left transition hover:bg-[var(--hover-bg)]"
                 >
                   <button
                     type="button"
                     onClick={() => onEditEvent(event)}
-                    className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                    className="flex min-w-0 flex-1 items-start gap-3 text-left cursor-pointer"
                   >
                     <span className="mt-1 h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: getEventBadgeColor(event) }} />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                        <span className="rounded-full bg-[var(--surface)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] border border-[var(--border-muted)]">
                           {getActivityLabel(event.eventType)}
                         </span>
-                        <span className="text-sm font-semibold text-slate-900">{event.title}</span>
+                        <span className="text-sm font-semibold text-[var(--text-main)]">{event.title}</span>
                       </div>
-                      <div className="mt-2 text-sm text-slate-600">{event.description || '-'}</div>
-                      <div className="mt-2 text-xs text-slate-500">{formatEventTime(event)}</div>
+                      <div className="mt-2 text-sm text-[var(--text-muted)]">{event.description || '-'}</div>
+                      <div className="mt-2 text-xs text-[var(--text-muted)]">{formatEventTime(event)}</div>
                     </div>
                   </button>
                   {onDeleteEvent ? (
                     <button
                       type="button"
                       onClick={() => onDeleteEvent(event)}
-                      className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                      className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
                       aria-label="Delete event"
                     >
                       <Trash2 size={14} />
@@ -953,7 +1488,7 @@ function LeadEventsCalendar({
                   ) : null}
                 </div>
               )) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
                   No activities for this day.
                 </div>
               )}
@@ -964,38 +1499,38 @@ function LeadEventsCalendar({
         {view === 'list' ? (
           <div className="space-y-4">
             {getGroupedEvents(visibleRangeEvents).length ? getGroupedEvents(visibleRangeEvents).map((group) => (
-              <div key={group.date} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <div key={group.date} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
+                <div className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
                   {group.date ? parseDateOnly(group.date)?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Activities'}
                 </div>
                 <div className="space-y-2">
                   {group.items.map((event) => (
                     <div
                       key={event.id}
-                      className="flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:bg-white"
+                      className="flex w-full items-start gap-3 rounded-2xl border border-[var(--border-muted)] bg-[var(--surface-2)] p-4 text-left transition hover:bg-[var(--hover-bg)]"
                     >
                       <button
                         type="button"
                         onClick={() => onEditEvent(event)}
-                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
+                        className="flex min-w-0 flex-1 items-start gap-3 text-left cursor-pointer"
                       >
                         <span className="mt-1 h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: getEventBadgeColor(event) }} />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            <span className="rounded-full bg-[var(--surface)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)] border border-[var(--border-muted)]">
                               {getActivityLabel(event.eventType)}
                             </span>
-                            <span className="text-sm font-semibold text-slate-900">{event.title}</span>
+                            <span className="text-sm font-semibold text-[var(--text-main)]">{event.title}</span>
                           </div>
-                          <div className="mt-2 text-sm text-slate-600">{event.description || '-'}</div>
-                          <div className="mt-2 text-xs text-slate-500">{formatEventTime(event)}</div>
+                          <div className="mt-2 text-sm text-[var(--text-muted)]">{event.description || '-'}</div>
+                          <div className="mt-2 text-xs text-[var(--text-muted)]">{formatEventTime(event)}</div>
                         </div>
                       </button>
                       {onDeleteEvent ? (
                         <button
                           type="button"
                           onClick={() => onDeleteEvent(event)}
-                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
                           aria-label="Delete event"
                         >
                           <Trash2 size={14} />
@@ -1006,7 +1541,7 @@ function LeadEventsCalendar({
                 </div>
               </div>
             )) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+              <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
                 No activities added yet.
               </div>
             )}
@@ -1030,10 +1565,8 @@ function LeadEventsCalendar({
 
 function SectionRow({ label, children }) {
   return (
-    <div className="flex flex-col gap-1 py-2 md:flex-row md:items-start md:gap-4">
-      <div className="shrink-0 pt-2 text-sm font-medium text-slate-500 md:w-32 lg:w-40">
-        {label}
-      </div>
+    <div className="flex flex-col gap-1.5 py-2 md:flex-row md:items-start md:gap-4">
+      {label ? <div className="w-full text-xs font-semibold text-[var(--text-muted)] md:w-32 md:pt-2.5">{label}</div> : null}
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
@@ -1049,9 +1582,9 @@ function displayValue(value, fallback = '-') {
 
 function DetailRow({ label, value }) {
   return (
-    <div className="min-w-0 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
-      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-slate-400">{label}</div>
-      <div className="mt-0.5 min-w-0 whitespace-normal break-words text-[13px] font-medium leading-5 text-slate-800 [overflow-wrap:anywhere] [&_a]:break-all">
+    <div className="min-w-0 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-2)] px-3 py-2">
+      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</div>
+      <div className="mt-0.5 min-w-0 whitespace-normal break-words text-[13px] font-medium leading-5 text-[var(--text-main)] [overflow-wrap:anywhere] [&_a]:break-all">
         {value || '-'}
       </div>
     </div>
@@ -1060,25 +1593,30 @@ function DetailRow({ label, value }) {
 
 function DetailCard({ title, items = [], children, open = false, onToggle }) {
   return (
-    <Card className="overflow-hidden rounded-xl border-slate-200 p-0 shadow-sm">
+    <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs transition">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 bg-white px-4 py-2.5 text-left transition hover:bg-slate-50"
+        className={cn(
+          "flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left transition cursor-pointer select-none",
+          open
+            ? "bg-[var(--surface-2)]/70 border-b border-[var(--border-muted)]"
+            : "bg-[var(--surface)] hover:bg-[var(--hover-bg)]"
+        )}
       >
-        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
-        <ChevronRight size={16} className={cn('shrink-0 text-slate-400 transition-transform', open && 'rotate-90')} />
+        <span className="text-sm font-semibold text-[var(--text-main)]">{title}</span>
+        <ChevronRight size={16} className={cn('shrink-0 text-[var(--text-muted)] transition-transform duration-200', open && 'rotate-90 text-[var(--primary)]')} />
       </button>
       {open ? (
-        <div className="grid grid-cols-1 gap-2.5 border-t border-slate-100 p-3 sm:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 bg-[var(--surface)] p-5 sm:grid-cols-2 2xl:grid-cols-3">
           {items.map((item) => (
             <DetailRow key={item.label} label={item.label} value={item.value} />
           ))}
           {children}
         </div>
       ) : null}
-    </Card>
+    </div>
   );
 }
 
@@ -1088,8 +1626,8 @@ function ChipList({ items = [] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {values.map((item) => (
-        <span key={item} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">
-          {item}
+        <span key={item}>
+          {renderServicePill(item, getLeadServiceColor(item), true)}
         </span>
       ))}
     </div>
@@ -1106,12 +1644,12 @@ function AttachmentList({ items = [] }) {
         const label = file.name || file.originalName || 'File';
         if (file.driveWebViewLink) {
           return (
-            <a key={key} href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-[var(--primary)] hover:underline">
+            <a key={key} href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs font-medium text-[var(--primary)] hover:underline">
               {label}
             </a>
           );
         }
-        return <span key={key} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-medium text-slate-600">{label}</span>;
+        return <span key={key} className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">{label}</span>;
       })}
     </div>
   );
@@ -1582,67 +2120,7 @@ function EventModal({ open, onClose, onSave, leadId, initialValue = null, labelO
   );
 }
 
-function ReminderModal({ open, onClose, onSave, leadId, initialValue = null, busy = false }) {
-  const [formData, setFormData] = useState(initialValue || EMPTY_REMINDER);
 
-  useEffect(() => {
-    setFormData({
-      ...(initialValue || EMPTY_REMINDER),
-      color: (initialValue && initialValue.color) || EMPTY_REMINDER.color
-    });
-  }, [initialValue, open]);
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    if (!formData.title.trim()) {
-      toast.error('Reminder title is required');
-      return;
-    }
-    await onSave({
-      leadId,
-      eventType: 'reminder',
-      title: formData.title.trim(),
-      startDate: formData.date || '',
-      endDate: formData.date || '',
-      startTime: formData.time || '',
-      endTime: formData.time || '',
-      repeat: Boolean(formData.repeat),
-      color: formData.color || '#f59e0b'
-    });
-  }
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={initialValue?.id ? 'Edit reminder' : 'Add reminder'}
-      width="560px"
-      footer={(
-        <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={onClose} disabled={busy}>Close</Button>
-          <Button onClick={handleSubmit} disabled={busy}>{busy ? 'Adding...' : 'Add'}</Button>
-        </div>
-      )}
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input value={formData.title} onChange={(e) => setFormData((cur) => ({ ...cur, title: e.target.value }))} placeholder="Title" autoFocus />
-        <div className="grid gap-4 md:grid-cols-2">
-          <Input type="date" value={formData.date} onChange={(e) => setFormData((cur) => ({ ...cur, date: e.target.value }))} />
-          <Input type="time" value={formData.time} onChange={(e) => setFormData((cur) => ({ ...cur, time: e.target.value }))} />
-        </div>
-        <label className="flex items-center gap-2 pt-2">
-          <input
-            type="checkbox"
-            checked={Boolean(formData.repeat)}
-            onChange={(e) => setFormData((cur) => ({ ...cur, repeat: e.target.checked }))}
-            className="h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
-          />
-          <span className="text-sm text-slate-700">Repeat</span>
-        </label>
-      </form>
-    </Modal>
-  );
-}
 
 function QuotationEditor({
   onClose,
@@ -2375,6 +2853,707 @@ function CallLogModal({ open, onClose, onSave, options, canManageRecording = fal
   );
 }
 
+function ActivityViewModal({
+  open,
+  onClose,
+  item,
+  onEdit,
+  onCompleteFollowUp,
+  canWriteLead,
+  userLookup
+}) {
+  if (!item) return null;
+  const isTask = String(item.eventType || item.type || '').toLowerCase() === 'task';
+  const isReminder = String(item.eventType || item.type || '').toLowerCase() === 'reminder';
+  const isLeadFollowUp = Boolean(item.isLeadFollowUp || item.isSynthetic);
+  const meta = getActivityMeta(item);
+  const timeInfo = formatActivityTimestamp(item.startDate || item.date || item.createdAt, item.startTime || item.time);
+  const statusMeta = isTask ? getTaskStatusMeta(item.status) : null;
+  const priorityMeta = isTask ? getTaskPriorityMeta(item.priority) : null;
+  const followUpStatus = getFollowUpStatus(item);
+
+  const assignedName = isTask && item.assignedTo ? (userLookup?.get(String(item.assignedTo)) || item.assignedUser || 'Assigned') : null;
+  const collaboratorNames = isTask && Array.isArray(item.collaborators) && item.collaborators.length
+    ? item.collaborators.map((c) => userLookup?.get(String(c)) || String(c)).filter(Boolean).join(', ')
+    : null;
+  const labelsList = Array.isArray(item.labels) ? item.labels : [];
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={(
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border', meta.bg, meta.border, meta.text)}>
+            {isLeadFollowUp ? 'Lead Follow-Up' : meta.label}
+          </span>
+          {followUpStatus.isCompleted ? (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
+              <CheckCircle2 size={10} className="text-emerald-600" />
+              Completed
+            </span>
+          ) : timeInfo.isUpcoming ? (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center gap-1">
+              <Clock3 size={10} className="text-amber-600" />
+              {timeInfo.relative || 'Upcoming'}
+            </span>
+          ) : null}
+          {statusMeta && (
+            <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border flex items-center gap-1', statusMeta.bg, statusMeta.border, statusMeta.text)}>
+              <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
+              {statusMeta.label}
+            </span>
+          )}
+          {priorityMeta && (
+            <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border', priorityMeta.bg, priorityMeta.border, priorityMeta.text)}>
+              {priorityMeta.label} Priority
+            </span>
+          )}
+          {isTask && item.recurring ? (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-700 dark:text-purple-300">
+              🔁 Recurring
+            </span>
+          ) : null}
+          <div className="w-full mt-1">
+            <span className="truncate max-w-full font-bold text-base text-[var(--text-main)] block">
+              {item.title}
+            </span>
+          </div>
+        </div>
+      )}
+      width="640px"
+      footer={(
+        <div className="flex flex-wrap justify-between items-center gap-2 w-full">
+          <div className="flex items-center gap-2">
+            {!followUpStatus.isCompleted && isReminder && canWriteLead && onCompleteFollowUp ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onCompleteFollowUp(item);
+                }}
+                className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 cursor-pointer shadow-xs"
+              >
+                <CheckCircle2 size={14} className="mr-1.5 text-emerald-600" />
+                Complete Follow-Up
+              </Button>
+            ) : null}
+
+            {canWriteLead && onEdit ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onEdit(item);
+                }}
+                className="cursor-pointer shadow-xs"
+              >
+                <Edit3 size={14} className="mr-1.5" />
+                Edit {isLeadFollowUp ? 'Follow-Up' : isTask ? 'Task' : isReminder ? 'Reminder' : 'Activity'}
+              </Button>
+            ) : null}
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose} className="cursor-pointer">
+            Close
+          </Button>
+        </div>
+      )}
+    >
+      <div className="space-y-4 py-1">
+        {/* Remark / Outcome Callout if Completed */}
+        {followUpStatus.remark ? (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 space-y-1">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="text-emerald-600" />
+              Follow-Up Outcome / Remark
+            </h4>
+            <p className="text-xs text-emerald-950 dark:text-emerald-100 whitespace-pre-wrap leading-relaxed">
+              {followUpStatus.remark}
+            </p>
+          </div>
+        ) : null}
+
+        {/* Structured Task Info Grid */}
+        {isTask ? (
+          <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/60 p-4 space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">👤 Assign to:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{assignedName || 'Unassigned'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">👥 Collaborators:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{collaboratorNames || 'None'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">📅 Start Date:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.startDate ? formatDate(item.startDate) : '-'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">⏰ Deadline:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.endDate || item.deadline ? formatDate(item.endDate || item.deadline) : '-'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">⭐ Story Points:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.points ? `${item.points} Points` : '-'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">🔁 Recurring Task:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.recurring ? 'Yes (Repeat task)' : 'No'}</span>
+              </div>
+            </div>
+
+            {labelsList.length ? (
+              <div className="border-t border-[var(--border-muted)]/60 pt-2.5">
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block mb-1.5">🏷️ Labels:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {labelsList.map((label) => (
+                    <span key={label} className="rounded-md border border-[var(--border-muted)] bg-[var(--surface)] px-2 py-0.5 text-xs font-semibold text-[var(--text-main)]">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : isReminder ? (
+          <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/60 p-4 space-y-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">📅 Scheduled Date:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.startDate || item.date ? formatDate(item.startDate || item.date) : '-'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">⏰ Scheduled Time:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.startTime || item.time || 'All day / Not set'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">📞 Follow-up Mode:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.followUpMode || 'Phone / Call'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">⚡ Priority:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.followUpPriority || 'Medium'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">👥 Assigned Team / User:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.assignedTeam || (item.assignedTo ? userLookup?.get(String(item.assignedTo)) : null) || 'Unassigned'}</span>
+              </div>
+
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">🔔 Reminder Alert:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.reminder || 'Default Notification'}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/60 p-3.5 space-y-2">
+            <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+              <span className="font-medium">Scheduled / Time:</span>
+              <div className="flex items-center gap-1.5 font-semibold text-[var(--text-main)]">
+                <Clock3 size={13} className="text-[var(--primary)]" />
+                <span>{formatEventTime(item) || timeInfo.formatted}</span>
+              </div>
+            </div>
+
+            {item.actorName && (
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)] border-t border-[var(--border-muted)]/60 pt-2">
+                <span className="font-medium">Created / Logged by:</span>
+                <span className="font-semibold text-[var(--text-main)]">{item.actorName}</span>
+              </div>
+            )}
+
+            {item.location && (
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)] border-t border-[var(--border-muted)]/60 pt-2">
+                <span className="font-medium">Location:</span>
+                <span className="font-semibold text-[var(--text-main)]">{item.location}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+            Description / Content
+          </h4>
+          <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface)] p-3.5 text-xs text-[var(--text-main)] leading-relaxed whitespace-pre-wrap min-h-[70px]">
+            {item.description || item.detail || item.notes || 'No description provided.'}
+          </div>
+        </div>
+
+        {Array.isArray(item.attachments) && item.attachments.length ? (
+          <div>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center gap-1.5">
+              <Paperclip size={13} />
+              Attachments ({item.attachments.length})
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {item.attachments.map((file) => {
+                const fileUrl = file.driveWebViewLink || file.webContentLink || file.url || `#${file.driveFileId || file.id}`;
+                const downloadUrl = file.webContentLink || file.downloadUrl || file.driveWebViewLink || file.url;
+
+                return (
+                  <div
+                    key={file.driveFileId || file.id}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/60 px-3 py-2 text-xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--surface)] text-[var(--primary)] shrink-0">
+                        <Paperclip size={13} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-[var(--text-main)]" title={file.name || file.title || 'File'}>
+                          {file.name || file.title || 'File'}
+                        </p>
+                        {file.size ? (
+                          <p className="text-[10px] text-[var(--text-muted)]">{file.size}</p>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {file.driveWebViewLink || file.url ? (
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="View / Open File"
+                          className="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition cursor-pointer"
+                        >
+                          <Eye size={12} />
+                        </a>
+                      ) : null}
+
+                      <a
+                        href={downloadUrl}
+                        download={file.name || 'download'}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Download File"
+                        className="flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition cursor-pointer"
+                      >
+                        <Download size={12} />
+                      </a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+function CompleteFollowUpModal({
+  open,
+  onClose,
+  item,
+  lead,
+  onComplete,
+  busy = false
+}) {
+  const [outcome, setOutcome] = useState('connected');
+  const [remark, setRemark] = useState('');
+  const [scheduleNext, setScheduleNext] = useState(false);
+  const [nextDate, setNextDate] = useState('');
+  const [nextTime, setNextTime] = useState('');
+  const [nextMode, setNextMode] = useState('Phone Call');
+  const [nextNote, setNextNote] = useState('');
+  const [cadenceInfo, setCadenceInfo] = useState(null);
+
+  const currentAttempts = Number(lead?.followUpAttempts || 0);
+
+  useEffect(() => {
+    if (open) {
+      setOutcome('connected');
+      setRemark('');
+      setScheduleNext(false);
+      setNextDate('');
+      setNextTime('');
+      setNextMode('Phone Call');
+      setNextNote('');
+      setCadenceInfo(null);
+    }
+  }, [open]);
+
+  if (!item) return null;
+
+  function selectOutcome(key) {
+    setOutcome(key);
+    if (key === 'no_response') {
+      const cadence = computeAutoCadence(currentAttempts);
+      setCadenceInfo(cadence);
+      setRemark(cadence.remark);
+      if (cadence.isCold) {
+        setScheduleNext(false);
+        setNextDate('');
+        setNextTime('');
+      } else {
+        setScheduleNext(true);
+        setNextDate(cadence.date);
+        setNextTime(cadence.time);
+        setNextMode('Phone Call');
+        setNextNote(`Auto-follow-up (Attempt ${cadence.nextAttempt}/3)`);
+      }
+    } else if (key === 'busy') {
+      setCadenceInfo(null);
+      setScheduleNext(true);
+      setNextDate(getLocalDateStr());
+      setNextTime('17:00');
+      setNextMode('Phone Call');
+      setRemark('Client was busy on call, requested callback later today.');
+      setNextNote('Call back client');
+    } else if (key === 'switched_off') {
+      setCadenceInfo(null);
+      setScheduleNext(true);
+      const nextDay = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      setNextDate(nextDay.toISOString().slice(0, 10));
+      setNextTime('12:00');
+      setNextMode('Phone Call');
+      setRemark('Phone switched off / Unreachable.');
+      setNextNote('Retry call');
+    } else {
+      // connected
+      setCadenceInfo(null);
+      setRemark('');
+      setScheduleNext(false);
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!remark.trim()) {
+      toast.error('Please enter a completion remark / outcome');
+      return;
+    }
+    await onComplete({
+      item,
+      outcome,
+      remark: remark.trim(),
+      scheduleNext,
+      nextDate,
+      nextTime,
+      nextMode,
+      nextNote: nextNote.trim(),
+      isCold: Boolean(cadenceInfo?.isCold)
+    });
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title={(
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600">
+            <CheckCircle2 size={16} />
+          </div>
+          <span className="font-bold text-base text-[var(--text-main)]">
+            Complete Follow-Up / Reminder
+          </span>
+        </div>
+      )}
+      width="580px"
+      footer={(
+        <div className="flex justify-end gap-2.5">
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={busy}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-xs"
+          >
+            <CheckCircle2 size={14} className="mr-1.5" />
+            {busy ? 'Saving...' : 'Mark as Completed'}
+          </Button>
+        </div>
+      )}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4 py-1">
+        {/* Context Summary */}
+        <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/60 p-3.5 space-y-1.5 text-xs">
+          <div className="flex items-center justify-between text-[var(--text-muted)]">
+            <span className="font-medium">Follow-Up Item:</span>
+            <span className="font-bold text-[var(--text-main)]">{item.title}</span>
+          </div>
+          <div className="flex items-center justify-between text-[var(--text-muted)] border-t border-[var(--border-muted)]/50 pt-1.5">
+            <span className="font-medium">Scheduled Date:</span>
+            <span className="font-semibold text-[var(--text-main)]">
+              {item.startDate || item.date ? formatDate(item.startDate || item.date) : '-'} {item.startTime ? `• ${item.startTime}` : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Quick Outcome Selector */}
+        <div>
+          <label className="block text-xs font-bold text-[var(--text-main)] mb-1.5">
+            Select Call / Contact Outcome:
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <button
+              type="button"
+              onClick={() => selectOutcome('connected')}
+              className={cn(
+                'flex flex-col items-center justify-center p-2 rounded-xl border text-center transition cursor-pointer',
+                outcome === 'connected'
+                  ? 'bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs'
+                  : 'bg-[var(--surface-2)] border-[var(--border-muted)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-3)]'
+              )}
+            >
+              <span className="text-base mb-0.5">🟢</span>
+              <span className="text-[11px] leading-tight">Connected / Spoke</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectOutcome('no_response')}
+              className={cn(
+                'flex flex-col items-center justify-center p-2 rounded-xl border text-center transition cursor-pointer',
+                outcome === 'no_response'
+                  ? 'bg-red-500/15 border-red-500 text-red-800 dark:text-red-300 font-bold shadow-2xs ring-1 ring-red-400'
+                  : 'bg-[var(--surface-2)] border-[var(--border-muted)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-3)]'
+              )}
+            >
+              <span className="text-base mb-0.5">🔴</span>
+              <span className="text-[11px] leading-tight">No Response (Auto)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectOutcome('busy')}
+              className={cn(
+                'flex flex-col items-center justify-center p-2 rounded-xl border text-center transition cursor-pointer',
+                outcome === 'busy'
+                  ? 'bg-amber-500/15 border-amber-500 text-amber-800 dark:text-amber-300 font-bold shadow-2xs'
+                  : 'bg-[var(--surface-2)] border-[var(--border-muted)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-3)]'
+              )}
+            >
+              <span className="text-base mb-0.5">🟡</span>
+              <span className="text-[11px] leading-tight">Busy / Callback</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => selectOutcome('switched_off')}
+              className={cn(
+                'flex flex-col items-center justify-center p-2 rounded-xl border text-center transition cursor-pointer',
+                outcome === 'switched_off'
+                  ? 'bg-orange-500/15 border-orange-500 text-orange-800 dark:text-orange-300 font-bold shadow-2xs'
+                  : 'bg-[var(--surface-2)] border-[var(--border-muted)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-3)]'
+              )}
+            >
+              <span className="text-base mb-0.5">🟠</span>
+              <span className="text-[11px] leading-tight">Switched Off</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Auto Cadence Notice */}
+        {outcome === 'no_response' && cadenceInfo && (
+          <div className={cn(
+            'rounded-xl border p-3 text-xs space-y-1',
+            cadenceInfo.isCold
+              ? 'border-red-500/30 bg-red-500/10 text-red-900 dark:text-red-200'
+              : 'border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200'
+          )}>
+            <div className="flex items-center gap-1.5 font-bold">
+              <span>{cadenceInfo.isCold ? '❄️ 3rd Attempt Exceeded' : '⚡ Smart Cadence Activated'}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/40 dark:bg-black/20">
+                Attempt {currentAttempts + 1}/3
+              </span>
+            </div>
+            <p className="text-[11px] leading-relaxed">
+              {cadenceInfo.isCold
+                ? 'No response after 3 attempts. Submitting will automatically transition this lead to Unresponsive / Cold Lead and close active follow-ups.'
+                : `Next follow-up automatically calculated for ${cadenceInfo.date === getLocalDateStr() ? 'today at ' + cadenceInfo.time : 'next day (' + formatDate(cadenceInfo.date) + ') at ' + cadenceInfo.time}.`}
+            </p>
+          </div>
+        )}
+
+        {/* 1-Click WhatsApp Quick Nudge with Dynamic Outcome Template */}
+        {(lead?.phone || lead?.mobile) && (() => {
+          const outcomeLabels = {
+            connected: { title: 'Post-Call Summary', sub: 'Send discussion summary & next steps' },
+            no_response: { title: 'Missed Call Nudge', sub: 'Send missed call & convenient time request' },
+            busy: { title: 'Busy / Callback Later', sub: 'Send acknowledgement for callback later' },
+            switched_off: { title: 'Unreachable / Switched Off', sub: 'Send unreachable alert & alternate contact request' }
+          };
+          const meta = outcomeLabels[outcome] || outcomeLabels.connected;
+          const previewText = getWhatsAppMessage(lead.name || lead.contactPerson, outcome, lead.serviceName);
+
+          return (
+            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-600 text-white shrink-0">
+                    <MessageCircle size={13} />
+                  </div>
+                  <div className="truncate">
+                    <span className="font-bold text-emerald-950 dark:text-emerald-200 block truncate">
+                      WhatsApp: {lead.phone || lead.mobile} ({meta.title})
+                    </span>
+                    <span className="text-[10px] text-emerald-800 dark:text-emerald-300 block">
+                      {meta.sub}
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => openWhatsAppNudge(lead.phone || lead.mobile, lead.name || lead.contactPerson, outcome, lead.serviceName)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 h-7 text-xs shadow-xs shrink-0 cursor-pointer font-semibold"
+                >
+                  <Send size={12} className="mr-1.5" />
+                  Send WhatsApp
+                </Button>
+              </div>
+
+              {/* Message Preview Box */}
+              <div className="rounded-lg bg-white/70 dark:bg-slate-900/60 border border-emerald-500/20 p-2 text-[11px] text-emerald-950 dark:text-emerald-200 italic leading-relaxed whitespace-pre-wrap">
+                💬 "{previewText}"
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Remark / Outcome */}
+        <div>
+          <label className="block text-xs font-bold text-[var(--text-main)] mb-1.5">
+            Follow-Up Outcome / Completion Remark <span className="text-red-500">*</span>
+          </label>
+          <Textarea
+            value={remark}
+            onChange={(e) => setRemark(e.target.value)}
+            placeholder="e.g. Spoke with client, discussed requirements and budget. Client agreed to proceed, requested revised quotation."
+            rows={3}
+            autoFocus
+            className="rounded-xl text-xs"
+          />
+          <p className="text-[11px] text-[var(--text-muted)] mt-1">
+            Mention the key summary, discussion points, or next action decided in this follow-up.
+          </p>
+        </div>
+
+        {/* Schedule Next Follow-up Toggle */}
+        <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface)] p-3.5 space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={scheduleNext}
+              onChange={(e) => setScheduleNext(e.target.checked)}
+              className="!appearance-auto"
+              style={{ accentColor: 'var(--primary)' }}
+            />
+            <span className="text-xs font-bold text-[var(--text-main)]">
+              Schedule Next Follow-Up for this Lead
+            </span>
+          </label>
+
+          {scheduleNext && (
+            <div className="space-y-3 pt-2 border-t border-[var(--border-muted)]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1">
+                    Next Follow-Up Date *
+                  </label>
+                  <Input
+                    type="date"
+                    value={nextDate}
+                    onChange={(e) => setNextDate(e.target.value)}
+                    className="rounded-lg text-xs"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1">
+                    Next Follow-Up Time
+                  </label>
+                  <Input
+                    type="time"
+                    value={nextTime}
+                    onChange={(e) => setNextTime(e.target.value)}
+                    className="rounded-lg text-xs"
+                  />
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[
+                      { val: '10:00', label: '10:00 AM' },
+                      { val: '11:30', label: '11:30 AM' },
+                      { val: '14:00', label: '02:00 PM' },
+                      { val: '16:00', label: '04:00 PM' },
+                      { val: '18:00', label: '06:00 PM' }
+                    ].map((slot) => (
+                      <button
+                        key={slot.val}
+                        type="button"
+                        onClick={() => setNextTime(slot.val)}
+                        className={cn(
+                          'px-1.5 py-0.5 rounded text-[10px] font-medium border transition cursor-pointer',
+                          nextTime === slot.val
+                            ? 'bg-[var(--primary)] text-white border-[var(--primary)]'
+                            : 'bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-3)]'
+                        )}
+                      >
+                        {slot.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1">
+                    Follow-Up Mode
+                  </label>
+                  <SearchableSelect
+                    value={nextMode}
+                    onChange={(val) => setNextMode(val)}
+                    options={[
+                      { value: 'Phone Call', label: 'Phone Call' },
+                      { value: 'Meeting', label: 'Meeting' },
+                      { value: 'WhatsApp', label: 'WhatsApp' },
+                      { value: 'Email', label: 'Email' }
+                    ]}
+                    allowClear={false}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-[var(--text-muted)] mb-1">
+                    Next Note / Goal
+                  </label>
+                  <Input
+                    value={nextNote}
+                    onChange={(e) => setNextNote(e.target.value)}
+                    placeholder="e.g. Send revised contract"
+                    className="rounded-lg text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 export function LeadDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -2395,6 +3574,7 @@ export function LeadDetailsPage() {
   const [calendarDate, setCalendarDate] = useState(() => new Date());
   const [files, setFiles] = useState([]);
   const [filesModalOpen, setFilesModalOpen] = useState(false);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
 
   const [contactOpen, setContactOpen] = useState(false);
   const [contactBusy, setContactBusy] = useState(false);
@@ -2405,10 +3585,26 @@ export function LeadDetailsPage() {
   const [activityEdit, setActivityEdit] = useState(null);
   const [activityBusy, setActivityBusy] = useState(false);
   const [activityDeleteTarget, setActivityDeleteTarget] = useState(null);
+  const [viewActivityTarget, setViewActivityTarget] = useState(null);
+  const [completeFollowUpTarget, setCompleteFollowUpTarget] = useState(null);
+  const [completeFollowUpBusy, setCompleteFollowUpBusy] = useState(false);
 
   const [settings, setSettings] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [openDetailSections, setOpenDetailSections] = useState({});
+  const [tabPages, setTabPages] = useState({
+    timeline: 1,
+    quotations: 1,
+    tasks: 1,
+    notes: 1,
+    reminders: 1,
+    contacts: 1,
+    files: 1
+  });
+
+  const setTabPage = (tabKey, page) => {
+    setTabPages((cur) => ({ ...cur, [tabKey]: page }));
+  };
 
   async function load() {
     setLoading(true);
@@ -2462,14 +3658,34 @@ export function LeadDetailsPage() {
 
   useEffect(() => {
     setOpenDetailSections({});
+    setTabPages({
+      timeline: 1,
+      quotations: 1,
+      tasks: 1,
+      notes: 1,
+      reminders: 1,
+      contacts: 1,
+      files: 1
+    });
   }, [id]);
 
   const lead = data?.lead || null;
   const contacts = data?.contacts || [];
   const events = data?.events || [];
   const timeline = data?.timeline || [];
+  const sortedTimeline = useMemo(() => {
+    return [...(data?.timeline || [])].sort((a, b) => {
+      const dateA = new Date(a.date || a.createdAt || 0).getTime();
+      const dateB = new Date(b.date || b.createdAt || 0).getTime();
+      if (!isNaN(dateA) && !isNaN(dateB) && dateA !== dateB) {
+        return dateB - dateA;
+      }
+      return String(b.date || b.createdAt || '').localeCompare(String(a.date || a.createdAt || ''));
+    });
+  }, [data?.timeline]);
   const summary = data?.summary || {};
   const userOptions = useMemo(() => normalizeUserOptions(users), [users]);
+  const userLookup = useMemo(() => new Map(userOptions.map((item) => [String(item.value), item.label])), [userOptions]);
   const pipeline = useMemo(() => pipelines.find((item) => String(item.id) === String(lead?.pipelineId)) || null, [pipelines, lead?.pipelineId]);
   const primaryContact = data?.primaryContact || contacts[0] || null;
   const serviceNames = useMemo(() => getLeadServiceNames(lead), [lead]);
@@ -2487,6 +3703,84 @@ export function LeadDetailsPage() {
       .sort((a, b) => getQuotationDate(b).localeCompare(getQuotationDate(a)))
       .map((event) => ({ event, ...getQuotationDetails(event, lead) }));
   }, [events, lead]);
+
+  const winProbability = useMemo(() => {
+    if (lead?.conversionProbability != null && lead?.conversionProbability !== '') {
+      const num = Number(lead.conversionProbability);
+      return Number.isFinite(num) ? num : null;
+    }
+    return null;
+  }, [lead?.conversionProbability]);
+
+  const leadScore = useMemo(() => {
+    if (lead?.leadScore != null && lead?.leadScore !== '') {
+      const num = Number(lead.leadScore);
+      return Number.isFinite(num) ? num : null;
+    }
+    return null;
+  }, [lead?.leadScore]);
+
+  const quotationAlert = useMemo(() => {
+    if (!quotationRows.length) return null;
+    const q = quotationRows[0];
+    if (!q) return null;
+
+    const proposalDateStr = q.proposalDate ? formatDate(q.proposalDate) : null;
+    const validUntilDateStr = q.validUntil ? formatDate(q.validUntil) : null;
+
+    if (!q.validUntil) {
+      if (proposalDateStr) {
+        return {
+          type: 'info',
+          text: `Proposal sent on ${proposalDateStr}`,
+          status: q.status
+        };
+      }
+      return null;
+    }
+
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const validUntil = new Date(q.validUntil);
+      validUntil.setHours(0, 0, 0, 0);
+
+      const diffMs = validUntil.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        return {
+          type: 'expired',
+          text: `${proposalDateStr ? `Proposal sent on ${proposalDateStr} • ` : ''}Expired on ${validUntilDateStr} (${Math.abs(diffDays)}d ago)`,
+          status: q.status
+        };
+      } else if (diffDays === 0) {
+        return {
+          type: 'expiring_today',
+          text: `${proposalDateStr ? `Proposal sent on ${proposalDateStr} • ` : ''}Valid until today (Expires today)`,
+          status: q.status
+        };
+      } else if (diffDays <= 7) {
+        return {
+          type: 'expiring_soon',
+          text: `${proposalDateStr ? `Proposal sent on ${proposalDateStr} • ` : ''}Valid until ${validUntilDateStr} (Expiring in ${diffDays} day${diffDays > 1 ? 's' : ''})`,
+          status: q.status
+        };
+      } else {
+        return {
+          type: 'valid',
+          text: `${proposalDateStr ? `Proposal sent on ${proposalDateStr} • ` : ''}Valid until ${validUntilDateStr} (${diffDays} days left)`,
+          status: q.status
+        };
+      }
+    } catch {
+      return {
+        type: 'info',
+        text: `Proposal valid until ${validUntilDateStr}`,
+        status: q.status
+      };
+    }
+  }, [quotationRows]);
 
   const labelOptions = useMemo(() => {
     return mergeSharedLabelOptions(normalizeSharedLabels(settings?.labels || []), normalizeLabels(lead?.labels));
@@ -2538,8 +3832,12 @@ export function LeadDetailsPage() {
       'Lost',
       'Not Interested'
     ].map((item) => String(item || '').trim()).filter(Boolean);
-    return Array.from(new Set(values)).map((item) => ({ value: item, label: item }));
-  }, [lead?.status, settings, leadOptions.statuses, wonStatusLabel]);
+    return Array.from(new Set(values)).map((item) => ({
+      value: item,
+      label: item,
+      color: getLeadStatusColor(item, statusColors)
+    }));
+  }, [lead?.status, settings, leadOptions.statuses, wonStatusLabel, statusColors]);
 
   const canWriteLead = hasPermission('leads.write') || hasPermission('leads.manage');
   const canConvertLead = canWriteLead || hasPermission('leads.convert');
@@ -2728,8 +4026,18 @@ export function LeadDetailsPage() {
     if (type === 'reminder') {
       setActivityType('reminder');
       setActivityEdit({
-        ...EMPTY_REMINDER,
-        date: baseDate
+        relatedEntityType: 'Lead',
+        relatedEntityId: id,
+        relatedEntityLabel: lead?.title || lead?.companyName || lead?.contactPersonName || 'Lead',
+        lockRelatedEntity: true,
+        assignedTo: lead?.assignedTo || user?.id || '',
+        title: lead?.title ? `Follow-up with ${lead.title}` : '',
+        followUpType: 'Call',
+        purpose: '',
+        priority: 'Medium',
+        date: baseDate || '',
+        time: '10:00',
+        description: ''
       });
       return;
     }
@@ -2748,7 +4056,7 @@ export function LeadDetailsPage() {
   }
 
   function openEditActivity(event) {
-    if (!event || event.isSynthetic) return;
+    if (!event) return;
     const nextType = String(event.eventType || event.type || 'task').toLowerCase();
     if (nextType === 'quotation') {
       navigate(`/app/leads/${id}/quotations/${event.id}`);
@@ -2762,6 +4070,24 @@ export function LeadDetailsPage() {
           nextType === 'event' ? 'event' :
             nextType === 'quotation' ? 'quotation' : 'task'
     );
+    if (nextType === 'reminder') {
+      setActivityEdit({
+        id: event.followUpId || (event.id && !event.isSynthetic && !String(event.id).startsWith('follow-up-') ? event.id : undefined),
+        relatedEntityType: 'Lead',
+        relatedEntityId: id,
+        relatedEntityLabel: lead?.title || lead?.companyName || lead?.contactPersonName || 'Lead',
+        lockRelatedEntity: true,
+        assignedTo: event.assignedTo || lead?.assignedTo || user?.id || '',
+        title: event.title || '',
+        followUpType: event.followUpType || event.followUpMode || 'Call',
+        purpose: event.purpose || '',
+        priority: event.priority || event.followUpPriority || 'Medium',
+        date: formatDateOnlyInput(event.startDate || event.date || event.endDate),
+        time: event.startTime || event.time || '10:00',
+        description: event.description || event.notes || ''
+      });
+      return;
+    }
     setActivityEdit(event);
   }
 
@@ -2777,23 +4103,136 @@ export function LeadDetailsPage() {
         id: `follow-up-${lead.id}`,
         eventType: 'reminder',
         title: 'Lead follow-up',
-        description: lead.notes || 'Lead follow-up reminder',
+        description: lead.followUpNote || lead.notes || 'Lead follow-up reminder',
         startDate: lead.followUpDate,
         endDate: lead.followUpDate,
-        startTime: '',
+        startTime: lead.nextFollowUpTime || lead.followUpTime || '',
         endTime: '',
-        isSynthetic: true
+        followUpMode: lead.followUpMode,
+        followUpPriority: lead.followUpPriority,
+        reminder: lead.reminder,
+        assignedTeam: lead.assignedTeam,
+        assignedTo: lead.assignedTo,
+        isSynthetic: true,
+        isLeadFollowUp: true
       }]
       : [];
+    const allReminders = [
+      ...followUpReminder,
+      ...events.filter((event) => ['reminder'].includes(String(event.eventType || event.type || '').toLowerCase()))
+    ];
+
+    const now = Date.now();
+    const sortedReminders = [...allReminders].sort((a, b) => {
+      const aDate = String(a.startDate || a.date || a.endDate || a.createdAt || '');
+      const bDate = String(b.startDate || b.date || b.endDate || b.createdAt || '');
+      const aTime = aDate ? new Date(`${aDate} ${a.startTime || a.time || '00:00'}`).getTime() : 0;
+      const bTime = bDate ? new Date(`${bDate} ${b.startTime || b.time || '00:00'}`).getTime() : 0;
+
+      const aIsUpcoming = !isNaN(aTime) && aTime >= now;
+      const bIsUpcoming = !isNaN(bTime) && bTime >= now;
+
+      // Upcoming reminders come first
+      if (aIsUpcoming && !bIsUpcoming) return -1;
+      if (!aIsUpcoming && bIsUpcoming) return 1;
+
+      if (aIsUpcoming && bIsUpcoming) {
+        // Both upcoming: earliest date first (ascending order: e.g. Aug 22 before Sept 23)
+        if (aTime !== bTime) return aTime - bTime;
+        return aDate.localeCompare(bDate);
+      }
+
+      // If both are past: most recent past first
+      if (aTime !== bTime) return bTime - aTime;
+      return bDate.localeCompare(aDate);
+    });
+
     return {
       task: bucket(['task']),
       note: bucket(['note']),
-      reminder: [...followUpReminder, ...bucket(['reminder'])]
+      reminder: sortedReminders
     };
-  }, [events, lead?.followUpDate, lead?.id, lead?.notes]);
+  }, [events, lead?.followUpDate, lead?.id, lead?.notes, lead?.followUpNote, lead?.nextFollowUpTime, lead?.followUpTime, lead?.followUpMode, lead?.followUpPriority, lead?.reminder, lead?.assignedTeam, lead?.assignedTo]);
+
+  const [taskStatusFilter, setTaskStatusFilter] = useState('all');
+
+  const taskStatusCounts = useMemo(() => {
+    const counts = { all: activityBuckets.task.length, 'to do': 0, 'in progress': 0, 'completed': 0, 'blocked': 0 };
+    activityBuckets.task.forEach((task) => {
+      const st = String(task.status || 'to do').toLowerCase().trim();
+      if (counts[st] !== undefined) {
+        counts[st] += 1;
+      } else {
+        counts['to do'] += 1;
+      }
+    });
+    return counts;
+  }, [activityBuckets.task]);
+
+  const filteredTasks = useMemo(() => {
+    if (taskStatusFilter === 'all') return activityBuckets.task;
+    return activityBuckets.task.filter((task) => {
+      const st = String(task.status || 'to do').toLowerCase().trim();
+      return st === taskStatusFilter.toLowerCase().trim();
+    });
+  }, [activityBuckets.task, taskStatusFilter]);
+
+  const [reminderStatusFilter, setReminderStatusFilter] = useState('all');
+
+  const reminderStatusCounts = useMemo(() => {
+    const todayStr = getLocalDateStr();
+    let today = 0;
+    let upcoming = 0;
+    let past = 0;
+    let completed = 0;
+
+    activityBuckets.reminder.forEach((r) => {
+      const { isCompleted } = getFollowUpStatus(r);
+      if (isCompleted) {
+        completed += 1;
+        return;
+      }
+      const rawDate = r.startDate || r.date || r.endDate || '';
+      const itemDate = rawDate.slice(0, 10);
+      if (itemDate === todayStr) {
+        today += 1;
+      } else if (itemDate > todayStr || (!itemDate && new Date(r.createdAt).getTime() >= Date.now())) {
+        upcoming += 1;
+      } else {
+        past += 1;
+      }
+    });
+    return { all: activityBuckets.reminder.length, today, upcoming, past, completed };
+  }, [activityBuckets.reminder]);
+
+  const filteredReminders = useMemo(() => {
+    if (reminderStatusFilter === 'all') return activityBuckets.reminder;
+    const todayStr = getLocalDateStr();
+
+    return activityBuckets.reminder.filter((r) => {
+      const { isCompleted } = getFollowUpStatus(r);
+      if (reminderStatusFilter === 'completed') return isCompleted;
+      if (isCompleted) return false;
+
+      const rawDate = r.startDate || r.date || r.endDate || '';
+      const itemDate = rawDate.slice(0, 10);
+
+      if (reminderStatusFilter === 'today') {
+        return itemDate === todayStr;
+      }
+      if (reminderStatusFilter === 'upcoming') {
+        return itemDate > todayStr || (!itemDate && new Date(r.createdAt).getTime() >= Date.now());
+      }
+      if (reminderStatusFilter === 'past') {
+        return itemDate < todayStr;
+      }
+      return true;
+    });
+  }, [activityBuckets.reminder, reminderStatusFilter]);
 
   const tabs = useMemo(() => [
     { key: 'overview', label: 'Overview', icon: Activity },
+    { key: 'details', label: 'Lead Details', icon: FileText },
     { key: 'tasks', label: `Tasks (${activityBuckets.task.length || 0})`, icon: CheckCircle2 },
     { key: 'notes', label: `Notes (${activityBuckets.note.length || 0})`, icon: Tag },
     { key: 'reminders', label: `Reminders (${activityBuckets.reminder.length || 0})`, icon: Clock3 },
@@ -2864,8 +4303,22 @@ export function LeadDetailsPage() {
     setCallBusy(true);
     try {
       await api.resources.create(`/leads/${id}/calls`, payload, token);
+
+      const isConnected = ['Connected', 'Interested', 'Discussion Done', 'Call Connected', 'Proposal Requested'].some(
+        (o) => String(payload.callOutcome || '').toLowerCase().includes(o.toLowerCase())
+      );
+
+      // If call is Connected, reset followUpAttempts to 0 and revive lead if cold/lost
+      if (isConnected && ((lead?.followUpAttempts || 0) > 0 || ['Lost', 'Cold', 'Unresponsive'].includes(lead?.status))) {
+        await api.resources.update('/leads', id, {
+          ...lead,
+          followUpAttempts: 0,
+          status: ['Lost', 'Cold', 'Unresponsive'].includes(lead?.status) ? 'Follow-up' : lead?.status
+        }, token);
+      }
+
       api.cache.invalidate('/leads');
-      toast.success('Call logged');
+      toast.success(isConnected ? 'Call logged & auto-cadence reset to active' : 'Call logged');
       setCallOpen(false);
       await load();
     } catch (error) {
@@ -2913,6 +4366,23 @@ export function LeadDetailsPage() {
     setActivityBusy(true);
     try {
       const type = String(payload.eventType || activityType || 'event').toLowerCase();
+      if (activityEdit?.id === `follow-up-${id}` || activityEdit?.isSynthetic || activityEdit?.isLeadFollowUp) {
+        await api.resources.update('/leads', id, {
+          ...lead,
+          followUpDate: payload.startDate || payload.date || '',
+          nextFollowUpTime: payload.startTime || payload.time || '',
+          followUpNote: payload.description || lead?.followUpNote || '',
+          notes: payload.description || lead?.notes || ''
+        }, token);
+        api.cache.invalidate('/leads');
+        api.cache.invalidate('/follow-ups');
+        toast.success('Lead follow-up updated');
+        setActivityType(null);
+        setActivityEdit(null);
+        await load();
+        return;
+      }
+
       if (activityEdit?.id) {
         const route = type === 'event' ? '/events' : '/lead-events';
         await api.resources.update(route, activityEdit.id, {
@@ -2938,8 +4408,23 @@ export function LeadDetailsPage() {
           visibility: payload.visibility || 'all_team',
           ownerUserId: user?.id || payload.ownerUserId || ''
         }, token);
+
+        if (type === 'reminder' && (payload.startDate || payload.date)) {
+          const dueAt = `${payload.startDate || payload.date}T${payload.startTime || payload.time || '10:00'}:00+05:30`;
+          await api.followUps.create(token, {
+            relatedEntityType: 'Lead',
+            relatedEntityId: id,
+            title: payload.title || `Follow-up with ${lead.title || lead.companyName || 'Lead'}`,
+            description: payload.description || '',
+            followUpType: payload.followUpMode || 'Call',
+            dueAt,
+            priority: payload.priority || 'High',
+            assignedTo: payload.assignedTo || lead?.assignedTo || user?.id
+          }).catch(() => {});
+        }
       }
       api.cache.invalidate('/leads');
+      api.cache.invalidate('/follow-ups');
       toast.success(activityEdit ? 'Activity updated' : 'Activity added');
       setActivityType(null);
       setActivityEdit(null);
@@ -2967,10 +4452,33 @@ export function LeadDetailsPage() {
   async function confirmDeleteActivity() {
     if (!activityDeleteTarget) return;
     try {
+      if (activityDeleteTarget.id === `follow-up-${id}` || activityDeleteTarget.isSynthetic || activityDeleteTarget.isLeadFollowUp) {
+        await api.resources.update('/leads', id, {
+          ...lead,
+          followUpDate: '',
+          nextFollowUpTime: '',
+          followUpMode: '',
+          followUpPriority: '',
+          followUpNote: ''
+        }, token);
+        api.cache.invalidate('/leads');
+        api.cache.invalidate('/follow-ups');
+        toast.success('Lead follow-up deleted');
+        setActivityDeleteTarget(null);
+        await load();
+        return;
+      }
+
+      if (activityDeleteTarget.payload?.followUpId || (activityDeleteTarget.id && String(activityDeleteTarget.id).startsWith('fu_'))) {
+        const targetFuId = activityDeleteTarget.payload?.followUpId || activityDeleteTarget.id;
+        await api.followUps.remove(token, targetFuId).catch(() => {});
+      }
+
       const type = String(activityDeleteTarget?.eventType || activityDeleteTarget?.type || 'event').toLowerCase();
       const route = type === 'event' ? '/events' : '/lead-events';
       await api.resources.remove(route, activityDeleteTarget.id, token);
       api.cache.invalidate('/leads');
+      api.cache.invalidate('/follow-ups');
       toast.success('Activity deleted');
       setActivityDeleteTarget(null);
       await load();
@@ -2979,90 +4487,315 @@ export function LeadDetailsPage() {
     }
   }
 
+  async function quickRescheduleReminder(item, targetDateStr, targetTimeStr, label) {
+    try {
+      if (item.id === `follow-up-${id}` || item.isSynthetic || item.isLeadFollowUp) {
+        await api.resources.update('/leads', id, {
+          ...lead,
+          followUpDate: targetDateStr,
+          nextFollowUpTime: targetTimeStr
+        }, token);
+      } else {
+        await api.resources.update('/lead-events', item.id, {
+          ...item,
+          startDate: targetDateStr,
+          endDate: targetDateStr,
+          startTime: targetTimeStr
+        }, token);
+      }
+
+      if (item.payload?.followUpId || (item.id && String(item.id).startsWith('fu_'))) {
+        const targetFuId = item.payload?.followUpId || item.id;
+        await api.followUps.reschedule(token, targetFuId, {
+          date: targetDateStr,
+          time: targetTimeStr,
+          reason: `Quick reschedule to ${label}`
+        }).catch(() => {});
+      }
+
+      api.cache.invalidate('/leads');
+      api.cache.invalidate('/follow-ups');
+      toast.success(`Rescheduled to ${label}`);
+      await load();
+    } catch (error) {
+      toast.error(error.message || 'Failed to reschedule');
+    }
+  }
+
+  async function handleCompleteFollowUp({
+    item,
+    outcome = 'connected',
+    remark,
+    scheduleNext,
+    nextDate,
+    nextTime,
+    nextMode,
+    nextNote,
+    isCold = false
+  }) {
+    setCompleteFollowUpBusy(true);
+    try {
+      const todayDate = new Date().toISOString().slice(0, 10);
+      const currentAttempts = Number(lead?.followUpAttempts || 0);
+      const nextAttempts = outcome === 'no_response' ? currentAttempts + 1 : 0;
+
+      const completionNote = `[Completed: ${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} - Outcome: ${outcome || 'Done'}]\nRemark: ${remark.trim()}`;
+      const combinedDescription = item.description
+        ? `${item.description}\n\n${completionNote}`
+        : completionNote;
+
+      // 1. Create or update event record in lead-events as Completed with Remark
+      if (item.id && !item.isSynthetic && !item.isLeadFollowUp) {
+        await api.resources.update('/lead-events', item.id, {
+          ...item,
+          status: 'Completed',
+          title: item.title?.startsWith('Completed:') ? item.title : `Completed: ${item.title}`,
+          description: combinedDescription,
+          labels: [...(Array.isArray(item.labels) ? item.labels.filter((l) => l !== 'completed') : []), 'completed', `outcome:${outcome}`],
+          color: '#10b981'
+        }, token);
+      } else {
+        await api.resources.create('/lead-events', {
+          leadId: id,
+          eventType: 'reminder',
+          title: `Completed: ${item.title || 'Lead follow-up'}`,
+          description: combinedDescription,
+          startDate: item.startDate || lead?.followUpDate || todayDate,
+          endDate: item.endDate || lead?.followUpDate || todayDate,
+          startTime: item.startTime || lead?.nextFollowUpTime || '',
+          labels: ['completed', 'follow-up', `outcome:${outcome}`],
+          color: '#10b981'
+        }, token);
+      }
+
+      if (item.payload?.followUpId || (item.id && String(item.id).startsWith('fu_'))) {
+        const targetFuId = item.payload?.followUpId || item.id;
+        const actualOutcomeMap = {
+          connected: 'Connected',
+          no_response: 'No Response',
+          busy: 'Busy',
+          switched_off: 'Switched Off'
+        };
+        await api.followUps.complete(token, targetFuId, {
+          actualOutcome: actualOutcomeMap[outcome] || 'Connected',
+          communicationResult: actualOutcomeMap[outcome] || 'Connected',
+          discussionNote: remark.trim() || 'Completed from lead page',
+          nextFollowUpDate: scheduleNext && nextDate ? nextDate : '',
+          nextFollowUpTime: scheduleNext && nextTime ? nextTime : '',
+          noNextFollowUpReason: !scheduleNext ? 'Follow-up completed' : ''
+        }).catch(() => {});
+      }
+
+      // 2. Update Lead metadata, status, cadence attempts
+      const updatedNotes = `${lead.notes || ''}\n[Follow-Up ${new Date().toLocaleDateString()}]: ${remark.trim()}`.trim();
+
+      let nextLeadStatus = lead.status;
+      if (isCold || (outcome === 'no_response' && nextAttempts >= 3)) {
+        // 3 failed attempts: Move to Cold / Unresponsive (or Lost)
+        nextLeadStatus = 'Lost';
+      } else if (outcome === 'connected') {
+        if (['Lost', 'Cold', 'Unresponsive'].includes(lead.status)) {
+          nextLeadStatus = 'Follow-up';
+        }
+      }
+
+      const leadPayload = {
+        ...lead,
+        followUpAttempts: isCold ? 0 : nextAttempts,
+        status: nextLeadStatus,
+        followUpDate: scheduleNext && nextDate ? nextDate : '',
+        nextFollowUpTime: scheduleNext && nextTime ? nextTime : '',
+        followUpMode: scheduleNext ? (nextMode || lead.followUpMode || 'Phone Call') : '',
+        followUpNote: scheduleNext ? (nextNote || '') : '',
+        notes: updatedNotes
+      };
+
+      if (isCold || (outcome === 'no_response' && nextAttempts >= 3)) {
+        leadPayload.lostReason = 'Unresponsive / No reply after 3 attempts';
+      }
+
+      await api.resources.update('/leads', id, leadPayload, token);
+
+      api.cache.invalidate('/leads');
+      api.cache.invalidate('/follow-ups');
+      if (isCold || (outcome === 'no_response' && nextAttempts >= 3)) {
+        toast.success('Lead marked as Unresponsive / Cold after 3 attempts');
+      } else if (outcome === 'no_response') {
+        toast.success(`Auto follow-up scheduled (Attempt ${nextAttempts}/3)`);
+      } else {
+        toast.success('Follow-up completed!');
+      }
+      setCompleteFollowUpTarget(null);
+      if (viewActivityTarget) setViewActivityTarget(null);
+      await load();
+    } catch (error) {
+      toast.error(error.message || 'Failed to complete follow-up');
+    } finally {
+      setCompleteFollowUpBusy(false);
+    }
+  }
+
   if (loading) return <PageLoader />;
   if (!lead) return null;
 
   return (
     <div className="space-y-5 overflow-hidden">
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate('/app/leads')}
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"
-            >
-              <ArrowLeft size={16} />
-              Back to Leads
-            </button>
-            <span className="text-slate-300">/</span>
-            <h1 className="min-w-0 max-w-full truncate text-base font-semibold tracking-tight text-[var(--text-main)]">
-              {lead.companyName || lead.name}
-            </h1>
-            {lead.leadNumber ? <span className="text-xs font-semibold text-slate-400">{lead.leadNumber}</span> : null}
-          </div>
-          <div>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-                {lead.type || 'Organization'}
-              </span>
-              <span className="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: `${(statusColors[lead.status] || '#64748b')}1A`, borderColor: `${(statusColors[lead.status] || '#64748b')}33`, color: statusColors[lead.status] || '#64748b' }}>
-                {lead.status}
-              </span>
-              {normalizeLabels(lead.labels).slice(0, 3).map((label) => (
-                <span key={label}>{renderLabelPill(label, labelColorMap.get(label) || '#2563eb')}</span>
-              ))}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 shadow-sm">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate('/app/leads')}
+                className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
+              >
+                <ArrowLeft size={16} />
+                Back to Leads
+              </button>
+              <span className="text-[var(--text-muted)] opacity-40">/</span>
+              <h1 className="min-w-0 max-w-full truncate text-base font-semibold tracking-tight text-[var(--text-main)]">
+                {lead.companyName || lead.name}
+              </h1>
+              {lead.leadNumber ? <span className="text-xs font-semibold text-[var(--text-muted)]">{lead.leadNumber}</span> : null}
+            </div>
+            <div className="space-y-2">
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-[var(--border-muted)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                  {lead.type || 'Organization'}
+                </span>
+                {renderStatusPill(lead.status, getLeadStatusColor(lead.status, statusColors))}
+                {normalizeLabels(lead.labels).slice(0, 3).map((label) => (
+                  <span key={label}>{renderLabelPill(label, labelColorMap.get(label) || '#2563eb')}</span>
+                ))}
+
+                {lead.followUpAttempts > 0 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300 shadow-2xs">
+                    <span>⚡</span> Auto Follow-Up (Attempt {lead.followUpAttempts}/3)
+                  </span>
+                ) : null}
+
+                {/* 🎯 Deal Probability / Score Indicator */}
+                {winProbability != null ? (
+                  <span className={cn(
+                    'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-2xs',
+                    winProbability >= 70
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                      : winProbability >= 40
+                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                        : 'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300'
+                  )}>
+                    <span>🎯</span> {winProbability}% Win Chance
+                  </span>
+                ) : null}
+
+                {leadScore != null ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-semibold text-violet-700 dark:text-violet-300 shadow-2xs">
+                    <span>⭐</span> Score: {leadScore}
+                  </span>
+                ) : null}
+              </div>
+
+              {/* 📅 Quotation Expiry / Validity Alert */}
+              {quotationAlert ? (
+                <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                  <div className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1 text-xs font-medium transition shadow-2xs',
+                    quotationAlert.type === 'expired'
+                      ? 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'
+                      : (quotationAlert.type === 'expiring_soon' || quotationAlert.type === 'expiring_today')
+                        ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                        : 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                  )}>
+                    <Clock3 size={13} className="shrink-0" />
+                    <span>{quotationAlert.text}</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('quotations')}
+                      className="ml-1 font-bold underline hover:opacity-80 cursor-pointer"
+                    >
+                      View
+                    </button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            {canWriteLead ? (
+              <div className="w-52 min-w-[190px]">
+                <SearchableSelect
+                  value={lead.status || ''}
+                  onChange={changeLeadStatus}
+                  options={leadStatusOptions}
+                  placeholder="Change status"
+                  triggerClassName="h-9 px-3 text-xs font-semibold rounded-xl bg-[var(--surface)] hover:bg-[var(--hover-bg)] border-[var(--border)] shadow-xs transition"
+                />
+              </div>
+            ) : null}
+            {canWriteLead ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 px-3.5 text-xs font-semibold rounded-xl border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--hover-bg)] text-[var(--text-main)] shadow-xs transition cursor-pointer"
+                onClick={() => setCallOpen(true)}
+              >
+                <Phone size={14} className="mr-1.5 text-emerald-600 dark:text-emerald-400" /> Log Call
+              </Button>
+            ) : null}
+            {canWriteLead ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 px-3.5 text-xs font-semibold rounded-xl border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--hover-bg)] text-[var(--text-main)] shadow-xs transition cursor-pointer"
+                onClick={() => setEditingLeadOpen(true)}
+              >
+                <Edit3 size={14} className="mr-1.5 text-blue-600 dark:text-blue-400" /> Edit Lead
+              </Button>
+            ) : null}
+            {canWriteLead && isLost ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 px-3.5 text-xs font-semibold rounded-xl border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 shadow-xs transition cursor-pointer"
+                onClick={reopenLead}
+                disabled={savingMeta}
+              >
+                <RefreshCcw size={14} className="mr-1.5" /> Reopen
+              </Button>
+            ) : null}
+            {canWriteLead && !isWon && !isLost ? (
+              <Button
+                size="sm"
+                className="h-9 px-4 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs border border-emerald-600 transition cursor-pointer"
+                onClick={() => changeLeadStatus(wonStatusLabel)}
+                disabled={savingMeta}
+              >
+                <CheckCircle2 size={15} className="mr-1.5" /> Mark Won
+              </Button>
+            ) : null}
+            {canConvertLead && isWon && !lead.convertedClientId ? (
+              <Button
+                size="sm"
+                className="h-9 px-4 text-xs font-semibold rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs border border-transparent transition cursor-pointer"
+                onClick={() => setConvertOpen(true)}
+              >
+                <Wand2 size={15} className="mr-1.5" /> Convert Lead
+              </Button>
+            ) : null}
+            {lead.convertedClientId ? (
+              <Button
+                size="sm"
+                className="h-9 px-4 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
+                onClick={() => navigate(`/app/clients/${lead.convertedClientId}`)}
+              >
+                <UserPlus size={15} className="mr-1.5" /> View Client
+              </Button>
+            ) : null}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          {canWriteLead ? (
-            <div className="w-44">
-              <SearchableSelect
-                value={lead.status || ''}
-                onChange={changeLeadStatus}
-                options={leadStatusOptions}
-                placeholder="Change status"
-                triggerClassName="h-10 py-2 shadow-sm"
-              />
-            </div>
-          ) : null}
-          {canWriteLead ? (
-            <Button variant="outline" className="h-10 shadow-sm" onClick={() => setCallOpen(true)}>
-              <Phone size={16} className="mr-2" /> Log Call
-            </Button>
-          ) : null}
-          {canWriteLead ? (
-            <Button variant="outline" className="h-10 shadow-sm" onClick={() => setEditingLeadOpen(true)}>
-              <Edit3 size={16} className="mr-2" /> Edit Lead
-            </Button>
-          ) : null}
-          {canWriteLead && isLost ? (
-            <Button variant="outline" className="h-10 shadow-sm" onClick={reopenLead} disabled={savingMeta}>
-              <RefreshCcw size={16} className="mr-2" /> Reopen
-            </Button>
-          ) : null}
-          {canWriteLead && !isWon && !isLost ? (
-            <Button variant="outline" className="h-10 shadow-sm" onClick={() => changeLeadStatus(wonStatusLabel)} disabled={savingMeta}>
-              <CheckCircle2 size={16} className="mr-2" /> Mark Won
-            </Button>
-          ) : null}
-          {canConvertLead && isWon && !lead.convertedClientId ? (
-            <Button variant="outline" className="h-10 shadow-sm" onClick={() => setConvertOpen(true)}>
-              <Wand2 size={16} className="mr-2" /> Convert Lead
-            </Button>
-          ) : null}
-          {lead.convertedClientId ? (
-            <Button className="h-10 shadow-sm" onClick={() => navigate(`/app/clients/${lead.convertedClientId}`)}>
-              <UserPlus size={16} className="mr-2" /> View Client
-            </Button>
-          ) : null}
-        </div>
-      </div>
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto border-b border-slate-200 px-1">
+      <div className="flex items-center gap-2 overflow-x-auto border-b border-[var(--border)] px-1">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (
@@ -3071,162 +4804,363 @@ export function LeadDetailsPage() {
               type="button"
               onClick={() => setActiveTab(tab.key)}
               className={cn(
-                'inline-flex shrink-0 items-center gap-2 rounded-t-lg border-b-2 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap',
+                'inline-flex shrink-0 items-center gap-2 rounded-t-lg border-b-2 px-3 py-3 text-sm font-medium transition-colors whitespace-nowrap cursor-pointer',
                 activeTab === tab.key
-                  ? 'border-[var(--primary)] bg-blue-50/50 text-[var(--primary)]'
-                  : 'border-transparent text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'border-[var(--primary)] bg-[var(--primary-subtle)] text-[var(--primary)]'
+                  : 'border-transparent text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)]'
               )}
             >
-              {Icon && <Icon size={16} className={activeTab === tab.key ? 'text-[var(--primary)]' : 'text-slate-400'} />}
+              {Icon && <Icon size={16} className={activeTab === tab.key ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />}
               {tab.label}
             </button>
           );
         })}
       </div>
 
-      <div className={cn('grid gap-6', activeTab === 'overview' ? 'xl:grid-cols-[minmax(0,1.8fr)_380px]' : 'xl:grid-cols-1')}>
+      <div className={cn('grid gap-6', (activeTab === 'overview' || activeTab === 'details') ? 'xl:grid-cols-[minmax(0,1.8fr)_380px]' : 'xl:grid-cols-1')}>
         <div className="space-y-6">
           {activeTab === 'overview' && (
-            <div>
-              <Card className="flex min-w-0 items-center gap-4 rounded-2xl border border-cyan-100 bg-cyan-50/30 px-4 py-4 shadow-sm">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-cyan-50 text-cyan-600">
-                  <Tag size={22} strokeWidth={2} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Budget & Quotation</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="min-w-0">
-                      <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">Client</span>
-                      <span className="block text-base font-bold text-slate-800">{formatLeadAmount(clientBudget, lead.currency)}</span>
+            <div className="space-y-5">
+              {/* 1. Commercial Highlights (Budget, Quotation & Services) */}
+              <Card className="flex flex-col gap-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 dark:bg-cyan-500/10 p-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/15 pb-3.5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+                      <Tag size={20} strokeWidth={2} />
                     </div>
-                    <div className="min-w-0">
-                      <span className="block text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">Quoted</span>
-                      <span className="block text-base font-bold text-slate-800">{quotationAmount != null ? formatLeadAmount(quotationAmount, lead.currency) : '-'}</span>
-                      <span className={cn(
-                        'mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold',
-                        String(quotationStatus).toLowerCase() === 'sent'
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                          : String(quotationStatus).toLowerCase() === 'not sent'
-                            ? 'border-slate-200 bg-slate-50 text-slate-600'
-                            : 'border-amber-200 bg-amber-50 text-amber-700'
-                      )}>
-                        {quotationStatus}
-                      </span>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Commercial Overview</p>
+                      <h3 className="text-sm font-bold text-[var(--text-main)]">Budget & Quotation</h3>
                     </div>
                   </div>
-                  <div className="mt-2 flex min-w-0 items-center">
-                    <span className="min-w-0 truncate text-xs text-slate-400" title={serviceNames.join(', ')}>
-                      {serviceNames.join(', ') || 'No service'}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-[var(--text-muted)]">Status:</span>
+                    <span className={cn(
+                      'inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+                      String(quotationStatus).toLowerCase() === 'sent'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
+                        : String(quotationStatus).toLowerCase() === 'approved'
+                          ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300'
+                          : String(quotationStatus).toLowerCase() === 'not sent'
+                            ? 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]'
+                            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300'
+                    )}>
+                      {quotationStatus}
+                    </span>
+                    {canWriteLead ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openActivity('quotation')}
+                        className="h-7 text-xs px-2.5 ml-1 border-cyan-500/30 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/10 cursor-pointer"
+                      >
+                        <PlusCircle size={13} className="mr-1" />
+                        {quotationAmount != null ? 'New Quotation' : 'Add Quotation'}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {/* Metric 1: Client Budget */}
+                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Client Budget</span>
+                      {lead?.budgetConfirmed != null ? (
+                        <span className={cn(
+                          'rounded-sm px-1 py-0.2 text-[9px] font-bold uppercase',
+                          lead.budgetConfirmed ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-500/15 text-slate-500'
+                        )}>
+                          {lead.budgetConfirmed ? 'Confirmed' : 'Estimated'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="mt-1.5 block text-base font-bold text-[var(--text-main)] truncate" title={formatLeadAmount(clientBudget, lead?.currency)}>
+                      {formatLeadAmount(clientBudget, lead?.currency)}
+                    </span>
+                  </div>
+
+                  {/* Metric 2: Quotation Value */}
+                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Quotation Value</span>
+                    <span className="mt-1.5 block text-base font-bold text-[var(--text-main)] truncate" title={quotationAmount != null ? formatLeadAmount(quotationAmount, lead?.currency) : '-'}>
+                      {quotationAmount != null ? formatLeadAmount(quotationAmount, lead?.currency) : '-'}
+                    </span>
+                  </div>
+
+                  {/* Metric 3: Billing / Deal Type */}
+                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Billing Type</span>
+                    <span className="mt-1.5 block text-sm font-bold text-[var(--text-main)] truncate" title={lead?.billingType || lead?.paymentPreference || '-'}>
+                      {lead?.billingType || lead?.paymentPreference || '-'}
+                    </span>
+                  </div>
+
+                  {/* Metric 4: Expected Close / Timeline */}
+                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Expected Close</span>
+                    <span className="mt-1.5 block text-sm font-bold text-[var(--text-main)] truncate" title={formatDate(lead?.expectedClosingDate) !== '-' ? formatDate(lead?.expectedClosingDate) : (lead?.purchaseTimeline || '-')}>
+                      {formatDate(lead?.expectedClosingDate) !== '-' ? formatDate(lead?.expectedClosingDate) : (lead?.purchaseTimeline || '-')}
                     </span>
                   </div>
                 </div>
+
+                {serviceNames.length > 0 ? (
+                  <div className="pt-1">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Required Services</span>
+                      <span className="rounded-full bg-cyan-500/15 px-1.5 py-0.2 text-[10px] font-bold text-cyan-700 dark:text-cyan-300">
+                        {serviceNames.length}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {serviceNames.map((service) => (
+                        <span key={service}>
+                          {renderServicePill(service, getLeadServiceColor(service))}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </Card>
+
+              {/* 2. Next Scheduled Follow-up & Reminders */}
+              <Card className="p-5 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-3">
+                <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-3">
+                  <div className="flex items-center gap-2">
+                    <Clock3 size={16} className="text-amber-500" />
+                    <h3 className="text-sm font-bold text-[var(--text-main)]">Next Scheduled Follow-up & Reminders</h3>
+                  </div>
+                  {canWriteLead ? (
+                    <Button variant="outline" size="sm" onClick={() => openActivity('reminder')} className="h-8 text-xs">
+                      <CalendarPlus size={14} className="mr-1.5" />
+                      + Schedule Follow-up
+                    </Button>
+                  ) : null}
+                </div>
+
+                {activityBuckets.reminder.length > 0 ? (
+                  <div className="space-y-2.5">
+                    {activityBuckets.reminder.slice(0, 3).map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 p-3.5"
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                              Reminder
+                            </span>
+                            <span className="text-xs font-semibold text-[var(--text-muted)]">
+                              {formatDate(item.date || item.startDate)} {item.startTime ? `at ${item.startTime}` : ''}
+                            </span>
+                          </div>
+                          <p className="text-sm font-bold text-[var(--text-main)] truncate">{item.title}</p>
+                          {item.description ? (
+                            <p className="text-xs text-[var(--text-muted)] line-clamp-2 leading-relaxed">{item.description}</p>
+                          ) : null}
+                        </div>
+                        {!item.isSystemFollowUp && canWriteLead ? (
+                          <div className="flex items-center gap-1 shrink-0 self-end sm:self-center">
+                            <Button variant="ghost" size="icon" onClick={() => openEditActivity(item)} className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--text-main)]">
+                              <Edit3 size={14} />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => setActivityDeleteTarget(item)} className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-6 text-center">
+                    <p className="text-xs font-medium text-[var(--text-muted)]">No active follow-ups or reminders scheduled for this lead.</p>
+                    {canWriteLead ? (
+                      <Button variant="ghost" size="sm" onClick={() => openActivity('reminder')} className="mt-2 text-xs text-[var(--primary)]">
+                        + Set a Follow-up Date
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+              </Card>
+
+              {/* 3. Requirement & Key Notes Box */}
+              {(lead.notes || lead.requirementDescription || lead.otherServiceDetails) ? (
+                <Card className="p-5 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-2">
+                  <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <FileText size={16} className="text-[var(--primary)]" />
+                      <h3 className="text-sm font-bold text-[var(--text-main)]">Requirement & Key Notes</h3>
+                    </div>
+                    {canWriteLead ? (
+                      <Button variant="ghost" size="sm" onClick={() => openActivity('note')} className="h-7 text-xs">
+                        + Add Note
+                      </Button>
+                    ) : null}
+                  </div>
+                  <div className="space-y-3 pt-1">
+                    {lead.requirementDescription ? (
+                      <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Client Requirement</span>
+                        <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
+                          {lead.requirementDescription}
+                        </p>
+                      </div>
+                    ) : null}
+                    {lead.notes ? (
+                      <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">General Notes</span>
+                        <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
+                          {lead.notes}
+                        </p>
+                      </div>
+                    ) : null}
+                    {lead.otherServiceDetails ? (
+                      <div>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Other Service Details</span>
+                        <p className="mt-1 text-xs text-[var(--text-main)] rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-2.5">
+                          {lead.otherServiceDetails}
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </Card>
+              ) : null}
+
+              {/* 4. Recent Activity Feed */}
+              <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+                <div className="flex items-center justify-between border-b border-[var(--border-muted)] px-5 py-3.5 bg-[var(--surface-2)]/50">
+                  <div className="flex items-center gap-2">
+                    <Activity size={16} className="text-[var(--primary)]" />
+                    <h2 className="text-sm font-bold text-[var(--text-main)]">Recent Activity</h2>
+                    <span className="rounded-full bg-[var(--surface-3)] px-2 py-0.5 text-[10px] font-bold text-[var(--text-muted)] border border-[var(--border-muted)]">
+                      {sortedTimeline.length}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setActiveTab('timeline')}
+                    className="h-7 text-xs font-semibold px-2.5 text-[var(--primary)] hover:text-[var(--primary)] cursor-pointer"
+                  >
+                    View full timeline →
+                  </Button>
+                </div>
+                <div className="p-4">
+                  {sortedTimeline.length ? (
+                    <div className="relative before:absolute before:left-3 before:top-2.5 before:bottom-2.5 before:w-[2px] before:bg-[var(--border-muted)] space-y-2.5">
+                      {sortedTimeline.slice(0, 5).map((item, index) => {
+                        const meta = getActivityMeta(item);
+                        const Icon = meta.icon;
+                        const timeInfo = formatActivityTimestamp(item.date || item.createdAt);
+
+                        return (
+                          <div key={`${item.title}-${item.date}-${index}`} className="relative pl-9 group">
+                            {/* Timeline Icon Node */}
+                            <div className={cn(
+                              'absolute left-0 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--surface)] shadow-2xs transition-transform group-hover:scale-110 z-10',
+                              meta.bg,
+                              meta.text
+                            )}>
+                              <Icon size={11} />
+                            </div>
+
+                            {/* Minimal Activity Item Card */}
+                            <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/70 px-3.5 py-2.5 shadow-2xs hover:shadow-xs transition-all">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                  <span className={cn(
+                                    'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0',
+                                    meta.bg,
+                                    meta.border,
+                                    meta.text
+                                  )}>
+                                    {meta.label}
+                                  </span>
+                                  <span className="text-xs font-bold text-[var(--text-main)] truncate">{item.title}</span>
+                                  {item.actorName && (
+                                    <span className="text-[11px] font-medium text-[var(--text-muted)] shrink-0 hidden sm:inline">
+                                      • <span>{item.actorName}</span>
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex flex-col items-end shrink-0 text-right" title={timeInfo.formatted}>
+                                  {timeInfo.isUpcoming ? (
+                                    <div className="flex flex-col items-end">
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                                        <Clock3 size={11} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                                        <span>{timeInfo.relative || 'Upcoming'}</span>
+                                      </span>
+                                      <span className="mt-0.5 text-[10px] font-medium text-amber-700/80 dark:text-amber-300/80">
+                                        {timeInfo.formatted}
+                                      </span>
+                                    </div>
+                                  ) : timeInfo.relative ? (
+                                    <div className="flex flex-col items-end">
+                                      <div className="flex items-center gap-1 text-[11px] font-bold text-[var(--primary)]">
+                                        <Clock3 size={11} className="shrink-0 opacity-80" />
+                                        <span>{timeInfo.relative}</span>
+                                      </div>
+                                      <span className="mt-0.5 text-[10px] font-medium text-[var(--text-muted)]">
+                                        {timeInfo.formatted}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
+                                      <Clock3 size={11} className="shrink-0 opacity-70" />
+                                      <span>{timeInfo.formatted}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {item.detail && item.detail !== item.title && (
+                                <p className="mt-1 text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">
+                                  {item.detail}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40 p-8 text-center text-sm text-[var(--text-muted)]">
+                      No recent activity recorded for this lead.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {activeTab === 'quotations' && (
-            <Card className="p-0 border-slate-200">
-              <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Quotations</h2>
-                  <p className="text-sm text-slate-500">Proposal amount, status, validity and service details</p>
-                </div>
-                {canWriteLead ? (
-                  <Button variant="outline" className="shadow-sm bg-white hover:bg-slate-50" onClick={() => openActivity('quotation')}>
-                    <PlusCircle size={16} className="mr-2" />
-                    Add quotation
-                  </Button>
-                ) : null}
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-0">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      {['Quotation', 'Service', 'Proposal date', 'Valid until', 'Amount', 'Status', 'Invoice', 'Comments', ''].map((heading) => (
-                        <th key={heading || 'actions'} className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                          {heading}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quotationRows.length ? quotationRows.map((item) => (
-                      <tr key={item.id} className="transition hover:bg-slate-50">
-                        <td className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">{item.title}</td>
-                        <td className="max-w-[220px] truncate border-b border-slate-100 px-4 py-3 text-sm text-slate-600" title={item.serviceName}>{item.serviceName || '-'}</td>
-                        <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">{formatDate(item.proposalDate)}</td>
-                        <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">{formatDate(item.validUntil)}</td>
-                        <td className="border-b border-slate-100 px-4 py-3 text-sm font-semibold text-slate-800">{item.totalAmount != null ? formatLeadAmount(item.totalAmount, lead.currency) : '-'}</td>
-                        <td className="border-b border-slate-100 px-4 py-3">
-                          <span className={cn(
-                            'inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold',
-                            String(item.status).toLowerCase() === 'sent'
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : String(item.status).toLowerCase() === 'draft'
-                                ? 'border-slate-200 bg-slate-50 text-slate-600'
-                                : String(item.status).toLowerCase() === 'approved'
-                                  ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                  : 'border-amber-200 bg-amber-50 text-amber-700'
-                          )}>
-                            {item.status || 'Draft'}
-                          </span>
-                        </td>
-                        <td className="border-b border-slate-100 px-4 py-3 text-sm">
-                          {item.invoiceId ? (
-                            <button type="button" onClick={() => navigate(`/app/invoices/${item.invoiceId}`)} className="font-semibold text-[var(--primary)] hover:underline">
-                              {item.invoiceNumber || 'View invoice'}
-                            </button>
-                          ) : <span className="text-slate-400">-</span>}
-                        </td>
-                        <td className="max-w-[260px] truncate border-b border-slate-100 px-4 py-3 text-sm text-slate-600" title={item.comments}>{item.comments || '-'}</td>
-                        <td className="border-b border-slate-100 px-4 py-3 text-right">
-                          {canWriteLead ? (
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => openEditActivity(item.event)} title="Edit quotation">
-                                <Edit3 size={16} />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => setActivityDeleteTarget(item.event)} title="Delete quotation" className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                                <Trash2 size={16} />
-                              </Button>
-                            </div>
-                          ) : null}
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan={9} className="px-4 py-10 text-center text-sm text-slate-500">
-                          No quotation added yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          )}
-
-          {activeTab === 'overview' && (
-            <div className="space-y-2.5">
+          {activeTab === 'details' && (
+            <div className="space-y-3">
               <div className="flex items-center justify-between gap-3 px-1">
-                <h2 className="text-sm font-semibold text-slate-900">Lead Details</h2>
+                <div>
+                  <h2 className="text-base font-bold text-[var(--text-main)]">Lead Details & Specifications</h2>
+                  <p className="text-xs text-[var(--text-muted)]">Structured lead specifications, contact profile, and requirements</p>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setAllDetailSections(true)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] transition hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] cursor-pointer"
                   >
                     Open all
                   </button>
                   <button
                     type="button"
                     onClick={() => setAllDetailSections(false)}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+                    className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[var(--text-muted)] transition hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] cursor-pointer"
                   >
                     Close all
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-2.5">
+              <div className="grid grid-cols-1 gap-3">
                 {detailSections.map((section) => (
                   <DetailCard
                     key={section.key}
@@ -3240,8 +5174,134 @@ export function LeadDetailsPage() {
             </div>
           )}
 
+          {activeTab === 'quotations' && (() => {
+            const quotationPage = tabPages.quotations || 1;
+            const quotationPageSize = 10;
+            const pagedQuotations = quotationRows.slice((quotationPage - 1) * quotationPageSize, quotationPage * quotationPageSize);
+
+            return (
+              <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+                <div className="flex flex-col gap-3 border-b border-[var(--border-muted)] px-5 py-4 md:flex-row md:items-center md:justify-between bg-[var(--surface-2)]/50">
+                  <div>
+                    <h2 className="text-base font-bold text-[var(--text-main)]">Quotations</h2>
+                    <p className="text-xs text-[var(--text-muted)]">Proposal amount, status, validity and service details</p>
+                  </div>
+                  {canWriteLead ? (
+                    <Button variant="outline" size="sm" className="shadow-sm" onClick={() => openActivity('quotation')}>
+                      <PlusCircle size={15} className="mr-1.5" />
+                      Add quotation
+                    </Button>
+                  ) : null}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-separate border-spacing-0">
+                    <thead className="bg-[var(--surface-2)]">
+                      <tr>
+                        {['Quotation', 'Service', 'Proposal date', 'Valid until', 'Amount', 'Status', 'Invoice', 'Comments', ''].map((heading) => (
+                          <th key={heading || 'actions'} className="border-b border-[var(--border)] px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedQuotations.length ? pagedQuotations.map((item) => (
+                        <tr key={item.id} className="transition hover:bg-[var(--hover-bg)]">
+                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/app/leads/${id}/quotations/${item.id}`)}
+                              className="text-left font-semibold text-[var(--text-main)] hover:text-[var(--primary)] hover:underline cursor-pointer"
+                            >
+                              {item.title}
+                            </button>
+                          </td>
+                          <td className="max-w-[220px] truncate border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]" title={item.serviceName}>{item.serviceName || '-'}</td>
+                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]">{formatDate(item.proposalDate)}</td>
+                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]">{formatDate(item.validUntil)}</td>
+                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm font-semibold text-[var(--text-main)]">{item.totalAmount != null ? formatLeadAmount(item.totalAmount, lead.currency) : '-'}</td>
+                          <td className="border-b border-[var(--border-muted)] px-4 py-3">
+                            <span className={cn(
+                              'inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold',
+                              String(item.status).toLowerCase() === 'sent'
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                : String(item.status).toLowerCase() === 'draft'
+                                  ? 'border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]'
+                                  : String(item.status).toLowerCase() === 'approved'
+                                    ? 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/40 dark:text-blue-300'
+                                    : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300'
+                            )}>
+                              {item.status || 'Draft'}
+                            </span>
+                          </td>
+                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm">
+                            {item.invoiceId ? (
+                              <button type="button" onClick={() => navigate(`/app/invoices/${item.invoiceId}`)} className="font-semibold text-[var(--primary)] hover:underline cursor-pointer">
+                                {item.invoiceNumber || 'View invoice'}
+                              </button>
+                            ) : <span className="text-[var(--text-muted)]">-</span>}
+                          </td>
+                          <td className="max-w-[260px] truncate border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]" title={item.comments}>{item.comments || '-'}</td>
+                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => navigate(`/app/leads/${id}/quotations/${item.id}`)}
+                                title="View quotation"
+                                className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                              >
+                                <Eye size={15} />
+                              </Button>
+                              {canWriteLead ? (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => navigate(`/app/leads/${id}/quotations/${item.id}`)}
+                                    title="Edit quotation"
+                                    className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                                  >
+                                    <Edit3 size={15} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setActivityDeleteTarget(item.event)}
+                                    title="Delete quotation"
+                                    className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                                  >
+                                    <Trash2 size={15} />
+                                  </Button>
+                                </>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan={9} className="px-4 py-10 text-center text-sm text-[var(--text-muted)]">
+                            No quotation added yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-5 pb-4">
+                  <PaginationBar
+                    currentPage={quotationPage}
+                    totalItems={quotationRows.length}
+                    pageSize={quotationPageSize}
+                    onPageChange={(page) => setTabPage('quotations', page)}
+                  />
+                </div>
+              </div>
+            );
+          })()}
+
           {activeTab === 'events' && (
-            <Card className="p-5">
+            <Card className="p-5 border-[var(--border)] bg-[var(--surface)]">
               <LeadEventsCalendar
                 events={events.filter((e) => String(e.eventType || e.type || '').toLowerCase() === 'event')}
                 view={calendarView}
@@ -3255,292 +5315,972 @@ export function LeadDetailsPage() {
             </Card>
           )}
 
-          {activeTab === 'overview' && (
-            <Card className="p-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                <h2 className="text-lg font-semibold text-slate-900">Recent Activity</h2>
-                <Button variant="ghost" size="sm" onClick={() => setActiveTab('timeline')}>
-                  View all
-                </Button>
-              </div>
-              <div className="mt-6">
-                {timeline.length ? (
-                  <div className="relative pl-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 space-y-5">
-                    {timeline.slice(0, 5).map((item, index) => {
-                      let badgeColor = '#64748b';
-                      if (item.kind === 'created') badgeColor = '#0f766e';
-                      else if (item.kind === 'status_changed') badgeColor = '#f59e0b';
-                      else if (item.kind === 'updated') badgeColor = '#3b82f6';
-                      else if (item.color) badgeColor = item.color;
-                      else if (item.kind === 'task') badgeColor = '#0ea5e9';
-                      else if (item.kind === 'note') badgeColor = '#8b5cf6';
-                      else if (item.kind === 'reminder') badgeColor = '#f59e0b';
-                      
-                      return (
-                        <div key={`${item.title}-${index}`} className="relative group">
-                          <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-slate-200 group-hover:scale-125 transition-transform" style={{ backgroundColor: badgeColor }} />
-                          <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm" style={{ color: badgeColor, backgroundColor: `${badgeColor}15` }}>
-                                {item.kind || 'activity'}
-                              </span>
-                              <span className="text-xs font-semibold tracking-wider text-slate-400">{formatDate(item.date)}</span>
-                            </div>
-                            <p className="text-sm font-bold text-slate-800">{item.title}</p>
-                            {item.detail && <p className="mt-1 text-xs text-slate-600 line-clamp-2 leading-relaxed">{item.detail}</p>}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-[var(--text-muted)]">
-                    No recent activity.
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {activeTab === 'files' && (
-            <Card className="space-y-4 p-5">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-[var(--text-main)]">Files</h3>
-                  <p className="text-sm text-slate-500">{files.length} file(s)</p>
-                </div>
-                <Button variant="secondary" onClick={() => setFilesModalOpen(true)}>
-                  <Paperclip size={16} className="mr-2" />
-                  Add File
-                </Button>
-              </div>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {files.length ? files.map((file) => (
-                  <a
-                    key={file.id}
-                    href={file.driveWebViewLink || `#${file.id}`}
-                    target={file.driveWebViewLink ? '_blank' : undefined}
-                    rel={file.driveWebViewLink ? 'noreferrer' : undefined}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-[var(--primary)] hover:shadow-sm"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                        <Paperclip size={18} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[var(--text-main)]">{file.title || file.originalName || file.name || 'File'}</p>
-                        <p className="mt-1 text-xs text-[var(--text-muted)]">
-                          {file.moduleName || 'leads'} {file.entityId ? `#${file.entityId}` : ''}
-                        </p>
-                        {file.description ? <p className="mt-1 line-clamp-2 text-xs text-slate-500">{file.description}</p> : null}
-                        <p className="mt-2 text-xs text-[var(--text-muted)]">{formatDate(file.createdAt)}</p>
-                      </div>
-                    </div>
-                  </a>
-                )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-[var(--text-muted)]">
-                    No files uploaded for this lead yet.
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {activeTab === 'contacts' && (
-            <Card className="p-5">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-slate-900">Contacts</h2>
-                  <p className="text-sm text-slate-500">{contacts.length} contact(s)</p>
-                </div>
-                <Button variant="secondary" onClick={() => { setContactEdit(null); setContactOpen(true); }}>
-                  <UserPlus size={16} className="mr-2" />
-                  Add contact
-                </Button>
-              </div>
-              <div className="mt-4 space-y-3">
-                {contacts.length ? contacts.map((contact, index) => (
-                  <div key={contact.id} className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--primary)]">
-                        {`${contact.firstName || ''}`.slice(0, 1)}{`${contact.lastName || ''}`.slice(0, 1)}
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-semibold text-slate-900">
-                            {contact.firstName} {contact.lastName}
-                          </div>
-                          {index === 0 ? (
-                            <span className="rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">
-                              Primary contact
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="text-xs text-slate-500">{contact.jobTitle || 'Contact'}</div>
-                        <div className="mt-2 space-y-1 text-sm text-slate-600">
-                          {contact.email ? <div className="flex items-center gap-2"><Mail size={14} /> {contact.email}</div> : null}
-                          {contact.phone ? <div className="flex items-center gap-2"><Phone size={14} /> {formatPhoneDisplay(contact.phone)}</div> : null}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" onClick={() => { setContactEdit(contact); setContactOpen(true); }}>
-                        <Edit3 size={16} />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setContactDeleteTarget(contact)} className="text-red-500 hover:text-red-600 hover:bg-red-50">
-                        <Trash2 size={16} />
-                      </Button>
-                    </div>
-                  </div>
-                )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                    No contacts added yet.
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {(activeTab === 'tasks' || activeTab === 'notes' || activeTab === 'reminders') && (() => {
-            const isTasks = activeTab === 'tasks';
-            const isNotes = activeTab === 'notes';
-            const section = isTasks
-              ? { key: 'task', title: 'Tasks', description: 'Follow-up work for the lead', items: activityBuckets.task, accent: '#0ea5e9', addIcon: CalendarPlus, addLabel: 'Add task', onAdd: () => openActivity('task') }
-              : isNotes
-                ? { key: 'note', title: 'Notes', description: 'Internal notes and context', items: activityBuckets.note, accent: '#8b5cf6', addIcon: Tag, addLabel: 'Add note', onAdd: () => openActivity('note') }
-                : { key: 'reminder', title: 'Reminders', description: 'Time-based follow ups', items: activityBuckets.reminder, accent: '#f59e0b', addIcon: Clock3, addLabel: 'Add reminder', onAdd: () => openActivity('reminder') };
-
-            const AddIcon = section.addIcon;
+          {activeTab === 'files' && (() => {
+            const filePage = tabPages.files || 1;
+            const filePageSize = 12;
+            const pagedFiles = files.slice((filePage - 1) * filePageSize, filePage * filePageSize);
 
             return (
-              <Card className="p-5">
-                <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 lg:flex-row lg:items-end lg:justify-between">
+              <Card className="space-y-4 p-5 border-[var(--border)] bg-[var(--surface)]">
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--border-muted)] pb-4">
                   <div>
-                    <h2 className="text-lg font-semibold text-slate-900">{section.title}</h2>
-                    <p className="text-sm text-slate-500">{section.description}</p>
+                    <h3 className="text-lg font-bold text-[var(--text-main)]">Files</h3>
+                    <p className="text-sm text-[var(--text-muted)]">{files.length} file(s)</p>
                   </div>
-                  <Button variant="outline" className="shadow-sm bg-white hover:bg-slate-50" onClick={section.onAdd}>
-                    <AddIcon size={16} className="mr-2" />
-                    {section.addLabel}
+                  <Button variant="secondary" onClick={() => setFilesModalOpen(true)}>
+                    <Paperclip size={16} className="mr-2" />
+                    Add File
                   </Button>
                 </div>
-                <div className="mt-4 space-y-3">
-                  {section.items.length ? section.items.map((item) => (
-                    item.isSynthetic ? (
-                      <div
-                        key={item.id}
-                        className="flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm"
-                      >
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {pagedFiles.length ? pagedFiles.map((file) => (
+                    <a
+                      key={file.id}
+                      href={file.driveWebViewLink || `#${file.id}`}
+                      target={file.driveWebViewLink ? '_blank' : undefined}
+                      rel={file.driveWebViewLink ? 'noreferrer' : undefined}
+                      className="rounded-2xl border border-[var(--border-muted)] bg-[var(--surface-2)] p-4 transition hover:border-[var(--primary)] hover:shadow-sm"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface)] text-[var(--text-muted)]">
+                          <Paperclip size={18} />
+                        </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              {item.eventType}
-                            </span>
-                            <span className="truncate text-base font-semibold text-slate-900">{item.title}</span>
-                          </div>
-                          <div className="mt-1 text-sm text-slate-600">
-                            {item.description || 'No description provided'}
-                          </div>
-                          <div className="mt-2 text-xs font-medium text-slate-400">
-                            {formatEventTime(item)}
-                          </div>
+                          <p className="truncate text-sm font-semibold text-[var(--text-main)]">{file.title || file.originalName || file.name || 'File'}</p>
+                          <p className="mt-1 text-xs text-[var(--text-muted)]">
+                            {file.moduleName || 'leads'} {file.entityId ? `#${file.entityId}` : ''}
+                          </p>
+                          {file.description ? <p className="mt-1 line-clamp-2 text-xs text-[var(--text-muted)]">{file.description}</p> : null}
+                          <p className="mt-2 text-xs text-[var(--text-muted)]">{formatDate(file.createdAt)}</p>
                         </div>
                       </div>
-                    ) : (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => openEditActivity(item)}
-                        className="flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-slate-300 hover:shadow-md shadow-sm"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-slate-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                              {item.eventType}
-                            </span>
-                            <span className="truncate text-base font-semibold text-slate-900">{item.title}</span>
-                          </div>
-                          <div className="mt-1 text-sm text-slate-600">
-                            {item.description || 'No description provided'}
-                          </div>
-                          <div className="mt-2 text-xs font-medium text-slate-400">
-                            {formatEventTime(item)}
-                          </div>
-                        </div>
-                      </button>
-                    )
+                    </a>
                   )) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-12 text-center text-sm text-slate-500">
-                      No {section.title.toLowerCase()} added yet.
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)] col-span-full">
+                      No files uploaded for this lead yet.
                     </div>
                   )}
                 </div>
+                <PaginationBar
+                  currentPage={filePage}
+                  totalItems={files.length}
+                  pageSize={filePageSize}
+                  onPageChange={(page) => setTabPage('files', page)}
+                />
               </Card>
             );
           })()}
 
-          {activeTab === 'timeline' && (
-            <div className="w-full space-y-6 mt-2">
-              <div className="flex items-center justify-between px-1">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900">Timeline</h2>
-                  <p className="text-sm text-slate-500 mt-1">Follow-ups, changes, and activity history</p>
-                </div>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                  {timeline.length} Events
-                </div>
-              </div>
-              
-              {timeline.length ? (
-                <div className="relative pl-6 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200 space-y-6">
-                  {timeline.map((item, index) => {
-                    let badgeColor = '#64748b';
-                    if (item.kind === 'created') badgeColor = '#0f766e';
-                    else if (item.kind === 'status_changed') badgeColor = '#f59e0b';
-                    else if (item.kind === 'updated') badgeColor = '#3b82f6';
-                    else if (item.color) badgeColor = item.color;
-                    else if (item.kind === 'task') badgeColor = '#0ea5e9';
-                    else if (item.kind === 'note') badgeColor = '#8b5cf6';
-                    else if (item.kind === 'reminder') badgeColor = '#f59e0b';
+          {activeTab === 'contacts' && (() => {
+            const contactPage = tabPages.contacts || 1;
+            const contactPageSize = 10;
+            const pagedContacts = contacts.slice((contactPage - 1) * contactPageSize, contactPage * contactPageSize);
 
-                    return (
-                      <div key={`${item.title}-${index}`} className="relative group">
-                        <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-slate-200 group-hover:scale-125 transition-transform" style={{ backgroundColor: badgeColor }}></div>
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm" style={{ color: badgeColor, backgroundColor: `${badgeColor}15` }}>
-                              {item.kind || 'activity'}
-                            </span>
-                            <span className="text-xs font-semibold tracking-wider text-slate-400">{formatDate(item.date)}</span>
-                            {item.actorName ? (
-                              <span className="text-xs font-medium text-slate-500">by {item.actorName}</span>
+            return (
+              <Card className="p-5 border-[var(--border)] bg-[var(--surface)]">
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--border-muted)] pb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--text-main)]">Contacts</h2>
+                    <p className="text-sm text-[var(--text-muted)]">{contacts.length} contact(s)</p>
+                  </div>
+                  <Button variant="secondary" onClick={() => { setContactEdit(null); setContactOpen(true); }}>
+                    <UserPlus size={16} className="mr-2" />
+                    Add contact
+                  </Button>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {pagedContacts.length ? pagedContacts.map((contact, index) => (
+                    <div key={contact.id} className="flex flex-col gap-4 rounded-2xl border border-[var(--border-muted)] bg-[var(--surface-2)] p-4 md:flex-row md:items-center md:justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--primary)] font-bold text-sm">
+                          {`${contact.firstName || ''}`.slice(0, 1)}{`${contact.lastName || ''}`.slice(0, 1)}
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm font-semibold text-[var(--text-main)]">
+                              {contact.firstName} {contact.lastName}
+                            </div>
+                            {index === 0 && contactPage === 1 ? (
+                              <span className="rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)]">
+                                Primary contact
+                              </span>
                             ) : null}
                           </div>
-                          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                            <h4 className="text-sm font-bold text-slate-800">{item.title}</h4>
-                            {item.detail && <p className="mt-1 text-sm text-slate-600 leading-relaxed">{item.detail}</p>}
-                            
+                          <div className="text-xs text-[var(--text-muted)]">{contact.jobTitle || 'Contact'}</div>
+                          <div className="mt-2 space-y-1 text-sm text-[var(--text-muted)]">
+                            {contact.email ? <div className="flex items-center gap-2"><Mail size={14} /> {contact.email}</div> : null}
+                            {contact.phone ? <div className="flex items-center gap-2"><Phone size={14} /> {formatPhoneDisplay(contact.phone)}</div> : null}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => { setContactEdit(contact); setContactOpen(true); }}>
+                          <Edit3 size={16} />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setContactDeleteTarget(contact)} className="text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+                      No contacts added yet.
+                    </div>
+                  )}
+                </div>
+                <PaginationBar
+                  currentPage={contactPage}
+                  totalItems={contacts.length}
+                  pageSize={contactPageSize}
+                  onPageChange={(page) => setTabPage('contacts', page)}
+                />
+              </Card>
+            );
+          })()}
+
+          {activeTab === 'tasks' && (() => {
+            const taskPage = tabPages.tasks || 1;
+            const taskPageSize = 10;
+            const pagedTasks = filteredTasks.slice((taskPage - 1) * taskPageSize, taskPage * taskPageSize);
+
+            const filterTabs = [
+              { key: 'all', label: 'All Tasks', count: taskStatusCounts.all },
+              { key: 'to do', label: 'To Do', count: taskStatusCounts['to do'] },
+              { key: 'in progress', label: 'In Progress', count: taskStatusCounts['in progress'] },
+              { key: 'completed', label: 'Completed', count: taskStatusCounts['completed'] },
+              { key: 'blocked', label: 'Blocked', count: taskStatusCounts['blocked'] }
+            ];
+
+            return (
+              <Card className="p-5 border-[var(--border)] bg-[var(--surface)] space-y-4">
+                {/* Header: Title + Add Task Button */}
+                <div className="flex flex-col gap-3 border-b border-[var(--border-muted)] pb-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--text-main)]">Tasks</h2>
+                    <p className="text-sm text-[var(--text-muted)]">Follow-up work, assignments, and milestones for this lead</p>
+                  </div>
+                  <Button variant="outline" className="shadow-sm" onClick={() => openActivity('task')}>
+                    <CalendarPlus size={16} className="mr-2 text-sky-500" />
+                    Add task
+                  </Button>
+                </div>
+
+                {/* Status Filter Tab Pills */}
+                <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--border-muted)] pb-3.5">
+                  {filterTabs.map((tab) => {
+                    const active = taskStatusFilter === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => {
+                          setTaskStatusFilter(tab.key);
+                          setTabPage('tasks', 1);
+                        }}
+                        className={cn(
+                          'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer',
+                          active
+                            ? 'bg-[var(--primary)] text-white shadow-2xs'
+                            : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--hover-bg)]'
+                        )}
+                      >
+                        <span>{tab.label}</span>
+                        <span className={cn(
+                          'rounded-full px-1.5 py-0.2 text-[10px] font-bold',
+                          active ? 'bg-white/20 text-white' : 'bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border-muted)]'
+                        )}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Task Cards List */}
+                <div className="space-y-3">
+                  {pagedTasks.length ? pagedTasks.map((item) => {
+                    const isSynthetic = Boolean(item.isSynthetic);
+                    const statusMeta = getTaskStatusMeta(item.status);
+                    const priorityMeta = getTaskPriorityMeta(item.priority);
+                    const assignedName = item.assignedTo ? (userLookup?.get(String(item.assignedTo)) || item.assignedUser || 'Assigned') : null;
+                    const collaboratorNames = Array.isArray(item.collaborators) && item.collaborators.length
+                      ? item.collaborators.map((c) => userLookup?.get(String(c)) || String(c)).filter(Boolean).join(', ')
+                      : null;
+                    const labelsList = Array.isArray(item.labels) ? item.labels : [];
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="group relative rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/70 p-4 transition-all duration-200 shadow-2xs hover:shadow-xs hover:border-[var(--border)] space-y-2.5"
+                      >
+                        {/* Top Row: Badges (Status, Priority, Recurring, Points) + Title + Actions */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                            {/* Status Badge */}
+                            <span className={cn(
+                              'rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border shrink-0 flex items-center gap-1',
+                              statusMeta.bg,
+                              statusMeta.border,
+                              statusMeta.text
+                            )}>
+                              <span className={cn('h-1.5 w-1.5 rounded-full', statusMeta.dot)} />
+                              {statusMeta.label}
+                            </span>
+
+                            {/* Priority Badge */}
+                            <span className={cn(
+                              'rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border shrink-0',
+                              priorityMeta.bg,
+                              priorityMeta.border,
+                              priorityMeta.text
+                            )}>
+                              {priorityMeta.label}
+                            </span>
+
+                            {/* Recurring Badge */}
+                            {item.recurring ? (
+                              <span className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-700 dark:text-purple-300 shrink-0">
+                                🔁 Recurring
+                              </span>
+                            ) : null}
+
+                            {/* Points Badge */}
+                            {item.points ? (
+                              <span className="rounded-md px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 shrink-0">
+                                ⭐ {item.points} pts
+                              </span>
+                            ) : null}
+
+                            {/* Task Title */}
+                            <span className="font-bold text-sm text-[var(--text-main)] truncate max-w-full block">
+                              {item.title}
+                            </span>
+                          </div>
+
+                          {/* Minimal Action Buttons: View, Edit, Delete */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {/* View Action */}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setViewActivityTarget(item)}
+                              title="View task details"
+                              className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                            >
+                              <Eye size={14} />
+                            </Button>
+
+                            {/* Edit Action */}
+                            {!isSynthetic && canWriteLead ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditActivity(item)}
+                                title="Edit task"
+                                className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                              >
+                                <Edit3 size={14} />
+                              </Button>
+                            ) : null}
+
+                            {/* Delete Action */}
+                            {!isSynthetic && canWriteLead ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setActivityDeleteTarget(item)}
+                                title="Delete task"
+                                className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        {item.description ? (
+                          <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">
+                            {item.description}
+                          </p>
+                        ) : null}
+
+                        {/* Structured Metadata Grid: Assignee, Collaborators, Start Date, Deadline */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs border-t border-[var(--border-muted)]/60 pt-2.5">
+                          {/* Assignee & Collaborators */}
+                          <div className="flex flex-wrap items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                            <span className="font-medium text-[var(--text-main)] flex items-center gap-1 bg-[var(--surface)] px-2 py-0.5 rounded-md border border-[var(--border-muted)]">
+                              👤 <span className="font-semibold">{assignedName || 'Unassigned'}</span>
+                            </span>
+                            {collaboratorNames ? (
+                              <span className="text-[10px] text-[var(--text-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded-md border border-[var(--border-muted)]" title={`Collaborators: ${collaboratorNames}`}>
+                                👥 {collaboratorNames}
+                              </span>
+                            ) : null}
+                          </div>
+
+                          {/* Dates & Timeline */}
+                          <div className="flex flex-wrap items-center sm:justify-end gap-2 text-[11px]">
+                            {item.startDate ? (
+                              <span className="text-[var(--text-muted)] flex items-center gap-1 font-medium">
+                                📅 Start: <span className="text-[var(--text-main)] font-semibold">{formatDate(item.startDate)}</span>
+                              </span>
+                            ) : null}
+                            {(item.endDate || item.deadline) ? (
+                              <span className="font-medium text-[var(--primary)] flex items-center gap-1 bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-2 py-0.5 rounded-md">
+                                ⏰ Deadline: <span className="font-bold">{formatDate(item.endDate || item.deadline)}</span>
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Labels Section */}
+                        {labelsList.length ? (
+                          <div className="flex flex-wrap items-center gap-1 border-t border-[var(--border-muted)]/40 pt-2">
+                            <span className="text-[10px] font-medium text-[var(--text-muted)] mr-1">🏷️ Labels:</span>
+                            {labelsList.map((label) => (
+                              <span key={label} className="rounded-md border border-[var(--border-muted)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {/* Attachments Section */}
+                        {Array.isArray(item.attachments) && item.attachments.length ? (
+                          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border-muted)]/60 pt-2 text-[11px] text-[var(--text-muted)]">
+                            <span className="font-medium flex items-center gap-1 text-[10px]">
+                              <Paperclip size={11} /> {item.attachments.length} file{item.attachments.length > 1 ? 's' : ''}:
+                            </span>
+                            {item.attachments.slice(0, 3).map((file) => (
+                              <a
+                                key={file.driveFileId || file.id}
+                                href={file.driveWebViewLink || file.webContentLink || file.url || `#${file.driveFileId || file.id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-main)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition cursor-pointer"
+                              >
+                                <Paperclip size={10} />
+                                <span className="truncate max-w-[130px]">{file.name || 'File'}</span>
+                              </a>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }) : (
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-12 text-center text-sm text-[var(--text-muted)]">
+                      {taskStatusFilter === 'all' ? 'No tasks added yet for this lead.' : `No tasks with status "${taskStatusFilter}".`}
+                    </div>
+                  )}
+                </div>
+
+                <PaginationBar
+                  currentPage={taskPage}
+                  totalItems={filteredTasks.length}
+                  pageSize={taskPageSize}
+                  onPageChange={(page) => setTabPage('tasks', page)}
+                />
+              </Card>
+            );
+          })()}
+
+          {activeTab === 'notes' && (() => {
+            const notePage = tabPages.notes || 1;
+            const notePageSize = 10;
+            const notesList = activityBuckets.note;
+            const pagedNotes = notesList.slice((notePage - 1) * notePageSize, notePage * notePageSize);
+
+            return (
+              <Card className="p-5 border-[var(--border)] bg-[var(--surface)] space-y-4">
+                {/* Header */}
+                <div className="flex flex-col gap-3 border-b border-[var(--border-muted)] pb-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--text-main)]">Notes</h2>
+                    <p className="text-sm text-[var(--text-muted)]">Internal notes, team context and communication records ({notesList.length} total)</p>
+                  </div>
+                  <Button variant="outline" className="shadow-sm" onClick={() => openActivity('note')}>
+                    <Tag size={16} className="mr-2 text-purple-500" />
+                    Add note
+                  </Button>
+                </div>
+
+                {/* Notes List */}
+                <div className="space-y-3">
+                  {pagedNotes.length ? pagedNotes.map((item) => {
+                    const isSynthetic = Boolean(item.isSynthetic);
+                    const labelsList = Array.isArray(item.labels) ? item.labels : [];
+                    const timeInfo = formatActivityTimestamp(item.startDate || item.date || item.createdAt, item.startTime);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="group relative rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/70 p-4 transition-all duration-200 shadow-2xs hover:shadow-xs hover:border-[var(--border)] space-y-2.5"
+                      >
+                        {/* Top Row: Category Badge + Title + Action Buttons */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                            <span className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-700 dark:text-purple-300 shrink-0">
+                              {item.category || 'Note'}
+                            </span>
+                            <span className="font-bold text-sm text-[var(--text-main)] truncate max-w-full block">
+                              {item.title}
+                            </span>
+                          </div>
+
+                          {/* Minimal Action Buttons: View, Edit, Delete */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setViewActivityTarget(item)}
+                              title="View note details"
+                              className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                            >
+                              <Eye size={14} />
+                            </Button>
+
+                            {!isSynthetic && canWriteLead ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditActivity(item)}
+                                title="Edit note"
+                                className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                              >
+                                <Edit3 size={14} />
+                              </Button>
+                            ) : null}
+
+                            {!isSynthetic && canWriteLead ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setActivityDeleteTarget(item)}
+                                title="Delete note"
+                                className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Note Content / Description */}
+                        {item.description ? (
+                          <div className="rounded-lg bg-[var(--surface)]/90 border border-[var(--border-muted)]/70 p-3 text-xs text-[var(--text-main)] leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                            {item.description}
+                          </div>
+                        ) : null}
+
+                        {/* Labels Section */}
+                        {labelsList.length ? (
+                          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                            <span className="text-[10px] font-medium text-[var(--text-muted)] mr-1">🏷️ Labels:</span>
+                            {labelsList.map((label) => (
+                              <span key={label} className="rounded-md border border-[var(--border-muted)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
+                                {label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {/* Bottom Row: Author + Date & Time + Attachments */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-muted)]/60 pt-2.5 text-[11px] text-[var(--text-muted)]">
+                          <div className="flex items-center gap-2 font-medium">
+                            {item.actorName && (
+                              <span>👤 <span className="text-[var(--text-main)] font-semibold">{item.actorName}</span></span>
+                            )}
+                            <span>📅 {timeInfo.formatted}</span>
+                          </div>
+
+                          {Array.isArray(item.attachments) && item.attachments.length ? (
+                            <div className="flex items-center gap-1 font-medium bg-[var(--surface)] px-2 py-0.5 rounded-md border border-[var(--border-muted)]">
+                              <Paperclip size={11} />
+                              <span>{item.attachments.length} file{item.attachments.length > 1 ? 's' : ''}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-12 text-center text-sm text-[var(--text-muted)]">
+                      No notes added yet for this lead.
+                    </div>
+                  )}
+                </div>
+
+                <PaginationBar
+                  currentPage={notePage}
+                  totalItems={notesList.length}
+                  pageSize={notePageSize}
+                  onPageChange={(page) => setTabPage('notes', page)}
+                />
+              </Card>
+            );
+          })()}
+
+          {activeTab === 'reminders' && (() => {
+            const reminderPage = tabPages.reminders || 1;
+            const reminderPageSize = 10;
+            const pagedReminders = filteredReminders.slice((reminderPage - 1) * reminderPageSize, reminderPage * reminderPageSize);
+
+            const filterTabs = [
+              { key: 'all', label: 'All Reminders', count: reminderStatusCounts.all, isBlue: true },
+              { key: 'today', label: 'Today', count: reminderStatusCounts.today, isBlue: true },
+              { key: 'upcoming', label: 'Upcoming / Due', count: reminderStatusCounts.upcoming, isAmber: true },
+              { key: 'past', label: 'Past Pending', count: reminderStatusCounts.past, isRed: true },
+              { key: 'completed', label: 'Completed', count: reminderStatusCounts.completed, isGreen: true }
+            ];
+
+            return (
+              <Card className="p-5 border-[var(--border)] bg-[var(--surface)] space-y-4">
+                {/* Header */}
+                <div className="flex flex-col gap-3 border-b border-[var(--border-muted)] pb-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--text-main)]">Reminders</h2>
+                    <p className="text-sm text-[var(--text-muted)]">Time-based alerts, follow-up calls and scheduled activities</p>
+                  </div>
+                  <Button variant="outline" className="shadow-sm" onClick={() => openActivity('reminder')}>
+                    <Clock3 size={16} className="mr-2 text-amber-500" />
+                    Add reminder
+                  </Button>
+                </div>
+
+                {/* 📊 Follow-Up Performance & Pipeline Health Summary (Point 5) */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/40 p-3 space-y-1">
+                    <span className="text-[11px] font-medium text-[var(--text-muted)] flex items-center gap-1">
+                      <Clock3 size={12} className="text-blue-500" /> Total Reminders
+                    </span>
+                    <p className="text-lg font-bold text-[var(--text-main)] leading-none">{reminderStatusCounts.all}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 space-y-1">
+                    <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300 flex items-center gap-1">
+                      <Bell size={12} className="text-amber-600" /> Due Today
+                    </span>
+                    <p className="text-lg font-bold text-amber-900 dark:text-amber-200 leading-none">{reminderStatusCounts.today}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-1">
+                    <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                      <CheckCircle2 size={12} className="text-emerald-600" /> Completed
+                    </span>
+                    <p className="text-lg font-bold text-emerald-900 dark:text-emerald-200 leading-none">{reminderStatusCounts.completed}</p>
+                  </div>
+
+                  <div className={cn(
+                    'rounded-xl border p-3 space-y-1',
+                    (lead?.followUpAttempts || 0) > 0
+                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200'
+                      : 'border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200'
+                  )}>
+                    <span className="text-[11px] font-medium flex items-center gap-1">
+                      <Zap size={12} className={(lead?.followUpAttempts || 0) > 0 ? 'text-amber-600' : 'text-blue-600'} /> Cadence Status
+                    </span>
+                    <p className="text-sm font-bold truncate leading-none">
+                      {(lead?.followUpAttempts || 0) > 0 ? `Attempt ${lead.followUpAttempts}/3` : 'Active / Normal'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 🔔 Due Today Alert Banner & Audio Alert (Point 3) */}
+                {reminderStatusCounts.today > 0 && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300 shrink-0">
+                        <Bell size={16} className="animate-pulse" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                          Follow-Up Scheduled for Today ({reminderStatusCounts.today} {reminderStatusCounts.today === 1 ? 'item' : 'items'})
+                        </h4>
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 truncate">
+                          {lead.followUpDate ? `Scheduled at ${lead.nextFollowUpTime || 'Today'} with ${lead.name || lead.companyName}` : 'Make sure to connect with the client today.'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={playReminderChime}
+                        title="Test Reminder Chime Sound"
+                        className="h-7 text-xs text-amber-900 dark:text-amber-200 hover:bg-amber-500/20 px-2 cursor-pointer"
+                      >
+                        <Volume2 size={13} className="mr-1" /> Chime
+                      </Button>
+                      {(lead?.phone || lead?.mobile) ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openWhatsAppNudge(lead.phone || lead.mobile, lead.name || lead.contactPerson, 'meeting_reminder', lead.serviceName)}
+                          className="bg-white/90 dark:bg-slate-800 text-xs h-7 border-emerald-500/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer shadow-2xs"
+                        >
+                          <MessageCircle size={13} className="mr-1 text-emerald-600" />
+                          WhatsApp Nudge
+                        </Button>
+                      ) : null}
+                      <Button
+                        size="sm"
+                        onClick={() => setCallOpen(true)}
+                        className="bg-amber-600 hover:bg-amber-700 text-white text-xs h-7 shadow-xs cursor-pointer"
+                      >
+                        <Phone size={13} className="mr-1" />
+                        Log Call
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Filter Tabs */}
+                <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--border-muted)] pb-3.5">
+                  {filterTabs.map((tab) => {
+                    const active = reminderStatusFilter === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => {
+                          setReminderStatusFilter(tab.key);
+                          setTabPage('reminders', 1);
+                        }}
+                        className={cn(
+                          'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer',
+                          active
+                            ? tab.isBlue
+                              ? 'bg-blue-600 text-white shadow-2xs'
+                              : tab.isAmber
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : tab.isRed
+                                  ? 'bg-rose-600 text-white shadow-2xs'
+                                  : tab.isGreen
+                                    ? 'bg-emerald-600 text-white shadow-2xs'
+                                    : 'bg-[var(--primary)] text-white shadow-2xs'
+                            : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--hover-bg)]'
+                        )}
+                      >
+                        <span>{tab.label}</span>
+                        <span className={cn(
+                          'rounded-full px-1.5 py-0.2 text-[10px] font-bold',
+                          active ? 'bg-white/20 text-white' : 'bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border-muted)]'
+                        )}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Reminders List */}
+                <div className="space-y-3">
+                  {pagedReminders.length ? pagedReminders.map((item) => {
+                    const isSynthetic = Boolean(item.isSynthetic);
+                    const followUpStatus = getFollowUpStatus(item);
+                    const timeInfo = formatActivityTimestamp(item.startDate || item.date || item.endDate, item.startTime || item.time);
+                    const isRecurring = Boolean(item.repeat || item.recurring);
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={cn(
+                          'group relative rounded-xl border p-4 transition-all duration-200 shadow-2xs hover:shadow-xs space-y-2.5',
+                          followUpStatus.isCompleted
+                            ? 'border-emerald-500/30 bg-emerald-500/[0.03] hover:bg-emerald-500/[0.07]'
+                            : timeInfo.isUpcoming
+                              ? 'border-amber-500/30 bg-amber-500/[0.04] hover:bg-amber-500/[0.08]'
+                              : 'border-[var(--border-muted)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/70 hover:border-[var(--border)]'
+                        )}
+                      >
+                        {/* Top Row: Status Pill + Recurring + Title + Actions */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                            {/* Status Pill */}
+                            {followUpStatus.isCompleted ? (
+                              <span className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 shrink-0 flex items-center gap-1">
+                                <CheckCircle2 size={10} className="text-emerald-600 dark:text-emerald-400" />
+                                Completed
+                              </span>
+                            ) : (
+                              <span className={cn(
+                                'rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border shrink-0 flex items-center gap-1',
+                                timeInfo.isUpcoming
+                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                                  : 'bg-slate-500/15 border-slate-500/30 text-slate-700 dark:text-slate-300'
+                              )}>
+                                <Clock3 size={10} className={timeInfo.isUpcoming ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'} />
+                                {timeInfo.isUpcoming ? (timeInfo.relative || 'Upcoming') : 'Pending / Due'}
+                              </span>
+                            )}
+
+                            {isRecurring ? (
+                              <span className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-700 dark:text-purple-300 shrink-0">
+                                🔁 Repeating
+                              </span>
+                            ) : null}
+
+                            {isSynthetic ? (
+                              <span className="rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-sky-500/15 border border-sky-500/30 text-sky-700 dark:text-sky-300 shrink-0">
+                                ⭐ Lead Follow-Up
+                              </span>
+                            ) : null}
+
+                            <span className="font-bold text-sm text-[var(--text-main)] truncate max-w-full block">
+                              {item.title}
+                            </span>
+                          </div>
+
+                          {/* Minimal Action Buttons: Complete, WhatsApp, View, Edit, Delete (Point 1) */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {/* Quick Mark Complete Button */}
+                            {!followUpStatus.isCompleted && canWriteLead ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setCompleteFollowUpTarget(item)}
+                                title="Mark follow-up as completed & add remark"
+                                className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 cursor-pointer"
+                              >
+                                <CheckCircle2 size={15} />
+                              </Button>
+                            ) : null}
+
+                            {/* 1-Click WhatsApp Quick Nudge Button (Point 1) */}
+                            {(lead?.phone || lead?.mobile) ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openWhatsAppNudge(lead.phone || lead.mobile, lead.name || lead.contactPerson, 'follow_up', lead.serviceName)}
+                                title="Send 1-Click WhatsApp follow-up nudge"
+                                className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 cursor-pointer"
+                              >
+                                <MessageCircle size={15} />
+                              </Button>
+                            ) : null}
+
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setViewActivityTarget(item)}
+                              title="View reminder details"
+                              className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                            >
+                              <Eye size={14} />
+                            </Button>
+
+                            {canWriteLead ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditActivity(item)}
+                                title={isSynthetic ? 'Edit lead follow-up' : 'Edit reminder'}
+                                className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                              >
+                                <Edit3 size={14} />
+                              </Button>
+                            ) : null}
+
+                            {canWriteLead ? (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setActivityDeleteTarget(item)}
+                                title={isSynthetic ? 'Delete lead follow-up' : 'Delete reminder'}
+                                className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Remark Box if Completed */}
+                        {followUpStatus.remark ? (
+                          <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-xs text-emerald-950 dark:text-emerald-200 leading-relaxed">
+                            <span className="font-semibold flex items-center gap-1 text-[11px] text-emerald-800 dark:text-emerald-300 mb-0.5">
+                              <CheckCircle2 size={12} className="text-emerald-600" />
+                              Follow-Up Remark / Outcome:
+                            </span>
+                            <span className="whitespace-pre-wrap">{followUpStatus.remark}</span>
+                          </div>
+                        ) : null}
+
+                        {/* Note / Description */}
+                        {item.description || item.notes ? (
+                          <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">
+                            {item.description || item.notes}
+                          </p>
+                        ) : null}
+
+                        {/* Structured Timing & Relative Info */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-muted)]/60 pt-2.5 text-[11px]">
+                          <div className="flex items-center gap-1.5 font-medium text-[var(--text-muted)]">
+                            <span>📅 Scheduled: <span className="font-semibold text-[var(--text-main)]">{timeInfo.formatted}</span></span>
+                          </div>
+
+                          <div className={cn(
+                            'font-semibold px-2 py-0.5 rounded-md text-xs',
+                            followUpStatus.isCompleted
+                              ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/15'
+                              : timeInfo.isUpcoming
+                                ? 'text-amber-700 dark:text-amber-300 bg-amber-500/15'
+                                : 'text-[var(--text-muted)]'
+                          )}>
+                            {followUpStatus.isCompleted ? 'Completed' : timeInfo.relative ? `⏰ ${timeInfo.relative}` : `⏰ ${timeInfo.dateOnly}`}
+                          </div>
+                        </div>
+
+                        {/* ⚡ 1-Click Quick Reschedule Chips (Point 2) */}
+                        {!followUpStatus.isCompleted && canWriteLead ? (
+                          <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border-muted)]/50 pt-2">
+                            <span className="text-[10px] font-semibold text-[var(--text-muted)] flex items-center gap-1 mr-0.5">
+                              <Zap size={11} className="text-amber-500" /> Quick Reschedule:
+                            </span>
+                            {getQuickRescheduleOptions().map((opt) => (
+                              <button
+                                key={opt.key}
+                                type="button"
+                                onClick={() => quickRescheduleReminder(item, opt.date, opt.time, opt.display)}
+                                title={`Reschedule to ${opt.display}`}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-medium border border-[var(--border-muted)] bg-[var(--surface)] hover:bg-[var(--surface-3)] hover:text-[var(--primary)] hover:border-[var(--primary)] text-[var(--text-muted)] transition cursor-pointer"
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  }) : (
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-12 text-center text-sm text-[var(--text-muted)]">
+                      {reminderStatusFilter === 'all' ? 'No reminders added yet for this lead.' : `No ${reminderStatusFilter} reminders found.`}
+                    </div>
+                  )}
+                </div>
+
+                <PaginationBar
+                  currentPage={reminderPage}
+                  totalItems={filteredReminders.length}
+                  pageSize={reminderPageSize}
+                  onPageChange={(page) => setTabPage('reminders', page)}
+                />
+              </Card>
+            );
+          })()}
+
+          {activeTab === 'timeline' && (() => {
+            const timelinePage = tabPages.timeline || 1;
+            const timelinePageSize = 10;
+            const pagedTimeline = sortedTimeline.slice((timelinePage - 1) * timelinePageSize, timelinePage * timelinePageSize);
+
+            return (
+              <div className="w-full space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <div>
+                    <h2 className="text-lg font-bold text-[var(--text-main)]">Lead Timeline</h2>
+                    <p className="text-xs text-[var(--text-muted)] mt-0.5">Chronological history of all events, calls, notes, and status updates (latest first)</p>
+                  </div>
+                  <div className="rounded-full bg-[var(--surface-2)] border border-[var(--border-muted)] px-3 py-1 text-xs font-bold text-[var(--text-muted)]">
+                    {sortedTimeline.length} Total Events
+                  </div>
+                </div>
+
+                {pagedTimeline.length ? (
+                  <div className="relative before:absolute before:left-3 before:top-2.5 before:bottom-2.5 before:w-[2px] before:bg-[var(--border-muted)] space-y-2.5">
+                    {pagedTimeline.map((item, index) => {
+                      const meta = getActivityMeta(item);
+                      const Icon = meta.icon;
+                      const timeInfo = formatActivityTimestamp(item.date || item.createdAt);
+
+                      return (
+                        <div key={`${item.title}-${item.date}-${index}`} className="relative pl-9 group">
+                          {/* Timeline Icon Node */}
+                          <div className={cn(
+                            'absolute left-0 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-[var(--surface)] shadow-2xs transition-transform group-hover:scale-110 z-10',
+                            meta.bg,
+                            meta.text
+                          )}>
+                            <Icon size={11} />
+                          </div>
+
+                          {/* Minimal Activity Item Card */}
+                          <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface)] hover:bg-[var(--surface-2)]/60 px-4 py-3 shadow-2xs hover:shadow-xs transition-all">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                <span className={cn(
+                                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0',
+                                  meta.bg,
+                                  meta.border,
+                                  meta.text
+                                )}>
+                                  {meta.label}
+                                </span>
+                                <span className="text-sm font-bold text-[var(--text-main)] truncate">{item.title}</span>
+                                {item.actorName && (
+                                  <span className="text-xs font-medium text-[var(--text-muted)] shrink-0 hidden sm:inline">
+                                    • <span>{item.actorName}</span>
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex flex-col items-end shrink-0 text-right" title={timeInfo.formatted}>
+                                {timeInfo.isUpcoming ? (
+                                  <div className="flex flex-col items-end">
+                                    <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 dark:text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
+                                      <Clock3 size={12} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                                      <span>{timeInfo.relative || 'Upcoming'}</span>
+                                    </span>
+                                    <span className="mt-0.5 text-[11px] font-medium text-amber-700/80 dark:text-amber-300/80">
+                                      {timeInfo.formatted}
+                                    </span>
+                                  </div>
+                                ) : timeInfo.relative ? (
+                                  <div className="flex flex-col items-end">
+                                    <div className="flex items-center gap-1 text-xs font-bold text-[var(--primary)]">
+                                      <Clock3 size={12} className="shrink-0 opacity-80" />
+                                      <span>{timeInfo.relative}</span>
+                                    </div>
+                                    <span className="mt-0.5 text-[11px] font-medium text-[var(--text-muted)]">
+                                      {timeInfo.formatted}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1 text-xs font-medium text-[var(--text-muted)]">
+                                    <Clock3 size={12} className="shrink-0 opacity-70" />
+                                    <span>{timeInfo.formatted}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {item.detail && item.detail !== item.title && (
+                              <p className="mt-1 text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">
+                                {item.detail}
+                              </p>
+                            )}
+
                             {Array.isArray(item.attachments) && item.attachments.length ? (
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-2 flex flex-wrap gap-1.5">
                                 {item.attachments.slice(0, 4).map((file) => (
                                   <a
-                                    key={file.driveFileId}
-                                    href={file.driveWebViewLink || `#${file.driveFileId}`}
+                                    key={file.driveFileId || file.id}
+                                    href={file.driveWebViewLink || `#${file.driveFileId || file.id}`}
                                     target={file.driveWebViewLink ? '_blank' : undefined}
                                     rel={file.driveWebViewLink ? 'noreferrer' : undefined}
-                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-300"
+                                    className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)] hover:border-[var(--primary)] hover:text-[var(--text-main)] transition cursor-pointer"
                                   >
-                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: badgeColor }} />
-                                    {file.name}
+                                    <Paperclip size={11} />
+                                    <span className="truncate max-w-[160px]">{file.name}</span>
                                   </a>
                                 ))}
                               </div>
                             ) : null}
-                            
+
                             {Array.isArray(item.meta?.changes) && item.meta.changes.length ? (
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-1.5 flex flex-wrap gap-1">
                                 {item.meta.changes.slice(0, 4).map((change) => (
-                                  <span key={change.key} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                                  <span key={change.key || change.label} className="rounded border border-[var(--border-muted)] bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
                                     {change.label}
                                   </span>
                                 ))}
@@ -3548,38 +6288,161 @@ export function LeadDetailsPage() {
                             ) : null}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
-                  No timeline items yet.
-                </div>
-              )}
-            </div>
-          )}
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40 p-10 text-center text-sm text-[var(--text-muted)]">
+                    No timeline events recorded.
+                  </div>
+                )}
+
+                <PaginationBar
+                  currentPage={timelinePage}
+                  totalItems={sortedTimeline.length}
+                  pageSize={timelinePageSize}
+                  onPageChange={(page) => setTabPage('timeline', page)}
+                />
+              </div>
+            );
+          })()}
         </div>
 
-        {activeTab === 'overview' ? (
+        {(activeTab === 'overview' || activeTab === 'details') ? (
         <div className="space-y-4">
-          <Card className="p-0 border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          {/* Quick 1-Click Action & Contact Card */}
+          <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+            <div className="flex items-center justify-between border-b border-[var(--border-muted)] px-5 py-3.5 bg-[var(--surface-2)]">
               <div className="flex items-center gap-2">
-                <Layers size={18} className="text-slate-800" />
-                <h2 className="text-lg font-semibold text-slate-900">Lead info</h2>
+                <User size={16} className="text-[var(--primary)]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-main)]">Primary Contact</h3>
               </div>
-              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 text-slate-500">
-                <MoreHorizontal size={18} />
-              </button>
+              {canWriteLead ? (
+                <Button variant="ghost" size="sm" onClick={() => { setContactEdit(primaryContact || null); setContactOpen(true); }} className="h-7 text-xs px-2">
+                  {primaryContact ? 'Edit' : '+ Add'}
+                </Button>
+              ) : null}
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <p className="text-base font-bold text-[var(--text-main)]">
+                  {primaryContact ? `${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() : (lead.contactPerson || lead.name || 'No contact named')}
+                </p>
+                {primaryContact?.jobTitle ? (
+                  <p className="text-xs font-medium text-[var(--text-muted)] mt-0.5">{primaryContact.jobTitle}</p>
+                ) : null}
+              </div>
+
+              {/* 1-Click Action Buttons */}
+              <div className="grid grid-cols-3 gap-2.5">
+                {(() => {
+                  const phoneNum = lead.phone || primaryContact?.phone;
+                  const rawDigits = String(phoneNum || '').replace(/\D/g, '');
+                  const waUrl = rawDigits ? `https://wa.me/${rawDigits.startsWith('91') || rawDigits.length > 10 ? rawDigits : `91${rawDigits}`}` : null;
+                  const emailAddr = lead.email || primaryContact?.email;
+
+                  return (
+                    <>
+                      <a
+                        href={phoneNum ? `tel:${phoneNum}` : undefined}
+                        onClick={(e) => { if (!phoneNum) e.preventDefault(); }}
+                        className={cn(
+                          'group flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-xl border transition-all text-center select-none',
+                          phoneNum
+                            ? 'border-[var(--border)] bg-[var(--surface-2)]/50 hover:bg-emerald-500/10 hover:border-emerald-500/30 text-[var(--text-main)] hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer shadow-xs'
+                            : 'border-[var(--border-muted)] bg-[var(--surface-2)] text-[var(--text-muted)] opacity-40 cursor-not-allowed'
+                        )}
+                        title={phoneNum ? `Call ${phoneNum}` : 'No phone number'}
+                      >
+                        <div className={cn(
+                          'flex h-7 w-7 items-center justify-center rounded-lg transition-transform group-hover:scale-110',
+                          phoneNum ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-800 text-gray-400'
+                        )}>
+                          <Phone size={14} />
+                        </div>
+                        <span className="text-[11px] font-semibold">Call</span>
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => { if (phoneNum) setWhatsAppOpen(true); }}
+                        className={cn(
+                          'group flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-xl border transition-all text-center select-none cursor-pointer',
+                          phoneNum
+                            ? 'border-[var(--border)] bg-[var(--surface-2)]/50 hover:bg-emerald-500/10 hover:border-emerald-500/30 text-[var(--text-main)] hover:text-emerald-600 dark:hover:text-emerald-400 shadow-xs'
+                            : 'border-[var(--border-muted)] bg-[var(--surface-2)] text-[var(--text-muted)] opacity-40 cursor-not-allowed'
+                        )}
+                        title={phoneNum ? `WhatsApp ${phoneNum}` : 'No phone number'}
+                      >
+                        <div className={cn(
+                          'flex h-7 w-7 items-center justify-center rounded-lg transition-transform group-hover:scale-110',
+                          phoneNum ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-gray-200 dark:bg-gray-800 text-gray-400'
+                        )}>
+                          <MessageSquare size={14} />
+                        </div>
+                        <span className="text-[11px] font-semibold">WhatsApp</span>
+                      </button>
+                      <a
+                        href={emailAddr ? `mailto:${emailAddr}` : undefined}
+                        onClick={(e) => { if (!emailAddr) e.preventDefault(); }}
+                        className={cn(
+                          'group flex flex-col items-center justify-center gap-1.5 py-2.5 px-1 rounded-xl border transition-all text-center select-none',
+                          emailAddr
+                            ? 'border-[var(--border)] bg-[var(--surface-2)]/50 hover:bg-blue-500/10 hover:border-blue-500/30 text-[var(--text-main)] hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer shadow-xs'
+                            : 'border-[var(--border-muted)] bg-[var(--surface-2)] text-[var(--text-muted)] opacity-40 cursor-not-allowed'
+                        )}
+                        title={emailAddr ? `Email ${emailAddr}` : 'No email address'}
+                      >
+                        <div className={cn(
+                          'flex h-7 w-7 items-center justify-center rounded-lg transition-transform group-hover:scale-110',
+                          emailAddr ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400' : 'bg-gray-200 dark:bg-gray-800 text-gray-400'
+                        )}>
+                          <Mail size={14} />
+                        </div>
+                        <span className="text-[11px] font-semibold">Email</span>
+                      </a>
+                    </>
+                  );
+                })()}
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-[var(--border-muted)] text-xs text-[var(--text-muted)]">
+                {(lead.phone || primaryContact?.phone) ? (
+                  <div className="flex items-center gap-2">
+                    <Phone size={14} className="shrink-0 text-[var(--text-muted)]" />
+                    <span className="text-[var(--text-main)] font-medium">{formatPhoneDisplay(lead.phone || primaryContact?.phone)}</span>
+                  </div>
+                ) : null}
+                {(lead.email || primaryContact?.email) ? (
+                  <div className="flex items-center gap-2 truncate">
+                    <Mail size={14} className="shrink-0 text-[var(--text-muted)]" />
+                    <span className="text-[var(--text-main)] font-medium truncate">{lead.email || primaryContact?.email}</span>
+                  </div>
+                ) : null}
+                {(lead.address || lead.city || lead.state || lead.country) ? (
+                  <div className="flex items-start gap-2">
+                    <MapPin size={14} className="shrink-0 text-[var(--text-muted)] mt-0.5" />
+                    <span>{[lead.address, lead.city, lead.state, lead.country].filter(Boolean).join(', ')}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          {/* Lead Info Snapshot Card */}
+          <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+            <div className="flex items-center justify-between border-b border-[var(--border-muted)] px-5 py-3.5 bg-[var(--surface-2)]">
+              <div className="flex items-center gap-2">
+                <Layers size={16} className="text-[var(--primary)]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-main)]">Lead Snapshot</h3>
+              </div>
             </div>
             <div className="flex flex-col">
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Hexagon size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{lead.type || 'Organization'}</span>
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Type</span>
+                <span className="text-xs font-semibold text-[var(--text-main)]">{lead.type || 'Organization'}</span>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Layers size={16} className="text-slate-500 shrink-0" />
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Pipeline</span>
                 <span
                   className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold"
                   style={{
@@ -3592,139 +6455,85 @@ export function LeadDetailsPage() {
                   {pipeline?.name || 'Default Pipeline'}
                 </span>
               </div>
-              <div className="flex items-start gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Tag size={16} className="text-slate-500 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Service name</div>
-                  <div className="mt-1"><ChipList items={serviceNames} /></div>
-                </div>
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Status</span>
+                <div>{renderStatusPill(lead.status || 'New', getLeadStatusColor(lead.status || 'New', statusColors), true)}</div>
               </div>
-              <div className="flex items-start gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Tag size={16} className="text-slate-500 shrink-0 mt-0.5" />
-                <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Client budget</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-800">{formatLeadAmount(clientBudget, lead.currency)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Quotation</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-800">{quotationAmount != null ? formatLeadAmount(quotationAmount, lead.currency) : '-'}</div>
-                  </div>
-                </div>
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Source</span>
+                <div>{renderSourcePill(lead.source || 'Website', getLeadSourceColor(lead.source || 'Website'), true)}</div>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <CheckCircle size={16} className="text-slate-500 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Quotation status</div>
-                  <span className={cn(
-                    'mt-1 inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold',
-                    quotationStatus === 'Sent'
-                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                      : quotationStatus === 'Not sent'
-                        ? 'border-slate-200 bg-slate-50 text-slate-600'
-                        : 'border-amber-200 bg-amber-50 text-amber-700'
-                  )}>
-                    {quotationStatus}
-                  </span>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <CheckCircle size={16} className="text-slate-500 shrink-0" />
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600" style={{ backgroundColor: `${(statusColors[lead.status] || '#64748b')}1A`, borderColor: `${(statusColors[lead.status] || '#64748b')}33`, color: statusColors[lead.status] || '#64748b' }}>
-                  {lead.status || 'New'}
-                </span>
-              </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Search size={16} className="text-slate-500 shrink-0" />
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-                  {lead.source || 'Site'}
-                </span>
-              </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Tag size={16} className="text-slate-500 shrink-0" />
-                <div className="flex flex-wrap gap-1.5 items-center">
-                  {normalizeLabels(lead.labels).length ? normalizeLabels(lead.labels).map((label) => {
-                    const color = labelColorMap.get(label) || '#2563eb';
-                    return <span key={label}>{renderLabelPill(label, color)}</span>;
-                  }) : <span className="text-sm text-slate-500">-</span>}
-                </div>
-              </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <User size={16} className="text-slate-500 shrink-0" />
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Assigned Owner</span>
                 <div className="flex items-center gap-2">
-                  <UserAvatar name={ownerName} className="h-6 w-6" fallbackSize={24} />
-                  <span className="text-sm text-[var(--primary)] font-medium">{ownerName}</span>
+                  <UserAvatar name={ownerName} className="h-5 w-5" fallbackSize={20} />
+                  <span className="text-xs text-[var(--primary)] font-semibold">{ownerName}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Users size={16} className="text-slate-500 shrink-0" />
-                <button type="button" className="text-sm text-[var(--primary)] font-medium hover:underline">Add Managers</button>
-              </div>
-              <div className="flex items-start gap-4 border-b border-slate-100 px-5 py-3.5">
-                <MapPin size={16} className="text-slate-500 shrink-0 mt-0.5" />
-                <div className="text-sm text-slate-700">
-                  {lead.address && <div>{lead.address}</div>}
-                  {(lead.city || lead.state) && <div>{[lead.city, lead.state].filter(Boolean).join(', ')}</div>}
-                  {lead.country && <div>{lead.country}</div>}
-                  {(!lead.address && !lead.city && !lead.state && !lead.country) && <span>-</span>}
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Labels</span>
+                <div className="flex flex-wrap gap-1 items-center justify-end">
+                  {normalizeLabels(lead.labels).length ? normalizeLabels(lead.labels).slice(0, 3).map((label) => {
+                    const color = labelColorMap.get(label) || '#2563eb';
+                    return <span key={label}>{renderLabelPill(label, color, true)}</span>;
+                  }) : <span className="text-xs text-[var(--text-muted)]">-</span>}
                 </div>
               </div>
-              <div className="flex items-center gap-4 px-5 py-3.5">
-                <Phone size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{formatPhoneDisplay(lead.phone) || '-'}</span>
+              <div className="flex items-center justify-between gap-4 px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Created</span>
+                <span className="text-xs text-[var(--text-main)] font-medium">{formatDate(lead.createdAt)}</span>
               </div>
             </div>
-          </Card>
+          </div>
 
-          <Card className="p-0 border-slate-200">
-            <div className="border-b border-slate-100 px-5 py-3">
-              <h3 className="text-sm font-semibold text-slate-800">Additional Details</h3>
+          {/* Additional Details Card */}
+          <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
+            <div className="border-b border-[var(--border-muted)] px-5 py-3 bg-[var(--surface-2)]">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-main)]">Additional Details</h3>
             </div>
             <div className="flex flex-col px-5 py-2">
-              <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0">
-                <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Primary Contact</span>
-                <span className="text-sm text-slate-700">
-                  {primaryContact ? `${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() || '-' : '-'}
-                </span>
-                {primaryContact?.phone && (
-                  <span className="text-xs text-slate-500">{formatPhoneDisplay(primaryContact.phone)}</span>
-                )}
-              </div>
-              <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0">
-                <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Lead Value</span>
-                <span className="text-sm text-slate-700">
+              <div className="flex items-center justify-between border-b border-[var(--border-muted)] py-2.5 last:border-0">
+                <span className="text-xs font-medium text-[var(--text-muted)]">Lead Value</span>
+                <span className="text-xs font-bold text-[var(--text-main)]">
                   {lead.currencySymbol || '$'}{Number(lead.value || 0).toLocaleString()} {lead.currency || 'USD'}
                 </span>
               </div>
               {lead.website ? (
-                <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0">
-                  <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Website</span>
-                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="text-sm text-[var(--primary)] hover:underline">
+                <div className="flex items-center justify-between border-b border-[var(--border-muted)] py-2.5 last:border-0">
+                  <span className="text-xs font-medium text-[var(--text-muted)]">Website</span>
+                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="text-xs text-[var(--primary)] hover:underline truncate max-w-[180px]">
                     {lead.website}
                   </a>
                 </div>
               ) : null}
               {(lead.vatNumber || lead.gstNumber) ? (
-                <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0">
-                  <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Tax Info</span>
-                  {lead.vatNumber ? <span className="text-sm text-slate-700">VAT: {lead.vatNumber}</span> : null}
-                  {lead.gstNumber ? <span className="text-sm text-slate-700">GST: {lead.gstNumber}</span> : null}
+                <div className="flex items-center justify-between border-b border-[var(--border-muted)] py-2.5 last:border-0">
+                  <span className="text-xs font-medium text-[var(--text-muted)]">Tax Info</span>
+                  <span className="text-xs font-semibold text-[var(--text-main)]">
+                    {lead.vatNumber ? `VAT: ${lead.vatNumber}` : `GST: ${lead.gstNumber}`}
+                  </span>
                 </div>
               ) : null}
-              <div className="flex flex-col gap-1 py-3">
-                <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Created By</span>
-                <span className="text-sm text-slate-700">{createdByName}</span>
-              </div>
+              {createdByName ? (
+                <div className="flex items-center justify-between py-2.5">
+                  <span className="text-xs font-medium text-[var(--text-muted)]">Created By</span>
+                  <span className="text-xs text-[var(--text-main)] font-medium">{createdByName}</span>
+                </div>
+              ) : null}
             </div>
-          </Card>
+          </div>
         </div>
         ) : null}
       </div>
 
       <LeadFormModal
         open={editingLeadOpen}
-        onClose={() => setEditingLeadOpen(false)}
         initialData={lead}
+        lead={lead}
+        options={leadOptions}
+        users={users}
+        pipelines={pipelines}
+        onClose={() => setEditingLeadOpen(false)}
         onSuccess={(result) => {
           setEditingLeadOpen(false);
           if (result?.deletedLead && result?.clientId) {
@@ -3799,13 +6608,16 @@ export function LeadDetailsPage() {
         busy={activityBusy}
       />
 
-      <ReminderModal
+      <FollowUpFormModal
         open={activityType === 'reminder'}
         onClose={() => { setActivityType(null); setActivityEdit(null); }}
-        onSave={saveActivity}
-        leadId={id}
-        initialValue={activityEdit && activityType === 'reminder' ? activityEdit : null}
-        busy={activityBusy}
+        onSaved={async () => {
+          setActivityType(null);
+          setActivityEdit(null);
+          await load();
+        }}
+        initialValue={activityType === 'reminder' ? activityEdit : null}
+        lockRelatedEntity={true}
       />
 
       <EventFormModal
@@ -3859,6 +6671,39 @@ export function LeadDetailsPage() {
         isLoading={false}
         onConfirm={confirmDeleteActivity}
         onCancel={() => setActivityDeleteTarget(null)}
+      />
+
+      <ActivityViewModal
+        open={Boolean(viewActivityTarget)}
+        onClose={() => setViewActivityTarget(null)}
+        item={viewActivityTarget}
+        onEdit={openEditActivity}
+        onCompleteFollowUp={(item) => setCompleteFollowUpTarget(item)}
+        canWriteLead={canWriteLead}
+        userLookup={userLookup}
+      />
+
+      <CompleteFollowUpModal
+        open={Boolean(completeFollowUpTarget)}
+        onClose={() => setCompleteFollowUpTarget(null)}
+        item={completeFollowUpTarget}
+        lead={lead}
+        onComplete={handleCompleteFollowUp}
+        busy={completeFollowUpBusy}
+      />
+
+      <WhatsAppModal
+        open={whatsAppOpen}
+        onClose={() => setWhatsAppOpen(false)}
+        recipient={{
+          leadId: lead?.id,
+          name: lead?.contactPerson || lead?.name,
+          companyName: lead?.companyName,
+          phone: lead?.phone || primaryContact?.phone,
+          services: lead?.requiredServices,
+          amount: lead?.estimatedBudget || lead?.value
+        }}
+        onSent={load}
       />
     </div>
   );

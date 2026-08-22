@@ -92,10 +92,23 @@ export const DEFAULT_SETTINGS = {
   },
   statuses: {
     leads: [
-      { label: 'New', color: '#3b82f6' },
-      { label: 'Qualified', color: '#f59e0b' },
-      { label: 'Won', color: '#10b981' },
-      { label: 'Lost', color: '#ef4444' }
+      { label: 'New', color: '#2563eb' },
+      { label: 'Contacted', color: '#6366f1' },
+      { label: 'Requirement Collected', color: '#0891b2' },
+      { label: 'Qualified', color: '#8b5cf6' },
+      { label: 'Unqualified', color: '#f43f5e' },
+      { label: 'Quotation Pending', color: '#ea580c' },
+      { label: 'Quotation Sent', color: '#9333ea' },
+      { label: 'Negotiation', color: '#db2777' },
+      { label: 'Follow-up', color: '#0284c7' },
+      { label: 'Demo Scheduled', color: '#f59e0b' },
+      { label: 'Meeting Scheduled', color: '#4f46e5' },
+      { label: 'On Hold', color: '#d97706' },
+      { label: 'Won', color: '#16a34a' },
+      { label: 'Lost', color: '#dc2626' },
+      { label: 'Not Interested', color: '#e11d48' },
+      { label: 'Invalid Lead', color: '#64748b' },
+      { label: 'Duplicate', color: '#6b7280' }
     ],
     clients: [
       { label: 'Active', color: '#10b981' },

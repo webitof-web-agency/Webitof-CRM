@@ -69,7 +69,7 @@ export function AppLayout() {
     : 'Ready to manage your CRM data';
 
   return (
-    <div className="app-shell relative min-h-screen bg-[var(--background)] text-[var(--text-main)] transition-colors duration-200 overflow-x-hidden">
+    <div className="app-shell relative min-h-screen bg-[var(--background)] text-[var(--text-main)] overflow-x-hidden">
       {/* iOS 26 Liquid Aurora Backdrop Canvas (Refracts through all glass cards) */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         {/* Sapphire / Electric Blue Glow */}

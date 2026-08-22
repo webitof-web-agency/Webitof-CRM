@@ -721,6 +721,24 @@ async function updateLeadRecord(leadId, body, req, db, { recordFollowUp = true, 
     });
   }
 
+  if (updated.followUpDate && !['Won', 'Lost', 'Not Interested', 'Invalid Lead', 'Duplicate'].includes(updated.status)) {
+    const dueAt = followUpEngine.parseDateTime('', updated.followUpDate, updated.nextFollowUpTime || '09:30', 'Asia/Kolkata');
+    if (dueAt) {
+      await followUpEngine.ensureEntityFollowUp('Lead', updated.id, {
+        title: updated.followUpNote || 'Lead follow-up',
+        description: updated.followUpNote || '',
+        followUpType: updated.followUpMode || 'Call',
+        purpose: 'Lead follow-up',
+        dueAt,
+        assignedTo: updated.assignedTo || req.user?.id,
+        priority: updated.followUpPriority || updated.priority || 'High',
+        source: 'lead_updated'
+      }, req.user, { db });
+    }
+  } else if (!updated.followUpDate || ['Won', 'Lost', 'Not Interested', 'Invalid Lead', 'Duplicate'].includes(updated.status)) {
+    await followUpEngine.autoCloseEntityFollowUps('Lead', updated.id, 'Lead follow-up cleared or status updated', req.user, { db });
+  }
+
   if (recordFollowUp && followUpChanged && updated.followUpDate) {
     await createFollowUpActivity(db, updated, req, { kind: current.followUpDate ? 'follow_up_rescheduled' : 'follow_up_scheduled' });
   }
@@ -1461,6 +1479,203 @@ const leadsController = {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
       res.json({ success: true, message: 'Deleted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  globalSearch: async (req, res, next) => {
+    try {
+      const q = String(req.query.q || '').trim();
+      if (!q || q.length < 2) {
+        return res.json({ success: true, data: { leads: [], clients: [], invoices: [], projects: [] } });
+      }
+      const pattern = `%${q.toLowerCase()}%`;
+      const [leadsRes, clientsRes, invoicesRes, projectsRes] = await Promise.all([
+        query(
+          `SELECT id, name, company_name, phone, email, status, lead_number 
+           FROM leads 
+           WHERE lower(coalesce(name, '')) LIKE $1 
+              OR lower(coalesce(company_name, '')) LIKE $1 
+              OR lower(coalesce(phone, '')) LIKE $1 
+              OR lower(coalesce(email, '')) LIKE $1 
+              OR lower(coalesce(lead_number, '')) LIKE $1 
+           ORDER BY updated_at DESC LIMIT 5`,
+          [pattern]
+        ),
+        query(
+          `SELECT id, name, company_name, mobile, email, status 
+           FROM clients 
+           WHERE lower(coalesce(name, '')) LIKE $1 
+              OR lower(coalesce(company_name, '')) LIKE $1 
+              OR lower(coalesce(mobile, '')) LIKE $1 
+              OR lower(coalesce(email, '')) LIKE $1 
+           ORDER BY updated_at DESC LIMIT 5`,
+          [pattern]
+        ),
+        query(
+          `SELECT id, invoice_number, total_amount, status, invoice_date 
+           FROM invoices 
+           WHERE lower(coalesce(invoice_number, '')) LIKE $1 
+              OR lower(coalesce(id, '')) LIKE $1 
+           ORDER BY updated_at DESC LIMIT 5`,
+          [pattern]
+        ),
+        query(
+          `SELECT id, title, project_type, status, value 
+           FROM projects 
+           WHERE lower(coalesce(title, '')) LIKE $1 
+              OR lower(coalesce(id, '')) LIKE $1 
+           ORDER BY updated_at DESC LIMIT 5`,
+          [pattern]
+        )
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          leads: leadsRes.rows.map((row) => ({
+            id: row.id,
+            title: row.name || row.company_name,
+            subtitle: `${row.lead_number || ''} • ${row.phone || row.email || ''} • ${row.status || ''}`.trim(),
+            type: 'Lead',
+            path: `/app/leads/${row.id}`
+          })),
+          clients: clientsRes.rows.map((row) => ({
+            id: row.id,
+            title: row.company_name || row.name,
+            subtitle: `${row.mobile || row.email || ''} • ${row.status || ''}`.trim(),
+            type: 'Client',
+            path: `/app/clients/${row.id}`
+          })),
+          invoices: invoicesRes.rows.map((row) => ({
+            id: row.id,
+            title: `Invoice #${row.invoice_number || row.id}`,
+            subtitle: `₹${Number(row.total_amount || 0).toLocaleString('en-IN')} • ${row.status || ''}`,
+            type: 'Invoice',
+            path: `/app/invoices/${row.id}`
+          })),
+          projects: projectsRes.rows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            subtitle: `${row.project_type || 'Project'} • ${row.status || ''}`,
+            type: 'Project',
+            path: `/app/projects/${row.id}`
+          }))
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  captureWebhookLead: async (req, res, next) => {
+    try {
+      const settings = await getSettings();
+      const configuredKey = settings?.leadWebhookKey || process.env.LEAD_WEBHOOK_KEY || 'webitof-crm-webhook-secret';
+      const providedKey = req.query.key || req.headers['x-crm-webhook-key'] || req.body?.key;
+
+      if (!providedKey || String(providedKey).trim() !== String(configuredKey).trim()) {
+        return res.status(401).json({ success: false, message: 'Invalid or missing Webhook API key' });
+      }
+
+      const raw = req.body || {};
+      const name = String(raw.name || raw.contactPerson || raw.fullName || raw.firstName || 'Web Lead').trim();
+      const phone = String(raw.phone || raw.mobile || raw.contactNumber || '').trim();
+      const email = String(raw.email || raw.emailAddress || '').trim();
+      const companyName = String(raw.companyName || raw.company || raw.organization || '').trim();
+      const requirementSummary = String(raw.requirementSummary || raw.message || raw.requirement || raw.notes || '').trim();
+      const source = String(raw.source || 'Website Webhook').trim();
+      const requiredServices = Array.isArray(raw.requiredServices)
+        ? raw.requiredServices
+        : (raw.service || raw.requiredService ? [raw.service || raw.requiredService] : ['Website Development']);
+      const estimatedBudget = Number(raw.estimatedBudget || raw.budget || 0) || null;
+
+      if (!phone && !email) {
+        return res.status(400).json({ success: false, message: 'At least phone or email is required to capture lead' });
+      }
+
+      // Check duplicates
+      const duplicates = await findDuplicateLeads({ phone, email });
+      if (duplicates.length > 0) {
+        const existingLead = duplicates[0];
+        // Log event to existing lead
+        await createLeadTimelineEvent(null, existingLead, { user: null }, {
+          kind: 'webhook_inquiry',
+          title: 'New Webhook Inquiry Received',
+          description: `Repeat contact form submission from ${source}: ${requirementSummary || 'No message'}`,
+          meta: { rawInput: raw }
+        });
+        return res.json({
+          success: true,
+          message: 'Lead inquiry linked to existing lead record',
+          leadId: existingLead.id,
+          isDuplicate: true
+        });
+      }
+
+      // Get system admin user
+      const adminUserResult = await query(
+        `SELECT u.id FROM users u 
+         WHERE u.is_active = true 
+         ORDER BY u.created_at ASC LIMIT 1`
+      );
+      const defaultAssigneeId = adminUserResult.rows[0]?.id || null;
+
+      const leadPayload = {
+        name,
+        contactPerson: name,
+        companyName,
+        phone,
+        email,
+        source,
+        requiredServices,
+        requirementSummary,
+        requirementDescription: requirementSummary,
+        estimatedBudget,
+        status: 'New',
+        priority: 'High',
+        assignedTo: defaultAssigneeId
+      };
+
+      const result = await withTransaction(async (db) => {
+        const pipelineId = await resolveLeadPipelineId(leadPayload, null, { user: { id: defaultAssigneeId } }, db);
+        let body = getLeadPatch({ ...leadPayload, pipelineId }, null, { user: { id: defaultAssigneeId } });
+        body = validateLeadForSave(body, { isCreate: true });
+        const created = await leadModel.create(body, db);
+
+        await createLeadTimelineEvent(db, created, { user: { id: defaultAssigneeId } }, {
+          kind: 'webhook_captured',
+          title: 'Lead Captured via Webhook',
+          description: `Captured automatically from ${source}`,
+          meta: { rawInput: raw }
+        });
+
+        // Ensure first contact SLA follow up
+        const dueAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        await followUpEngine.ensureEntityFollowUp('Lead', created.id, {
+          title: 'New web lead initial follow-up',
+          description: requirementSummary || 'Contact lead and qualify requirements.',
+          followUpType: 'Call',
+          purpose: 'First contact SLA',
+          dueAt,
+          assignedTo: defaultAssigneeId,
+          priority: 'High',
+          source: 'webhook_created'
+        }, { id: defaultAssigneeId }, { db });
+
+        return created;
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Lead captured successfully',
+        data: {
+          leadId: result.id,
+          leadNumber: result.leadNumber,
+          name: result.name
+        }
+      });
     } catch (error) {
       next(error);
     }

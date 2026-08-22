@@ -436,13 +436,14 @@ async function scheduleReminders(db, followUp, reminderSettings, settings) {
 }
 
 async function syncLeadNextAction(db, followUp) {
-  if (!followUp.leadId) return;
+  const leadId = followUp.leadId || (normalizeEntityType(followUp.relatedEntityType) === 'Lead' ? followUp.relatedEntityId : null);
+  if (!leadId) return;
   const parts = dateTimeParts(followUp.dueAt, followUp.timezone);
   await db.query(
     `update leads set follow_up_date = $2, next_follow_up_time = $3, follow_up_mode = $4,
        follow_up_note = $5, follow_up_priority = $6, assigned_to = coalesce($7, assigned_to), updated_at = now()
      where id = $1`,
-    [followUp.leadId, parts.date || null, parts.time || '', followUp.followUpType, followUp.description || followUp.internalNote || '', followUp.priority, followUp.assignedTo]
+    [leadId, parts.date || null, parts.time || '', followUp.followUpType, followUp.description || followUp.internalNote || '', followUp.priority, followUp.assignedTo]
   );
 }
 
@@ -527,6 +528,8 @@ function buildFollowUpWhere(filters = {}, user = null) {
   const values = [];
   const clauses = ['f.deleted_at is null', buildAccessClause(user, values)];
   const add = (sql, value) => { values.push(value); clauses.push(sql.replace('?', `$${values.length}`)); };
+  const activeStatusesSql = `array[${ACTIVE_FOLLOW_UP_STATUSES.map((_, index) => `'${ACTIVE_FOLLOW_UP_STATUSES[index].replace(/'/g, "''")}'`).join(',')}]`;
+
   if (filters.status) add('f.status = ?', filters.status);
   if (filters.priority) add('f.priority = ?', filters.priority);
   if (filters.followUpType || filters.type) add('f.follow_up_type = ?', filters.followUpType || filters.type);
@@ -538,8 +541,21 @@ function buildFollowUpWhere(filters = {}, user = null) {
   if (filters.outcome) add('f.actual_outcome = ?', filters.outcome);
   if (filters.from) add('f.due_at >= ?::timestamptz', filters.from);
   if (filters.to) add('f.due_at <= ?::timestamptz', filters.to);
-  if (String(filters.overdue || '').toLowerCase() === 'true') clauses.push(`f.due_at < now() and f.status = any(array[${ACTIVE_FOLLOW_UP_STATUSES.map((_, index) => `'${ACTIVE_FOLLOW_UP_STATUSES[index].replace(/'/g, "''")}'`).join(',')}])`);
-  if (String(filters.missingNextAction || '').toLowerCase() === 'true') clauses.push(`coalesce(f.next_action, '') = ''`);
+
+  // Quick Filter Tabs support
+  const quick = String(filters.quickFilter || filters.tabFilter || '').toLowerCase();
+  if (quick === 'overdue' || String(filters.overdue || '').toLowerCase() === 'true') {
+    clauses.push(`f.due_at < now() and f.status = any(${activeStatusesSql})`);
+  } else if (quick === 'due_today' || quick === 'today') {
+    clauses.push(`f.due_at >= (date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') and f.due_at < ((date_trunc('day', now() at time zone 'Asia/Kolkata') + interval '1 day') at time zone 'Asia/Kolkata') and f.status = any(${activeStatusesSql})`);
+  } else if (quick === 'critical') {
+    clauses.push(`f.priority = 'Critical' and f.status = any(${activeStatusesSql})`);
+  } else if (quick === 'missing_next_action' || String(filters.missingNextAction || '').toLowerCase() === 'true') {
+    clauses.push(`(coalesce(f.next_action, '') = '' or f.next_action is null) and f.status = any(${activeStatusesSql})`);
+  } else if (quick === 'upcoming') {
+    clauses.push(`f.due_at >= ((date_trunc('day', now() at time zone 'Asia/Kolkata') + interval '1 day') at time zone 'Asia/Kolkata') and f.status = any(${activeStatusesSql})`);
+  }
+
   if (filters.search) {
     values.push(`%${String(filters.search).trim().toLowerCase()}%`);
     clauses.push(`(lower(f.follow_up_number) like $${values.length} or lower(f.title) like $${values.length} or lower(coalesce(f.related_entity_label, '')) like $${values.length} or lower(coalesce(f.description, '')) like $${values.length})`);
@@ -759,9 +775,9 @@ async function completeFollowUp(id, payload = {}, actor = null, options = {}) {
         nextAction: payload.nextAction
       }, actor, { db, system: options.system });
       next = created.record;
-      await followUpModel.update(id, { nextFollowUpId: next.id }, db);
-    } else if (current.leadId) {
-      await db.query(`update leads set follow_up_date = null, next_follow_up_time = '', follow_up_note = $2, updated_at = now() where id = $1`, [current.leadId, closureReason || actualOutcome]);
+    } else if (current.leadId || normalizeEntityType(current.relatedEntityType) === 'Lead') {
+      const targetLeadId = current.leadId || current.relatedEntityId;
+      await db.query(`update leads set follow_up_date = null, next_follow_up_time = '', follow_up_note = $2, updated_at = now() where id = $1`, [targetLeadId, closureReason || actualOutcome]);
     }
     await createTimelineEvent(db, completed, actor?.id, 'follow_up_completed', discussionNote, { actualOutcome, nextFollowUpId: next?.id || null, nextAction });
     if (current.sequenceId && terminal) {

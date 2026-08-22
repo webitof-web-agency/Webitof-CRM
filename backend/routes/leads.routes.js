@@ -4,6 +4,8 @@ const { requirePermission } = require('../middlewares/auth');
 
 const router = express.Router();
 
+router.post('/webhook', controller.captureWebhookLead);
+router.get('/search/global', controller.globalSearch);
 router.get('/', requirePermission('leads.read'), controller.list);
 router.post('/', requirePermission('leads.write'), controller.create);
 router.get('/options', requirePermission('leads.read'), controller.options);

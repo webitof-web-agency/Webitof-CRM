@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft } from 'lucide-react';
+import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../data/indiaLocations';
 import { Modal } from '../components/ui/Modal';
@@ -81,16 +81,68 @@ export function SettingsPage() {
   const [watermarkBrowserOpen, setWatermarkBrowserOpen] = useState(false);
   const [uploadingWatermark, setUploadingWatermark] = useState(false);
 
+  const [followUpSettings, setFollowUpSettings] = useState({
+    timezone: 'Asia/Kolkata',
+    businessHours: { start: '09:30', end: '18:30' },
+    protectionThresholds: {
+      highValueLead: 250000,
+      untouchedHours: 24,
+      waitingHours: 48,
+      maxReschedules: 3,
+      dailyWorkloadWarning: 12,
+      maxCriticalSnoozes: 1,
+      renewalWindowDays: 90
+    }
+  });
+  const [savingFollowUps, setSavingFollowUps] = useState(false);
+  const [webhookTestDraft, setWebhookTestDraft] = useState({
+    name: 'Jane Doe',
+    email: 'jane@example.com',
+    phone: '9876543210',
+    companyName: 'Acme Media',
+    service: 'Website Design & Development',
+    source: 'Website Contact Form',
+    message: 'Interested in redesigning our agency website.'
+  });
+  const [webhookTestLoading, setWebhookTestLoading] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState(null);
+  const [snippetTab, setSnippetTab] = useState('curl');
+
   useEffect(() => {
     let mounted = true;
     async function load() {
       setLoading(true);
       try {
-        const response = await api.settings.get(token);
+        const [settingsRes, followUpRes] = await Promise.allSettled([
+          api.settings.get(token),
+          api.followUps.getSettings(token)
+        ]);
+
         if (!mounted) return;
-        const loadedSettings = mergeDeep(DEFAULT_SETTINGS, response.data || {});
-        setSettings(loadedSettings);
-        persistAndApplyThemeSettings(loadedSettings);
+
+        if (settingsRes.status === 'fulfilled' && settingsRes.value?.data) {
+          const loadedSettings = mergeDeep(DEFAULT_SETTINGS, settingsRes.value.data || {});
+          setSettings(loadedSettings);
+          persistAndApplyThemeSettings(loadedSettings);
+        }
+
+        if (followUpRes.status === 'fulfilled' && followUpRes.value?.data) {
+          const fData = followUpRes.value.data;
+          setFollowUpSettings({
+            timezone: fData.timezone || 'Asia/Kolkata',
+            businessHours: fData.businessHours || { start: '09:30', end: '18:30' },
+            protectionThresholds: {
+              highValueLead: 250000,
+              untouchedHours: 24,
+              waitingHours: 48,
+              maxReschedules: 3,
+              dailyWorkloadWarning: 12,
+              maxCriticalSnoozes: 1,
+              renewalWindowDays: 90,
+              ...(fData.protectionThresholds || {})
+            }
+          });
+        }
       } catch (error) {
         if (!mounted) return;
         toast.error(error.message || 'Unable to load settings');
@@ -101,6 +153,29 @@ export function SettingsPage() {
     load();
     return () => { mounted = false; };
   }, [token]);
+
+  const updateFollowUpThreshold = (key, value) => {
+    setFollowUpSettings((curr) => ({
+      ...curr,
+      protectionThresholds: {
+        ...(curr.protectionThresholds || {}),
+        [key]: Number(value)
+      }
+    }));
+  };
+
+  const saveFollowUpSettings = async () => {
+    setSavingFollowUps(true);
+    try {
+      const response = await api.followUps.saveSettings(token, followUpSettings);
+      toast.success('Follow-up SLA & Policy settings saved successfully');
+      if (response?.data) setFollowUpSettings(response.data);
+    } catch (error) {
+      toast.error(error.message || 'Failed to save follow-up settings');
+    } finally {
+      setSavingFollowUps(false);
+    }
+  };
 
   useEffect(() => {
     if (settings.ui) {
@@ -220,6 +295,8 @@ export function SettingsPage() {
     { id: 'invoice', label: 'Invoices', icon: FileText },
     { id: 'taxes', label: 'Taxes & Compliance', icon: Calculator },
     { id: 'custom_fields', label: 'Custom Fields', icon: ListTodo },
+    { id: 'followups', label: 'Follow-ups & SLA', icon: Clock3 },
+    { id: 'integrations', label: 'Webhooks & API', icon: Globe },
   ];
 
   if (loading) {
@@ -1337,6 +1414,479 @@ export function SettingsPage() {
                   )}
                 </Button>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'followups' && (
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              {/* Top Action Card */}
+              <Card className="p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)] shrink-0">
+                      <Clock3 size={22} />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-slate-800">
+                        Follow-up Engine & SLA Policy Settings
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Control business calendar, operating hours, risk thresholds and automated protection policies.
+                      </p>
+                    </div>
+                  </div>
+
+                  <Button onClick={saveFollowUpSettings} disabled={savingFollowUps} className="shrink-0 self-end sm:self-center">
+                    {savingFollowUps ? (
+                      <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
+                    ) : (
+                      <><Save size={16} className="mr-2" /> Save Settings</>
+                    )}
+                  </Button>
+                </div>
+              </Card>
+
+              <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+                {/* Left Column: Protection Thresholds */}
+                <Card className="p-6 space-y-5">
+                  <div className="border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert size={18} className="text-rose-500" />
+                      <h3 className="text-base font-bold text-slate-800">Risk & SLA Protection Thresholds</h3>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      These values configure how the CRM detects neglected leads, high-value deals at risk, and overdue bottlenecks.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        High-Value Deal Threshold (₹)
+                      </label>
+                      <Input
+                        type="number"
+                        value={followUpSettings.protectionThresholds?.highValueLead ?? 250000}
+                        onChange={(e) => updateFollowUpThreshold('highValueLead', e.target.value)}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Deals above this value trigger priority alerts.</p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        Untouched Lead SLA (Hours)
+                      </label>
+                      <Input
+                        type="number"
+                        value={followUpSettings.protectionThresholds?.untouchedHours ?? 24}
+                        onChange={(e) => updateFollowUpThreshold('untouchedHours', e.target.value)}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Hours before a newly assigned lead is marked neglected.</p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        Waiting-for-Client Limit (Hours)
+                      </label>
+                      <Input
+                        type="number"
+                        value={followUpSettings.protectionThresholds?.waitingHours ?? 48}
+                        onChange={(e) => updateFollowUpThreshold('waitingHours', e.target.value)}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Hours before client inaction triggers a re-engagement nudge.</p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        Max Allowable Reschedules
+                      </label>
+                      <Input
+                        type="number"
+                        value={followUpSettings.protectionThresholds?.maxReschedules ?? 3}
+                        onChange={(e) => updateFollowUpThreshold('maxReschedules', e.target.value)}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Reschedule count before deal is flagged as stalling.</p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        Daily Workload Limit per Agent
+                      </label>
+                      <Input
+                        type="number"
+                        value={followUpSettings.protectionThresholds?.dailyWorkloadWarning ?? 12}
+                        onChange={(e) => updateFollowUpThreshold('dailyWorkloadWarning', e.target.value)}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Daily follow-up limit before agent shows as overloaded.</p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                        Renewal Window Notice (Days)
+                      </label>
+                      <Input
+                        type="number"
+                        value={followUpSettings.protectionThresholds?.renewalWindowDays ?? 90}
+                        onChange={(e) => updateFollowUpThreshold('renewalWindowDays', e.target.value)}
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Days in advance to generate upcoming contract renewals.</p>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Right Column: Operating Hours & Customer Safety */}
+                <div className="space-y-6">
+                  <Card className="p-6 space-y-4">
+                    <div className="border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <Clock3 size={18} className="text-blue-500" />
+                        <h3 className="text-base font-bold text-slate-800">Operating Hours</h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Automated tasks respect local working hours.</p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Time Zone</label>
+                      <select
+                        className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-[var(--primary)] focus:outline-none"
+                        value={followUpSettings.timezone || 'Asia/Kolkata'}
+                        onChange={(e) => setFollowUpSettings((curr) => ({ ...curr, timezone: e.target.value }))}
+                      >
+                        <option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-slate-700">Shift Starts</label>
+                        <Input
+                          type="time"
+                          value={followUpSettings.businessHours?.start || '09:30'}
+                          onChange={(e) => setFollowUpSettings((curr) => ({
+                            ...curr,
+                            businessHours: { ...(curr.businessHours || {}), start: e.target.value }
+                          }))}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-sm font-medium text-slate-700">Shift Ends</label>
+                        <Input
+                          type="time"
+                          value={followUpSettings.businessHours?.end || '18:30'}
+                          onChange={(e) => setFollowUpSettings((curr) => ({
+                            ...curr,
+                            businessHours: { ...(curr.businessHours || {}), end: e.target.value }
+                          }))}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 shadow-sm space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400" />
+                      <h4 className="text-sm font-bold text-emerald-900 dark:text-emerald-300">Customer Safety Policy</h4>
+                    </div>
+                    <p className="text-xs text-emerald-800 dark:text-emerald-400 leading-relaxed">
+                      Automated messages are never sent outside working hours or to opted-out contacts without human verification.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'integrations' && (
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+              {/* Endpoint Card */}
+              <Card className="p-6 space-y-5">
+                <div className="border-b border-slate-100 pb-4">
+                  <div className="flex items-center gap-2">
+                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                      <Globe size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-800">Public Lead Capture Webhook</h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Accept inbound leads directly from your WordPress site, Elementor forms, Webflow, or custom landing pages.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2 space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Public Webhook URL (POST)</label>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={`${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret`}
+                        className="font-mono text-xs bg-slate-50 select-all"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret`);
+                          toast.success('Webhook URL copied to clipboard');
+                        }}
+                        className="shrink-0 cursor-pointer"
+                      >
+                        <Copy size={15} className="mr-1.5" /> Copy URL
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Send a JSON <code className="bg-slate-100 px-1 py-0.5 rounded text-blue-600 font-bold">POST</code> request with your form payload.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Webhook Secret API Key</label>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value="webitof-crm-webhook-secret"
+                        className="font-mono text-xs bg-slate-50 select-all"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText('webitof-crm-webhook-secret');
+                          toast.success('API Key copied');
+                        }}
+                        className="shrink-0 cursor-pointer"
+                      >
+                        <Copy size={15} />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">Authentication Headers</label>
+                    <Input
+                      readOnly
+                      value="x-crm-webhook-key: webitof-crm-webhook-secret"
+                      className="font-mono text-xs bg-slate-50"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-100 flex items-start gap-3">
+                  <Zap size={18} className="text-blue-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-blue-900 space-y-1">
+                    <p className="font-bold">Automated Lead Intelligence</p>
+                    <p className="text-blue-800">
+                      When a lead is submitted via webhook, the CRM automatically detects duplicates by phone/email, tags the lead with source tracking, and provisions the initial SLA follow-up task.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Live Test Sandbox */}
+              <Card className="p-6 space-y-5">
+                <div className="border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Send size={16} className="text-emerald-600" />
+                    Live Webhook Test Sandbox
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Test submitting an incoming lead to verify your webhook integration.</p>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Full Name</label>
+                    <Input
+                      value={webhookTestDraft.name}
+                      onChange={(e) => setWebhookTestDraft(curr => ({ ...curr, name: e.target.value }))}
+                      placeholder="Jane Doe"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Phone / Mobile</label>
+                    <Input
+                      value={webhookTestDraft.phone}
+                      onChange={(e) => setWebhookTestDraft(curr => ({ ...curr, phone: e.target.value }))}
+                      placeholder="9876543210"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Email</label>
+                    <Input
+                      value={webhookTestDraft.email}
+                      onChange={(e) => setWebhookTestDraft(curr => ({ ...curr, email: e.target.value }))}
+                      placeholder="jane@example.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Company Name</label>
+                    <Input
+                      value={webhookTestDraft.companyName}
+                      onChange={(e) => setWebhookTestDraft(curr => ({ ...curr, companyName: e.target.value }))}
+                      placeholder="Acme Media"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Service Requested</label>
+                    <Input
+                      value={webhookTestDraft.service}
+                      onChange={(e) => setWebhookTestDraft(curr => ({ ...curr, service: e.target.value }))}
+                      placeholder="Web Development"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Source Tag</label>
+                    <Input
+                      value={webhookTestDraft.source}
+                      onChange={(e) => setWebhookTestDraft(curr => ({ ...curr, source: e.target.value }))}
+                      placeholder="Website Contact Form"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 md:col-span-3">
+                    <label className="text-xs font-medium text-slate-600 mb-1 block">Inquiry / Message</label>
+                    <Textarea
+                      rows={2}
+                      value={webhookTestDraft.message}
+                      onChange={(e) => setWebhookTestDraft(curr => ({ ...curr, message: e.target.value }))}
+                      placeholder="Requirement description..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      if (!webhookTestDraft.name || !webhookTestDraft.phone) {
+                        toast.error('Name and Phone are required');
+                        return;
+                      }
+                      setWebhookTestLoading(true);
+                      setWebhookTestResult(null);
+                      try {
+                        const res = await fetch('/api/leads/webhook?key=webitof-crm-webhook-secret', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(webhookTestDraft)
+                        });
+                        const data = await res.json();
+                        setWebhookTestResult({ status: res.status, data });
+                        if (data.success) {
+                          toast.success(`Lead captured successfully! Lead ID: #${data.data?.leadId || ''}`);
+                        } else {
+                          toast.error(data.message || 'Webhook rejected');
+                        }
+                      } catch (err) {
+                        setWebhookTestResult({ status: 500, data: { error: err.message } });
+                        toast.error(err.message || 'Failed to send test webhook');
+                      } finally {
+                        setWebhookTestLoading(false);
+                      }
+                    }}
+                    disabled={webhookTestLoading}
+                    className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                  >
+                    <Send size={15} className="mr-1.5" />
+                    {webhookTestLoading ? 'Sending...' : 'Send Test Lead via Webhook'}
+                  </Button>
+                </div>
+
+                {webhookTestResult && (
+                  <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-900 text-slate-100 space-y-2 text-xs font-mono">
+                    <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+                      <span className="font-bold text-slate-300">Server Response</span>
+                      <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${webhookTestResult.status === 200 || webhookTestResult.status === 201 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                        HTTP {webhookTestResult.status}
+                      </span>
+                    </div>
+                    <pre className="overflow-x-auto text-[11px] leading-relaxed text-emerald-300">
+                      {JSON.stringify(webhookTestResult.data, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </Card>
+
+              {/* Code Snippets Card */}
+              <Card className="p-6 space-y-4">
+                <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                      <Code2 size={16} className="text-blue-600" />
+                      Integration Code Snippets
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Drop-in code for external websites and forms.</p>
+                  </div>
+                  <div className="flex gap-1 bg-slate-100 p-1 rounded-lg text-xs">
+                    {['curl', 'javascript', 'php'].map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setSnippetTab(tab)}
+                        className={`px-2.5 py-1 rounded-md font-medium uppercase tracking-wider transition ${snippetTab === tab ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'}`}
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <pre className="p-4 bg-slate-900 text-slate-100 rounded-xl overflow-x-auto text-xs font-mono leading-relaxed">
+                    {snippetTab === 'curl' && `curl -X POST "${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Jane Smith",
+    "phone": "+91 98765 43210",
+    "email": "jane@example.com",
+    "companyName": "Acme Corp",
+    "service": "Web Development",
+    "source": "Website Contact Form",
+    "message": "Interested in redesigning our website.",
+    "budget": 50000
+  }'`}
+
+                    {snippetTab === 'javascript' && `fetch('${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: formData.name,
+    phone: formData.phone,
+    email: formData.email,
+    companyName: formData.company,
+    service: formData.service,
+    source: 'Website Form',
+    message: formData.message
+  })
+})
+.then(res => res.json())
+.then(data => console.log('Lead captured in CRM:', data));`}
+
+                    {snippetTab === 'php' && `<?php
+// WordPress / PHP Contact Form Integration
+$url = '${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret';
+$payload = json_encode([
+    'name'        => $_POST['name'],
+    'phone'       => $_POST['phone'],
+    'email'       => $_POST['email'],
+    'companyName' => $_POST['company'],
+    'service'     => $_POST['service'],
+    'source'      => 'WordPress Contact Form',
+    'message'     => $_POST['message']
+]);
+
+$ch = curl_init($url);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$result = curl_exec($ch);
+curl_close($ch);
+?>`}
+                  </pre>
+                </div>
+              </Card>
             </div>
           )}
 

@@ -19,10 +19,15 @@ export function Card({
   className = '',
   ...props
 }) {
+  const hasPadding = /(?:^|\s)(?:p|px|py|pt|pb|pl|pr|sm:p|md:p|lg:p|xl:p)-/.test(className);
+  const hasRadius = /(?:^|\s)(?:rounded|sm:rounded|md:rounded|lg:rounded)-/.test(className);
+
   return (
     <Tag
       className={cn(
-        'relative rounded-[22px] p-5 sm:p-6 transition-all duration-200 backdrop-blur-xl',
+        'relative transition-all duration-200 backdrop-blur-xl',
+        !hasRadius && 'rounded-[22px]',
+        !hasPadding && 'p-5 sm:p-6',
         'before:absolute before:inset-x-0 before:top-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-white/90 dark:before:via-white/20 before:to-transparent before:pointer-events-none',
         cardVariants[variant] || cardVariants.default,
         className

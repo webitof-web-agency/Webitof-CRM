@@ -88,24 +88,28 @@ export function ThemeProvider({ children }) {
   };
 
   const setMode = (newMode) => {
-    setModeState(newMode);
     applyThemeMode(newMode);
+    setModeState(newMode);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme, mode: newMode }));
+    } catch (e) {}
   };
 
   const toggleMode = () => {
-    setModeState((current) => {
-      let isCurrentlyDark = false;
-      if (current === 'system') {
-        isCurrentlyDark =
-          typeof window !== 'undefined' &&
-          window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-      } else {
-        isCurrentlyDark = current === 'dark';
-      }
-      const next = isCurrentlyDark ? 'light' : 'dark';
-      applyThemeMode(next);
-      return next;
-    });
+    let isCurrentlyDark = false;
+    if (mode === 'system') {
+      isCurrentlyDark =
+        typeof window !== 'undefined' &&
+        window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+    } else {
+      isCurrentlyDark = mode === 'dark';
+    }
+    const next = isCurrentlyDark ? 'light' : 'dark';
+    applyThemeMode(next);
+    setModeState(next);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme, mode: next }));
+    } catch (e) {}
   };
 
   const value = useMemo(() => {

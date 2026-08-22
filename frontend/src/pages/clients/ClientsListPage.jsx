@@ -94,8 +94,11 @@ export function ClientsListPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [sortKey, setSortKey] = useState('updatedAt');
+  const [sortDirection, setSortDirection] = useState('desc');
   const [statusFilter, setStatusFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [viewType, setViewType] = useState('table');
   
   const [deleting, setDeleting] = useState(false);
@@ -196,7 +199,9 @@ export function ClientsListPage() {
   }, [rows, typeFilter, statusFilter]);
 
   const clientStatuses = useMemo(() => {
-    const baseStatuses = allStatuses.length ? allStatuses : [];
+    const baseStatuses = (allStatuses || [])
+      .map((item) => (typeof item === 'string' ? { label: item, color: '#64748b' } : { label: item?.label || item?.value || '', color: item?.color || '#64748b' }))
+      .filter((s) => s.label);
     const seen = new Set(baseStatuses.map((item) => item.label));
     const merged = [...baseStatuses];
     rows.forEach((row) => {

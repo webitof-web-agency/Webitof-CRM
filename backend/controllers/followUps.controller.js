@@ -148,32 +148,140 @@ async function options(req, res, next) {
 }
 
 const SEARCH_TARGETS = {
-  Lead: { table: 'leads', permission: 'leads.read', label: `coalesce(contact_person, company_name, name, lead_number, id)`, search: `concat_ws(' ',lead_number,name,company_name,contact_person,email,phone)` },
-  Client: { table: 'clients', permission: 'clients.read', label: `coalesce(company_name,name,id)`, search: `concat_ws(' ',name,company_name,email,mobile,gstin)` },
-  Quotation: { table: 'lead_events', permission: 'leads.read', label: `coalesce(title,id)`, search: `concat_ws(' ',title,description,payload->>'quotationNumber')`, extra: `event_type='quotation'` },
-  Invoice: { table: 'invoices', permission: 'invoices.read', label: `coalesce(invoice_number,id)`, search: `concat_ws(' ',invoice_number,status)` },
-  Project: { table: 'projects', permission: 'projects.read', label: `coalesce(title,id)`, search: `concat_ws(' ',title,project_type,status)` },
-  AMC: { table: 'amcs', permission: 'amc.read', label: `coalesce(title,id)`, search: `concat_ws(' ',title,status)` },
-  Renewal: { table: 'renewals', permission: 'renewals.read', label: `coalesce(domain_name,hosting_name,package_name,software_name,category,id)`, search: `concat_ws(' ',domain_name,hosting_name,package_name,software_name,category,provider,status)` }
+  Lead: {
+    table: 'leads',
+    permission: 'leads.read',
+    label: `coalesce(nullif(contact_person, ''), nullif(name, ''), nullif(company_name, ''), lead_number, id)`,
+    subtitle: `coalesce(nullif(phone, ''), nullif(alternate_phone, ''), nullif(whatsapp_number, ''), nullif(email, ''), nullif(company_name, ''), '')`,
+    search: `concat_ws(' ', lead_number, name, company_name, contact_person, email, phone, alternate_phone, whatsapp_number)`
+  },
+  Contact: {
+    table: 'lead_contacts',
+    permission: 'leads.read',
+    label: `coalesce(nullif(trim(concat_ws(' ', first_name, last_name)), ''), nullif(email, ''), id)`,
+    subtitle: `coalesce(nullif(phone, ''), nullif(email, ''), nullif(job_title, ''), '')`,
+    search: `concat_ws(' ', first_name, last_name, email, phone, job_title)`
+  },
+  Client: {
+    table: 'clients',
+    permission: 'clients.read',
+    label: `coalesce(nullif(company_name, ''), nullif(name, ''), id)`,
+    subtitle: `coalesce(nullif(mobile, ''), nullif(email, ''), '')`,
+    search: `concat_ws(' ', name, company_name, email, mobile, gstin)`
+  },
+  Opportunity: {
+    table: 'leads',
+    permission: 'leads.read',
+    label: `coalesce(nullif(contact_person, ''), nullif(name, ''), nullif(company_name, ''), lead_number, id)`,
+    subtitle: `coalesce(nullif(phone, ''), nullif(whatsapp_number, ''), nullif(status, ''), '')`,
+    search: `concat_ws(' ', lead_number, name, company_name, contact_person, email, phone, alternate_phone, whatsapp_number)`
+  },
+  Deal: {
+    table: 'leads',
+    permission: 'leads.read',
+    label: `coalesce(nullif(contact_person, ''), nullif(name, ''), nullif(company_name, ''), lead_number, id)`,
+    subtitle: `coalesce(nullif(phone, ''), nullif(whatsapp_number, ''), nullif(status, ''), '')`,
+    search: `concat_ws(' ', lead_number, name, company_name, contact_person, email, phone, alternate_phone, whatsapp_number)`
+  },
+  Quotation: {
+    table: 'lead_events',
+    permission: 'leads.read',
+    label: `coalesce(nullif(title, ''), nullif(payload->>'quotationNumber', ''), id)`,
+    subtitle: `coalesce(nullif(payload->>'quotationNumber', ''), description, '')`,
+    search: `concat_ws(' ', title, description, payload->>'quotationNumber')`,
+    extra: `event_type='quotation'`
+  },
+  Proposal: {
+    table: 'lead_events',
+    permission: 'leads.read',
+    label: `coalesce(nullif(title, ''), nullif(payload->>'proposalNumber', ''), id)`,
+    subtitle: `coalesce(nullif(payload->>'proposalNumber', ''), description, '')`,
+    search: `concat_ws(' ', title, description, payload->>'proposalNumber')`,
+    extra: `(event_type='proposal' or event_type='quotation')`
+  },
+  Invoice: {
+    table: 'invoices',
+    permission: 'invoices.read',
+    label: `coalesce(nullif(invoice_number, ''), id)`,
+    subtitle: `coalesce(status, '')`,
+    search: `concat_ws(' ', invoice_number, status)`
+  },
+  Payment: {
+    table: 'payments',
+    permission: 'payments.read',
+    label: `coalesce(nullif(transaction_id, ''), id)`,
+    subtitle: `coalesce(payment_status, '')`,
+    search: `concat_ws(' ', transaction_id, payment_mode, payment_status)`
+  },
+  Project: {
+    table: 'projects',
+    permission: 'projects.read',
+    label: `coalesce(nullif(title, ''), id)`,
+    subtitle: `coalesce(project_type, status, '')`,
+    search: `concat_ws(' ', title, project_type, status)`
+  },
+  Task: {
+    table: 'lead_events',
+    permission: 'leads.read',
+    label: `coalesce(nullif(title, ''), id)`,
+    subtitle: `coalesce(description, '')`,
+    search: `concat_ws(' ', title, description)`
+  },
+  AMC: {
+    table: 'amcs',
+    permission: 'amc.read',
+    label: `coalesce(nullif(title, ''), id)`,
+    subtitle: `coalesce(status, '')`,
+    search: `concat_ws(' ', title, status)`
+  },
+  Renewal: {
+    table: 'renewals',
+    permission: 'renewals.read',
+    label: `coalesce(nullif(domain_name, ''), nullif(hosting_name, ''), nullif(package_name, ''), nullif(software_name, ''), category, id)`,
+    subtitle: `coalesce(provider, status, '')`,
+    search: `concat_ws(' ', domain_name, hosting_name, package_name, software_name, category, provider, status)`
+  }
 };
 
 async function searchRelated(req, res, next) {
   try {
     const type = engine.normalizeEntityType(req.query?.type || 'Lead');
-    const target = SEARCH_TARGETS[type];
+    const target = SEARCH_TARGETS[type] || SEARCH_TARGETS.Lead;
     if (!target) return res.json({ success: true, data: [] });
-    if (!(req.user?.isSuperAdmin || hasPermission(req.user, target.permission))) {
+    const allowed = req.user?.isSuperAdmin
+      || hasPermission(req.user, target.permission)
+      || hasPermission(req.user, `${type.toLowerCase()}s.read`)
+      || hasPermission(req.user, `${type.toLowerCase()}s.view`)
+      || hasPermission(req.user, `${type.toLowerCase()}s.view_all`)
+      || hasPermission(req.user, 'followups.create')
+      || hasPermission(req.user, 'followups.view_all')
+      || hasPermission(req.user, 'leads.read')
+      || hasPermission(req.user, 'leads.view');
+    if (!allowed) {
       return res.status(403).json({ success: false, message: `Missing permission: ${target.permission}` });
     }
-    const search = `%${String(req.query?.search || '').trim().toLowerCase()}%`;
+    const searchRaw = String(req.query?.search || '').trim().toLowerCase();
+    const search = `%${searchRaw}%`;
     const result = await query(
-      `select id, ${target.label} as label from ${target.table}
+      `select id, ${target.label} as label, ${target.subtitle || "''"} as subtitle from ${target.table}
        where lower(${target.search}) like $1 ${target.extra ? `and ${target.extra}` : ''}
-       order by label asc limit 25`,
+       order by label asc limit 30`,
       [search]
     );
-    res.json({ success: true, data: result.rows.map((row) => ({ id: row.id, label: row.label, type })) });
-  } catch (error) { next(error); }
+    res.json({
+      success: true,
+      data: result.rows.map((row) => ({
+        id: row.id,
+        label: row.label,
+        subtitle: row.subtitle,
+        type
+      }))
+    });
+  } catch (error) {
+    // Graceful fallback if table is empty or column differs
+    console.error('searchRelated error:', error.message);
+    res.json({ success: true, data: [] });
+  }
 }
 
 async function bulk(req, res, next) {

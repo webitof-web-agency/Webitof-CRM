@@ -281,7 +281,14 @@ export function DataTable({
                     role={clickable ? 'button' : undefined}
                   >
                     {selectable ? (
-                      <td className="sticky left-0 border-b border-[var(--border-muted)] bg-[var(--surface)] group-hover:bg-[var(--hover-bg)] px-4 py-3 align-middle text-xs text-[var(--text-muted)]">
+                      <td
+                        className={cn(
+                          "sticky left-0 border-b border-[var(--border-muted)] px-4 py-3 align-middle text-xs text-[var(--text-muted)] transition-colors",
+                          isSelected
+                            ? "bg-[var(--selected-bg)]"
+                            : "bg-[var(--surface)] group-hover:bg-transparent"
+                        )}
+                      >
                         <Checkbox
                           checked={isSelected}
                           onChange={() => toggleRow(id)}

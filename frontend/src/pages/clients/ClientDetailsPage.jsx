@@ -31,15 +31,21 @@ import {
   User,
   UserPlus,
   Users,
-  Wallet
+  Wallet,
+  BookOpen,
+  DollarSign,
+  Printer,
+  Download
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { exportToCsv } from '../../lib/exportCsv';
 import { PageLoader } from '../../components/ui/Loader';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { DataTable } from '../../components/ui/Table';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { UserAvatar } from '../../components/ui/UserAvatar';
 import { Input, Textarea } from '../../components/ui/Input';
@@ -1240,7 +1246,7 @@ export function ClientDetailsPage() {
       } catch (error) {
         if (active) {
           toast.error(error.message || 'Failed to load client details');
-          navigate('/app/clients');
+          setData(null);
         }
       } finally {
         if (active) setLoading(false);
@@ -1365,10 +1371,53 @@ export function ClientDetailsPage() {
     return [...followUpReminder, ...activityItems.filter((item) => item.type === 'reminder')];
   }, [activityItems, client?.followUpDate, client?.notes, id]);
   const recentClientEvents = mergedTimeline.slice(0, 4);
-  const currentStageIndex = Math.max(clientPipelineStages.findIndex((item) => item.label === client.status), 0);
-  const stageProgress = clientPipelineStages.length > 1
-    ? Math.round(((currentStageIndex + 1) / clientPipelineStages.length) * 100)
-    : (client.status ? 100 : 0);
+  const statementLedger = useMemo(() => {
+    const entries = [];
+    (invoices || []).forEach((inv) => {
+      entries.push({
+        id: `inv-${inv.id}`,
+        date: inv.invoiceDate || inv.createdAt,
+        type: 'Invoice',
+        docNumber: inv.invoiceNumber || inv.id,
+        description: `Tax Invoice #${inv.invoiceNumber || inv.id}${inv.title ? ` - ${inv.title}` : ''}`,
+        debit: Number(inv.totalAmount || 0),
+        credit: 0,
+        status: inv.status,
+        raw: inv,
+        link: `/app/invoices/${inv.id}`
+      });
+    });
+    (payments || []).forEach((pay) => {
+      entries.push({
+        id: `pay-${pay.id}`,
+        date: pay.paymentDate || pay.createdAt,
+        type: 'Payment',
+        docNumber: pay.transactionId || (pay.id || '').substring(0, 8),
+        description: `Payment Received via ${pay.paymentMode || 'Direct'}${pay.invoiceId ? ` (Inv #${invoices.find((i) => i.id === pay.invoiceId)?.invoiceNumber || ''})` : ''}`,
+        debit: 0,
+        credit: Number(pay.amountReceived || 0),
+        status: pay.paymentStatus || 'Received',
+        raw: pay,
+        link: `/app/payments/${pay.id}`
+      });
+    });
+
+    entries.sort((a, b) => new Date(a.date || 0) - new Date(b.date || 0));
+
+    let runningBalance = Number(client?.openingBalance || 0);
+    return entries.map((entry) => {
+      runningBalance = runningBalance + entry.debit - entry.credit;
+      return {
+        ...entry,
+        runningBalance
+      };
+    });
+  }, [invoices, payments, client?.openingBalance]);
+
+  const totalInvoicedAmount = useMemo(() => (invoices || []).reduce((sum, i) => sum + Number(i.totalAmount || 0), 0), [invoices]);
+  const totalPaidAmount = useMemo(() => (payments || []).reduce((sum, p) => sum + Number(p.amountReceived || 0), 0), [payments]);
+  const totalOpeningBalance = Number(client?.openingBalance || 0);
+  const netOutstandingBalance = (totalOpeningBalance + totalInvoicedAmount) - totalPaidAmount;
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
@@ -1381,6 +1430,7 @@ export function ClientDetailsPage() {
     { id: 'projects', label: `Projects (${projects.length})`, icon: Briefcase },
     { id: 'invoices', label: `Invoices (${invoices.length})`, icon: Receipt },
     { id: 'payments', label: `Payments (${payments.length})`, icon: Wallet },
+    { id: 'statement', label: 'Statement / Ledger', icon: BookOpen },
     { id: 'amcs', label: `AMC (${amcs.length})`, icon: FileText },
     { id: 'renewals', label: `Renewals (${renewals.length})`, icon: FileText },
     { id: 'files', label: `Files (${files.length})`, icon: Paperclip }
@@ -1561,7 +1611,23 @@ export function ClientDetailsPage() {
   const addressLine = [client.billingAddress, client.city, client.state, client.country].filter(Boolean).join(', ');
 
   if (loading) return <PageLoader />;
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => navigate('/app/clients')}>
+            <ArrowLeft size={16} className="mr-1.5" /> Back to Clients
+          </Button>
+        </div>
+        <EmptyState
+          title="Client Not Found"
+          description={`The client record with ID "${id}" could not be found or has been deleted.`}
+          actionLabel="View All Clients"
+          onAction={() => navigate('/app/clients')}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -2102,6 +2168,164 @@ export function ClientDetailsPage() {
                 rows={payments}
                 selectable={false}
               />
+            </Card>
+          )}
+
+          {activeTab === 'statement' && (
+            <Card className="p-5 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
+                    <BookOpen size={18} className="text-blue-600" />
+                    Customer Statement of Accounts (Ledger)
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Consolidated account ledger showing debits, credits, and running balance for {client.companyName || client.name}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shadow-xs cursor-pointer"
+                    onClick={() => {
+                      if (!statementLedger.length) {
+                        toast.error('No statement ledger entries to export');
+                        return;
+                      }
+                      const cols = [
+                        { label: 'Date', key: 'date' },
+                        { label: 'Type', key: 'type' },
+                        { label: 'Doc Number', key: 'docNumber' },
+                        { label: 'Description', key: 'description' },
+                        { label: 'Debit (INR)', key: 'debit' },
+                        { label: 'Credit (INR)', key: 'credit' },
+                        { label: 'Running Balance (INR)', key: 'runningBalance' },
+                        { label: 'Status', key: 'status' }
+                      ];
+                      exportToCsv(`statement_${client.companyName || client.name || 'client'}`, cols, statementLedger);
+                      toast.success('Exported Statement of Accounts to CSV');
+                    }}
+                  >
+                    <Download size={14} className="mr-1.5 text-emerald-600" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="shadow-xs cursor-pointer"
+                    onClick={() => window.print()}
+                  >
+                    <Printer size={14} className="mr-1.5 text-blue-600" />
+                    Print Statement
+                  </Button>
+                </div>
+              </div>
+
+              {/* KPI Summary */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Opening Balance</span>
+                  <p className="text-base sm:text-lg font-bold text-slate-800 mt-1 font-mono">
+                    {formatMoney(totalOpeningBalance, currency, currencySymbol)}
+                  </p>
+                </div>
+                <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-100">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Total Invoiced (Debit)</span>
+                  <p className="text-base sm:text-lg font-bold text-blue-700 mt-1 font-mono">
+                    {formatMoney(totalInvoicedAmount, currency, currencySymbol)}
+                  </p>
+                </div>
+                <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Total Received (Credit)</span>
+                  <p className="text-base sm:text-lg font-bold text-emerald-700 mt-1 font-mono">
+                    {formatMoney(totalPaidAmount, currency, currencySymbol)}
+                  </p>
+                </div>
+                <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Net Balance Due</span>
+                  <p className={`text-base sm:text-lg font-black mt-1 font-mono ${netOutstandingBalance > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                    {formatMoney(netOutstandingBalance, currency, currencySymbol)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Ledger Table */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-left text-xs sm:text-sm">
+                  <thead className="bg-slate-50 text-[11px] uppercase font-bold tracking-wider text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Type</th>
+                      <th className="py-2.5 px-3">Doc #</th>
+                      <th className="py-2.5 px-3">Particulars / Description</th>
+                      <th className="py-2.5 px-3 text-right">Debit (+)</th>
+                      <th className="py-2.5 px-3 text-right">Credit (-)</th>
+                      <th className="py-2.5 px-3 text-right font-bold">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white font-medium">
+                    {totalOpeningBalance > 0 && (
+                      <tr className="bg-slate-50/50 text-slate-500 italic">
+                        <td className="py-2.5 px-3">-</td>
+                        <td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Balance</span></td>
+                        <td className="py-2.5 px-3">-</td>
+                        <td className="py-2.5 px-3 font-semibold">Opening Balance</td>
+                        <td className="py-2.5 px-3 text-right font-mono">{formatMoney(totalOpeningBalance, currency, currencySymbol)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono">-</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-mono">{formatMoney(totalOpeningBalance, currency, currencySymbol)}</td>
+                      </tr>
+                    )}
+                    {statementLedger.length ? statementLedger.map((row) => (
+                      <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{formatDate(row.date)}</td>
+                        <td className="py-2.5 px-3 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${row.type === 'Invoice' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {row.type}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 whitespace-nowrap font-mono font-semibold">
+                          <button
+                            type="button"
+                            onClick={() => navigate(row.link)}
+                            className="text-blue-600 hover:underline cursor-pointer"
+                          >
+                            #{row.docNumber}
+                          </button>
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-700">{row.description}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-blue-700">
+                          {row.debit > 0 ? formatMoney(row.debit, currency, currencySymbol) : '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-600">
+                          {row.credit > 0 ? formatMoney(row.credit, currency, currencySymbol) : '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                          {formatMoney(row.runningBalance, currency, currencySymbol)}
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400">
+                          No invoice or payment transactions recorded for this client yet.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {statementLedger.length > 0 && (
+                    <tfoot className="bg-slate-50 font-bold text-xs sm:text-sm border-t-2 border-slate-300">
+                      <tr>
+                        <td colSpan={4} className="py-3 px-3 text-slate-700 uppercase tracking-wider">Total / Closing Balance</td>
+                        <td className="py-3 px-3 text-right font-mono text-blue-700">{formatMoney(totalInvoicedAmount, currency, currencySymbol)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-emerald-700">{formatMoney(totalPaidAmount, currency, currencySymbol)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-amber-800 text-base">{formatMoney(netOutstandingBalance, currency, currencySymbol)}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </Card>
           )}
 

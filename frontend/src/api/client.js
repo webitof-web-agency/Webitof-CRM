@@ -135,6 +135,9 @@ export const api = {
     updateProfile: (token, payload) => request('/auth/profile', { method: 'PATCH', token, body: payload }),
     deleteAvatar: (token) => request('/auth/avatar', { method: 'DELETE', token })
   },
+  search: {
+    global: (token, q) => request(`/leads/search/global?q=${encodeURIComponent(q)}`, { token, skipCache: true })
+  },
   reports: {
     dashboard: (token) => request('/reports/dashboard', { token, skipCache: true }),
     profitLoss: (token) => request('/reports/profit-loss', { token, skipCache: true }),

@@ -137,6 +137,8 @@ export function Select({
         ? createPortal(
             <div
               ref={dropdownRef}
+              data-modal-portal="true"
+              data-portal="true"
               className="fixed z-[9999] rounded-[var(--radius-card,1rem)] border border-[var(--border-glass)] bg-[var(--surface)] shadow-[var(--shadow-float)] backdrop-blur-xl overflow-hidden flex flex-col animate-fade-scale"
               style={{ ...coords, maxHeight: '280px' }}
             >

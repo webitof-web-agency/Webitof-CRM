@@ -14,6 +14,7 @@ const bankAccountModel = require('../models/bankAccount.model');
 const bankTransactionModel = require('../models/bankTransaction.model');
 const amcModel = require('../models/amc.model');
 const renewalModel = require('../models/renewal.model');
+const followUpModel = require('../models/followUp.model');
 const masterItemModel = require('../models/masterItem.model');
 const { getSettings } = require('../models/settings.model');
 const {
@@ -91,7 +92,8 @@ async function loadBusinessState() {
     bankTransactions,
     amcs,
     renewals,
-    vendors
+    vendors,
+    followUps
   ] = await Promise.all([
     clientModel.list(),
     projectModel.list(),
@@ -109,7 +111,8 @@ async function loadBusinessState() {
     bankTransactionModel.list(),
     amcModel.list(),
     renewalModel.list(),
-    masterItemModel.listByType('vendor')
+    masterItemModel.listByType('vendor'),
+    followUpModel.list()
   ]);
 
   return {
@@ -131,7 +134,8 @@ async function loadBusinessState() {
     bankTransactions,
     amcs,
     renewals,
-    vendors
+    vendors,
+    followUps
   };
 }
 
@@ -392,10 +396,53 @@ function buildLeadTimeline(leadId, state) {
   const lead = state.leads.find((item) => String(item.id) === String(leadId));
   const contacts = state.leadContacts.filter((item) => String(item.leadId) === String(leadId));
   const events = getScopedEvents(state, { scopeType: 'lead', scopeId: leadId, allowLegacy: true });
+
+  const leadFollowUps = (state.followUps || []).filter(
+    (f) => String(f.relatedEntityType).toLowerCase() === 'lead' && String(f.relatedEntityId) === String(leadId) && !f.deletedAt
+  );
+
+  const existingFollowUpEventIds = new Set(
+    events.map((e) => e.payload?.followUpId || e.id).filter(Boolean)
+  );
+
+  const followUpEvents = leadFollowUps.filter((f) => !existingFollowUpEventIds.has(f.id)).map((f) => {
+    const due = f.dueAt ? new Date(f.dueAt).toISOString() : '';
+    const isCompleted = ['Completed', 'Auto-Closed', 'Cancelled'].includes(f.status);
+    return {
+      id: f.id,
+      leadId: leadId,
+      eventType: 'reminder',
+      title: f.title || 'Lead follow-up',
+      description: f.discussionNote ? `${f.description || ''}\n[Remark]: ${f.discussionNote}` : (f.description || ''),
+      startDate: due ? due.slice(0, 10) : '',
+      startTime: due ? new Date(f.dueAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: f.timezone || 'Asia/Kolkata' }) : '',
+      endDate: due ? due.slice(0, 10) : '',
+      endTime: '',
+      status: f.status,
+      priority: f.priority,
+      labels: [isCompleted ? 'completed' : 'pending', 'follow-up-engine', ...(f.tags || [])],
+      color: isCompleted ? '#10b981' : '#f59e0b',
+      ownerUserId: f.assignedTo,
+      createdAt: f.createdAt,
+      updatedAt: f.updatedAt,
+      followUpNumber: f.followUpNumber,
+      actualOutcome: f.actualOutcome,
+      discussionNote: f.discussionNote,
+      payload: {
+        followUpId: f.id,
+        followUpNumber: f.followUpNumber,
+        status: f.status,
+        actualOutcome: f.actualOutcome,
+        discussionNote: f.discussionNote
+      }
+    };
+  });
+
+  const mergedEvents = [...events, ...followUpEvents];
   const reminders = [];
   const leadLifecycleEvents = [];
   const existingSystemKinds = new Set(
-    events
+    mergedEvents
       .filter((event) => String(event.eventType || '').toLowerCase() === 'system')
       .map((event) => event.payload?.kind)
       .filter(Boolean)
@@ -424,18 +471,9 @@ function buildLeadTimeline(leadId, state) {
     });
   }
 
-  if (lead?.followUpDate) {
-    reminders.push({
-      date: lead.followUpDate,
-      title: 'Follow up due',
-      detail: lead.notes || 'Lead follow-up reminder',
-      amount: 0
-    });
-  }
-
   const timeline = [
     ...leadLifecycleEvents,
-    ...events.map((event) => {
+    ...mergedEvents.map((event) => {
       const eventType = String(event.eventType || 'event').toLowerCase();
       const activityLabel = {
         reminder: 'Reminder',
@@ -475,7 +513,7 @@ function buildLeadTimeline(leadId, state) {
 
   return {
     contacts,
-    events,
+    events: mergedEvents,
     timeline: timeline.filter((item) => item.date).sort((a, b) => String(b.date).localeCompare(String(a.date)))
   };
 }
@@ -669,7 +707,6 @@ function parseProjectActivities(value) {
 
 function normalizeProjectContacts(clientContacts = [], leadContacts = []) {
   const seen = new Set();
-
   return [...clientContacts, ...leadContacts]
     .map((contact) => {
       const firstName = contact.firstName || contact.first_name || '';

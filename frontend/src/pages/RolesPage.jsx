@@ -15,6 +15,7 @@ import { sortRows } from '../lib/resource';
 
 const NOTIFICATION_MODULES = [
   { key: '*', label: 'All Modules' },
+  { key: 'follow-ups', label: 'Follow-ups' },
   { key: 'leads', label: 'Leads' },
   { key: 'clients', label: 'Clients' },
   { key: 'projects', label: 'Projects' },

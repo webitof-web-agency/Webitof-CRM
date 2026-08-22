@@ -28,8 +28,9 @@ const maleExceptions = new Set(['krishna', 'shiva', 'aditya', 'ravi', 'hari', 'r
 
 function getGender(fullName) {
   if (!fullName) return 'unknown';
-  
-  const lowerName = fullName.toLowerCase();
+  const str = typeof fullName === 'string' ? fullName : (fullName?.name || fullName?.fullName || String(fullName || ''));
+  const lowerName = str.toLowerCase().trim();
+  if (!lowerName) return 'unknown';
   if (lowerName.startsWith('mrs.') || lowerName.startsWith('ms.') || lowerName.startsWith('miss')) return 'female';
   if (lowerName.startsWith('mr.')) return 'male';
 
