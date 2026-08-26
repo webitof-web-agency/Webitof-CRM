@@ -22,7 +22,8 @@
     "test:lead-api": "node tests/leadApi.smoke.js",
     "migrate:payment-status": "node database/add-payment-status.js",
     "migrate:expense-structure": "node database/add-expense-structure.js",
-    "migrate:amc-structure": "node database/add-amc-structure.js"
+    "migrate:amc-structure": "node database/add-amc-structure.js",
+    "db:keepalive": "node scripts/supabase-keepalive.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
