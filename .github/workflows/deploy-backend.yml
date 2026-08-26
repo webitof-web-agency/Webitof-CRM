@@ -24,11 +24,16 @@ jobs:
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
 
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/crm
           chmod 600 ~/.ssh/crm
 
-          echo "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh-keyscan \
+            -p "${{ secrets.SSH_PORT }}" \
+            -H "${{ secrets.SSH_HOST }}" \
+            >> ~/.ssh/known_hosts
+
           chmod 600 ~/.ssh/known_hosts
 
       - name: Upload backend
@@ -41,7 +46,7 @@ jobs:
             -e "ssh -i ~/.ssh/crm -p ${{ secrets.SSH_PORT }}" \
             backend/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/www/wwwroot/WebitofCRM/backend/
-
+      
       - name: Install and restart backend
         run: |
           ssh \
@@ -54,11 +59,9 @@ jobs:
           cd /www/wwwroot/WebitofCRM/backend
 
           npm ci
-
           npm run build --if-present
 
           pm2 restart WebitofCRM-backend --update-env
-
           pm2 save
 
           EOF
