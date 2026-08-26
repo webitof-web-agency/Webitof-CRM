@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send, Sparkles, ArrowRightCircle, PhoneCall, Bell, CheckSquare, MessageCircle, Zap, Volume2, RotateCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
@@ -32,6 +32,11 @@ import {
   getLeadSourceColor,
   getLeadServiceColor
 } from '../../config/leadManagement';
+import {
+  QUOTATION_PACKAGE_PRESETS,
+  MILESTONE_PRESETS,
+  buildWhatsAppProposalPitch
+} from '../../config/quotationPresets';
 
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
@@ -121,6 +126,9 @@ const EMPTY_QUOTATION = {
   proposalDate: '',
   validUntil: '',
   amount: '',
+  items: [],
+  milestoneTemplate: '',
+  terms: '',
   discountEnabled: false,
   discountType: 'percent',
   discountValue: '',
@@ -479,54 +487,76 @@ function getLeadServiceNames(lead) {
   return services;
 }
 
+function isQuotationEvent(event) {
+  if (!event) return false;
+  const type = String(event?.eventType || event?.type || '').toLowerCase();
+  if (type === 'quotation') return true;
+  const labels = Array.isArray(event?.labels) ? event.labels.map((l) => String(l).toLowerCase()) : [];
+  if (labels.includes('quotation')) return true;
+  return false;
+}
+
 function getQuotationDate(event) {
-  return String(event?.startDate || event?.endDate || event?.createdAt || event?.updatedAt || '');
+  return String(event?.createdAt || event?.startDate || event?.endDate || event?.updatedAt || '');
 }
 
 function getLatestQuotationEvent(events = []) {
-  return [...events]
-    .filter((event) => {
-      const type = String(event?.eventType || event?.type || '').toLowerCase();
-      const text = `${event?.title || ''} ${event?.description || ''}`.toLowerCase();
-      return type === 'quotation' || text.includes('quotation') || text.includes('quote');
-    })
-    .sort((a, b) => getQuotationDate(b).localeCompare(getQuotationDate(a)))[0] || null;
+  const quotations = (events || []).filter(isQuotationEvent);
+  if (!quotations.length) return null;
+  return [...quotations].sort((a, b) => {
+    const dateB = getQuotationDate(b);
+    const dateA = getQuotationDate(a);
+    return dateB.localeCompare(dateA);
+  })[0] || null;
 }
 
 function getQuotationAmount(lead, quotationEvent) {
+  if (!quotationEvent && !lead?.quotationAmount && !lead?.quotedAmount && !lead?.quotationValue) {
+    return null;
+  }
   const directAmount = pickAmount(
-    lead?.quotationAmount,
-    lead?.quotedAmount,
-    lead?.quoteAmount,
-    lead?.quotationValue,
+    quotationEvent?.payload?.totalAmount,
+    quotationEvent?.payload?.amount,
+    quotationEvent?.payload?.subtotal,
+    quotationEvent?.totalAmount,
+    quotationEvent?.amount,
     quotationEvent?.quotationAmount,
     quotationEvent?.quotedAmount,
     quotationEvent?.quoteAmount,
-    quotationEvent?.totalAmount,
-    quotationEvent?.amount,
     quotationEvent?.value,
-    getStructuredField(quotationEvent?.description, 'Amount')
+    getStructuredField(quotationEvent?.description, 'Total Amount'),
+    getStructuredField(quotationEvent?.description, 'Amount'),
+    lead?.quotationAmount,
+    lead?.quotedAmount,
+    lead?.quoteAmount,
+    lead?.quotationValue
   );
   if (directAmount != null) return directAmount;
-  return extractAmountFromText(`${quotationEvent?.title || ''} ${quotationEvent?.description || ''}`);
+  if (quotationEvent) {
+    return extractAmountFromText(`${quotationEvent?.title || ''} ${quotationEvent?.description || ''}`);
+  }
+  return null;
 }
 
 function getQuotationStatus(lead, quotationEvent) {
+  if (!quotationEvent) return 'Not sent';
   const structuredStatus = getStructuredField(quotationEvent?.description, 'Status');
   if (structuredStatus) return structuredStatus;
+  const payloadStatus = quotationEvent?.payload?.status || quotationEvent?.status;
+  if (payloadStatus && payloadStatus !== 'Scheduled') return payloadStatus;
   const directStatus = displayValue(
-    lead?.quotationStatus || lead?.quoteStatus || lead?.quotationSendStatus || quotationEvent?.quotationStatus || quotationEvent?.quoteStatus || quotationEvent?.status,
+    lead?.quotationStatus || lead?.quoteStatus || lead?.quotationSendStatus,
     ''
   );
   if (directStatus) return directStatus;
   const sentFlag = lead?.quotationSent ?? lead?.quoteSent ?? lead?.isQuotationSent;
   if (sentFlag === true) return 'Sent';
-  if (sentFlag === false) return 'Not sent';
-  if (!quotationEvent) return 'Not sent';
+  if (sentFlag === false) return 'Draft';
   const text = `${quotationEvent.title || ''} ${quotationEvent.description || ''}`.toLowerCase();
+  if (/(approved|accepted)/.test(text)) return 'Approved';
+  if (/(rejected|declined)/.test(text)) return 'Rejected';
   if (/(sent|send|shared|emailed|mail|whatsapp|delivered)/.test(text)) return 'Sent';
-  if (/(draft|pending|not sent)/.test(text)) return 'Draft';
-  return 'Logged';
+  return 'Draft';
 }
 
 function getQuotationDetails(event, lead = null) {
@@ -564,6 +594,15 @@ function getQuotationDetails(event, lead = null) {
     proposalDate: event?.startDate || event?.createdAt || '',
     validUntil: event?.endDate || '',
     amount,
+    items: (() => {
+      try {
+        const raw = getStructuredField(description, 'Items JSON');
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    })(),
+    milestoneTemplate: getStructuredField(description, 'Milestone Template') || '',
     discountEnabled: discountValue > 0,
     discountType,
     discountValue,
@@ -2126,6 +2165,7 @@ function QuotationEditor({
   onClose,
   onSave,
   leadId,
+  lead = null,
   initialValue = null,
   busy = false,
   serviceOptions = [],
@@ -2138,10 +2178,11 @@ function QuotationEditor({
   const [reminderDraft, setReminderDraft] = useState({ title: '', date: '', time: '' });
   const [commentDraft, setCommentDraft] = useState('');
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false);
 
   useEffect(() => {
-    if (initialValue?.id) {
-      const details = getQuotationDetails(initialValue);
+    if (initialValue?.id || initialValue?.title) {
+      const details = getQuotationDetails(initialValue, lead);
       setFormData({
         ...EMPTY_QUOTATION,
         title: details.title || '',
@@ -2149,6 +2190,9 @@ function QuotationEditor({
         proposalDate: formatDateInput(details.proposalDate),
         validUntil: formatDateInput(details.validUntil),
         amount: details.amount != null ? String(details.amount) : '',
+        items: details.items || [],
+        milestoneTemplate: details.milestoneTemplate || '',
+        terms: details.terms || '',
         discountEnabled: details.discountEnabled,
         discountType: details.discountType || 'percent',
         discountValue: details.discountValue ? String(details.discountValue) : '',
@@ -2165,11 +2209,11 @@ function QuotationEditor({
       return;
     }
     const today = new Date();
-    const defaultServices = serviceOptions.length ? serviceOptions : [];
+    const defaultServices = serviceOptions.length ? serviceOptions : (lead ? getLeadServiceNames(lead) : []);
     setFormData({
       ...EMPTY_QUOTATION,
       serviceNames: defaultServices,
-      title: defaultServices.length ? `${defaultServices.join(', ')} quotation` : '',
+      title: defaultServices.length ? `${defaultServices.join(', ')} proposal for ${lead?.companyName || lead?.name || 'Client'}` : '',
       proposalDate: toDateOnlyString(today),
       validUntil: toDateOnlyString(addDaysToDate(today, 30)),
       amount: defaultAmount != null && defaultAmount !== '' ? String(defaultAmount) : '',
@@ -2178,7 +2222,7 @@ function QuotationEditor({
     });
     setReminderDraft({ title: '', date: '', time: '' });
     setCommentDraft('');
-  }, [initialValue, serviceOptions, defaultAmount, defaultGstApplicable, defaultGstRate]);
+  }, [initialValue, serviceOptions, defaultAmount, defaultGstApplicable, defaultGstRate, lead]);
 
   const serviceSelectOptions = useMemo(() => {
     const values = [...serviceOptions, ...(formData.serviceNames || [])].map(cleanSingleLine).filter(Boolean);
@@ -2193,6 +2237,92 @@ function QuotationEditor({
 
   function setField(key, value) {
     setFormData((cur) => ({ ...cur, [key]: value }));
+  }
+
+  // 1-Click Package Preset Loader
+  function applyPackagePreset(preset) {
+    const today = new Date();
+    const clientName = lead?.companyName || lead?.name || 'Client';
+    const items = (preset.items || []).map((it, idx) => ({ ...it, id: `pkg-item-${idx + 1}` }));
+    setFormData((cur) => ({
+      ...cur,
+      title: `${preset.title} for ${clientName}`,
+      serviceNames: Array.from(new Set([...cur.serviceNames, ...preset.serviceNames])),
+      amount: String(preset.amount),
+      items,
+      proposalDate: toDateOnlyString(today),
+      validUntil: toDateOnlyString(addDaysToDate(today, preset.validityDays || 30)),
+      gstApplicable: preset.gstApplicable,
+      gstRate: String(preset.gstRate || 18),
+      milestoneTemplate: preset.milestoneTemplate,
+      comments: [
+        `Payment Schedule: ${preset.milestoneTemplate}`,
+        `Terms & Scope:\n${preset.terms}`
+      ].filter(Boolean).join('\n\n')
+    }));
+    toast.success(`Loaded "${preset.name}" preset (₹${Number(preset.amount).toLocaleString('en-IN')})`);
+  }
+
+  // 1-Click Auto-Fill from Lead Data
+  function handleAutoFillFromLead() {
+    if (!lead) return;
+    const today = new Date();
+    const leadServices = getLeadServiceNames(lead);
+    const clientName = lead.companyName || lead.name || lead.contactPerson || 'Client';
+    const leadBudget = lead.estimatedBudget || lead.value || '';
+    
+    setFormData((cur) => ({
+      ...cur,
+      title: leadServices.length ? `${leadServices.join(', ')} proposal for ${clientName}` : `Custom Project Proposal for ${clientName}`,
+      serviceNames: leadServices.length ? leadServices : cur.serviceNames,
+      amount: leadBudget ? String(leadBudget) : cur.amount,
+      proposalDate: toDateOnlyString(today),
+      validUntil: toDateOnlyString(addDaysToDate(today, 30)),
+      gstApplicable: toBooleanValue(lead.gstInvoiceRequired, false),
+      comments: cur.comments || lead.notes || lead.statusNote || lead.description || ''
+    }));
+    toast.success('Quotation pre-filled from Lead data!');
+  }
+
+  // Deliverables Line Items
+  function addDeliverableItem() {
+    setFormData((cur) => {
+      const nextItems = [
+        ...(cur.items || []),
+        { id: `item-${Date.now()}`, name: '', description: '', qty: 1, rate: 0, amount: 0 }
+      ];
+      return { ...cur, items: nextItems };
+    });
+  }
+
+  function updateDeliverableItem(index, key, value) {
+    setFormData((cur) => {
+      const nextItems = [...(cur.items || [])];
+      const item = { ...nextItems[index], [key]: value };
+      const qty = Number(item.qty) || 0;
+      const rate = Number(item.rate) || 0;
+      item.amount = qty * rate;
+      nextItems[index] = item;
+      
+      const totalFromItems = nextItems.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+      return {
+        ...cur,
+        items: nextItems,
+        amount: totalFromItems > 0 ? String(totalFromItems) : cur.amount
+      };
+    });
+  }
+
+  function removeDeliverableItem(index) {
+    setFormData((cur) => {
+      const nextItems = (cur.items || []).filter((_, i) => i !== index);
+      const totalFromItems = nextItems.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+      return {
+        ...cur,
+        items: nextItems,
+        amount: totalFromItems > 0 ? String(totalFromItems) : cur.amount
+      };
+    });
   }
 
   function addReminder() {
@@ -2246,23 +2376,61 @@ function QuotationEditor({
       return;
     }
     const rows = getSummaryLines().map(([label, value]) => `<tr><th>${label}</th><td>${String(value).replace(/[<>&]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[char]))}</td></tr>`).join('');
+    
+    let itemsHtml = '';
+    if (formData.items?.length) {
+      const itemRows = formData.items.map((it, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><strong>${it.name || 'Deliverable'}</strong>${it.description ? `<br><small style="color:#64748b">${it.description}</small>` : ''}</td>
+          <td style="text-align:center">${it.qty || 1}</td>
+          <td style="text-align:right">₹${Number(it.rate || 0).toLocaleString('en-IN')}</td>
+          <td style="text-align:right">₹${Number(it.amount || 0).toLocaleString('en-IN')}</td>
+        </tr>
+      `).join('');
+      itemsHtml = `
+        <h3 style="margin-top:24px;margin-bottom:8px;font-size:16px;">Scope of Deliverables</h3>
+        <table style="margin-bottom:24px;width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th style="width:40px;padding:8px;border-bottom:1px solid #e2e8f0;">#</th>
+              <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Deliverable</th>
+              <th style="width:60px;text-align:center;padding:8px;border-bottom:1px solid #e2e8f0;">Qty</th>
+              <th style="width:120px;text-align:right;padding:8px;border-bottom:1px solid #e2e8f0;">Rate</th>
+              <th style="width:120px;text-align:right;padding:8px;border-bottom:1px solid #e2e8f0;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+      `;
+    }
+
     preview.document.write(`
       <!doctype html>
       <html>
         <head>
           <title>${proposalTitle}</title>
           <style>
-            body { font-family: Arial, sans-serif; color: #0f172a; margin: 32px; }
-            h1 { font-size: 24px; margin: 0 0 6px; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 40px auto; max-width: 800px; line-height: 1.5; }
+            h1 { font-size: 24px; margin: 0 0 6px; color: #0f172a; }
             p { color: #64748b; margin: 0 0 24px; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border-bottom: 1px solid #e2e8f0; padding: 12px; text-align: left; font-size: 14px; }
-            th { width: 180px; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; }
+            table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+            th, td { border-bottom: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 14px; }
+            th { color: #64748b; font-size: 12px; font-weight: 600; width: 180px; }
           </style>
         </head>
         <body>
-          <h1>${proposalTitle}</h1>
-          <p>Quotation summary</p>
+          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #3b82f6;padding-bottom:16px;margin-bottom:24px;">
+            <div>
+              <h1>${proposalTitle}</h1>
+              <p style="margin:0">Client: <strong>${lead?.companyName || lead?.name || 'Valued Client'}</strong></p>
+            </div>
+            <div style="text-align:right">
+              <span style="display:inline-block;padding:4px 12px;border-radius:20px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:bold;">${formData.status || 'Draft'}</span>
+            </div>
+          </div>
+          ${itemsHtml}
+          <h3 style="margin-top:20px;margin-bottom:8px;font-size:16px;">Investment Summary</h3>
           <table>${rows}</table>
         </body>
       </html>
@@ -2281,21 +2449,21 @@ function QuotationEditor({
     try {
       const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-      pdf.setFontSize(18);
+      pdf.setFontSize(16);
       pdf.text(proposalTitle, 14, 18);
-      pdf.setFontSize(10);
+      pdf.setFontSize(9);
       pdf.setTextColor(100, 116, 139);
-      pdf.text('Quotation summary', 14, 26);
+      pdf.text(`Client: ${lead?.companyName || lead?.name || 'Client'} | Date: ${formData.proposalDate || '-'}`, 14, 25);
       pdf.setTextColor(15, 23, 42);
-      let y = 40;
+      let y = 36;
       getSummaryLines().forEach(([label, value]) => {
         pdf.setFontSize(9);
         pdf.setTextColor(100, 116, 139);
         pdf.text(label, 14, y);
-        pdf.setFontSize(11);
+        pdf.setFontSize(10);
         pdf.setTextColor(15, 23, 42);
         pdf.text(String(value || '-'), 62, y);
-        y += 9;
+        y += 8;
       });
       const fileName = `${proposalTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'quotation'}.pdf`;
       if (download) {
@@ -2338,6 +2506,8 @@ function QuotationEditor({
     const description = [
       serviceSummary ? `Service: ${cleanSingleLine(serviceSummary)}` : '',
       amount != null ? `Amount: ${amount}` : '',
+      formData.items?.length ? `Items JSON: ${JSON.stringify(formData.items)}` : '',
+      formData.milestoneTemplate ? `Milestone Template: ${cleanSingleLine(formData.milestoneTemplate)}` : '',
       `Discount Type: ${formData.discountType || 'percent'}`,
       `Discount Value: ${discountValue}`,
       `GST Applicable: ${formData.gstApplicable ? 'Yes' : 'No'}`,
@@ -2373,211 +2543,392 @@ function QuotationEditor({
     });
   }
 
+  const generatedWhatsAppPitch = useMemo(() => {
+    return buildWhatsAppProposalPitch({
+      leadName: lead?.contactPerson || lead?.name,
+      companyName: lead?.companyName,
+      proposalTitle,
+      serviceSummary,
+      totalAmount: quotationTotals.totalAmount,
+      currency,
+      validityDate: formData.validUntil
+    });
+  }, [lead, proposalTitle, serviceSummary, quotationTotals.totalAmount, currency, formData.validUntil]);
+
   return (
     <Card className="p-0 border-slate-200">
       <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{initialValue?.id ? 'Edit quotation' : 'Add quotation'}</h2>
-          <p className="text-sm text-slate-500">Create proposal details, actions, reminders and comments in one page</p>
+          <p className="text-sm text-slate-500">Fast proposal builder with 1-click packages, deliverables breakdown & WhatsApp dispatch</p>
         </div>
-        <div className="flex justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button type="submit" form="lead-quotation-form" disabled={busy}>{busy ? 'Saving...' : 'Save quotation'}</Button>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <form id="lead-quotation-form" onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <label className="md:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Quotation title</span>
-              <Input className="h-10 px-3 py-2" value={formData.title} onChange={(event) => setField('title', event.target.value)} placeholder="Website development quotation" autoFocus />
-            </label>
-            <label className="md:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Service</span>
-              <SearchableSelect
-                value={selectedServices}
-                onChange={(value) => {
-                  const nextServices = Array.isArray(value) ? value : [];
-                  setFormData((cur) => ({
-                    ...cur,
-                    serviceNames: nextServices,
-                    title: cur.title || (nextServices.length ? `${nextServices.join(', ')} quotation` : '')
-                  }));
-                }}
-                options={serviceSelectOptions}
-                placeholder="Select service"
-                searchPlaceholder="Search service..."
-                multiple
-                triggerClassName="min-h-10 py-2"
-              />
-            </label>
-            <label>
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Proposal date</span>
-              <Input className="h-10 px-3 py-2" type="date" value={formData.proposalDate} onChange={(event) => setField('proposalDate', event.target.value)} />
-            </label>
-            <label>
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Valid until</span>
-              <Input className="h-10 px-3 py-2" type="date" value={formData.validUntil} onChange={(event) => setField('validUntil', event.target.value)} />
-            </label>
-            <label>
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Base amount ({currency || 'INR'})</span>
-              <Input className="h-10 px-3 py-2" type="number" min="0" step="0.01" value={formData.amount} onChange={(event) => setField('amount', event.target.value)} placeholder="0.00" />
-            </label>
-            <label>
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Status</span>
-              <SearchableSelect
-                value={formData.status}
-                onChange={(value) => setField('status', value)}
-                options={['Draft', 'Sent', 'Approved', 'Rejected', 'Expired'].map((item) => ({ value: item, label: item }))}
-                placeholder="Draft"
-                triggerClassName="h-10 py-2"
-              />
-            </label>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 md:col-span-2">
-              <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(formData.discountEnabled)}
-                    onChange={(event) => setField('discountEnabled', event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
-                  />
-                  Apply discount
-                </label>
-                {formData.discountEnabled ? (
-                  <span className="text-xs font-medium text-emerald-700">-{formatLeadAmount(quotationTotals.discountAmount, currency)}</span>
-                ) : null}
-              </div>
-              {formData.discountEnabled ? (
-                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <SearchableSelect
-                    value={formData.discountType}
-                    onChange={(value) => setField('discountType', value)}
-                    options={[{ value: 'percent', label: 'Percent (%)' }, { value: 'flat', label: `Flat (${currency || 'INR'})` }]}
-                    triggerClassName="h-9 py-1.5"
-                  />
-                  <Input
-                    className="h-9 px-3 py-1.5"
-                    type="number"
-                    min="0"
-                    max={formData.discountType === 'percent' ? 100 : undefined}
-                    step="0.01"
-                    value={formData.discountValue}
-                    onChange={(event) => setField('discountValue', event.target.value)}
-                    placeholder={formData.discountType === 'percent' ? 'Discount %' : 'Discount amount'}
-                  />
+
+      <div className="p-5 space-y-4">
+        {/* 1-Click Package Presets & Smart Auto-Fill Bar */}
+        <div className="rounded-xl border border-blue-200/80 dark:border-blue-900/40 bg-gradient-to-r from-blue-50/70 to-indigo-50/50 dark:from-blue-950/20 dark:to-indigo-950/20 p-3.5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+              <Sparkles size={14} className="text-amber-500 fill-amber-500" />
+              1-Click Agency Package Presets
+            </span>
+            {lead && (
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                onClick={handleAutoFillFromLead}
+                className="bg-white dark:bg-slate-900 border-blue-300 hover:bg-blue-50 text-blue-700 dark:text-blue-300 text-xs font-semibold cursor-pointer shadow-xs"
+              >
+                <Zap size={13} className="mr-1 text-amber-500 fill-amber-500" />
+                Auto-Fill from Lead Requirements
+              </Button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {QUOTATION_PACKAGE_PRESETS.map((pkg) => (
+              <button
+                key={pkg.id}
+                type="button"
+                onClick={() => applyPackagePreset(pkg)}
+                className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-950/50 text-xs font-medium text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-xs"
+              >
+                <span>{pkg.name}</span>
+                <span className="font-mono font-bold text-blue-600 dark:text-blue-400">₹{(pkg.amount / 1000).toFixed(0)}k</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <form id="lead-quotation-form" onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="md:col-span-2">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Quotation title</span>
+                <Input className="h-10 px-3 py-2" value={formData.title} onChange={(event) => setField('title', event.target.value)} placeholder="Website development quotation" autoFocus />
+              </label>
+
+              <label className="md:col-span-2">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Services Included</span>
+                <SearchableSelect
+                  value={selectedServices}
+                  onChange={(value) => {
+                    const nextServices = Array.isArray(value) ? value : [];
+                    setFormData((cur) => ({
+                      ...cur,
+                      serviceNames: nextServices,
+                      title: cur.title || (nextServices.length ? `${nextServices.join(', ')} quotation` : '')
+                    }));
+                  }}
+                  options={serviceSelectOptions}
+                  placeholder="Select service"
+                  searchPlaceholder="Search service..."
+                  multiple
+                  triggerClassName="min-h-10 py-2"
+                />
+              </label>
+
+              {/* Itemized Deliverables & Scope Builder */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/30 p-3.5 md:col-span-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Layers size={16} className="text-blue-600" />
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200">Scope of Deliverables & Line Items</span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    onClick={addDeliverableItem}
+                    className="cursor-pointer text-xs"
+                  >
+                    <PlusCircle size={13} className="mr-1 text-blue-600" /> Add Line Item
+                  </Button>
                 </div>
-              ) : null}
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 md:col-span-2">
-              <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(formData.gstApplicable)}
-                    onChange={(event) => setField('gstApplicable', event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
-                  />
-                  Apply GST
-                </label>
-                {formData.gstApplicable ? (
-                  <div className="w-36">
+
+                {formData.items?.length ? (
+                  <div className="space-y-2">
+                    {formData.items.map((item, idx) => (
+                      <div key={item.id || idx} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 space-y-2 shadow-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">{idx + 1}</span>
+                          <Input
+                            className="h-8 flex-1 text-sm font-medium"
+                            placeholder="Deliverable Name (e.g. UI/UX Wireframing)"
+                            value={item.name}
+                            onChange={(e) => updateDeliverableItem(idx, 'name', e.target.value)}
+                          />
+                          <div className="w-20">
+                            <Input
+                              type="number"
+                              min="1"
+                              className="h-8 text-sm text-center"
+                              placeholder="Qty"
+                              value={item.qty}
+                              onChange={(e) => updateDeliverableItem(idx, 'qty', e.target.value)}
+                            />
+                          </div>
+                          <div className="w-28">
+                            <Input
+                              type="number"
+                              min="0"
+                              className="h-8 text-sm"
+                              placeholder="Rate"
+                              value={item.rate}
+                              onChange={(e) => updateDeliverableItem(idx, 'rate', e.target.value)}
+                            />
+                          </div>
+                          <div className="w-28 text-right font-semibold text-sm text-slate-800 dark:text-slate-200">
+                            ₹{Number(item.amount || 0).toLocaleString('en-IN')}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeDeliverableItem(idx)}
+                            className="text-slate-400 hover:text-red-500 p-1 cursor-pointer"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                        <Input
+                          className="h-7 text-xs text-slate-500 bg-slate-50 dark:bg-slate-950/40"
+                          placeholder="Scope & description (e.g. 5-8 custom page layouts with responsive design)..."
+                          value={item.description}
+                          onChange={(e) => updateDeliverableItem(idx, 'description', e.target.value)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-800 p-4 text-center text-xs text-slate-400">
+                    No itemized breakdown added. You can use single base amount or click "Add Line Item" / select a Package Preset above.
+                  </div>
+                )}
+              </div>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Proposal date</span>
+                <Input className="h-10 px-3 py-2" type="date" value={formData.proposalDate} onChange={(event) => setField('proposalDate', event.target.value)} />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Valid until</span>
+                <Input className="h-10 px-3 py-2" type="date" value={formData.validUntil} onChange={(event) => setField('validUntil', event.target.value)} />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Base amount ({currency || 'INR'})</span>
+                <Input className="h-10 px-3 py-2 font-mono font-semibold" type="number" min="0" step="0.01" value={formData.amount} onChange={(event) => setField('amount', event.target.value)} placeholder="0.00" />
+              </label>
+
+              <label>
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Status</span>
+                <SearchableSelect
+                  value={formData.status}
+                  onChange={(value) => setField('status', value)}
+                  options={['Draft', 'Sent', 'Approved', 'Rejected', 'Expired'].map((item) => ({ value: item, label: item }))}
+                  placeholder="Draft"
+                  triggerClassName="h-10 py-2"
+                />
+              </label>
+
+              {/* Discount Section */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.discountEnabled)}
+                      onChange={(event) => setField('discountEnabled', event.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
+                    />
+                    Apply discount
+                  </label>
+                  {formData.discountEnabled ? (
+                    <span className="text-xs font-medium text-emerald-700">-{formatLeadAmount(quotationTotals.discountAmount, currency)}</span>
+                  ) : null}
+                </div>
+                {formData.discountEnabled ? (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <SearchableSelect
-                      value={String(formData.gstRate)}
-                      onChange={(value) => setField('gstRate', value)}
-                      options={['0', '5', '12', '18', '28'].map((rate) => ({ value: rate, label: `GST ${rate}%` }))}
+                      value={formData.discountType}
+                      onChange={(value) => setField('discountType', value)}
+                      options={[{ value: 'percent', label: 'Percent (%)' }, { value: 'flat', label: `Flat (${currency || 'INR'})` }]}
                       triggerClassName="h-9 py-1.5"
                     />
+                    <Input
+                      className="h-9 px-3 py-1.5"
+                      type="number"
+                      min="0"
+                      max={formData.discountType === 'percent' ? 100 : undefined}
+                      step="0.01"
+                      value={formData.discountValue}
+                      onChange={(event) => setField('discountValue', event.target.value)}
+                      placeholder={formData.discountType === 'percent' ? 'Discount %' : 'Discount amount'}
+                    />
                   </div>
-                ) : <span className="text-xs font-medium text-slate-500">No tax</span>}
+                ) : null}
               </div>
-            </div>
-            <label className="md:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Quotation link</span>
-              <Input className="h-10 px-3 py-2" value={formData.quotationLink} onChange={(event) => setField('quotationLink', event.target.value)} placeholder="https://docs.google.com/..." />
-            </label>
-            <label className="md:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Internal comments</span>
-              <Textarea className="min-h-[80px] px-3 py-2" value={formData.comments} onChange={(event) => setField('comments', event.target.value)} rows={3} placeholder="Short note for this quotation" />
-            </label>
-          </div>
-        </form>
 
-        <aside className="space-y-3">
-          <div className="rounded-lg border border-slate-200 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-              <div className="flex items-center gap-2 font-semibold text-slate-900"><Anchor size={16} /> Proposal info</div>
-              <MoreHorizontal size={18} className="text-slate-400" />
-            </div>
-            <div className="divide-y divide-slate-100 px-4 text-sm">
-              <div className="flex items-start gap-2 py-3 text-blue-700"><Layers size={16} className="mt-0.5 shrink-0" /><span className="min-w-0 truncate">{proposalTitle}</span></div>
-              <div className="flex justify-between gap-3 py-3"><span className="font-semibold">Proposal date:</span><span>{formData.proposalDate || '-'}</span></div>
-              <div className="flex justify-between gap-3 py-3"><span className="font-semibold">Valid until:</span><span>{formData.validUntil || '-'}</span></div>
-              <div className="space-y-2 py-3">
-                <div className="flex justify-between gap-3 text-slate-600"><span>Base amount</span><span>{formatLeadAmount(quotationTotals.subtotal, currency)}</span></div>
-                {formData.discountEnabled ? <div className="flex justify-between gap-3 text-emerald-700"><span>Discount</span><span>-{formatLeadAmount(quotationTotals.discountAmount, currency)}</span></div> : null}
-                {formData.gstApplicable ? <div className="flex justify-between gap-3 text-slate-600"><span>GST ({formData.gstRate || 0}%)</span><span>{formatLeadAmount(quotationTotals.gstAmount, currency)}</span></div> : null}
-                <div className="flex justify-between gap-3 border-t border-slate-100 pt-2 text-base font-bold text-slate-900"><span>Total</span><span>{formatLeadAmount(quotationTotals.totalAmount, currency)}</span></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-white text-sm text-blue-700">
-            <button type="button" onClick={() => openPreview()} className="flex items-center gap-2 border-b border-r border-slate-100 px-4 py-3 hover:bg-slate-50"><Eye size={16} /> Preview</button>
-            <button type="button" onClick={() => openPreview({ print: true })} className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 hover:bg-slate-50"><Printer size={16} /> Print</button>
-            <button type="button" onClick={() => generatePdf(false)} disabled={pdfBusy} className="flex items-center gap-2 border-r border-slate-100 px-4 py-3 hover:bg-slate-50 disabled:opacity-50"><FileText size={16} /> View PDF</button>
-            <button type="button" onClick={() => generatePdf(true)} disabled={pdfBusy} className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50 disabled:opacity-50"><Download size={16} /> Download PDF</button>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900"><Clock3 size={16} className="mr-2 inline" />Reminders</div>
-            <div className="space-y-2 p-4">
-              <Input className="h-9 px-3 py-2" value={reminderDraft.title} onChange={(event) => setReminderDraft((cur) => ({ ...cur, title: event.target.value }))} placeholder="Reminder title" />
-              <div className="grid grid-cols-2 gap-2">
-                <Input className="h-9 px-3 py-2" type="date" value={reminderDraft.date} onChange={(event) => setReminderDraft((cur) => ({ ...cur, date: event.target.value }))} />
-                <Input className="h-9 px-3 py-2" type="time" value={reminderDraft.time} onChange={(event) => setReminderDraft((cur) => ({ ...cur, time: event.target.value }))} />
-              </div>
-              <Button type="button" variant="outline" className="w-full" onClick={addReminder}><PlusCircle size={16} /> Add reminder</Button>
-              {(formData.reminders || []).map((reminder, index) => (
-                <div key={`${reminder.title}-${index}`} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
-                  <span className="min-w-0 truncate">{reminder.title} {reminder.date ? `- ${reminder.date}` : ''} {reminder.time || ''}</span>
-                  <button type="button" onClick={() => removeReminder(index)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
+              {/* GST Section */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3 md:col-span-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.gstApplicable)}
+                      onChange={(event) => setField('gstApplicable', event.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-[var(--primary)] focus:ring-[var(--primary)]"
+                    />
+                    Apply GST (Tax Invoice)
+                  </label>
+                  {formData.gstApplicable ? (
+                    <div className="w-36">
+                      <SearchableSelect
+                        value={String(formData.gstRate)}
+                        onChange={(value) => setField('gstRate', value)}
+                        options={['0', '5', '12', '18', '28'].map((rate) => ({ value: rate, label: `GST ${rate}%` }))}
+                        triggerClassName="h-9 py-1.5"
+                      />
+                    </div>
+                  ) : <span className="text-xs font-medium text-slate-500">No tax</span>}
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900"><MessageSquare size={16} className="mr-2 inline" />Comments</div>
-            <div className="space-y-3 p-4">
-              <Textarea className="min-h-[74px] bg-slate-50 px-3 py-2" value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} rows={2} placeholder="Write a comment..." />
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex gap-2">
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500"><Paperclip size={16} /></span>
-                  <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500"><Mic size={16} /></span>
-                </div>
-                <Button type="button" onClick={addComment}><Send size={16} /> Post Comment</Button>
               </div>
-              {(formData.postedComments || []).map((comment, index) => (
-                <div key={`${comment.createdAt}-${index}`} className="border-t border-slate-100 pt-3 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-slate-900">{comment.author || 'User'}</span>
-                    <button type="button" onClick={() => removeComment(index)} className="text-slate-400 hover:text-red-500"><X size={14} /></button>
+
+              {/* Payment Schedule / Milestones */}
+              <div className="md:col-span-2 space-y-1.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-slate-600">Payment Milestones Preset</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {MILESTONE_PRESETS.map((tmpl, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setField('comments', `${formData.comments ? `${formData.comments}\n\n` : ''}Payment Milestones:\n${tmpl}`)}
+                      className="text-[11px] px-2.5 py-1 rounded bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 font-medium transition cursor-pointer"
+                    >
+                      + {tmpl.split(',')[0]}...
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="md:col-span-2">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Quotation link (Google Drive / Figma / Doc)</span>
+                <Input className="h-10 px-3 py-2" value={formData.quotationLink} onChange={(event) => setField('quotationLink', event.target.value)} placeholder="https://docs.google.com/..." />
+              </label>
+
+              <label className="md:col-span-2">
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Scope, Terms & Internal comments</span>
+                <Textarea className="min-h-[90px] px-3 py-2" value={formData.comments} onChange={(event) => setField('comments', event.target.value)} rows={3} placeholder="Payment schedule, terms of delivery, deliverables scope..." />
+              </label>
+            </div>
+          </form>
+
+          {/* Right Summary & Actions Panel */}
+          <aside className="space-y-3">
+            <div className="rounded-lg border border-slate-200 bg-white">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div className="flex items-center gap-2 font-semibold text-slate-900"><Anchor size={16} /> Proposal Summary</div>
+                <MoreHorizontal size={18} className="text-slate-400" />
+              </div>
+              <div className="divide-y divide-slate-100 px-4 text-sm">
+                <div className="flex items-start gap-2 py-3 text-blue-700"><Layers size={16} className="mt-0.5 shrink-0" /><span className="min-w-0 truncate font-medium">{proposalTitle}</span></div>
+                <div className="flex justify-between gap-3 py-2.5"><span className="text-slate-500 font-medium">Proposal date:</span><span>{formData.proposalDate || '-'}</span></div>
+                <div className="flex justify-between gap-3 py-2.5"><span className="text-slate-500 font-medium">Valid until:</span><span>{formData.validUntil || '-'}</span></div>
+                <div className="space-y-2 py-3">
+                  <div className="flex justify-between gap-3 text-slate-600"><span>Base amount</span><span>{formatLeadAmount(quotationTotals.subtotal, currency)}</span></div>
+                  {formData.discountEnabled ? <div className="flex justify-between gap-3 text-emerald-700"><span>Discount</span><span>-{formatLeadAmount(quotationTotals.discountAmount, currency)}</span></div> : null}
+                  {formData.gstApplicable ? <div className="flex justify-between gap-3 text-slate-600"><span>GST ({formData.gstRate || 0}%)</span><span>{formatLeadAmount(quotationTotals.gstAmount, currency)}</span></div> : null}
+                  <div className="flex justify-between gap-3 border-t border-slate-100 pt-2 text-base font-bold text-slate-900"><span>Total Investment</span><span>{formatLeadAmount(quotationTotals.totalAmount, currency)}</span></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Outreach & Export Actions */}
+            <div className="rounded-lg border border-slate-200 bg-white overflow-hidden">
+              <div className="p-2 border-b border-slate-100">
+                <Button
+                  type="button"
+                  onClick={() => setWhatsAppOpen(true)}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <MessageCircle size={16} /> Share Proposal on WhatsApp
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 text-sm text-blue-700">
+                <button type="button" onClick={() => openPreview()} className="flex items-center gap-2 border-b border-r border-slate-100 px-4 py-3 hover:bg-slate-50 cursor-pointer"><Eye size={16} /> Preview</button>
+                <button type="button" onClick={() => openPreview({ print: true })} className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 hover:bg-slate-50 cursor-pointer"><Printer size={16} /> Print</button>
+                <button type="button" onClick={() => generatePdf(false)} disabled={pdfBusy} className="flex items-center gap-2 border-r border-slate-100 px-4 py-3 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"><FileText size={16} /> View PDF</button>
+                <button type="button" onClick={() => generatePdf(true)} disabled={pdfBusy} className="flex items-center gap-2 px-4 py-3 hover:bg-slate-50 disabled:opacity-50 cursor-pointer"><Download size={16} /> Download PDF</button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900"><Clock3 size={16} className="mr-2 inline" />Reminders</div>
+              <div className="space-y-2 p-4">
+                <Input className="h-9 px-3 py-2" value={reminderDraft.title} onChange={(event) => setReminderDraft((cur) => ({ ...cur, title: event.target.value }))} placeholder="Reminder title" />
+                <div className="grid grid-cols-2 gap-2">
+                  <Input className="h-9 px-3 py-2" type="date" value={reminderDraft.date} onChange={(event) => setReminderDraft((cur) => ({ ...cur, date: event.target.value }))} />
+                  <Input className="h-9 px-3 py-2" type="time" value={reminderDraft.time} onChange={(event) => setReminderDraft((cur) => ({ ...cur, time: event.target.value }))} />
+                </div>
+                <Button type="button" variant="outline" className="w-full" onClick={addReminder}><PlusCircle size={16} /> Add reminder</Button>
+                {(formData.reminders || []).map((reminder, index) => (
+                  <div key={`${reminder.title}-${index}`} className="flex items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate">{reminder.title} {reminder.date ? `- ${reminder.date}` : ''} {reminder.time || ''}</span>
+                    <button type="button" onClick={() => removeReminder(index)} className="text-slate-400 hover:text-red-500 cursor-pointer"><X size={14} /></button>
                   </div>
-                  <div className="mt-0.5 text-xs text-slate-400">{comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}</div>
-                  <div className="mt-1 whitespace-pre-wrap text-slate-700">{comment.message}</div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        </aside>
+
+            <div className="rounded-lg border border-slate-200 bg-white">
+              <div className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900"><MessageSquare size={16} className="mr-2 inline" />Comments</div>
+              <div className="space-y-3 p-4">
+                <Textarea className="min-h-[74px] bg-slate-50 px-3 py-2" value={commentDraft} onChange={(event) => setCommentDraft(event.target.value)} rows={2} placeholder="Write a comment..." />
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex gap-2">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500"><Paperclip size={16} /></span>
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-500"><Mic size={16} /></span>
+                  </div>
+                  <Button type="button" onClick={addComment} className="cursor-pointer"><Send size={16} /> Post</Button>
+                </div>
+                {(formData.postedComments || []).map((comment, index) => (
+                  <div key={`${comment.createdAt}-${index}`} className="border-t border-slate-100 pt-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-slate-900">{comment.author || 'User'}</span>
+                      <button type="button" onClick={() => removeComment(index)} className="text-slate-400 hover:text-red-500 cursor-pointer"><X size={14} /></button>
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-400">{comment.createdAt ? new Date(comment.createdAt).toLocaleString() : ''}</div>
+                    <div className="mt-1 whitespace-pre-wrap text-slate-700">{comment.message}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </aside>
+        </div>
       </div>
+
+      <WhatsAppModal
+        open={whatsAppOpen}
+        onClose={() => setWhatsAppOpen(false)}
+        lead={lead}
+        initialTemplate="proposal"
+        initialMessage={generatedWhatsAppPitch}
+        clientPhone={lead?.mobile || lead?.phone || ''}
+      />
     </Card>
   );
 }
 
 export function LeadQuotationPage() {
   const { id, quotationId } = useParams();
+  const [searchParams] = useSearchParams();
+  const fromRevisionId = searchParams.get('fromRevision');
   const navigate = useNavigate();
   const { token, user, hasPermission } = useAuth();
   const [data, setData] = useState(null);
@@ -2605,10 +2956,26 @@ export function LeadQuotationPage() {
   const lead = data?.lead || null;
   const events = data?.events || [];
   const serviceNames = useMemo(() => getLeadServiceNames(lead), [lead]);
+  
   const quotationEvent = useMemo(() => {
     if (!quotationId) return null;
     return events.find((event) => String(event.id) === String(quotationId)) || null;
   }, [events, quotationId]);
+
+  const revisionSourceEvent = useMemo(() => {
+    if (!fromRevisionId) return null;
+    const source = events.find((event) => String(event.id) === String(fromRevisionId));
+    if (!source) return null;
+    const prevTitle = source.title || 'Quotation';
+    const cleanTitle = prevTitle.replace(/\s*\(Rev\s*\d+\)$/i, '');
+    const revCount = (events.filter((e) => e.eventType === 'quotation').length || 1) + 1;
+    return {
+      ...source,
+      id: undefined,
+      title: `${cleanTitle} (Rev ${revCount})`
+    };
+  }, [events, fromRevisionId]);
+
   const latestQuotation = useMemo(() => getLatestQuotationEvent(events), [events]);
   const defaultAmount = getQuotationAmount(lead, latestQuotation) ?? lead?.estimatedBudget ?? lead?.value ?? '';
   const canWriteLead = hasPermission('leads.write') || hasPermission('leads.manage');
@@ -2686,7 +3053,8 @@ export function LeadQuotationPage() {
         onClose={() => navigate(`/app/leads/${id}`)}
         onSave={saveQuotation}
         leadId={id}
-        initialValue={quotationEvent}
+        lead={lead}
+        initialValue={quotationEvent || revisionSourceEvent}
         busy={busy}
         serviceOptions={serviceNames}
         currency={lead.currency || 'INR'}
@@ -3694,12 +4062,8 @@ export function LeadDetailsPage() {
   const quotationStatus = useMemo(() => getQuotationStatus(lead, latestQuotationEvent), [lead, latestQuotationEvent]);
   const clientBudget = lead?.estimatedBudget ?? lead?.value;
   const quotationRows = useMemo(() => {
-    return events
-      .filter((event) => {
-        const type = String(event?.eventType || event?.type || '').toLowerCase();
-        const text = `${event?.title || ''} ${event?.description || ''}`.toLowerCase();
-        return type === 'quotation' || text.includes('quotation') || text.includes('quote');
-      })
+    return (events || [])
+      .filter(isQuotationEvent)
       .sort((a, b) => getQuotationDate(b).localeCompare(getQuotationDate(a)))
       .map((event) => ({ event, ...getQuotationDetails(event, lead) }));
   }, [events, lead]);
@@ -5253,8 +5617,43 @@ export function LeadDetailsPage() {
                               >
                                 <Eye size={15} />
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                  const message = buildWhatsAppProposalPitch({
+                                    leadName: lead?.contactPerson || lead?.name,
+                                    companyName: lead?.companyName,
+                                    proposalTitle: item.title,
+                                    serviceSummary: item.serviceName,
+                                    totalAmount: item.totalAmount,
+                                    currency: lead?.currency || 'INR',
+                                    validityDate: item.validUntil
+                                  });
+                                  const phone = lead?.mobile || lead?.phone || primaryContact?.phone || '';
+                                  const cleanPhone = phone.replace(/[^0-9]/g, '');
+                                  if (cleanPhone) {
+                                    window.open(`https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}?text=${encodeURIComponent(message)}`, '_blank');
+                                  } else {
+                                    setWhatsAppOpen(true);
+                                  }
+                                }}
+                                title="Share proposal via WhatsApp"
+                                className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
+                              >
+                                <MessageCircle size={15} />
+                              </Button>
                               {canWriteLead ? (
                                 <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => navigate(`/app/leads/${id}/quotations/new?fromRevision=${item.id}`)}
+                                    title="Duplicate / Clone as Revision"
+                                    className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                                  >
+                                    <RotateCw size={15} />
+                                  </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
