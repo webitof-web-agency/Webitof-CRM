@@ -5,8 +5,6 @@ const DEFAULT_STATE = 'Chhattisgarh';
 
 function normalizeKey(value) {
   return String(value || '').trim().replace(/\s+/g, ' ').toLowerCase();
-
-  
 }
 
 function isIndiaCountry(country = 'India') {
