@@ -7,6 +7,7 @@ require('dotenv').config();
 
 const apiRoutes = require('./routes');
 const notFound = require('./middlewares/notFound');
+
 const errorHandler = require('./middlewares/errorHandler');
 const { ensureDatabase } = require('./config/initDb');
 const { closePool } = require('./config/db');

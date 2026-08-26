@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
 
   workflow_dispatch:
 
@@ -20,6 +21,24 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Verify backend files
+        run: |
+          echo "Checking backend deployment files..."
+
+          test -f backend/package.json || {
+            echo "ERROR: backend/package.json is missing"
+            exit 1
+          }
+
+          test -f backend/package-lock.json || {
+            echo "ERROR: backend/package-lock.json is not committed to GitHub"
+            echo "Backend contents:"
+            ls -la backend/
+            exit 1
+          }
+
+          ls -lah backend/package.json backend/package-lock.json
 
       - name: Configure SSH
         run: |
@@ -49,7 +68,7 @@ jobs:
             -e "ssh -i ~/.ssh/crm -p ${{ secrets.SSH_PORT }}" \
             backend/ \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/www/wwwroot/WebitofCRM/backend/
-      
+
       - name: Install and restart backend
         run: |
           ssh \
@@ -61,27 +80,26 @@ jobs:
 
           cd /www/wwwroot/WebitofCRM/backend
 
-          echo "Current directory:"
-          pwd
-
-          echo "Checking package files:"
-          ls -lah package.json package-lock.json || true
-
           if [ ! -f package-lock.json ]; then
             echo "ERROR: package-lock.json was not deployed"
-            echo "Directory contents:"
             ls -la
             exit 1
           fi
 
-          echo "Lockfile version:"
-          node -e "console.log(require('./package-lock.json').lockfileVersion)"
+          echo "Package files:"
+          ls -lah package.json package-lock.json
 
+          echo "Installing dependencies..."
           npm ci
 
+          echo "Running build if configured..."
           npm run build --if-present
 
+          echo "Restarting backend..."
           pm2 restart WebitofCRM-backend --update-env
+
           pm2 save
+
+          echo "Deployment completed successfully."
 
           EOF
