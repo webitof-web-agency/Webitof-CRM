@@ -39,6 +39,9 @@ jobs:
       - name: Upload backend
         run: |
           rsync -az --delete \
+            --no-owner \
+            --no-group \
+            --chown=www:www \
             --exclude=".env" \
             --exclude="node_modules" \
             --exclude="logs" \
