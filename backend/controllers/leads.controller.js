@@ -6,6 +6,7 @@ const clientContactModel = require('../models/clientContact.model');
 const clientModel = require('../models/client.model');
 const masterItemModel = require('../models/masterItem.model');
 const projectModel = require('../models/project.model');
+const invoiceModel = require('../models/invoice.model');
 const { query, withTransaction } = require('../config/db');
 const { getSettings } = require('../models/settings.model');
 const { buildLeadSummary } = require('../services/analytics.service');
@@ -510,6 +511,7 @@ function buildClientFromLead(lead, settings, primaryContactName = '') {
 async function convertLeadRecord(leadId, settings, db, req, options = {}) {
   const current = await leadModel.findById(leadId, db);
   if (!current) return null;
+  const resolvedLeadId = current.id;
 
   if (current.convertedClientId) {
     const existingConvertedClient = await clientModel.findById(current.convertedClientId, db);
@@ -521,7 +523,7 @@ async function convertLeadRecord(leadId, settings, db, req, options = {}) {
 
   const leadContactsResult = await db.query(
     'select * from lead_contacts where lead_id = $1 order by created_at asc, updated_at asc',
-    [leadId]
+    [resolvedLeadId]
   );
   const leadContacts = leadContactsResult.rows.map((row) => leadContactModel.hydrateRow(row)).filter(Boolean);
   const primaryLeadContact = leadContacts[0] || null;
@@ -611,8 +613,37 @@ async function convertLeadRecord(leadId, settings, db, req, options = {}) {
     }, db);
   }
 
+  let invoiceRecord = null;
+  if (options.createDraftInvoice === true) {
+    const totalVal = Number(current.estimatedBudget ?? current.value ?? 0);
+    const invoiceAmount = options.invoiceAdvanceOnly !== false && totalVal > 0 ? Math.round(totalVal * 0.5) : totalVal;
+    if (invoiceAmount > 0) {
+      const invoiceNumber = `INV-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+      invoiceRecord = await invoiceModel.create({
+        invoiceNumber,
+        clientId: clientRecord.id,
+        projectId: projectRecord?.id || null,
+        invoiceDate: new Date().toISOString().slice(0, 10),
+        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+        status: 'Draft',
+        invoiceType: 'Standard',
+        taxableAmount: invoiceAmount,
+        totalAmount: invoiceAmount,
+        notes: `Initial milestone advance invoice for ${projectRecord?.title || current.requirementTitle || 'project'}`,
+        items: [
+          {
+            description: `${projectRecord?.title || current.requiredService || 'Web Development & Consulting'} (Milestone Advance)`,
+            qty: 1,
+            rate: invoiceAmount,
+            amount: invoiceAmount
+          }
+        ]
+      }, db);
+    }
+  }
+
   const convertedAt = new Date().toISOString();
-  const convertedLead = await leadModel.update(leadId, {
+  const convertedLead = await leadModel.update(resolvedLeadId, {
     status: 'Won',
     convertedClientId: clientRecord.id,
     convertedProjectId: projectRecord?.id || null,
@@ -636,23 +667,23 @@ async function convertLeadRecord(leadId, settings, db, req, options = {}) {
                    updated_at = excluded.updated_at`,
     [
       createId('lead-conversion'),
-      leadId,
+      resolvedLeadId,
       clientRecord.id,
       projectRecord?.id || null,
       req?.user?.id || null,
       convertedAt,
-      JSON.stringify({ usedExistingClient: Boolean(options.existingClientId || options.useExistingClient), createProject: Boolean(projectRecord) })
+      JSON.stringify({ usedExistingClient: Boolean(options.existingClientId || options.useExistingClient), createProject: Boolean(projectRecord), createDraftInvoice: Boolean(invoiceRecord) })
     ]
   );
 
   await createLeadTimelineEvent(db, convertedLead, req, {
     kind: 'converted',
     title: projectRecord ? 'Lead converted to client and project' : 'Lead converted to client',
-    description: `Converted by ${getActorName(req?.user)}`,
-    meta: { clientId: clientRecord.id, projectId: projectRecord?.id || null }
+    description: `Converted by ${getActorName(req?.user)}${invoiceRecord ? ` • Generated Draft Invoice ${invoiceRecord.invoiceNumber}` : ''}`,
+    meta: { clientId: clientRecord.id, projectId: projectRecord?.id || null, invoiceId: invoiceRecord?.id || null }
   });
 
-  return { lead: convertedLead, client: clientRecord, project: projectRecord, duplicateClients };
+  return { lead: convertedLead, client: clientRecord, project: projectRecord, invoice: invoiceRecord, duplicateClients };
 }
 
 async function createFollowUpActivity(db, lead, req, payload = {}) {
@@ -837,6 +868,85 @@ const leadsController = {
         excludeId: req.query.excludeId
       }, req);
       res.json({ success: true, data: rows.map((row) => sanitizeLeadForUser(row, req.user)) });
+    } catch (error) {
+      next(error);
+    }
+  },
+  merge: async (req, res, next) => {
+    try {
+      const { primaryLeadId, duplicateLeadId, note } = req.body || {};
+      if (!primaryLeadId || !duplicateLeadId) {
+        return res.status(400).json({ success: false, message: 'Both primaryLeadId and duplicateLeadId are required' });
+      }
+      if (String(primaryLeadId) === String(duplicateLeadId)) {
+        return res.status(400).json({ success: false, message: 'Cannot merge a lead into itself' });
+      }
+
+      const result = await withTransaction(async (db) => {
+        const primary = await findAccessibleLeadById(primaryLeadId, req, db);
+        const duplicate = await findAccessibleLeadById(duplicateLeadId, req, db);
+        if (!primary || !duplicate) {
+          throw new Error('One or both leads were not found');
+        }
+
+        // 1. Migrate lead_events from duplicate to primary
+        await db.query(
+          `UPDATE lead_events 
+           SET lead_id = $1, scope_id = $1, updated_at = NOW() 
+           WHERE lead_id = $2`,
+          [primary.id, duplicate.id]
+        );
+
+        // 2. Migrate files / file_assets if any
+        await db.query(
+          `UPDATE file_assets 
+           SET entity_id = $1, updated_at = NOW() 
+           WHERE module_name = 'leads' AND entity_id = $2`,
+          [primary.id, duplicate.id]
+        );
+
+        // 3. Migrate follow_ups if any
+        await db.query(
+          `UPDATE follow_ups 
+           SET related_entity_id = $1, updated_at = NOW() 
+           WHERE related_entity_type = 'Lead' AND related_entity_id = $2`,
+          [primary.id, duplicate.id]
+        );
+
+        // 4. Update duplicate lead status to Merged
+        const duplicateNote = `[Merged into ${primary.leadNumber || primary.id} on ${new Date().toLocaleDateString()}] ${note || ''}`.trim();
+        await db.query(
+          `UPDATE leads 
+           SET status = 'Merged', 
+               notes = COALESCE(notes || E'\\n', '') || $1,
+               status_note = $1,
+               updated_at = NOW(),
+               updated_by = $2
+           WHERE id = $3`,
+          [duplicateNote, req.user?.id || null, duplicate.id]
+        );
+
+        // 5. Add timeline event on primary lead
+        await createLeadTimelineEvent(db, primary, req, {
+          kind: 'lead_merged',
+          title: `Merged with Lead ${duplicate.leadNumber || duplicate.id}`,
+          description: `Activities, notes, and calls from ${duplicate.name || duplicate.companyName || duplicate.leadNumber} were merged into this lead by ${getActorName(req.user)}.`,
+          meta: {
+            mergedFromId: duplicate.id,
+            mergedFromLeadNumber: duplicate.leadNumber,
+            note: note || ''
+          }
+        });
+
+        const refreshedPrimary = await leadModel.findById(primary.id, db);
+        return { primary: refreshedPrimary, duplicate };
+      });
+
+      res.json({
+        success: true,
+        message: `Lead ${result.duplicate.leadNumber || ''} successfully merged into ${result.primary.leadNumber || ''}`,
+        data: sanitizeLeadForUser(result.primary, req.user)
+      });
     } catch (error) {
       next(error);
     }
@@ -1072,17 +1182,39 @@ const leadsController = {
   },
   summary: async (req, res, next) => {
     try {
-      await findAccessibleLeadById(req.params.id, req);
-      const result = await buildLeadSummary(req.params.id);
+      const record = await findAccessibleLeadById(req.params.id, req);
+      if (!record) {
+        return res.status(404).json({ success: false, message: 'Lead not found' });
+      }
+      const result = await buildLeadSummary(record.id);
       if (!result) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
+      const hasRecordingPermission = hasPermission(req.user, 'leads.view_call_recording');
+      const sanitizedTimeline = (result.timeline || []).map((item) => {
+        if (hasRecordingPermission) return item;
+        const kind = String(item.kind || '').toLowerCase();
+        const title = String(item.title || '').toLowerCase();
+        if (kind === 'call' || kind === 'call_logged' || title.includes('call')) {
+          const sanitizedMeta = { ...(item.meta || {}) };
+          delete sanitizedMeta.callRecordingUrl;
+          delete sanitizedMeta.recordingFile;
+          return {
+            ...item,
+            meta: sanitizedMeta,
+            payload: sanitizedMeta,
+            attachments: (Array.isArray(item.attachments) ? item.attachments : []).filter((f) => f?.kind !== 'call_recording')
+          };
+        }
+        return item;
+      });
       res.json({
         success: true,
         data: {
           ...result,
           lead: sanitizeLeadForUser(result.lead, req.user),
-          events: (result.events || []).map((event) => sanitizeLeadEventForUser(event, req.user))
+          events: (result.events || []).map((event) => sanitizeLeadEventForUser(event, req.user)),
+          timeline: sanitizedTimeline
         }
       });
     } catch (error) {
@@ -1116,10 +1248,11 @@ const leadsController = {
   },
   convert: async (req, res, next) => {
     try {
-      await findAccessibleLeadById(req.params.id, req);
+      const lead = await findAccessibleLeadById(req.params.id, req);
+      if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
       assertConversionPermissions(req.user, req.body || {});
       const settings = await getSettings();
-      const converted = await withTransaction(async (db) => convertLeadRecord(req.params.id, settings, db, req, req.body || {}));
+      const converted = await withTransaction(async (db) => convertLeadRecord(lead.id, settings, db, req, req.body || {}));
       if (!converted) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
@@ -1139,9 +1272,10 @@ const leadsController = {
       return res.json({
         success: true,
         data: converted.client,
-        convertedLeadId: req.params.id,
+        convertedLeadId: converted.lead?.id || lead.id,
         clientId: converted.client.id,
         projectId: converted.project?.id || null,
+        invoiceId: converted.invoice?.id || null,
         deletedLead: false,
         alreadyConverted: Boolean(converted.alreadyConverted)
       });

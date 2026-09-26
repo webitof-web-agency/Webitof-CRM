@@ -10,6 +10,7 @@ router.get('/', requirePermission('leads.read'), controller.list);
 router.post('/', requirePermission('leads.write'), controller.create);
 router.get('/options', requirePermission('leads.read'), controller.options);
 router.get('/duplicates', requirePermission('leads.read'), controller.duplicates);
+router.post('/merge', requirePermission('leads.write'), controller.merge);
 router.post('/bulk', requirePermission('leads.write', 'leads.assign', 'leads.manage_followup'), controller.bulk);
 router.get('/:id/summary', requirePermission('leads.read'), controller.summary);
 router.get('/:id/history', requirePermission('leads.read'), controller.history);

@@ -54,6 +54,8 @@ import { PaymentDetailPage } from './pages/payments/PaymentDetailPage';
 import { AutomationPage } from './pages/AutomationPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { FollowUpsPage } from './pages/followups/FollowUpsPage';
+import { lazy, Suspense } from 'react';
+const HrmPage = lazy(() => import('./pages/hrm/HrmPage').then(module => ({ default: module.HrmPage })));
 
 function AppRoutes() {
   return (
@@ -72,6 +74,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="hrm/*" element={<PermissionRoute permissions={['hrm.view_own','hrm.view_team','hrm.view_projects','hrm.view_all']}><Suspense fallback={<div className="p-6" role="status">Loading HRM…</div>}><HrmPage /></Suspense></PermissionRoute>} />
         <Route
           path="dashboard"
           element={
@@ -385,7 +388,19 @@ function TitleUpdater() {
       const path = location.pathname;
       let pageName = '';
       
-      if (path.includes('/settings')) pageName = 'Settings';
+      if (path.includes('/hrm')) {
+        const segments = path.split('/').filter(Boolean);
+        const sub = segments[2];
+        if (sub && sub !== 'overview') {
+          const formattedSub = sub
+            .split('-')
+            .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+            .join(' ');
+          pageName = `HRM · ${formattedSub}`;
+        } else {
+          pageName = 'HRM';
+        }
+      } else if (path.includes('/settings')) pageName = 'Settings';
       else if (path.includes('/dashboard')) pageName = 'Dashboard';
       else if (path.includes('/notifications')) pageName = 'Notifications';
       else if (path.includes('/follow-ups')) pageName = 'Follow-ups';

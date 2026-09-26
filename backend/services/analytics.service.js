@@ -479,10 +479,12 @@ function buildLeadTimeline(leadId, state) {
         reminder: 'Reminder',
         note: 'Note',
         task: 'Task',
-        event: 'Event'
+        event: 'Event',
+        call: 'Call'
       }[eventType] || 'Activity';
 
       return {
+        id: event.id,
         date: eventType === 'system'
           ? event.createdAt || event.startDate || event.endDate
           : event.startDate || event.endDate || event.createdAt,
@@ -502,7 +504,11 @@ function buildLeadTimeline(leadId, state) {
         actorName: eventType === 'system'
           ? event.payload?.actorName || 'System'
           : getUserDisplayName(event.ownerUserId, state),
-        meta: event.payload?.meta || {},
+        meta: {
+          ...(event.payload || {}),
+          ...(event.payload?.meta || {})
+        },
+        payload: event.payload || {},
         attachments: event.attachments || [],
         color: event.color || null,
         amount: 0

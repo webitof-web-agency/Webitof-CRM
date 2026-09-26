@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const { query, runSqlFile, withTransaction } = require('./db');
 const { DEFAULT_ROLE_DEFINITIONS, PERMISSIONS } = require('../config/rbac');
+const { migrate: migrateHrm } = require('../database/migrate-hrm');
 const {
   DEFAULT_SETTINGS,
   DEFAULT_SERVICE_CATEGORIES,
@@ -55,6 +56,7 @@ async function ensureDatabase() {
   await ensureNotificationsSchema();
   await ensurePaymentStatusSchema();
   await ensureInvoiceSourceIndexes();
+  await withTransaction(migrateHrm);
   if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
     await seedDefaultData();
     await seedAutomationDemoData();
@@ -1204,7 +1206,8 @@ async function seedRbac() {
       const roleId = roleIdByCode.get(role.code);
       if (!roleId) continue;
 
-      await client.query('delete from role_permissions where role_id = $1', [roleId]);
+      // Preserve explicitly assigned HRM grants when refreshing legacy default roles.
+      await client.query("delete from role_permissions where role_id = $1 and permission_id in (select id from permissions where module <> 'hrm')", [roleId]);
       const permissionIds = [...new Set((role.permissions || []).map((code) => permissionIdByCode.get(code)).filter(Boolean))];
 
       for (const permissionId of permissionIds) {

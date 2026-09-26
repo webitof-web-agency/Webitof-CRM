@@ -166,7 +166,11 @@ clientsController.remove = async (req, res, next) => {
 
 clientsController.summary = async (req, res, next) => {
   try {
-    const result = await buildClientSummary(req.params.id);
+    const client = await clientModel.findById(req.params.id);
+    if (!client) {
+      return res.status(404).json({ success: false, message: 'Client not found' });
+    }
+    const result = await buildClientSummary(client.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }

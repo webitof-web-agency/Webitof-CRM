@@ -213,12 +213,14 @@ const QUICK_TITLES = [
   'Call to discuss quotation',
   'Payment follow-up',
   'Demo & Requirement review',
+  'Client visit / office meeting',
   'Client decision check'
 ];
 
 const QUICK_PURPOSES = [
   'Price Negotiation',
   'Demo / Meeting',
+  'Visit / Meeting',
   'Payment Follow-up',
   'Requirement Gathering',
   'Proposal Review',
@@ -229,6 +231,7 @@ const QUICK_TYPES = [
   { value: 'Call', icon: '📞', label: 'Call' },
   { value: 'WhatsApp', icon: '💬', label: 'WhatsApp' },
   { value: 'Meeting', icon: '🤝', label: 'Meeting' },
+  { value: 'Visit', icon: '📍', label: 'Visit' },
   { value: 'Email', icon: '✉️', label: 'Email' }
 ];
 
@@ -342,6 +345,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
   const isPast = form.date && `${form.date}T${form.time || '00:00'}` < new Date().toISOString().slice(0, 16);
   const isEdit = Boolean(initialValue?.id);
   const shouldHideRelated = hideRelatedEntity || lockRelatedEntity || Boolean(initialValue?.hideRelatedEntity) || Boolean(initialValue?.lockRelatedEntity);
+  const isVisitFollowUp = ['Visit', 'Site visit'].includes(form.followUpType);
 
   return (
     <Modal
@@ -467,7 +471,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
         {/* Row 4: Follow-Up Type (100% Full Width) */}
         <div>
           <span className="mb-1.5 block text-xs font-semibold text-slate-700 dark:text-slate-200">Follow-Up Type</span>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {QUICK_TYPES.map((t) => (
               <button
                 key={t.value}
@@ -612,6 +616,16 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
             placeholder="Select employee"
           />
         </Field>
+
+        {isVisitFollowUp ? (
+          <Field label="Visit location">
+            <Input
+              value={form.location}
+              onChange={(event) => set('location', event.target.value)}
+              placeholder="Client office / Our office / Meeting address"
+            />
+          </Field>
+        ) : null}
 
         {/* Row 7: Notes / Description (100% Full Width) */}
         <Field label="Notes / Description">
@@ -1100,7 +1114,7 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
                   <Select
                     value={nextMode}
                     onChange={(val) => setNextMode(val)}
-                    options={(options.followUpTypes || ['Call', 'WhatsApp', 'Email', 'Meeting', 'Video meeting', 'Demo', 'Proposal follow-up', 'Payment follow-up', 'Custom']).map((v) => ({ value: v, label: v }))}
+                    options={(options.followUpTypes || ['Call', 'WhatsApp', 'Email', 'Meeting', 'Visit', 'Video meeting', 'Demo', 'Proposal follow-up', 'Payment follow-up', 'Custom']).map((v) => ({ value: v, label: v }))}
                   />
                 </div>
 
@@ -1152,7 +1166,14 @@ export function RescheduleFollowUpModal({ open, followUp, mode = 'reschedule', o
   return (
     <Modal open={open} onClose={onClose} title={mode === 'snooze' ? 'Snooze follow-up' : 'Reschedule follow-up'} subtitle={followUp?.followUpNumber} width="min(620px, 96vw)" footer={<div className="flex justify-end gap-3"><Button variant="outline" size="sm" onClick={onClose}>Cancel</Button><Button type="submit" size="sm" form="reschedule-follow-up-form" loading={busy}>{mode === 'snooze' ? 'Snooze' : 'Reschedule'}</Button></div>}>
       <form id="reschedule-follow-up-form" onSubmit={save} className="grid gap-4 md:grid-cols-2">
-        {mode === 'snooze' ? <Field label="Snooze duration"><Select value={String(form.minutes)} onChange={(value) => setForm((current) => ({ ...current, minutes: Number(value) }))} options={[10, 30, 60, 120, 1440].map((value) => ({ value: String(value), label: value < 60 ? `${value} minutes` : value === 1440 ? 'Next day' : `${value / 60} hours` }))} /></Field> : <><Field label="New date" required><Input type="date" min={todayInput()} value={form.date} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} /></Field><Field label="New time" required><Input type="time" value={form.time} onChange={(event) => setForm((current) => ({ ...current, time: event.target.value }))} /></Field></>}
+        {mode === 'snooze' ? (
+          <Field label="Snooze duration"><Select value={String(form.minutes)} onChange={(value) => setForm((current) => ({ ...current, minutes: Number(value) }))} options={[10, 30, 60, 120, 1440].map((value) => ({ value: String(value), label: value < 60 ? `${value} minutes` : value === 1440 ? 'Next day' : `${value / 60} hours` }))} /></Field>
+        ) : (
+          <>
+            <Field label="New date" required><Input type="date" min={todayInput()} value={form.date} onChange={(event) => setForm((current) => ({ ...current, date: event.target.value }))} /></Field>
+            <Field label="New time" required><Input type="time" value={form.time} onChange={(event) => setForm((current) => ({ ...current, time: event.target.value }))} /></Field>
+          </>
+        )}
         <Field label="Reason" required error={error} wide><Select value={form.reason} onChange={(value) => { setForm((current) => ({ ...current, reason: value })); setError(''); }} options={reasons.map(toOption)} placeholder="Select reason" /></Field>
         <Field label="Note" wide><Textarea value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} rows={3} /></Field>
       </form>

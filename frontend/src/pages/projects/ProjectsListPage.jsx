@@ -15,6 +15,7 @@ import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { normalizeSharedLabels, mergeSharedLabelOptions } from '../../lib/labels';
 import { UserAvatar } from '../../components/ui/UserAvatar';
 import { ProjectFormModal } from './ProjectFormModal';
+import { clientRoute, projectRoute, userRoute } from '../../utils/entityRoutes';
 
 function formatDateDisplay(value) {
   if (!value) return '-';
@@ -279,7 +280,7 @@ export function ProjectsListPage() {
         <div
           onClick={(e) => {
             e.stopPropagation();
-            if (row.clientId) navigate(`/app/clients/${row.clientId}`);
+            if (row.clientId) navigate(clientRoute(row._client || row.clientId));
           }}
           className="min-w-[160px] cursor-pointer block text-left transition p-1 -m-1 rounded"
           title="View client details"
@@ -300,7 +301,7 @@ export function ProjectsListPage() {
         <div
           onClick={(e) => {
             e.stopPropagation();
-            if (row._owner?.id) navigate(`/app/users/${row._owner.id}`);
+            if (row._owner?.id) navigate(userRoute(row._owner));
           }}
           className="min-w-[140px] flex items-center gap-2 cursor-pointer p-1 -m-1 rounded transition-colors"
           title="View user profile"
@@ -481,7 +482,7 @@ export function ProjectsListPage() {
           }}
           rowActions={(row) => (
             <div className="flex items-center justify-end gap-2">
-              <Button variant="ghost" size="icon" onClick={() => navigate(`/app/projects/${row.id}`)} title="View Project">
+              <Button variant="ghost" size="icon" onClick={() => navigate(projectRoute(row))} title="View Project">
                 <Eye size={16} />
               </Button>
               {canEdit ? (

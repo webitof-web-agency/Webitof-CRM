@@ -319,9 +319,9 @@ invoicesController.update = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
     const body = await normalizeInvoice(req.body || {}, current, req.user);
-    await invoiceModel.update(req.params.id, body);
-    const snapshot = await syncInvoiceFinancialState(req.params.id);
-    const nextRecord = snapshot || (await invoiceModel.findById(req.params.id));
+    await invoiceModel.update(current.id, body);
+    const snapshot = await syncInvoiceFinancialState(current.id);
+    const nextRecord = snapshot || (await invoiceModel.findById(current.id));
     notifyBusinessEvent({
       moduleName: 'invoices',
       eventKey: 'updated',
@@ -331,7 +331,7 @@ invoicesController.update = async (req, res, next) => {
       message: `Invoice ${nextRecord?.invoiceNumber || current.invoiceNumber} was updated.`,
       actorUserId: req.user?.id || null,
       notifyClient: Boolean(nextRecord?.clientId),
-      routePath: `/app/invoices/${req.params.id}`
+      routePath: `/app/invoices/${current.id}`
     }).catch(() => {});
     res.json({ success: true, data: snapshot || nextRecord });
   } catch (error) {

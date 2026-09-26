@@ -34,5 +34,6 @@ module.exports = createRepository({
     column({ key: 'totalAmount', db: 'total_amount', type: 'number' }),
     column({ key: 'items', db: 'items', type: 'json' })
   ],
-  searchColumns: ['invoice_number', 'status', 'invoice_type', 'place_of_supply']
+  searchColumns: ['invoice_number', 'status', 'invoice_type', 'place_of_supply'],
+  publicIdentifierColumns: ['invoiceNumber']
 });

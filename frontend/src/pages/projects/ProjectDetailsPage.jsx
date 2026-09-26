@@ -48,6 +48,7 @@ import { formatDateOnlyDisplay, formatDateOnlyInput, isSameDateOnly, toDateOnlyK
 import { EventFeedPanel } from '../../components/events/EventFeedPanel';
 import { ProjectFormModal } from './ProjectFormModal';
 import { ProjectFileModal } from './ProjectFileModal';
+import { canonicalRoute, clientRoute } from '../../utils/entityRoutes';
 
 const ACTIVITY_COLORS = ['#2563eb', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#14b8a6', '#ec4899', '#6366f1'];
 
@@ -1178,6 +1179,12 @@ export function ProjectDetailsPage() {
   const events = data?.events || [];
   const eventItems = events.filter((item) => String(item.eventType || item.type || '').toLowerCase() === 'event');
   const userLookup = useMemo(() => new Map(users.map((item) => [String(item.id), item.fullName || item.username || item.email || 'System'])), [users]);
+
+  useEffect(() => {
+    if (!project?.id) return;
+    const next = canonicalRoute('projects', project, `/app/projects/${id}`);
+    if (next) navigate(next, { replace: true });
+  }, [id, navigate, project]);
   const mergedTimeline = useMemo(() => {
     const source = Array.isArray(timeline) && timeline.length
       ? timeline
@@ -1755,7 +1762,7 @@ export function ProjectDetailsPage() {
                   <h3 className="text-lg font-bold text-[var(--text-main)]">Contacts</h3>
                   <p className="text-sm text-slate-500">{contacts.length} contact(s)</p>
                 </div>
-                <Button variant="secondary" onClick={() => navigate(client?.id ? `/app/clients/${client.id}` : '/app/projects')}>
+                <Button variant="secondary" onClick={() => navigate(client?.id ? clientRoute(client) : '/app/projects')}>
                   <UserPlus size={16} className="mr-2" />
                   View client contacts
                 </Button>

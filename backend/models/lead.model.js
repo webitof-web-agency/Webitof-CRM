@@ -118,5 +118,6 @@ module.exports = createRepository({
     column({ key: 'reopenedAt', db: 'reopened_at' }),
     column({ key: 'reopenedBy', db: 'reopened_by' })
   ],
-  searchColumns: ['lead_number', 'contact_person', 'name', 'company_name', 'email', 'phone', 'city', 'state', 'country']
+  searchColumns: ['lead_number', 'contact_person', 'name', 'company_name', 'email', 'phone', 'city', 'state', 'country'],
+  publicIdentifierColumns: ['leadNumber']
 });

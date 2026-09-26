@@ -11,7 +11,7 @@ const ACTIVE_FOLLOW_UP_STATUSES = [
 const CLOSED_FOLLOW_UP_STATUSES = ['Completed', 'Cancelled', 'Failed', 'Auto-Closed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const FOLLOW_UP_TYPES = [
-  'Call', 'Callback', 'WhatsApp', 'Email', 'Meeting', 'Video meeting', 'Demo', 'Site visit',
+  'Call', 'Callback', 'WhatsApp', 'Email', 'Meeting', 'Video meeting', 'Demo', 'Visit', 'Site visit',
   'Proposal follow-up', 'Quotation follow-up', 'Payment follow-up', 'Document follow-up',
   'Requirement follow-up', 'Client approval', 'Internal dependency', 'Project review',
   'Support follow-up', 'Renewal follow-up', 'Feedback', 'Testimonial', 'Referral', 'Custom'
@@ -529,11 +529,24 @@ function buildFollowUpWhere(filters = {}, user = null) {
   const clauses = ['f.deleted_at is null', buildAccessClause(user, values)];
   const add = (sql, value) => { values.push(value); clauses.push(sql.replace('?', `$${values.length}`)); };
   const activeStatusesSql = `array[${ACTIVE_FOLLOW_UP_STATUSES.map((_, index) => `'${ACTIVE_FOLLOW_UP_STATUSES[index].replace(/'/g, "''")}'`).join(',')}]`;
+  const followUpTypes = Array.isArray(filters.followUpTypes)
+    ? filters.followUpTypes
+    : String(filters.followUpTypes || '').split(',');
+  const normalizedFollowUpTypes = followUpTypes.map((item) => String(item || '').trim()).filter(Boolean);
 
   if (filters.status) add('f.status = ?', filters.status);
   if (filters.priority) add('f.priority = ?', filters.priority);
-  if (filters.followUpType || filters.type) add('f.follow_up_type = ?', filters.followUpType || filters.type);
-  if (filters.assignedTo) add('f.assigned_to = ?', filters.assignedTo);
+  if (normalizedFollowUpTypes.length) {
+    values.push(normalizedFollowUpTypes);
+    clauses.push(`f.follow_up_type = any($${values.length}::text[])`);
+  } else if (filters.followUpType || filters.type) {
+    add('f.follow_up_type = ?', filters.followUpType || filters.type);
+  }
+  if (String(filters.unassigned || '').toLowerCase() === 'true') {
+    clauses.push('f.assigned_to is null');
+  } else if (filters.assignedTo) {
+    add('f.assigned_to = ?', filters.assignedTo);
+  }
   if (filters.assignedTeam) add('f.assigned_team = ?', filters.assignedTeam);
   if (filters.relatedEntityType) add('f.related_entity_type = ?', normalizeEntityType(filters.relatedEntityType));
   if (filters.relatedEntityId) add('f.related_entity_id = ?', filters.relatedEntityId);
@@ -561,6 +574,44 @@ function buildFollowUpWhere(filters = {}, user = null) {
     clauses.push(`(lower(f.follow_up_number) like $${values.length} or lower(f.title) like $${values.length} or lower(coalesce(f.related_entity_label, '')) like $${values.length} or lower(coalesce(f.description, '')) like $${values.length})`);
   }
   return { values, where: clauses.join(' and ') };
+}
+
+function withoutListPaging(filters = {}) {
+  const next = { ...filters };
+  delete next.limit;
+  delete next.offset;
+  delete next.page;
+  delete next.sortBy;
+  delete next.sortDirection;
+  return next;
+}
+
+async function countFollowUps(filters = {}, user = null) {
+  const { values, where } = buildFollowUpWhere(filters, user);
+  const result = await query(`select count(*)::int as count from follow_ups f where ${where}`, values);
+  return Number(result.rows[0]?.count || 0);
+}
+
+async function getListQuickCounts(filters = {}, user = null) {
+  const base = withoutListPaging(filters);
+  delete base.quickFilter;
+  delete base.tabFilter;
+  delete base.overdue;
+  delete base.missingNextAction;
+
+  const [all, overdue, dueToday, critical, upcoming, missingNextAction, waiting, unassigned] = await Promise.all([
+    countFollowUps(base, user),
+    countFollowUps({ ...base, quickFilter: 'overdue' }, user),
+    countFollowUps({ ...base, quickFilter: 'due_today' }, user),
+    countFollowUps({ ...base, quickFilter: 'critical' }, user),
+    countFollowUps({ ...base, quickFilter: 'upcoming' }, user),
+    countFollowUps({ ...base, quickFilter: 'missing_next_action' }, user),
+    countFollowUps({ ...base, status: 'Waiting for Client' }, user)
+      .then((clientCount) => countFollowUps({ ...base, status: 'Waiting for Internal Team' }, user).then((teamCount) => clientCount + teamCount)),
+    countFollowUps({ ...base, unassigned: true }, user)
+  ]);
+
+  return { all, overdue, due_today: dueToday, dueToday, critical, upcoming, missing_next_action: missingNextAction, missingNextAction, waiting, unassigned };
 }
 
 async function listFollowUps(filters = {}, user = null) {
@@ -593,7 +644,13 @@ async function listFollowUps(filters = {}, user = null) {
      where ${where} order by ${sort} ${direction}, f.created_at desc limit $${values.length - 1} offset $${values.length}`,
     values
   );
-  return { rows: rows.rows.map(hydrateJoinedRow), total: Number(countResult.rows[0]?.count || 0), limit, offset };
+  return {
+    rows: rows.rows.map(hydrateJoinedRow),
+    total: Number(countResult.rows[0]?.count || 0),
+    limit,
+    offset,
+    quickCounts: await getListQuickCounts(filters, user)
+  };
 }
 
 async function getFollowUp(id, user = null, { includeHistory = true } = {}) {
@@ -919,20 +976,21 @@ async function getCommandCenter(user = null, dateValue = null) {
   const result = await listFollowUps({ from, to, limit: 200 }, user);
   const overdue = await listFollowUps({ overdue: true, limit: 200 }, user);
   const all = [...overdue.rows, ...result.rows.filter((row) => !overdue.rows.some((item) => item.id === row.id))];
+  const activeRows = all.filter((row) => ACTIVE_FOLLOW_UP_STATUSES.includes(row.status));
   const now = Date.now();
   const sections = {
-    overdue: all.filter((row) => row.effectiveStatus === 'Overdue'),
-    dueNow: all.filter((row) => Math.abs(new Date(row.dueAt).getTime() - now) <= 30 * 60000 && row.effectiveStatus !== 'Overdue'),
-    dueToday: all.filter((row) => dateTimeParts(row.dueAt, settings.timezone).date === date && row.effectiveStatus !== 'Overdue'),
-    upcoming: all.filter((row) => new Date(row.dueAt).getTime() > now + 30 * 60000),
-    highPriority: all.filter((row) => row.priority === 'High'),
-    critical: all.filter((row) => row.priority === 'Critical'),
-    waitingForClient: all.filter((row) => row.status === 'Waiting for Client'),
-    waitingForInternalTeam: all.filter((row) => row.status === 'Waiting for Internal Team'),
-    rescheduled: all.filter((row) => row.status === 'Rescheduled'),
-    unassigned: all.filter((row) => !row.assignedTo),
-    noResponse: all.filter((row) => row.status === 'No Response'),
-    missingNextAction: all.filter((row) => !row.nextAction)
+    overdue: activeRows.filter((row) => row.effectiveStatus === 'Overdue'),
+    dueNow: activeRows.filter((row) => Math.abs(new Date(row.dueAt).getTime() - now) <= 30 * 60000 && row.effectiveStatus !== 'Overdue'),
+    dueToday: activeRows.filter((row) => dateTimeParts(row.dueAt, settings.timezone).date === date && row.effectiveStatus !== 'Overdue'),
+    upcoming: activeRows.filter((row) => new Date(row.dueAt).getTime() > now + 30 * 60000),
+    highPriority: activeRows.filter((row) => row.priority === 'High'),
+    critical: activeRows.filter((row) => row.priority === 'Critical'),
+    waitingForClient: activeRows.filter((row) => row.status === 'Waiting for Client'),
+    waitingForInternalTeam: activeRows.filter((row) => row.status === 'Waiting for Internal Team'),
+    rescheduled: activeRows.filter((row) => row.status === 'Rescheduled'),
+    unassigned: activeRows.filter((row) => !row.assignedTo),
+    noResponse: activeRows.filter((row) => row.status === 'No Response'),
+    missingNextAction: activeRows.filter((row) => !row.nextAction)
   };
   return { date, timezone: settings.timezone, counts: Object.fromEntries(Object.entries(sections).map(([key, rows]) => [key, rows.length])), sections };
 }

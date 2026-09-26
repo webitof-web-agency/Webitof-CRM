@@ -11,6 +11,7 @@ import { SearchableSelect } from '../../components/forms/SearchableSelect';
 import { PhoneInput } from '../../components/forms/PhoneInput';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../../data/indiaLocations';
 import { normalizeSharedLabels, mergeSharedLabelOptions } from '../../lib/labels';
+import { clientRoute } from '../../utils/entityRoutes';
 
 const EMPTY_FORM = {
   type: 'Organization',
@@ -328,7 +329,7 @@ export function ClientFormPage({
         return;
       }
 
-      navigate(isEdit ? `/app/clients/${effectiveClientId}` : `/app/clients/${response.data?.id || response.data?.id?.toString?.() || ''}`);
+      navigate(clientRoute(response.data || { id: effectiveClientId }));
     } catch (error) {
       toast.error(error.message || 'Failed to save client');
     } finally {
@@ -341,7 +342,7 @@ export function ClientFormPage({
       onCloseProp();
       return;
     }
-    navigate(isEdit ? `/app/clients/${effectiveClientId}` : '/app/clients');
+    navigate(isEdit ? clientRoute({ id: effectiveClientId }) : '/app/clients');
   }
 
   if (!isOpen) return null;

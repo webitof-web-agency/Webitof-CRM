@@ -17,6 +17,7 @@ import { KanbanBoard } from '../../components/ui/KanbanBoard';
 import { normalizeSharedLabels } from '../../lib/labels';
 import { UserAvatar } from '../../components/ui/UserAvatar';
 import { ProfilePanel } from '../../components/panels/ProfilePanel';
+import { clientRoute, userRoute } from '../../utils/entityRoutes';
 
 function formatPhoneDisplay(value) {
   const raw = String(value || '').trim();
@@ -314,7 +315,7 @@ export function ClientsListPage() {
             className="flex items-center gap-2 cursor-pointer p-1 -m-1 rounded transition-colors"
             onClick={(e) => {
               e.stopPropagation();
-              if (row.assignedTo) navigate(`/app/users/${row.assignedTo}`);
+              if (row.assignedTo) navigate(userRoute(owner || row.assignedTo));
             }}
             title="View user profile"
           >
@@ -586,7 +587,7 @@ export function ClientsListPage() {
             onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
             rowActions={(row) => (
               <div className="flex items-center justify-end gap-2">
-                <Button variant="ghost" size="icon" onClick={() => navigate(`/app/clients/${row.id}`)} title="View Details">
+                <Button variant="ghost" size="icon" onClick={() => navigate(clientRoute(row))} title="View Details">
                   <Eye size={16} />
                 </Button>
                 {canEdit && (
@@ -659,7 +660,7 @@ export function ClientsListPage() {
               statusColors={statusColors}
               labelColors={labelColors}
               onStatusChange={handleStatusChange}
-              onLeadClick={(client) => navigate(`/app/clients/${client.id}`)}
+              onLeadClick={(client) => navigate(clientRoute(client))}
               onLeadEdit={canEdit ? (client) => {
                 setEditingData(client);
                 setFormOpen(true);

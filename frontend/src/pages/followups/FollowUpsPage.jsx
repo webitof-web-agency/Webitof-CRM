@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BellRing, CalendarDays, CheckCircle2,
-  ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Clock3, Download, ExternalLink, Eye, Filter, Flame, LayoutList,
+  ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Clock3, Download, ExternalLink, Eye, Filter, Flame, LayoutList, MapPin,
   Loader2, Mail, MessageCircle, MoreHorizontal, MoreVertical, Pencil, Phone, Play, Plus, RefreshCcw, Search,
   Settings2, ShieldAlert, Sparkles, TimerReset, Trash2, UserRound, UsersRound, Workflow, Zap
 } from 'lucide-react';
@@ -26,12 +26,17 @@ import { CompleteFollowUpModal, FollowUpFormModal, RescheduleFollowUpModal } fro
 const tabs = [
   { id: 'today', label: 'Today', icon: Clock3 },
   { id: 'list', label: 'List', icon: LayoutList },
+  { id: 'visit', label: 'Visit', icon: MapPin },
   { id: 'calendar', label: 'Calendar', icon: CalendarDays },
   { id: 'attention', label: 'Attention', icon: ShieldAlert },
   { id: 'workload', label: 'Workload', icon: UsersRound },
+  { id: 'completed', label: 'Completed', icon: CheckCircle2 },
+  { id: 'report', label: 'Report', icon: BarChart3 },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'automation', label: 'Automation', icon: Workflow }
 ];
+
+const VISIT_FOLLOW_UP_TYPES = ['Visit', 'Site visit'];
 
 const terminalStatuses = new Set(['Completed', 'Cancelled', 'Failed', 'Auto-Closed']);
 
@@ -674,26 +679,44 @@ const QUICK_FILTER_TABS = [
   { id: 'upcoming', label: 'Upcoming', icon: CalendarDays, tone: 'emerald', helper: 'Future scheduled items' }
 ];
 
-function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAction, onRefresh }) {
+function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAction, onRefresh, title = '', description = '' }) {
   const activeQuick = filters.quickFilter || 'all';
   const quickOptions = getQuickRescheduleOptions();
+  const quickCounts = meta.quickCounts || {};
+  const hasQuickCounts = Object.keys(quickCounts).length > 0;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-0 overflow-hidden shadow-2xs">
+      {title ? (
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-[var(--text-main)]">{title}</h2>
+            {description ? <p className="mt-0.5 text-xs text-[var(--text-muted)]">{description}</p> : null}
+          </div>
+          <Badge tone="neutral" size="sm">
+            {hasQuickCounts ? (quickCounts.all || 0) : (meta.total || 0)}
+          </Badge>
+        </div>
+      ) : null}
+
       {/* Quick Filter Tabs */}
       <div className="flex items-center gap-1.5 overflow-x-auto border-b border-[var(--border)] bg-[var(--surface-2)]/60 p-2 sm:px-3">
         {QUICK_FILTER_TABS.map((tab) => {
           const active = activeQuick === tab.id;
           const Icon = tab.icon;
           const countVal = tab.id === 'all'
-            ? (meta.total || rows.length)
-            : (counts[tab.id] ?? counts[tab.id === 'due_today' ? 'dueToday' : tab.id === 'missing_next_action' ? 'missingNextAction' : tab.id]);
+            ? (hasQuickCounts ? quickCounts.all : (meta.total ?? rows.length ?? 0))
+            : (hasQuickCounts ? quickCounts[tab.id] : undefined);
 
           return (
             <button
               key={tab.id}
               type="button"
-              onClick={() => setFilters((current) => ({ ...current, quickFilter: tab.id, page: 1 }))}
+              onClick={() => setFilters((current) => ({
+                ...current,
+                quickFilter: tab.id,
+                page: 1
+              }))}
               title={tab.helper}
               className={cn(
                 "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer select-none",
@@ -734,14 +757,24 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
         <div className="w-[140px] sm:w-[160px]">
           <Select
             value={filters.status}
-            onChange={(value) => setFilters((current) => ({ ...current, status: value, page: 1 }))}
+            onChange={(value) => setFilters((current) => ({
+              ...current,
+              status: value,
+              quickFilter: 'all',
+              page: 1
+            }))}
             options={[{ value: '', label: 'All statuses' }, 'Scheduled', 'Due Today', 'In Progress', 'Waiting for Client', 'Waiting for Internal Team', 'No Response', 'Escalated', 'Completed'].map((item) => typeof item === 'string' ? { value: item, label: item } : item)}
           />
         </div>
         <div className="w-[130px] sm:w-[145px]">
           <Select
             value={filters.priority}
-            onChange={(value) => setFilters((current) => ({ ...current, priority: value, page: 1 }))}
+            onChange={(value) => setFilters((current) => ({
+              ...current,
+              priority: value,
+              quickFilter: 'all',
+              page: 1
+            }))}
             options={[{ value: '', label: 'All priorities' }, ...['Low', 'Medium', 'High', 'Critical'].map((value) => ({ value, label: value }))]}
           />
         </div>
@@ -2332,6 +2365,15 @@ function ActivityViewModal({ item, open, onClose, onComplete, onEdit, onViewLead
               </span>
             </div>
 
+            {item.location ? (
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">📍 Visit Location:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">
+                  {item.location}
+                </span>
+              </div>
+            ) : null}
+
             <div>
               <span className="text-[11px] font-medium text-[var(--text-muted)] block">⏩ Next Action:</span>
               <span className="font-semibold text-[var(--text-main)] mt-0.5 block">
@@ -2377,6 +2419,726 @@ function MoreActionsModal({ item, open, onClose, onAction }) {
   );
 }
 
+function CompletedFollowUpsView({ options, onAction, onScheduleNext }) {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const [dateRange, setDateRange] = useState('all'); // 'today', 'yesterday', '1week', '1month', 'all', 'custom'
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    api.resources.list('/users/lookup', token)
+      .then((res) => setUsers(res.data || []))
+      .catch(() => {});
+  }, [token]);
+
+  const loadCompleted = useCallback(async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      let from, to;
+
+      if (dateRange === 'today') {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        from = start.toISOString();
+        to = end.toISOString();
+      } else if (dateRange === 'yesterday') {
+        const yest = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const start = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 0, 0, 0);
+        const end = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 23, 59, 59, 999);
+        from = start.toISOString();
+        to = end.toISOString();
+      } else if (dateRange === '1week') {
+        const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        from = start.toISOString();
+        to = now.toISOString();
+      } else if (dateRange === '1month') {
+        const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        from = start.toISOString();
+        to = now.toISOString();
+      } else if (dateRange === 'custom') {
+        if (customFrom) from = new Date(`${customFrom}T00:00:00`).toISOString();
+        if (customTo) to = new Date(`${customTo}T23:59:59.999`).toISOString();
+      }
+
+      const query = {
+        status: 'Completed',
+        limit: 100,
+        from,
+        to,
+        assignedTo: selectedEmployee || undefined,
+        search: debouncedSearch || undefined
+      };
+
+      const res = await api.followUps.list(token, query);
+      setItems(res.data || []);
+    } catch (err) {
+      toast.error(err.message || 'Failed to load completed follow-ups');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange, customFrom, customTo, selectedEmployee, debouncedSearch, token]);
+
+  useEffect(() => {
+    loadCompleted();
+  }, [loadCompleted]);
+
+  return (
+    <div className="space-y-4">
+      {/* Filter Bar */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3.5 sm:p-4 shadow-2xs">
+        {/* Date Filter Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+          {[
+            { id: 'today', label: 'Today' },
+            { id: 'yesterday', label: 'Yesterday' },
+            { id: '1week', label: '1 Week' },
+            { id: '1month', label: '1 Month' },
+            { id: 'all', label: 'All Time' },
+            { id: 'custom', label: 'Custom' }
+          ].map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={() => setDateRange(chip.id)}
+              className={cn(
+                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer",
+                dateRange === chip.id
+                  ? "bg-emerald-600 text-white shadow-2xs font-bold"
+                  : "bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)]/80"
+              )}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom Date Range Picker */}
+        {dateRange === 'custom' && (
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-[var(--border-muted)]">
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/70 px-3 py-1.5 text-xs">
+              <span className="font-semibold text-[var(--text-muted)]">From:</span>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/70 px-3 py-1.5 text-xs">
+              <span className="font-semibold text-[var(--text-muted)]">To:</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none cursor-pointer"
+              />
+            </div>
+            {(customFrom || customTo) && (
+              <button
+                type="button"
+                onClick={() => { setCustomFrom(''); setCustomTo(''); }}
+                className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 transition cursor-pointer underline"
+              >
+                Clear range
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Employee Filter & Search Controls */}
+        <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-[var(--border-muted)]">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
+            <input
+              type="text"
+              className="w-full h-9 pl-9 pr-3 text-xs rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/50 text-[var(--text-main)] placeholder:text-[var(--text-muted)] focus:bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/40 transition"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search lead name, phone, outcome or purpose..."
+            />
+          </div>
+
+          <div className="w-[180px] sm:w-[220px]">
+            <Select
+              value={selectedEmployee}
+              onChange={(val) => setSelectedEmployee(val)}
+              options={[
+                { value: '', label: 'All Employees' },
+                ...users.map((u) => ({ value: u.id, label: u.name || u.full_name || u.email }))
+              ]}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={loadCompleted}
+            title="Refresh"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface)] transition cursor-pointer shrink-0"
+          >
+            <RefreshCcw size={14} className={loading ? "animate-spin" : ""} />
+          </button>
+
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold ml-auto">
+            <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
+            <span>{items.length} Completed</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Cards Grid */}
+      {loading ? (
+        <Skeleton className="h-72 rounded-2xl" />
+      ) : items.length === 0 ? (
+        <EmptyState
+          title="No completed follow-ups found"
+          description="There are no completed follow-up records matching your selected filters."
+        />
+      ) : (
+        <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-3">
+          {items.map((item) => {
+            const phone = item.relatedPhone || item.phone || item.mobile;
+            const leadRoute = entityRoute(item);
+            const leadName = item.relatedEntityLabel || item.companyName || 'Lead';
+            const requirement = item.purpose || item.title || 'Follow-up discussion';
+            const channel = item.followUpType || 'Phone Call';
+            const outcomeNote = item.discussionNote || item.actualOutcome || item.description || 'Completed successfully';
+
+            return (
+              <div
+                key={item.id}
+                className="relative rounded-2xl border border-[var(--border)] border-l-4 border-l-emerald-500 bg-[var(--surface)] p-4 shadow-2xs hover:shadow-md transition-all duration-150 space-y-3"
+              >
+                {/* Top Row: Lead Name (with ↗) + Priority + Completed Badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    {leadRoute ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(leadRoute)}
+                        className="group inline-flex items-center gap-1 text-sm font-bold text-[var(--text-main)] hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer text-left truncate max-w-full"
+                        title="View Lead Profile"
+                      >
+                        <span className="truncate">{leadName}</span>
+                        <ExternalLink size={13} className="shrink-0 opacity-70 group-hover:opacity-100 group-hover:translate-x-0.5 transition" />
+                      </button>
+                    ) : (
+                      <span className="text-sm font-bold text-[var(--text-main)] truncate block">
+                        {leadName}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {renderPriorityPill(item.priority, true)}
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                      <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
+                      Completed
+                    </span>
+                  </div>
+                </div>
+
+                {/* Contact & Tags Row */}
+                <div className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                  {phone ? (
+                    <a
+                      href={`tel:${phone}`}
+                      className="inline-flex items-center gap-1 font-medium text-[var(--text-main)] hover:text-emerald-600 transition"
+                    >
+                      <Phone size={12} className="text-[var(--text-muted)]" />
+                      <span>{phone}</span>
+                    </a>
+                  ) : null}
+
+                  {requirement ? (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)] truncate max-w-[160px]">
+                      {requirement}
+                    </span>
+                  ) : null}
+
+                  <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-[11px] font-medium border border-emerald-500/20">
+                    ✓ Contacted ({channel})
+                  </span>
+                </div>
+
+                {/* Outcome Box (Green container) */}
+                <div className="rounded-xl border border-emerald-500/25 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 space-y-1">
+                  <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-emerald-800 dark:text-emerald-300">
+                    <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
+                    <span>✓ Completed</span>
+                  </div>
+                  <p className="text-xs text-emerald-950 dark:text-emerald-200/90 whitespace-pre-wrap leading-relaxed">
+                    {outcomeNote}
+                  </p>
+                </div>
+
+                {/* Metadata Row: Completed By + Timestamp */}
+                <div className="flex items-center justify-between gap-2 pt-1 text-[11px] text-[var(--text-muted)]">
+                  <div className="flex items-center gap-1 truncate min-w-0">
+                    <UserRound size={12} className="shrink-0 text-[var(--text-muted)]" />
+                    <span className="truncate">Completed by: <strong className="text-[var(--text-main)] font-semibold">{item.assigneeName || 'Team Member'}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 font-medium">
+                    <Clock3 size={12} className="text-[var(--text-muted)]" />
+                    <span>{formatDateTime(item.updatedAt || item.dueAt)}</span>
+                  </div>
+                </div>
+
+                {/* Action Buttons Row */}
+                <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-muted)]">
+                  {phone ? (
+                    <button
+                      type="button"
+                      onClick={() => window.open(`tel:${phone}`)}
+                      className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-semibold bg-[var(--primary)] text-white hover:brightness-105 transition cursor-pointer shadow-2xs"
+                    >
+                      <Phone size={13} />
+                      <span>Call</span>
+                    </button>
+                  ) : null}
+
+                  {phone ? (
+                    <button
+                      type="button"
+                      onClick={() => openDirectWhatsApp(item)}
+                      className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer shadow-2xs"
+                    >
+                      <MessageCircle size={13} />
+                      <span>WhatsApp</span>
+                    </button>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => onScheduleNext(item)}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-8 rounded-xl text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 transition cursor-pointer shadow-2xs"
+                  >
+                    <Plus size={13} />
+                    <span>Schedule Next</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onAction('details', item)}
+                    title="View details"
+                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface)] transition cursor-pointer shrink-0"
+                  >
+                    <MoreHorizontal size={15} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FollowUpReportView({ onAction }) {
+  const { token } = useAuth();
+  const navigate = useNavigate();
+  const [dateRange, setDateRange] = useState('today'); // 'today', 'yesterday', '1week', '1month', 'all', 'custom'
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [selectedEmployee, setSelectedEmployee] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [recentRows, setRecentRows] = useState([]);
+  const [users, setUsers] = useState([]);
+
+  useEffect(() => {
+    api.resources.list('/users/lookup', token)
+      .then((res) => setUsers(res.data || []))
+      .catch(() => {});
+  }, [token]);
+
+  const loadReport = useCallback(async () => {
+    setLoading(true);
+    try {
+      const now = new Date();
+      let from, to;
+
+      if (dateRange === 'today') {
+        const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+        const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        from = start.toISOString();
+        to = end.toISOString();
+      } else if (dateRange === 'yesterday') {
+        const yest = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const start = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 0, 0, 0);
+        const end = new Date(yest.getFullYear(), yest.getMonth(), yest.getDate(), 23, 59, 59, 999);
+        from = start.toISOString();
+        to = end.toISOString();
+      } else if (dateRange === '1week') {
+        const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        from = start.toISOString();
+        to = now.toISOString();
+      } else if (dateRange === '1month') {
+        const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        from = start.toISOString();
+        to = now.toISOString();
+      } else if (dateRange === 'custom') {
+        if (customFrom) from = new Date(`${customFrom}T00:00:00`).toISOString();
+        if (customTo) to = new Date(`${customTo}T23:59:59.999`).toISOString();
+      }
+
+      const queryParams = {
+        from,
+        to,
+        assignedTo: selectedEmployee || undefined
+      };
+
+      const [analyticsRes, listRes] = await Promise.all([
+        api.followUps.analytics(token, queryParams),
+        api.followUps.list(token, { ...queryParams, limit: 50, sortBy: 'createdAt', sortDirection: 'desc' })
+      ]);
+
+      setAnalyticsData(analyticsRes.data || {});
+      setRecentRows(listRes.data || []);
+    } catch (err) {
+      toast.error(err.message || 'Failed to load follow-up report');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange, customFrom, customTo, selectedEmployee, token]);
+
+  useEffect(() => {
+    loadReport();
+  }, [loadReport]);
+
+  const assigneesMap = analyticsData?.byAssignee || {};
+  const memberEntries = Object.entries(assigneesMap).map(([name, data]) => {
+    const total = data.total || 0;
+    const completed = data.completed || 0;
+    const overdue = data.overdue || 0;
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+    return {
+      name,
+      total,
+      completed,
+      overdue,
+      rate
+    };
+  }).sort((a, b) => b.completed - a.completed);
+
+  const totalCompleted = analyticsData?.completed ?? memberEntries.reduce((sum, m) => sum + m.completed, 0);
+  const totalVolume = analyticsData?.total ?? memberEntries.reduce((sum, m) => sum + m.total, 0);
+  const totalOverdue = analyticsData?.overdue ?? memberEntries.reduce((sum, m) => sum + m.overdue, 0);
+  const completionRate = totalVolume > 0 ? Math.round((totalCompleted / totalVolume) * 100) : 0;
+  const activeMembersCount = memberEntries.length || users.length;
+
+  return (
+    <div className="space-y-4">
+      {/* Top Filter Bar */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3.5 sm:p-4 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Date Filter Chips */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+            {[
+              { id: 'today', label: 'Today' },
+              { id: 'yesterday', label: 'Yesterday' },
+              { id: '1week', label: '1 Week' },
+              { id: '1month', label: '1 Month' },
+              { id: 'all', label: 'All Time' },
+              { id: 'custom', label: 'Custom' }
+            ].map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setDateRange(chip.id)}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer",
+                  dateRange === chip.id
+                    ? "bg-[var(--primary)] text-white shadow-2xs font-bold"
+                    : "bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)]/80"
+                )}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Employee Dropdown Selector + Refresh */}
+          <div className="flex items-center gap-2">
+            <div className="w-[180px] sm:w-[220px]">
+              <Select
+                value={selectedEmployee}
+                onChange={(val) => setSelectedEmployee(val)}
+                options={[
+                  { value: '', label: 'All Members' },
+                  ...users.map((u) => ({ value: u.id, label: u.name || u.full_name || u.email }))
+                ]}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={loadReport}
+              title="Refresh Report"
+              className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface)] transition cursor-pointer shrink-0"
+            >
+              <RefreshCcw size={14} className={loading ? "animate-spin" : ""} />
+            </button>
+          </div>
+        </div>
+
+        {/* Custom Date Range Picker */}
+        {dateRange === 'custom' && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[var(--border-muted)]">
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/70 px-3 py-1.5 text-xs">
+              <span className="font-semibold text-[var(--text-muted)]">From:</span>
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none cursor-pointer"
+              />
+            </div>
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/70 px-3 py-1.5 text-xs">
+              <span className="font-semibold text-[var(--text-muted)]">To:</span>
+              <input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="bg-transparent text-xs font-bold text-[var(--text-main)] outline-none cursor-pointer"
+              />
+            </div>
+            {(customFrom || customTo) && (
+              <button
+                type="button"
+                onClick={() => { setCustomFrom(''); setCustomTo(''); }}
+                className="text-[11px] font-semibold text-rose-500 hover:text-rose-600 transition cursor-pointer underline"
+              >
+                Clear range
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 4 Executive KPI Cards */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Total Completed</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <CheckCircle2 size={16} />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{totalCompleted}</span>
+            <span className="text-xs font-medium text-[var(--text-muted)]">follow-ups</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Completion Rate</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Zap size={16} />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-blue-600 dark:text-blue-400">{completionRate}%</span>
+            <span className="text-xs font-medium text-[var(--text-muted)]">of {totalVolume} total</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Overdue Backlog</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+              <AlertTriangle size={16} />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-rose-600 dark:text-rose-400">{totalOverdue}</span>
+            <span className="text-xs font-medium text-[var(--text-muted)]">pending action</span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-[var(--text-muted)]">Active Team</span>
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+              <UsersRound size={16} />
+            </span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-black text-violet-600 dark:text-violet-400">{activeMembersCount}</span>
+            <span className="text-xs font-medium text-[var(--text-muted)]">agents tracking</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Employee Workload & Performance Leaderboard */}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-[var(--text-main)]">Employee Performance Leaderboard</h3>
+            <p className="text-xs text-[var(--text-muted)]">Who completed how many follow-ups in this period</p>
+          </div>
+          <span className="text-xs font-bold text-[var(--text-muted)] px-2.5 py-1 rounded-full bg-[var(--surface-2)]">
+            {memberEntries.length} Active Members
+          </span>
+        </div>
+
+        {loading ? (
+          <Skeleton className="h-48 rounded-xl" />
+        ) : memberEntries.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted)] text-center py-6">No employee activity recorded for this period.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {memberEntries.map((member, idx) => {
+              const initials = member.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || 'EM';
+              let statusLabel = 'Balanced';
+              let statusTone = 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20';
+              if (member.overdue >= 3) {
+                statusLabel = 'High Risk';
+                statusTone = 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20';
+              } else if (member.rate >= 70 && member.completed >= 1) {
+                statusLabel = 'Top Performer';
+                statusTone = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
+              }
+
+              return (
+                <div
+                  key={member.name}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/30 p-3.5 space-y-3 hover:border-[var(--primary)]/40 transition"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--primary)]/15 text-[var(--primary)] font-bold text-xs shrink-0">
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-[var(--text-main)] truncate">{member.name}</span>
+                          <span className="text-[10px] font-semibold text-[var(--text-muted)]">#{idx + 1}</span>
+                        </div>
+                        <span className={cn("inline-block rounded-md border px-1.5 py-0.2 text-[10px] font-semibold mt-0.5", statusTone)}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">{member.completed}</span>
+                      <span className="text-[11px] text-[var(--text-muted)]"> / {member.total}</span>
+                    </div>
+                  </div>
+
+                  {/* Completion Rate Bar */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-[var(--text-muted)]">Completion</span>
+                      <span className="font-bold text-[var(--text-main)]">{member.rate}%</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300"
+                        style={{ width: `${Math.min(100, member.rate)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Overdue info */}
+                  <div className="flex items-center justify-between text-[11px] pt-1 border-t border-[var(--border-muted)]">
+                    <span className="text-[var(--text-muted)]">Overdue Tasks:</span>
+                    <span className={cn("font-bold", member.overdue > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400")}>
+                      {member.overdue}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Itemized Follow-up Activity Log */}
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-[var(--text-main)]">Recent Follow-up Activity Log</h3>
+            <p className="text-xs text-[var(--text-muted)]">Individual follow-ups logged in this time period</p>
+          </div>
+          <span className="text-xs font-semibold text-[var(--text-muted)]">{recentRows.length} Records</span>
+        </div>
+
+        {loading ? (
+          <Skeleton className="h-40 rounded-xl" />
+        ) : recentRows.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted)] text-center py-6">No activity records found for this period.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-[var(--border)] text-[var(--text-muted)] uppercase tracking-wider font-semibold text-[10px]">
+                  <th className="py-2.5 px-3">Lead / Client</th>
+                  <th className="py-2.5 px-3">Assignee</th>
+                  <th className="py-2.5 px-3">Type</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3">Outcome / Notes</th>
+                  <th className="py-2.5 px-3">Date</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-muted)]">
+                {recentRows.map((row) => {
+                  const leadRoute = entityRoute(row);
+                  return (
+                    <tr key={row.id} className="hover:bg-[var(--surface-2)]/40 transition">
+                      <td className="py-2.5 px-3 font-semibold text-[var(--text-main)]">
+                        {leadRoute ? (
+                          <button
+                            type="button"
+                            onClick={() => navigate(leadRoute)}
+                            className="inline-flex items-center gap-1 hover:text-[var(--primary)] transition cursor-pointer text-left"
+                          >
+                            <span>{row.relatedEntityLabel || row.companyName || 'Lead'}</span>
+                            <ExternalLink size={10} className="opacity-60" />
+                          </button>
+                        ) : (
+                          <span>{row.relatedEntityLabel || row.companyName || 'Lead'}</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-[var(--text-muted)]">{row.assigneeName || 'Unassigned'}</td>
+                      <td className="py-2.5 px-3 text-[var(--text-muted)]">{row.followUpType || 'Call'}</td>
+                      <td className="py-2.5 px-3">{renderStatusPill(row.effectiveStatus || row.status, true)}</td>
+                      <td className="py-2.5 px-3 max-w-[240px] truncate text-[var(--text-muted)]">
+                        {row.discussionNote || row.actualOutcome || row.description || '—'}
+                      </td>
+                      <td className="py-2.5 px-3 text-[var(--text-muted)] whitespace-nowrap">{formatDateTime(row.dueAt || row.updatedAt)}</td>
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => onAction('details', row)}
+                          className="px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition text-[11px] font-medium cursor-pointer"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function FollowUpsPage() {
   const { token, hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -2415,6 +3177,9 @@ export function FollowUpsPage() {
 
   const loadRows = useCallback(async () => {
     const query = { search: debouncedSearch, status: filters.status, priority: filters.priority, quickFilter: filters.quickFilter !== 'all' ? filters.quickFilter : undefined, page: filters.page, limit: filters.limit || 10 };
+    if (activeTab === 'visit') {
+      query.followUpTypes = VISIT_FOLLOW_UP_TYPES.join(',');
+    }
     if (activeTab === 'calendar') {
       query.from = new Date(month.getFullYear(), month.getMonth(), 1).toISOString();
       query.to = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString();
@@ -2439,11 +3204,12 @@ export function FollowUpsPage() {
   const refresh = useCallback(async (showLoader = true) => {
     if (showLoader) setLoading(true);
     try {
-      if (activeTab === 'today') await loadToday();
-      else if (['list', 'calendar'].includes(activeTab)) await loadRows();
-      else if (activeTab === 'attention') await loadAttention();
-      else if (['analytics', 'workload'].includes(activeTab)) await Promise.all([loadAnalytics(), activeTab === 'workload' ? loadRows() : Promise.resolve()]);
-      else if (activeTab === 'automation') await loadOptions();
+      const summaryLoads = [loadToday(), loadAttention()];
+      if (activeTab === 'today') await Promise.all(summaryLoads);
+      else if (['list', 'visit', 'calendar'].includes(activeTab)) await Promise.all([...summaryLoads, loadRows()]);
+      else if (activeTab === 'attention') await Promise.all(summaryLoads);
+      else if (['analytics', 'workload'].includes(activeTab)) await Promise.all([...summaryLoads, loadAnalytics(), activeTab === 'workload' ? loadRows() : Promise.resolve()]);
+      else if (activeTab === 'automation') await Promise.all([...summaryLoads, loadOptions()]);
     } catch (error) {
       toast.error(error.message || 'Unable to load follow-ups');
     } finally {
@@ -2460,9 +3226,39 @@ export function FollowUpsPage() {
     api.followUps.get(token, focus).then((response) => setDetails(response.data)).catch(() => {});
   }, [searchParams, token]);
 
+  useEffect(() => {
+    const view = searchParams.get('view');
+    if (view && tabs.some((item) => item.id === view) && view !== activeTab) {
+      setActiveTab(view);
+    }
+  }, [searchParams, activeTab]);
+
+  function handleScheduleNext(item) {
+    setFormState({
+      open: true,
+      initial: {
+        relatedEntityType: item.relatedEntityType || 'Lead',
+        relatedEntityId: item.relatedEntityId,
+        relatedEntityLabel: item.relatedEntityLabel,
+        clientPhone: item.relatedPhone || item.phone,
+        purpose: 'Follow-up regarding previous discussion',
+        title: `Follow-up with ${item.relatedEntityLabel || 'Lead'}`
+      }
+    });
+  }
+
   function changeTab(tab) {
     setActiveTab(tab);
     setSearchParams({ view: tab });
+    if (['list', 'visit'].includes(tab)) {
+      setFilters((current) => ({
+        ...current,
+        quickFilter: 'all',
+        status: '',
+        priority: '',
+        page: 1
+      }));
+    }
   }
 
   function handleSaved() {
@@ -2472,8 +3268,13 @@ export function FollowUpsPage() {
   }
 
   function handleSelectAssignee(assigneeName) {
-    setFilters((c) => ({ ...c, search: assigneeName, page: 1, quickFilter: 'all', status: '' }));
     changeTab('list');
+    setFilters((c) => ({ ...c, search: assigneeName, page: 1, quickFilter: 'all', status: '', priority: '' }));
+  }
+
+  function showQuickList(quickFilter) {
+    changeTab('list');
+    setFilters((c) => ({ ...c, quickFilter, status: '', priority: '', page: 1 }));
   }
 
   async function handleAction(action, item) {
@@ -2518,6 +3319,9 @@ export function FollowUpsPage() {
     upcoming: todayData?.sections?.upcoming?.length ?? 0
   };
   const visibleTabs = tabs.filter((item) => !['analytics'].includes(item.id) || hasPermission('followups.analytics', 'followups.view_all'));
+  const attentionBadge = attention
+    ? (attention.counts?.overdue || 0) + (attention.counts?.missingNextAction || 0)
+    : 0;
 
   return (
     <div className="space-y-4">
@@ -2525,12 +3329,12 @@ export function FollowUpsPage() {
       <div className="flex items-center justify-between gap-3">
         {/* 6 Compact KPI Cards */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:flex xl:items-center xl:gap-2 overflow-x-auto pb-1 xl:pb-0 flex-1 min-w-0">
-          <Metric label="Overdue" value={counts.overdue} helper="late" icon={AlertTriangle} tone="rose" active={activeTab === 'list' && filters.quickFilter === 'overdue'} onClick={() => { changeTab('list'); setFilters((c) => ({ ...c, quickFilter: 'overdue', page: 1 })); }} />
-          <Metric label="Due today" value={counts.dueToday} helper="queue" icon={Clock3} tone="blue" active={activeTab === 'list' && filters.quickFilter === 'due_today'} onClick={() => { changeTab('list'); setFilters((c) => ({ ...c, quickFilter: 'due_today', page: 1 })); }} />
-          <Metric label="Critical" value={counts.critical} helper="risk" icon={Flame} tone="amber" active={activeTab === 'list' && filters.quickFilter === 'critical'} onClick={() => { changeTab('list'); setFilters((c) => ({ ...c, quickFilter: 'critical', page: 1 })); }} />
-          <Metric label="Waiting" value={(counts.waitingForClient || 0) + (counts.waitingForInternalTeam || 0)} helper="pending" icon={TimerReset} tone="violet" active={activeTab === 'list' && filters.status === 'Waiting for Client'} onClick={() => { changeTab('list'); setFilters((c) => ({ ...c, status: 'Waiting for Client', quickFilter: 'all', page: 1 })); }} />
+          <Metric label="Overdue" value={counts.overdue} helper="late" icon={AlertTriangle} tone="rose" active={activeTab === 'list' && filters.quickFilter === 'overdue'} onClick={() => showQuickList('overdue')} />
+          <Metric label="Due today" value={counts.dueToday} helper="queue" icon={Clock3} tone="blue" active={activeTab === 'list' && filters.quickFilter === 'due_today'} onClick={() => showQuickList('due_today')} />
+          <Metric label="Critical" value={counts.critical} helper="risk" icon={Flame} tone="amber" active={activeTab === 'list' && filters.quickFilter === 'critical'} onClick={() => showQuickList('critical')} />
+          <Metric label="Waiting" value={(counts.waitingForClient || 0) + (counts.waitingForInternalTeam || 0)} helper="pending" icon={TimerReset} tone="violet" active={activeTab === 'list' && filters.status === 'Waiting for Client'} onClick={() => { changeTab('list'); setFilters((c) => ({ ...c, status: 'Waiting for Client', priority: '', quickFilter: 'all', page: 1 })); }} />
           <Metric label="Unassigned" value={counts.unassigned || analytics?.unassigned} helper="leads" icon={UserRound} tone="violet" active={activeTab === 'attention'} onClick={() => changeTab('attention')} />
-          <Metric label="Missing action" value={counts.missingNextAction} helper="actions" icon={ShieldAlert} tone="rose" active={activeTab === 'list' && filters.quickFilter === 'missing_next_action'} onClick={() => { changeTab('list'); setFilters((c) => ({ ...c, quickFilter: 'missing_next_action', page: 1 })); }} />
+          <Metric label="Missing action" value={counts.missingNextAction} helper="actions" icon={ShieldAlert} tone="rose" active={activeTab === 'attention'} onClick={() => changeTab('attention')} />
         </div>
 
         {/* Add Follow-Up Button on Right */}
@@ -2538,7 +3342,10 @@ export function FollowUpsPage() {
           <Button
             type="button"
             size="icon"
-            onClick={() => setFormState({ open: true, initial: null })}
+            onClick={() => setFormState({
+              open: true,
+              initial: activeTab === 'visit' ? { followUpType: 'Visit', purpose: 'Visit / Meeting' } : null
+            })}
             title="Schedule Follow-up"
             className="!rounded-xl h-9 w-9 font-semibold shadow-2xs bg-[var(--primary)] text-white hover:brightness-105 transition-all shrink-0"
           >
@@ -2567,12 +3374,12 @@ export function FollowUpsPage() {
             >
               <Icon size={15} />
               <span>{tab.label}</span>
-              {tab.id === 'attention' && (attention?.counts?.overdue || counts.overdue) ? (
+              {tab.id === 'attention' && attentionBadge > 0 ? (
                 <span className={cn(
                   "inline-flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-extrabold leading-none shrink-0",
                   active ? "bg-white/30 text-white" : "bg-rose-500 text-white"
                 )}>
-                  {(attention?.counts?.overdue || 0) + (attention?.counts?.missingNextAction || 0)}
+                  {attentionBadge}
                 </span>
               ) : null}
             </button>
@@ -2582,6 +3389,9 @@ export function FollowUpsPage() {
 
       {activeTab === 'today' ? <TodayView data={todayData} loading={loading} onAction={handleAction} /> : null}
       {activeTab === 'list' ? <ListView rows={rows} meta={meta} filters={filters} setFilters={setFilters} counts={counts} loading={loading} onAction={handleAction} onRefresh={refresh} /> : null}
+      {activeTab === 'completed' ? <CompletedFollowUpsView options={options} onAction={handleAction} onScheduleNext={handleScheduleNext} /> : null}
+      {activeTab === 'report' ? <FollowUpReportView onAction={handleAction} /> : null}
+      {activeTab === 'visit' ? <ListView rows={rows} meta={meta} filters={filters} setFilters={setFilters} counts={counts} loading={loading} onAction={handleAction} onRefresh={refresh} title="Visit follow-ups" description="Client-site and office-visit meetings." /> : null}
       {activeTab === 'calendar' ? <CalendarView rows={rows} month={month} setMonth={setMonth} onAction={handleAction} onCreate={(initial) => setFormState({ open: true, initial })} loading={loading} /> : null}
       {activeTab === 'attention' ? <AttentionView data={attention} loading={loading} onCreate={(initial) => setFormState({ open: true, initial })} onAction={handleAction} /> : null}
       {activeTab === 'analytics' ? <AnalyticsView data={analytics} loading={loading} /> : null}

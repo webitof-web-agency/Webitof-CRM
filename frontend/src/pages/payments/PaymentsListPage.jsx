@@ -15,6 +15,7 @@ import { SearchableSelect } from '../../components/forms/SearchableSelect';
 import { PaymentFormModal } from '../../components/forms/PaymentFormModal';
 import { exportToCsv } from '../../lib/exportCsv';
 import { getInvoiceStatusTone, getPaymentStatusTone, PAYMENT_STATUS_OPTIONS } from '../../lib/paymentStatus';
+import { invoiceRoute, paymentRoute } from '../../utils/entityRoutes';
 
 const TONE_COLORS = {
   success: '#10b981',
@@ -113,7 +114,7 @@ export function PaymentsListPage() {
           <div>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); navigate(`/app/invoices/${inv.id}`); }}
+              onClick={(e) => { e.stopPropagation(); navigate(invoiceRoute(inv)); }}
               className="text-xs font-semibold text-[var(--primary)] hover:underline"
             >
               #{inv.invoiceNumber || inv.id}
@@ -298,7 +299,7 @@ export function PaymentsListPage() {
               size="icon"
               onClick={(event) => {
                 event.stopPropagation();
-                navigate(`/app/payments/${row.id}`);
+                navigate(paymentRoute(row));
               }}
               title="View Payment"
             >

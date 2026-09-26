@@ -96,7 +96,11 @@ projectsController.remove = async (req, res, next) => {
 
 projectsController.summary = async (req, res, next) => {
   try {
-    const result = await buildProjectSummary(req.params.id);
+    const project = await projectModel.findById(req.params.id);
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+    const result = await buildProjectSummary(project.id);
     if (!result) {
       return res.status(404).json({ success: false, message: 'Project not found' });
     }

@@ -40,6 +40,7 @@ import {
   getLeadTemperatureColor,
   getLeadPriorityColor
 } from '../config/leadManagement';
+import { leadRoute } from '../utils/entityRoutes';
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -612,7 +613,7 @@ function RowActionsDropdown({ row, navigate, canCreate, canDelete, setEditingDat
       {open && (
         <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-[var(--surface)] p-1.5 shadow-modal border border-[var(--border)] z-50 text-left animate-in fade-in zoom-in-95 duration-100">
           <Link
-            to={`/app/leads/${row.id}`}
+            to={leadRoute(row)}
             onClick={(e) => {
               e.stopPropagation();
               setOpen(false);
@@ -1250,7 +1251,7 @@ export function LeadsPage() {
       key: 'name', label: 'Lead', render: (row) => (
         <div className="min-w-36">
           <Link
-            to={`/app/leads/${row.id}`}
+            to={leadRoute(row)}
             onClick={(e) => e.stopPropagation()}
             className="font-medium text-[var(--text-main)] hover:text-[var(--primary)] hover:underline transition-colors block"
           >
@@ -2129,7 +2130,7 @@ export function LeadsPage() {
           pageSize={pageSize}
           onPageChange={setPage}
           onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
-          onRowClick={(row) => navigate(`/app/leads/${row.id}`)}
+          onRowClick={(row) => navigate(leadRoute(row))}
           rowActions={(row) => (
             <RowActionsDropdown
               row={row}
@@ -2156,7 +2157,7 @@ export function LeadsPage() {
             statusColors={statusColors}
             labelColors={labelColors}
             onStatusChange={handleStatusChange}
-            onLeadClick={(lead) => navigate(`/app/leads/${lead.id}`)}
+            onLeadClick={(lead) => navigate(leadRoute(lead))}
             onLeadEdit={canCreate ? (lead) => {
               setEditingData(lead);
               setFormOpen(true);

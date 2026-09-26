@@ -15,6 +15,7 @@ import { SearchableSelect } from '../../components/forms/SearchableSelect';
 import { InvoiceExportModal } from '../../components/invoices/InvoiceExportModal';
 import { formatFinancialYear } from '../../lib/financialYear';
 import { normalizeInvoiceNumber } from '../../lib/invoiceNumber';
+import { invoiceRoute } from '../../utils/entityRoutes';
 
 export function InvoicesListPage() {
   const { token, hasPermission } = useAuth();
@@ -230,11 +231,11 @@ export function InvoicesListPage() {
         onPageSizeChange={(s) => { setPageSize(s); setPage(1); }}
         rowActions={(row) => (
           <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" size="icon" onClick={() => navigate(`/app/invoices/${row.id}`)} title="View Document">
+            <Button variant="ghost" size="icon" onClick={() => navigate(invoiceRoute(row))} title="View Document">
               <Eye size={16} />
             </Button>
             {canCreate && ['Draft', 'Sent'].includes(row.status) && (
-              <Button variant="ghost" size="icon" onClick={() => navigate(`/app/invoices/${row.id}/edit`)} title="Edit Draft">
+              <Button variant="ghost" size="icon" onClick={() => navigate(invoiceRoute(row, 'edit'))} title="Edit Draft">
                 <Edit3 size={16} />
               </Button>
             )}

@@ -11,6 +11,7 @@ import { Modal } from '../../components/ui/Modal';
 import { PaymentFormModal } from '../../components/forms/PaymentFormModal';
 import { Badge } from '../../components/ui/Badge';
 import { getInvoiceStatusTone, getPaymentStatusTone } from '../../lib/paymentStatus';
+import { canonicalRoute, clientRoute, invoiceRoute, paymentRoute, projectRoute } from '../../utils/entityRoutes';
 
 export function PaymentDetailPage() {
   const { id } = useParams();
@@ -90,6 +91,12 @@ export function PaymentDetailPage() {
     loadData();
     return () => { mounted = false; };
   }, [id, token, navigate]);
+
+  useEffect(() => {
+    if (!payment?.id) return;
+    const next = canonicalRoute('payments', payment, `/app/payments/${id}`);
+    if (next) navigate(next, { replace: true });
+  }, [id, navigate, payment]);
 
   if (loading) return <PageLoader />;
   if (!payment) return null;
@@ -230,7 +237,7 @@ export function PaymentDetailPage() {
             {client && (
               <div 
                 className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
-                onClick={() => navigate(`/app/clients/${client.id}`)}
+                onClick={() => navigate(clientRoute(client))}
               >
                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                   <Building size={20} />
@@ -245,7 +252,7 @@ export function PaymentDetailPage() {
             {invoice && (
               <div 
                 className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
-                onClick={() => navigate(`/app/invoices/${invoice.id}`)}
+                onClick={() => navigate(invoiceRoute(invoice))}
               >
                 <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
                   <FileText size={20} />
@@ -263,7 +270,7 @@ export function PaymentDetailPage() {
             {project && (
               <div 
                 className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
-                onClick={() => navigate(`/app/projects/${project.id}`)}
+                onClick={() => navigate(projectRoute(project))}
               >
                 <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
                   <Briefcase size={20} />

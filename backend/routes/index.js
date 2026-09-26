@@ -52,6 +52,7 @@ invoicesPublicRouter.get('/public/:id', invoicesController.getPublic);
 router.use('/invoices', invoicesPublicRouter);
 
 router.use(requireAuth);
+router.use('/hrm', require('./hrm.routes'));
 router.use('/events', eventsRoutes);
 router.use('/leads', leadsRoutes);
 router.use('/lead-pipelines', leadPipelinesRoutes);

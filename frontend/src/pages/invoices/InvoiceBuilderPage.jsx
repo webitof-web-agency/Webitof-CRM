@@ -20,6 +20,7 @@ import { normalizeInvoiceNumber } from '../../lib/invoiceNumber';
 import {
   determineTaxType, getTaxLabel, validateGSTIN
 } from '../../lib/taxCalculator';
+import { invoiceRoute } from '../../utils/entityRoutes';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -828,7 +829,7 @@ export function InvoiceBuilderPage() {
         const res = await api.resources.create('/invoices', payload, token);
         toast.success('Invoice created');
         const newId = res.data?.id;
-        if (newId) { navigate(`/app/invoices/${newId}`); return; }
+        if (newId) { navigate(invoiceRoute(res.data)); return; }
       }
       navigate('/app/invoices');
     } catch (err) {

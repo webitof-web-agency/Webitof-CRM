@@ -14,8 +14,10 @@ export function ConvertLeadModal({ open, onClose, lead, targetStatus, onSuccess 
   const [previewLoading, setPreviewLoading] = useState(false);
   const [duplicateClients, setDuplicateClients] = useState([]);
   const [clientChoice, setClientChoice] = useState('new');
-  const [createProject, setCreateProject] = useState(false);
+  const [createProject, setCreateProject] = useState(true);
   const [projectTitle, setProjectTitle] = useState('');
+  const [createDraftInvoice, setCreateDraftInvoice] = useState(true);
+  const [invoiceAdvanceOnly, setInvoiceAdvanceOnly] = useState(true);
 
   useEffect(() => {
     if (!open || !lead?.id) return;
@@ -50,13 +52,22 @@ export function ConvertLeadModal({ open, onClose, lead, targetStatus, onSuccess 
           existingClientId: clientChoice === 'new' ? '' : clientChoice,
           forceCreateClient: clientChoice === 'new',
           createProject,
-          projectTitle: createProject ? projectTitle : ''
+          projectTitle: createProject ? projectTitle : '',
+          createDraftInvoice,
+          invoiceAdvanceOnly
         }
       });
       api.cache.invalidate('/leads');
       api.cache.invalidate('/clients');
       api.cache.invalidate('/projects');
-      toast.success(createProject ? 'Lead converted to client and project' : 'Lead converted to client');
+      api.cache.invalidate('/invoices');
+      toast.success(
+        createDraftInvoice
+          ? 'Lead converted to client, project & draft invoice'
+          : createProject
+          ? 'Lead converted to client and project'
+          : 'Lead converted to client'
+      );
       onSuccess?.(response);
       onClose();
     } catch (error) {
@@ -106,17 +117,48 @@ export function ConvertLeadModal({ open, onClose, lead, targetStatus, onSuccess 
           <SearchableSelect value={clientChoice} onChange={setClientChoice} options={clientOptions} placeholder={previewLoading ? 'Checking clients...' : 'Select existing or create new'} allowClear={false} disabled={previewLoading} />
         </label>
 
-        <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
-          <input type="checkbox" checked={createProject} onChange={(event) => setCreateProject(event.target.checked)} />
-          Create project
-        </label>
-
-        {createProject ? (
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-slate-700">Project title</span>
-            <Input value={projectTitle} onChange={(event) => setProjectTitle(event.target.value)} />
+        <div className="space-y-3 pt-1 border-t border-slate-200 dark:border-slate-800">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
+            <input
+              type="checkbox"
+              className="rounded text-blue-600"
+              checked={createProject}
+              onChange={(event) => setCreateProject(event.target.checked)}
+            />
+            Create active project for client
           </label>
-        ) : null}
+
+          {createProject ? (
+            <label className="block pl-6">
+              <span className="mb-1.5 block text-xs font-semibold text-slate-600 dark:text-slate-400">Project Title</span>
+              <Input value={projectTitle} onChange={(event) => setProjectTitle(event.target.value)} />
+            </label>
+          ) : null}
+
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 cursor-pointer">
+            <input
+              type="checkbox"
+              className="rounded text-emerald-600"
+              checked={createDraftInvoice}
+              onChange={(event) => setCreateDraftInvoice(event.target.checked)}
+            />
+            Generate initial draft invoice
+          </label>
+
+          {createDraftInvoice ? (
+            <div className="pl-6 space-y-2">
+              <label className="flex items-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-400 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="rounded text-emerald-600"
+                  checked={invoiceAdvanceOnly}
+                  onChange={(event) => setInvoiceAdvanceOnly(event.target.checked)}
+                />
+                50% Milestone Advance ({lead?.estimatedBudget ? `₹${Math.round(Number(lead.estimatedBudget) * 0.5).toLocaleString('en-IN')}` : 'Half of estimated budget'})
+              </label>
+            </div>
+          ) : null}
+        </div>
       </form>
     </Modal>
   );

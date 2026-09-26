@@ -18,6 +18,7 @@ const bankAccountModel = require('../models/bankAccount.model');
 const bankTransactionModel = require('../models/bankTransaction.model');
 const leadContactModel = require('../models/leadContact.model');
 const clientContactModel = require('../models/clientContact.model');
+const leadEventModel = require('../models/leadEvent.model');
 const { createId, nowIso } = require('../utils/format');
 
 async function seed() {
@@ -735,6 +736,139 @@ async function seed() {
           jobTitle: contact.jobTitle,
           gender: 'Other',
           notes: contact.notes
+        });
+      }
+
+      if (lead.companyName === 'Das Consultancy') {
+        await leadEventModel.create({
+          id: 'lead-event_das_call_rec_001',
+          leadId: createdLead.id,
+          scopeType: 'lead',
+          scopeId: createdLead.id,
+          ownerUserId: supportId,
+          eventType: 'call',
+          title: 'Outgoing call - Connected',
+          description: 'Discovery & requirement call with Arjun Das. Discussed basic CRM client management needs referred by Priya. Client confirmed interest in Starter CRM solution and requested proposal.',
+          startDate: '2026-08-10',
+          startTime: '11:30',
+          endDate: '2026-08-10',
+          labels: ['call', 'connected'],
+          color: '#10b981',
+          payload: {
+            kind: 'call_logged',
+            callType: 'Outgoing',
+            callOutcome: 'Connected',
+            callDuration: 210,
+            callerNumber: lead.phone || '+91 9666655555',
+            callRecordingUrl: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+            consentConfirmed: true,
+            actorName: 'Support Executive',
+            demoSeed: 'das_call_recording_seed',
+            aiTakeaways: {
+              summary: 'Comprehensive requirement discovery with Arjun Das. Client needs a modern dynamic website and CRM client portal for Das Consultancy tax advisory practice.',
+              requirements: [
+                'Corporate Website with appointment booking system',
+                'Client Portal for secure document exchange & GST invoices',
+                'Target launch deadline: End of next month'
+              ],
+              objections: [
+                'Requested 50% milestone advance instead of 100% upfront payment'
+              ],
+              nextSteps: [
+                'Send revised proposal and commercial breakdown by tomorrow 2 PM'
+              ],
+              sentiment: 'High Intent (88%)',
+              sentimentType: 'positive'
+            }
+          },
+          attachments: [
+            {
+              id: 'das_call_rec_file_01',
+              name: 'Call_Recording_Das_Consultancy.ogg',
+              kind: 'call_recording',
+              url: 'https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg',
+              size: '2.4 MB'
+            }
+          ]
+        });
+
+        await leadEventModel.create({
+          id: 'lead-event_das_call_002',
+          leadId: createdLead.id,
+          scopeType: 'lead',
+          scopeId: createdLead.id,
+          ownerUserId: supportId,
+          eventType: 'call',
+          title: 'Outgoing call - Busy',
+          description: 'Attempted quick follow-up. Client was busy in an audit consultation, requested callback in the evening.',
+          startDate: '2026-08-08',
+          startTime: '16:45',
+          endDate: '2026-08-08',
+          labels: ['call', 'busy'],
+          color: '#f59e0b',
+          payload: {
+            kind: 'call_logged',
+            callType: 'Outgoing',
+            callOutcome: 'Busy',
+            callDuration: 0,
+            callerNumber: lead.phone || '+91 9666655555',
+            callRecordingUrl: '',
+            consentConfirmed: false,
+            actorName: 'Support Executive',
+            demoSeed: 'das_call_recording_seed'
+          },
+          attachments: []
+        });
+
+        await leadEventModel.create({
+          id: 'lead-event_das_call_003',
+          leadId: createdLead.id,
+          scopeType: 'lead',
+          scopeId: createdLead.id,
+          ownerUserId: supportId,
+          eventType: 'call',
+          title: 'Incoming call - Discussion Done',
+          description: 'Inbound inquiry from Sneha Das (Partner) asking about multi-user access and billing modules for their Kolkata consulting practice.',
+          startDate: '2026-08-05',
+          startTime: '14:15',
+          endDate: '2026-08-05',
+          labels: ['call', 'incoming', 'connected'],
+          color: '#10b981',
+          payload: {
+            kind: 'call_logged',
+            callType: 'Incoming',
+            callOutcome: 'Discussion Done',
+            callDuration: 105,
+            callerNumber: '+91 9810077001',
+            callRecordingUrl: 'https://actions.google.com/sounds/v1/ambiences/outdoor_market.ogg',
+            consentConfirmed: true,
+            actorName: 'Support Executive',
+            demoSeed: 'das_call_recording_seed',
+            aiTakeaways: {
+              summary: 'Sneha Das called to clarify multi-user team hierarchy and billing modules for their 5-partner Kolkata office.',
+              requirements: [
+                'Role-based permissions for 5 consultant partners',
+                'Automated invoice PDF generation with digital signature'
+              ],
+              objections: [
+                'Clarified GST 18% input credit applicability on software services'
+              ],
+              nextSteps: [
+                'Schedule 20-minute screen demo with all partners on Friday'
+              ],
+              sentiment: 'Positive / Decision Maker Engaged (92%)',
+              sentimentType: 'positive'
+            }
+          },
+          attachments: [
+            {
+              id: 'das_call_rec_file_02',
+              name: 'Call_Recording_Inbound_Inquiry.ogg',
+              kind: 'call_recording',
+              url: 'https://actions.google.com/sounds/v1/ambiences/outdoor_market.ogg',
+              size: '1.8 MB'
+            }
+          ]
         });
       }
     }

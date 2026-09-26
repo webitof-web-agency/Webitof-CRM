@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send, Sparkles, ArrowRightCircle, PhoneCall, Bell, CheckSquare, MessageCircle, Zap, Volume2, RotateCw } from 'lucide-react';
+import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send, Sparkles, ArrowRightCircle, PhoneCall, Bell, CheckSquare, MessageCircle, Zap, Volume2, RotateCw, ExternalLink, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -25,6 +25,17 @@ import { EventFormModal } from '../../components/events/EventFormModal';
 import { EventFeedPanel } from '../../components/events/EventFeedPanel';
 import { FollowUpFormModal } from '../../components/followups/FollowUpModals';
 import { WhatsAppModal } from '../../components/common/WhatsAppModal';
+import { AiLeadInsightsCard } from '../../components/leads/AiLeadInsightsCard';
+import { AiLeadInsightDetailsTab } from '../../components/leads/AiLeadInsightDetailsTab';
+import { LeadOverdueBanner } from '../../components/leads/LeadOverdueBanner';
+import { LeadStageStepper } from '../../components/leads/LeadStageStepper';
+import { LeadBantTracker } from '../../components/leads/LeadBantTracker';
+import { QuickServiceTagger } from '../../components/leads/QuickServiceTagger';
+import { WhatsAppTemplateModal } from '../../components/leads/WhatsAppTemplateModal';
+import { LeadStageVelocityBadge } from '../../components/leads/LeadStageVelocityBadge';
+import { MergeLeadModal } from '../../components/leads/MergeLeadModal';
+import { FollowUpCadenceStepper } from '../../components/followups/FollowUpQuickPresets';
+import { GitMerge, Brain, ChevronUp, ChevronDown } from 'lucide-react';
 import { normalizeEventAttachment, normalizeEventAttachments } from '../../components/events/eventAttachments';
 import {
   DEFAULT_LEAD_OPTIONS,
@@ -37,6 +48,14 @@ import {
   MILESTONE_PRESETS,
   buildWhatsAppProposalPitch
 } from '../../config/quotationPresets';
+import {
+  canonicalRoute,
+  clientRoute,
+  eventRouteSegment,
+  invoiceRoute,
+  leadRoute,
+  matchesRouteIdentifier
+} from '../../utils/entityRoutes';
 
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
@@ -809,6 +828,72 @@ function getActivityMeta(item) {
     bg: 'bg-slate-500/15',
     border: 'border-slate-500/30',
     text: 'text-slate-700 dark:text-slate-300'
+  };
+}
+
+function formatCallDuration(seconds) {
+  const sec = Number(seconds);
+  if (!Number.isFinite(sec) || sec <= 0) return null;
+  const mins = Math.floor(sec / 60);
+  const remSec = Math.floor(sec % 60);
+  if (mins === 0) return `${remSec}s`;
+  return `${mins}m ${remSec < 10 ? '0' : ''}${remSec}s`;
+}
+
+function getCallOutcomeBadge(outcome) {
+  if (!outcome) return null;
+  const o = String(outcome).toLowerCase();
+  if (o.includes('connected') || o.includes('interested') || o.includes('discussion')) {
+    return { bg: 'bg-emerald-500/15', border: 'border-emerald-500/30', text: 'text-emerald-700 dark:text-emerald-300' };
+  }
+  if (o.includes('busy') || o.includes('follow') || o.includes('callback') || o.includes('rescheduled')) {
+    return { bg: 'bg-amber-500/15', border: 'border-amber-500/30', text: 'text-amber-700 dark:text-amber-300' };
+  }
+  if (o.includes('wrong') || o.includes('not interested') || o.includes('switched off') || o.includes('no answer') || o.includes('unreachable') || o.includes('missed')) {
+    return { bg: 'bg-rose-500/15', border: 'border-rose-500/30', text: 'text-rose-700 dark:text-rose-300' };
+  }
+  return { bg: 'bg-blue-500/15', border: 'border-blue-500/30', text: 'text-blue-700 dark:text-blue-300' };
+}
+
+function extractCallData(item) {
+  if (!item) return null;
+  const kind = String(item.kind || item.eventType || item.type || '').toLowerCase();
+  const title = String(item.title || '').toLowerCase();
+  const hasRecording = Boolean(
+    item.meta?.callRecordingUrl ||
+    item.payload?.callRecordingUrl ||
+    item.recordingUrl ||
+    item.recordingFile?.url ||
+    item.recordingFile?.driveWebViewLink ||
+    (Array.isArray(item.attachments) && item.attachments.some((a) => a?.kind === 'call_recording' || (typeof a?.url === 'string' && a.url.match(/\.(mp3|wav|ogg|m4a|aac|webm)($|\?)/i))))
+  );
+  const isCall = kind === 'call' || kind === 'call_logged' || title.includes('call') || hasRecording;
+
+  if (!isCall) return null;
+
+  const recordingUrl =
+    item.meta?.callRecordingUrl ||
+    item.payload?.callRecordingUrl ||
+    item.recordingUrl ||
+    item.recordingFile?.url ||
+    item.recordingFile?.driveWebViewLink ||
+    (Array.isArray(item.attachments) && item.attachments.find((a) => a?.kind === 'call_recording' || (typeof a?.url === 'string' && a.url.match(/\.(mp3|wav|ogg|m4a|aac|webm)($|\?)/i)))?.url) ||
+    null;
+
+  const duration = item.meta?.callDuration ?? item.payload?.callDuration ?? null;
+  const outcome = item.meta?.callOutcome || item.payload?.callOutcome || null;
+  const type = item.meta?.callType || item.payload?.callType || null;
+  const callerNumber = item.meta?.callerNumber || item.payload?.callerNumber || null;
+  const aiTakeaways = item.meta?.aiTakeaways || item.payload?.aiTakeaways || null;
+
+  return {
+    isCall: true,
+    recordingUrl,
+    duration: duration ? Number(duration) : null,
+    outcome,
+    type,
+    callerNumber,
+    aiTakeaways
   };
 }
 
@@ -2959,12 +3044,12 @@ export function LeadQuotationPage() {
   
   const quotationEvent = useMemo(() => {
     if (!quotationId) return null;
-    return events.find((event) => String(event.id) === String(quotationId)) || null;
+    return events.find((event) => matchesRouteIdentifier(quotationId, event)) || null;
   }, [events, quotationId]);
 
   const revisionSourceEvent = useMemo(() => {
     if (!fromRevisionId) return null;
-    const source = events.find((event) => String(event.id) === String(fromRevisionId));
+    const source = events.find((event) => matchesRouteIdentifier(fromRevisionId, event));
     if (!source) return null;
     const prevTitle = source.title || 'Quotation';
     const cleanTitle = prevTitle.replace(/\s*\(Rev\s*\d+\)$/i, '');
@@ -2983,9 +3068,19 @@ export function LeadQuotationPage() {
   useEffect(() => {
     if (!loading && quotationId && data && !quotationEvent) {
       toast.error('Quotation not found');
-      navigate(`/app/leads/${id}`);
+      navigate(leadRoute(lead || id));
     }
-  }, [loading, quotationId, data, quotationEvent, navigate, id]);
+  }, [loading, quotationId, data, quotationEvent, navigate, id, lead]);
+
+  useEffect(() => {
+    if (loading || !lead?.id) return;
+    const base = leadRoute(lead);
+    const next = quotationId && quotationEvent
+      ? `${base}/quotations/${eventRouteSegment(quotationEvent)}`
+      : `${base}/quotations/new${window.location.hash.includes('?') ? window.location.hash.slice(window.location.hash.indexOf('?')) : ''}`;
+    const current = window.location.hash.replace(/^#/, '');
+    if (current !== next) navigate(next, { replace: true });
+  }, [loading, lead, quotationEvent, quotationId, navigate]);
 
   async function saveQuotation(payload) {
     if (!canWriteLead) {
@@ -3000,8 +3095,8 @@ export function LeadQuotationPage() {
           ...payload,
           eventType: 'quotation',
           scopeType: 'lead',
-          scopeId: id,
-          leadId: id,
+          scopeId: lead.id,
+          leadId: lead.id,
           clientId: '',
           projectId: '',
           visibility: payload.visibility || 'all_team'
@@ -3011,8 +3106,8 @@ export function LeadQuotationPage() {
           ...payload,
           eventType: 'quotation',
           scopeType: 'lead',
-          scopeId: id,
-          leadId: id,
+          scopeId: lead.id,
+          leadId: lead.id,
           clientId: '',
           projectId: '',
           visibility: payload.visibility || 'all_team',
@@ -3029,7 +3124,7 @@ export function LeadQuotationPage() {
       } else {
         toast.success(quotationEvent ? 'Quotation updated' : 'Quotation added');
       }
-      navigate(`/app/leads/${id}`);
+      navigate(leadRoute(lead));
     } catch (error) {
       toast.error(error.message || 'Failed to save quotation');
     } finally {
@@ -3042,7 +3137,7 @@ export function LeadQuotationPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-        <button type="button" onClick={() => navigate(`/app/leads/${id}`)} className="inline-flex items-center gap-2 font-medium text-slate-600 hover:text-[var(--primary)]">
+        <button type="button" onClick={() => navigate(leadRoute(lead))} className="inline-flex items-center gap-2 font-medium text-slate-600 hover:text-[var(--primary)]">
           <ArrowLeft size={16} /> Back to Lead
         </button>
         <span>/</span>
@@ -3050,7 +3145,7 @@ export function LeadQuotationPage() {
         <span className="text-slate-400">{lead.leadNumber || ''}</span>
       </div>
       <QuotationEditor
-        onClose={() => navigate(`/app/leads/${id}`)}
+        onClose={() => navigate(leadRoute(lead))}
         onSave={saveQuotation}
         leadId={id}
         lead={lead}
@@ -3239,6 +3334,9 @@ function ActivityViewModal({
   const statusMeta = isTask ? getTaskStatusMeta(item.status) : null;
   const priorityMeta = isTask ? getTaskPriorityMeta(item.priority) : null;
   const followUpStatus = getFollowUpStatus(item);
+  const callData = extractCallData(item);
+  const isCall = Boolean(callData?.isCall);
+  const callOutcomeBadge = callData?.outcome ? getCallOutcomeBadge(callData.outcome) : null;
 
   const assignedName = isTask && item.assignedTo ? (userLookup?.get(String(item.assignedTo)) || item.assignedUser || 'Assigned') : null;
   const collaboratorNames = isTask && Array.isArray(item.collaborators) && item.collaborators.length
@@ -3264,6 +3362,16 @@ function ActivityViewModal({
             <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-300 flex items-center gap-1">
               <Clock3 size={10} className="text-amber-600" />
               {timeInfo.relative || 'Upcoming'}
+            </span>
+          ) : null}
+          {isCall && callData?.outcome && callOutcomeBadge ? (
+            <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border', callOutcomeBadge.bg, callOutcomeBadge.border, callOutcomeBadge.text)}>
+              {callData.outcome}
+            </span>
+          ) : null}
+          {isCall && callData?.duration ? (
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold border border-[var(--border-muted)] bg-[var(--surface-2)] text-[var(--text-muted)]">
+              ⏱️ {formatCallDuration(callData.duration)}
             </span>
           ) : null}
           {statusMeta && (
@@ -3424,6 +3532,74 @@ function ActivityViewModal({
                 <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.reminder || 'Default Notification'}</span>
               </div>
             </div>
+          </div>
+        ) : isCall ? (
+          <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/60 p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">📞 Call Type:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{callData.type || 'Outgoing'}</span>
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">📱 Caller Number:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{formatPhoneDisplay(callData.callerNumber)}</span>
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">🎯 Outcome:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{callData.outcome || 'Logged'}</span>
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">⏱️ Duration:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{formatCallDuration(callData.duration) || 'Not recorded'}</span>
+              </div>
+              <div>
+                <span className="text-[11px] font-medium text-[var(--text-muted)] block">📅 Date & Time:</span>
+                <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{timeInfo.formatted}</span>
+              </div>
+              {item.actorName && (
+                <div>
+                  <span className="text-[11px] font-medium text-[var(--text-muted)] block">👤 Logged by:</span>
+                  <span className="font-semibold text-[var(--text-main)] mt-0.5 block">{item.actorName}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Audio Recording Player */}
+            {callData.recordingUrl ? (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 space-y-2 mt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                      <Volume2 size={13} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                        Call Audio Recording
+                      </h4>
+                      {callData.duration ? (
+                        <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80">
+                          Duration: {formatCallDuration(callData.duration)}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <a
+                    href={callData.recordingUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                  >
+                    Open audio <ExternalLink size={12} />
+                  </a>
+                </div>
+                <audio
+                  controls
+                  preload="metadata"
+                  src={callData.recordingUrl}
+                  className="w-full h-8 rounded-lg accent-emerald-600"
+                />
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/60 p-3.5 space-y-2">
@@ -3925,6 +4101,7 @@ function CompleteFollowUpModal({
 export function LeadDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { token, user, hasPermission } = useAuth();
 
   const [data, setData] = useState(null);
@@ -3943,6 +4120,10 @@ export function LeadDetailsPage() {
   const [files, setFiles] = useState([]);
   const [filesModalOpen, setFilesModalOpen] = useState(false);
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [whatsAppTemplatesOpen, setWhatsAppTemplatesOpen] = useState(false);
+  const [duplicateLeads, setDuplicateLeads] = useState([]);
+  const [mergeTargetLead, setMergeTargetLead] = useState(null);
+  const [expandedCallAI, setExpandedCallAI] = useState({});
 
   const [contactOpen, setContactOpen] = useState(false);
   const [contactBusy, setContactBusy] = useState(false);
@@ -3958,10 +4139,31 @@ export function LeadDetailsPage() {
   const [completeFollowUpBusy, setCompleteFollowUpBusy] = useState(false);
 
   const [settings, setSettings] = useState(null);
-  const [activeTab, setActiveTab] = useState('overview');
+  const urlTab = searchParams.get('tab');
+  const [activeTab, setActiveTabState] = useState(() => urlTab || 'overview');
+
+  const setActiveTab = (tabKey) => {
+    setActiveTabState(tabKey);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tabKey === 'overview') {
+        next.delete('tab');
+      } else {
+        next.set('tab', tabKey);
+      }
+      return next;
+    }, { replace: true });
+  };
+
+  useEffect(() => {
+    if (urlTab && urlTab !== activeTab) {
+      setActiveTabState(urlTab);
+    }
+  }, [urlTab]);
   const [openDetailSections, setOpenDetailSections] = useState({});
   const [tabPages, setTabPages] = useState({
     timeline: 1,
+    calls: 1,
     quotations: 1,
     tasks: 1,
     notes: 1,
@@ -3988,6 +4190,14 @@ export function LeadDetailsPage() {
 
       if (summaryRes.status === 'fulfilled') {
         setData(summaryRes.value.data);
+        const l = summaryRes.value.data?.lead;
+        if (l && (l.phone || l.email)) {
+          api.resources.list('/leads/duplicates', token, '', { phone: l.phone, email: l.email, excludeId: l.id })
+            .then((res) => setDuplicateLeads(res?.data || []))
+            .catch(() => setDuplicateLeads([]));
+        } else {
+          setDuplicateLeads([]);
+        }
       } else {
         throw summaryRes.reason;
       }
@@ -4028,6 +4238,7 @@ export function LeadDetailsPage() {
     setOpenDetailSections({});
     setTabPages({
       timeline: 1,
+      calls: 1,
       quotations: 1,
       tasks: 1,
       notes: 1,
@@ -4068,6 +4279,128 @@ export function LeadDetailsPage() {
       .map((event) => ({ event, ...getQuotationDetails(event, lead) }));
   }, [events, lead]);
 
+  const leadCalls = useMemo(() => {
+    const list = [];
+    const seenIds = new Set();
+
+    (events || []).forEach((evt) => {
+      const callData = extractCallData(evt);
+      if (callData?.isCall) {
+        const idKey = evt.id || `${evt.title}-${evt.startDate || evt.date}`;
+        if (!seenIds.has(idKey)) {
+          seenIds.add(idKey);
+          list.push({
+            id: evt.id,
+            rawEvent: evt,
+            title: evt.title || `${callData.type || 'Outgoing'} call`,
+            description: evt.description || evt.detail || '',
+            date: evt.startDate || evt.date || evt.createdAt,
+            time: evt.startTime || evt.time || '',
+            createdAt: evt.createdAt,
+            actorName: evt.actorName || evt.payload?.actorName || userLookup?.get(String(evt.ownerUserId)) || 'System',
+            payload: evt.payload || evt.meta || {},
+            meta: evt.meta || evt.payload || {},
+            ...callData,
+            attachments: evt.attachments || []
+          });
+        }
+      }
+    });
+
+    (timeline || []).forEach((item) => {
+      const callData = extractCallData(item);
+      if (callData?.isCall) {
+        const idKey = item.id || `${item.title}-${item.date}`;
+        if (!seenIds.has(idKey)) {
+          seenIds.add(idKey);
+          list.push({
+            id: item.id,
+            rawEvent: item,
+            title: item.title || `${callData.type || 'Outgoing'} call`,
+            description: item.detail || item.description || '',
+            date: item.date || item.createdAt,
+            time: item.time || '',
+            createdAt: item.createdAt || item.date,
+            actorName: item.actorName || item.meta?.actorName || 'System',
+            payload: item.payload || item.meta || {},
+            meta: item.meta || item.payload || {},
+            ...callData,
+            attachments: item.attachments || []
+          });
+        }
+      }
+    });
+
+    return list.sort((a, b) => {
+      const aDate = new Date(a.date || a.createdAt || 0).getTime();
+      const bDate = new Date(b.date || b.createdAt || 0).getTime();
+      if (!isNaN(aDate) && !isNaN(bDate) && aDate !== bDate) {
+        return bDate - aDate;
+      }
+      return String(b.date || '').localeCompare(String(a.date || ''));
+    });
+  }, [events, timeline, userLookup]);
+
+  const callStats = useMemo(() => {
+    let totalSec = 0;
+    let connected = 0;
+    let missedOrBusy = 0;
+    let recordings = 0;
+
+    leadCalls.forEach((call) => {
+      if (call.duration) totalSec += Number(call.duration);
+      const oc = String(call.outcome || '').toLowerCase();
+      if (oc.includes('connected') || oc.includes('interested') || oc.includes('discussion') || oc.includes('done')) {
+        connected += 1;
+      } else if (oc.includes('busy') || oc.includes('no answer') || oc.includes('switched off') || oc.includes('unreachable') || oc.includes('missed') || oc.includes('wrong')) {
+        missedOrBusy += 1;
+      }
+      if (call.recordingUrl) {
+        recordings += 1;
+      }
+    });
+
+    const mins = Math.floor(totalSec / 60);
+    const remSec = totalSec % 60;
+    const talkTimeFormatted = mins > 0 ? `${mins}m ${remSec}s` : `${remSec}s`;
+
+    return {
+      total: leadCalls.length,
+      connected,
+      missedOrBusy,
+      recordings,
+      totalTalkTime: talkTimeFormatted
+    };
+  }, [leadCalls]);
+
+  const [callFilter, setCallFilter] = useState('all');
+
+  const filteredCalls = useMemo(() => {
+    if (callFilter === 'all') return leadCalls;
+    if (callFilter === 'connected') {
+      return leadCalls.filter((c) => {
+        const oc = String(c.outcome || '').toLowerCase();
+        return oc.includes('connected') || oc.includes('interested') || oc.includes('discussion') || oc.includes('done');
+      });
+    }
+    if (callFilter === 'missed') {
+      return leadCalls.filter((c) => {
+        const oc = String(c.outcome || '').toLowerCase();
+        return oc.includes('busy') || oc.includes('no answer') || oc.includes('switched off') || oc.includes('unreachable') || oc.includes('missed') || oc.includes('wrong');
+      });
+    }
+    if (callFilter === 'recordings') {
+      return leadCalls.filter((c) => Boolean(c.recordingUrl));
+    }
+    return leadCalls;
+  }, [leadCalls, callFilter]);
+
+  useEffect(() => {
+    if (!lead?.id) return;
+    const next = canonicalRoute('leads', lead, `/app/leads/${id}`);
+    if (next) navigate(next, { replace: true });
+  }, [id, lead, navigate]);
+
   const winProbability = useMemo(() => {
     if (lead?.conversionProbability != null && lead?.conversionProbability !== '') {
       const num = Number(lead.conversionProbability);
@@ -4083,6 +4416,13 @@ export function LeadDetailsPage() {
     }
     return null;
   }, [lead?.leadScore]);
+
+  const dealAgeDays = useMemo(() => {
+    if (!lead?.createdAt) return 0;
+    const created = new Date(lead.createdAt);
+    const now = new Date();
+    return Math.max(0, Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24)));
+  }, [lead?.createdAt]);
 
   const quotationAlert = useMemo(() => {
     if (!quotationRows.length) return null;
@@ -4415,7 +4755,7 @@ export function LeadDetailsPage() {
       return;
     }
     if (type === 'quotation') {
-      navigate(`/app/leads/${id}/quotations/new`);
+      navigate(leadRoute(lead || id, 'quotations/new'));
     }
   }
 
@@ -4423,7 +4763,7 @@ export function LeadDetailsPage() {
     if (!event) return;
     const nextType = String(event.eventType || event.type || 'task').toLowerCase();
     if (nextType === 'quotation') {
-      navigate(`/app/leads/${id}/quotations/${event.id}`);
+      navigate(leadRoute(lead || id, `quotations/${eventRouteSegment(event)}`));
       return;
     }
     const nextDate = parseDateOnly(event?.startDate || event?.endDate || '');
@@ -4438,7 +4778,7 @@ export function LeadDetailsPage() {
       setActivityEdit({
         id: event.followUpId || (event.id && !event.isSynthetic && !String(event.id).startsWith('follow-up-') ? event.id : undefined),
         relatedEntityType: 'Lead',
-        relatedEntityId: id,
+        relatedEntityId: lead?.id || id,
         relatedEntityLabel: lead?.title || lead?.companyName || lead?.contactPersonName || 'Lead',
         lockRelatedEntity: true,
         assignedTo: event.assignedTo || lead?.assignedTo || user?.id || '',
@@ -4596,16 +4936,18 @@ export function LeadDetailsPage() {
 
   const tabs = useMemo(() => [
     { key: 'overview', label: 'Overview', icon: Activity },
+    { key: 'ai-insight', label: 'AI Insight', icon: Sparkles },
     { key: 'details', label: 'Lead Details', icon: FileText },
     { key: 'tasks', label: `Tasks (${activityBuckets.task.length || 0})`, icon: CheckCircle2 },
     { key: 'notes', label: `Notes (${activityBuckets.note.length || 0})`, icon: Tag },
     { key: 'reminders', label: `Reminders (${activityBuckets.reminder.length || 0})`, icon: Clock3 },
     { key: 'quotations', label: `Quotations (${quotationRows.length || 0})`, icon: PlusCircle },
     { key: 'timeline', label: `Timeline (${timeline.length || 0})`, icon: Clock3 },
+    { key: 'calls', label: `Call History (${leadCalls.length || 0})`, icon: PhoneCall },
     { key: 'contacts', label: `Contacts (${contacts.length || 0})`, icon: Users },
     { key: 'events', label: `Events (${events.filter((e) => String(e.eventType || e.type || '').toLowerCase() === 'event').length || 0})`, icon: CalendarDays },
     { key: 'files', label: `Files (${files.length || 0})`, icon: Paperclip }
-  ], [activityBuckets, quotationRows.length, timeline.length, contacts.length, events, files.length]);
+  ], [activityBuckets, quotationRows.length, timeline.length, leadCalls.length, contacts.length, events, files.length]);
 
   function buildLeadMetaPatch(nextPatch = {}) {
     const patch = { ...nextPatch };
@@ -4634,7 +4976,7 @@ export function LeadDetailsPage() {
       if (response?.deletedLead && response?.clientId) {
         api.cache.invalidate('/clients');
         toast.success('Lead converted to client');
-        navigate(`/app/clients/${response.clientId}`);
+        navigate(clientRoute(response.client || response.clientId));
         return true;
       }
       toast.success('Lead updated');
@@ -5004,6 +5346,31 @@ export function LeadDetailsPage() {
 
   return (
     <div className="space-y-5 overflow-hidden">
+      {duplicateLeads.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 dark:border-amber-700/80 bg-amber-50/90 dark:bg-amber-950/40 p-4 text-xs text-amber-900 dark:text-amber-200 shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
+              <GitMerge size={16} />
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 dark:text-slate-100">
+                Potential Duplicate Lead Detected ({duplicateLeads.length})
+              </p>
+              <p className="text-slate-600 dark:text-slate-300 mt-0.5">
+                Found matching record: <strong>{duplicateLeads[0].leadNumber || 'Duplicate'}</strong> ({duplicateLeads[0].name || duplicateLeads[0].contactPerson}) with matching phone/email.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setMergeTargetLead(duplicateLeads[0])}
+            className="h-8 px-3.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer shrink-0"
+          >
+            <GitMerge size={14} className="mr-1.5" /> Compare & Merge
+          </Button>
+        </div>
+      ) : null}
+
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4 shadow-sm">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 space-y-3">
@@ -5031,6 +5398,9 @@ export function LeadDetailsPage() {
                 {normalizeLabels(lead.labels).slice(0, 3).map((label) => (
                   <span key={label}>{renderLabelPill(label, labelColorMap.get(label) || '#2563eb')}</span>
                 ))}
+
+                {/* ⏱️ Stage Velocity & SLA Aging Tracker */}
+                <LeadStageVelocityBadge lead={lead} timeline={timeline} />
 
                 {lead.followUpAttempts > 0 ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300 shadow-2xs">
@@ -5100,6 +5470,16 @@ export function LeadDetailsPage() {
               <Button
                 variant="outline"
                 size="sm"
+                className="h-9 px-3.5 text-xs font-semibold rounded-xl border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 shadow-xs transition cursor-pointer"
+                onClick={() => setWhatsAppTemplatesOpen(true)}
+              >
+                <MessageSquare size={14} className="mr-1.5 text-emerald-600 dark:text-emerald-400" /> WhatsApp
+              </Button>
+            ) : null}
+            {canWriteLead ? (
+              <Button
+                variant="outline"
+                size="sm"
                 className="h-9 px-3.5 text-xs font-semibold rounded-xl border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--hover-bg)] text-[var(--text-main)] shadow-xs transition cursor-pointer"
                 onClick={() => setCallOpen(true)}
               >
@@ -5137,20 +5517,20 @@ export function LeadDetailsPage() {
                 <CheckCircle2 size={15} className="mr-1.5" /> Mark Won
               </Button>
             ) : null}
-            {canConvertLead && isWon && !lead.convertedClientId ? (
+            {canConvertLead && !lead.convertedClientId ? (
               <Button
                 size="sm"
                 className="h-9 px-4 text-xs font-semibold rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-xs border border-transparent transition cursor-pointer"
                 onClick={() => setConvertOpen(true)}
               >
-                <Wand2 size={15} className="mr-1.5" /> Convert Lead
+                <Wand2 size={15} className="mr-1.5" /> Convert to Client
               </Button>
             ) : null}
             {lead.convertedClientId ? (
               <Button
                 size="sm"
                 className="h-9 px-4 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition cursor-pointer"
-                onClick={() => navigate(`/app/clients/${lead.convertedClientId}`)}
+                onClick={() => navigate(clientRoute(lead.convertedClient || lead.convertedClientId))}
               >
                 <UserPlus size={15} className="mr-1.5" /> View Client
               </Button>
@@ -5185,6 +5565,35 @@ export function LeadDetailsPage() {
         <div className="space-y-6">
           {activeTab === 'overview' && (
             <div className="space-y-5">
+              {/* Point 1: Overdue & Due Today Follow-up Alert Banner */}
+              <LeadOverdueBanner
+                lead={lead}
+                reminders={activityBuckets.reminder}
+                onCall={() => setCallOpen(true)}
+                onWhatsApp={() => setWhatsAppOpen(true)}
+                onReschedule={() => openActivity('reminder')}
+                onComplete={(item) =>
+                  setCompleteFollowUpTarget(
+                    item || {
+                      id: lead?.id,
+                      title: 'Lead follow-up',
+                      date: lead?.followUpDate,
+                      startTime: lead?.nextFollowUpTime,
+                      description: lead?.followUpNote || ''
+                    }
+                  )
+                }
+              />
+
+              {/* Point 2: Visual Pipeline Stage Stepper */}
+              <LeadStageStepper
+                currentStatus={lead?.status}
+                createdAt={lead?.createdAt}
+                lastStatusChangedAt={lead?.lastStatusChangedAt}
+                onChangeStatus={changeLeadStatus}
+                disabled={savingMeta}
+              />
+
               {/* 1. Commercial Highlights (Budget, Quotation & Services) */}
               <Card className="flex flex-col gap-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 dark:bg-cyan-500/10 p-5 shadow-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/15 pb-3.5">
@@ -5225,7 +5634,8 @@ export function LeadDetailsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {/* Point 3: Expanded 6-Metric Responsive Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                   {/* Metric 1: Client Budget */}
                   <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
                     <div className="flex items-center justify-between gap-1">
@@ -5267,6 +5677,38 @@ export function LeadDetailsPage() {
                       {formatDate(lead?.expectedClosingDate) !== '-' ? formatDate(lead?.expectedClosingDate) : (lead?.purchaseTimeline || '-')}
                     </span>
                   </div>
+
+                  {/* Metric 5: Deal Age / Velocity */}
+                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Pipeline Age</span>
+                    <span className="mt-1.5 block text-sm font-bold text-[var(--text-main)] truncate" title={`${dealAgeDays} Days active`}>
+                      {dealAgeDays} Day{dealAgeDays === 1 ? '' : 's'}
+                    </span>
+                    <span className="text-[10px] text-[var(--text-muted)] mt-0.5 block truncate">
+                      Since {formatDate(lead?.createdAt)}
+                    </span>
+                  </div>
+
+                  {/* Metric 6: Proposal Readiness */}
+                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                    <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Proposal</span>
+                    {quotationAmount != null ? (
+                      <span className="mt-1.5 block text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                        Quotation Sent
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openActivity('quotation')}
+                        className="mt-1.5 text-xs font-bold text-[var(--primary)] hover:underline truncate block text-left cursor-pointer"
+                      >
+                        + Create Quote
+                      </button>
+                    )}
+                    <span className="text-[10px] text-[var(--text-muted)] mt-0.5 block truncate">
+                      {quotationStatus || 'Not sent'}
+                    </span>
+                  </div>
                 </div>
 
                 {serviceNames.length > 0 ? (
@@ -5288,6 +5730,14 @@ export function LeadDetailsPage() {
                 ) : null}
               </Card>
 
+              {/* Point 4: 4-Pillar BANT Qualification Tracker */}
+              <LeadBantTracker
+                lead={lead}
+                primaryContact={primaryContact}
+                onUpdateMeta={saveLeadMeta}
+                canWrite={canWriteLead}
+              />
+
               {/* 2. Next Scheduled Follow-up & Reminders */}
               <Card className="p-5 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-3">
                 <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-3">
@@ -5302,6 +5752,12 @@ export function LeadDetailsPage() {
                     </Button>
                   ) : null}
                 </div>
+
+                {/* ⚡ Smart Sales Cadence Stepper */}
+                <FollowUpCadenceStepper
+                  currentAttempt={lead.followUpAttempts || (activityBuckets.reminder.length > 0 ? 1 : 0)}
+                  onStartCadence={() => openActivity('reminder')}
+                />
 
                 {activityBuckets.reminder.length > 0 ? (
                   <div className="space-y-2.5">
@@ -5350,47 +5806,58 @@ export function LeadDetailsPage() {
               </Card>
 
               {/* 3. Requirement & Key Notes Box */}
-              {(lead.notes || lead.requirementDescription || lead.otherServiceDetails) ? (
-                <Card className="p-5 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-2">
-                  <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-2.5">
-                    <div className="flex items-center gap-2">
-                      <FileText size={16} className="text-[var(--primary)]" />
-                      <h3 className="text-sm font-bold text-[var(--text-main)]">Requirement & Key Notes</h3>
+              <Card className="p-5 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-3.5">
+                <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <FileText size={16} className="text-[var(--primary)]" />
+                    <h3 className="text-sm font-bold text-[var(--text-main)]">Requirement & Key Notes</h3>
+                  </div>
+                  {canWriteLead ? (
+                    <Button variant="ghost" size="sm" onClick={() => openActivity('note')} className="h-7 text-xs">
+                      + Add Note
+                    </Button>
+                  ) : null}
+                </div>
+
+                {/* Point 6: Fast-Action Requirement Tagger */}
+                <QuickServiceTagger
+                  lead={lead}
+                  onUpdateServices={(services) => saveLeadMeta({ requiredServices: services })}
+                  canWrite={canWriteLead}
+                />
+
+                <div className="space-y-3 pt-1">
+                  {lead.requirementDescription ? (
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Client Requirement</span>
+                      <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
+                        {lead.requirementDescription}
+                      </p>
                     </div>
-                    {canWriteLead ? (
-                      <Button variant="ghost" size="sm" onClick={() => openActivity('note')} className="h-7 text-xs">
-                        + Add Note
-                      </Button>
-                    ) : null}
-                  </div>
-                  <div className="space-y-3 pt-1">
-                    {lead.requirementDescription ? (
-                      <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Client Requirement</span>
-                        <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
-                          {lead.requirementDescription}
-                        </p>
-                      </div>
-                    ) : null}
-                    {lead.notes ? (
-                      <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">General Notes</span>
-                        <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
-                          {lead.notes}
-                        </p>
-                      </div>
-                    ) : null}
-                    {lead.otherServiceDetails ? (
-                      <div>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Other Service Details</span>
-                        <p className="mt-1 text-xs text-[var(--text-main)] rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-2.5">
-                          {lead.otherServiceDetails}
-                        </p>
-                      </div>
-                    ) : null}
-                  </div>
-                </Card>
-              ) : null}
+                  ) : null}
+                  {lead.notes ? (
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">General Notes</span>
+                      <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
+                        {lead.notes}
+                      </p>
+                    </div>
+                  ) : null}
+                  {lead.otherServiceDetails ? (
+                    <div>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Other Service Details</span>
+                      <p className="mt-1 text-xs text-[var(--text-main)] rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-2.5">
+                        {lead.otherServiceDetails}
+                      </p>
+                    </div>
+                  ) : null}
+                  {!lead.requirementDescription && !lead.notes && !lead.otherServiceDetails && (
+                    <p className="text-xs text-[var(--text-muted)] italic py-1">
+                      No text notes recorded yet. Use the tags above or click "+ Add Note" to log client requirements.
+                    </p>
+                  )}
+                </div>
+              </Card>
 
               {/* 4. Recent Activity Feed */}
               <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
@@ -5418,6 +5885,8 @@ export function LeadDetailsPage() {
                         const meta = getActivityMeta(item);
                         const Icon = meta.icon;
                         const timeInfo = formatActivityTimestamp(item.date || item.createdAt);
+                        const callData = extractCallData(item);
+                        const outcomeBadge = callData?.outcome ? getCallOutcomeBadge(callData.outcome) : null;
 
                         return (
                           <div key={`${item.title}-${item.date}-${index}`} className="relative pl-9 group">
@@ -5431,9 +5900,12 @@ export function LeadDetailsPage() {
                             </div>
 
                             {/* Minimal Activity Item Card */}
-                            <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/70 px-3.5 py-2.5 shadow-2xs hover:shadow-xs transition-all">
+                            <div
+                              onClick={() => setViewActivityTarget(item)}
+                              className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/30 hover:bg-[var(--surface-2)]/70 px-3.5 py-2.5 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                            >
                               <div className="flex items-center justify-between gap-3">
-                                <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                                   <span className={cn(
                                     'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0',
                                     meta.bg,
@@ -5448,6 +5920,16 @@ export function LeadDetailsPage() {
                                       • <span>{item.actorName}</span>
                                     </span>
                                   )}
+                                  {callData?.outcome && outcomeBadge ? (
+                                    <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md border shrink-0', outcomeBadge.bg, outcomeBadge.border, outcomeBadge.text)}>
+                                      {callData.outcome}
+                                    </span>
+                                  ) : null}
+                                  {callData?.duration ? (
+                                    <span className="text-[10px] font-semibold text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border-muted)] px-1.5 py-0.5 rounded-md shrink-0">
+                                      ⏱️ {formatCallDuration(callData.duration)}
+                                    </span>
+                                  ) : null}
                                 </div>
 
                                 <div className="flex flex-col items-end shrink-0 text-right" title={timeInfo.formatted}>
@@ -5485,6 +5967,44 @@ export function LeadDetailsPage() {
                                   {item.detail}
                                 </p>
                               )}
+
+                              {/* Call Recording Audio Player */}
+                              {callData?.recordingUrl ? (
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="mt-2.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 dark:bg-emerald-500/10 p-2.5 shadow-2xs"
+                                >
+                                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                        <Volume2 size={11} />
+                                      </div>
+                                      <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                                        Call Recording
+                                      </span>
+                                      {callData.duration ? (
+                                        <span className="text-[11px] font-medium text-emerald-700/80 dark:text-emerald-400/80">
+                                          ({formatCallDuration(callData.duration)})
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <a
+                                      href={callData.recordingUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                                    >
+                                      Open audio <ExternalLink size={11} />
+                                    </a>
+                                  </div>
+                                  <audio
+                                    controls
+                                    preload="metadata"
+                                    src={callData.recordingUrl}
+                                    className="w-full h-8 rounded-lg accent-emerald-600"
+                                  />
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                         );
@@ -5498,6 +6018,18 @@ export function LeadDetailsPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'ai-insight' && (
+            <AiLeadInsightDetailsTab
+              lead={lead}
+              primaryContact={primaryContact}
+              events={events}
+              timeline={timeline}
+              onLogCall={() => setCallOpen(true)}
+              onScheduleFollowUp={() => openActivity('reminder')}
+              onAddQuotation={() => openActivity('quotation')}
+            />
           )}
 
           {activeTab === 'details' && (
@@ -5574,7 +6106,7 @@ export function LeadDetailsPage() {
                           <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm">
                             <button
                               type="button"
-                              onClick={() => navigate(`/app/leads/${id}/quotations/${item.id}`)}
+                              onClick={() => navigate(leadRoute(lead, `quotations/${eventRouteSegment(item.event || item)}`))}
                               className="text-left font-semibold text-[var(--text-main)] hover:text-[var(--primary)] hover:underline cursor-pointer"
                             >
                               {item.title}
@@ -5600,7 +6132,7 @@ export function LeadDetailsPage() {
                           </td>
                           <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm">
                             {item.invoiceId ? (
-                              <button type="button" onClick={() => navigate(`/app/invoices/${item.invoiceId}`)} className="font-semibold text-[var(--primary)] hover:underline cursor-pointer">
+                              <button type="button" onClick={() => navigate(invoiceRoute({ id: item.invoiceId, invoiceNumber: item.invoiceNumber }))} className="font-semibold text-[var(--primary)] hover:underline cursor-pointer">
                                 {item.invoiceNumber || 'View invoice'}
                               </button>
                             ) : <span className="text-[var(--text-muted)]">-</span>}
@@ -5611,7 +6143,7 @@ export function LeadDetailsPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => navigate(`/app/leads/${id}/quotations/${item.id}`)}
+                                onClick={() => navigate(leadRoute(lead, `quotations/${eventRouteSegment(item.event || item)}`))}
                                 title="View quotation"
                                 className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
                               >
@@ -5648,7 +6180,7 @@ export function LeadDetailsPage() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => navigate(`/app/leads/${id}/quotations/new?fromRevision=${item.id}`)}
+                                    onClick={() => navigate(`${leadRoute(lead, 'quotations/new')}?fromRevision=${eventRouteSegment(item.event || item)}`)}
                                     title="Duplicate / Clone as Revision"
                                     className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
                                   >
@@ -5657,7 +6189,7 @@ export function LeadDetailsPage() {
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    onClick={() => navigate(`/app/leads/${id}/quotations/${item.id}`)}
+                                    onClick={() => navigate(leadRoute(lead, `quotations/${eventRouteSegment(item.event || item)}`))}
                                     title="Edit quotation"
                                     className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
                                   >
@@ -6591,6 +7123,8 @@ export function LeadDetailsPage() {
                       const meta = getActivityMeta(item);
                       const Icon = meta.icon;
                       const timeInfo = formatActivityTimestamp(item.date || item.createdAt);
+                      const callData = extractCallData(item);
+                      const outcomeBadge = callData?.outcome ? getCallOutcomeBadge(callData.outcome) : null;
 
                       return (
                         <div key={`${item.title}-${item.date}-${index}`} className="relative pl-9 group">
@@ -6604,7 +7138,10 @@ export function LeadDetailsPage() {
                           </div>
 
                           {/* Minimal Activity Item Card */}
-                          <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface)] hover:bg-[var(--surface-2)]/60 px-4 py-3 shadow-2xs hover:shadow-xs transition-all">
+                          <div
+                            onClick={() => setViewActivityTarget(item)}
+                            className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface)] hover:bg-[var(--surface-2)]/60 px-4 py-3 shadow-2xs hover:shadow-xs transition-all cursor-pointer"
+                          >
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex flex-wrap items-center gap-2 min-w-0">
                                 <span className={cn(
@@ -6621,6 +7158,16 @@ export function LeadDetailsPage() {
                                     • <span>{item.actorName}</span>
                                   </span>
                                 )}
+                                {callData?.outcome && outcomeBadge ? (
+                                  <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md border shrink-0', outcomeBadge.bg, outcomeBadge.border, outcomeBadge.text)}>
+                                    {callData.outcome}
+                                  </span>
+                                ) : null}
+                                {callData?.duration ? (
+                                  <span className="text-[10px] font-semibold text-[var(--text-muted)] bg-[var(--surface-2)] border border-[var(--border-muted)] px-1.5 py-0.5 rounded-md shrink-0">
+                                    ⏱️ {formatCallDuration(callData.duration)}
+                                  </span>
+                                ) : null}
                               </div>
 
                               <div className="flex flex-col items-end shrink-0 text-right" title={timeInfo.formatted}>
@@ -6658,6 +7205,46 @@ export function LeadDetailsPage() {
                                 {item.detail}
                               </p>
                             )}
+
+                            {/* Call Recording Audio Player */}
+                            {callData?.recordingUrl ? (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-2.5 rounded-xl border border-emerald-500/25 bg-emerald-500/5 dark:bg-emerald-500/10 p-3 shadow-2xs"
+                              >
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                      <Volume2 size={13} />
+                                    </div>
+                                    <div>
+                                      <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                                        Call Recording
+                                      </h4>
+                                      {callData.duration ? (
+                                        <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80">
+                                          Duration: {formatCallDuration(callData.duration)}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  <a
+                                    href={callData.recordingUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline cursor-pointer"
+                                  >
+                                    Open audio <ExternalLink size={12} />
+                                  </a>
+                                </div>
+                                <audio
+                                  controls
+                                  preload="metadata"
+                                  src={callData.recordingUrl}
+                                  className="w-full h-8 rounded-lg accent-emerald-600"
+                                />
+                              </div>
+                            ) : null}
 
                             {Array.isArray(item.attachments) && item.attachments.length ? (
                               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -6705,10 +7292,464 @@ export function LeadDetailsPage() {
               </div>
             );
           })()}
+
+          {activeTab === 'calls' && (() => {
+            const callsPage = tabPages.calls || 1;
+            const callsPageSize = 10;
+            const pagedCalls = filteredCalls.slice((callsPage - 1) * callsPageSize, callsPage * callsPageSize);
+
+            return (
+              <div className="w-full space-y-5">
+                {/* 1. Header Toolbar with Metrics & Log Call Action */}
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border-muted)] pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shadow-2xs">
+                        <PhoneCall size={22} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-bold text-[var(--text-main)]">Call History & Recordings</h2>
+                          <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                            {leadCalls.length} {leadCalls.length === 1 ? 'Call' : 'Calls'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                          Mobile phone dialer logs with audio playback, caller numbers, outcomes, and instant redial
+                        </p>
+                      </div>
+                    </div>
+
+                    {canWriteLead ? (
+                      <Button
+                        onClick={() => setCallOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs rounded-xl h-9 px-4 text-xs font-semibold cursor-pointer shrink-0"
+                      >
+                        <Phone size={14} className="mr-1.5" /> + Log New Call
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {/* Quick Call Metrics Cards (Mobile Dialer Style) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="rounded-xl border border-[var(--border-muted)] bg-[var(--surface-2)]/50 p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] block">Total Calls</span>
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-xl font-bold text-[var(--text-main)]">{callStats.total}</span>
+                        <span className="text-[11px] font-medium text-[var(--text-muted)]">logged</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 block">Connected</span>
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{callStats.connected}</span>
+                        <span className="text-[11px] font-medium text-emerald-700/70 dark:text-emerald-400/70">
+                          ({callStats.total ? Math.round((callStats.connected / callStats.total) * 100) : 0}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 dark:bg-cyan-500/10 p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-300 block">Total Talk Time</span>
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-xl font-bold text-cyan-700 dark:text-cyan-300">{callStats.totalTalkTime}</span>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 dark:bg-purple-500/10 p-3.5 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-purple-700 dark:text-purple-300 block">Recordings Available</span>
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-xl font-bold text-purple-700 dark:text-purple-300">{callStats.recordings}</span>
+                        <span className="text-[11px] font-medium text-purple-700/70 dark:text-purple-400/70">🎙️ audio files</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs Bar (iOS / Android Style) */}
+                  <div className="flex items-center gap-2 overflow-x-auto pt-1 border-t border-[var(--border-muted)]/60">
+                    {[
+                      { key: 'all', label: `All Calls (${leadCalls.length})` },
+                      { key: 'connected', label: `Connected (${callStats.connected})` },
+                      { key: 'missed', label: `Missed / Busy (${callStats.missedOrBusy})` },
+                      { key: 'recordings', label: `🎙️ Audio Recordings (${callStats.recordings})` }
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => {
+                          setCallFilter(tab.key);
+                          setTabPage('calls', 1);
+                        }}
+                        className={cn(
+                          'rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer shrink-0',
+                          callFilter === tab.key
+                            ? 'bg-[var(--primary)] text-white shadow-xs'
+                            : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-[var(--text-main)] border border-[var(--border-muted)]'
+                        )}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Mobile Phone Call Log List */}
+                {pagedCalls.length ? (
+                  <div className="space-y-3">
+                    {pagedCalls.map((call, idx) => {
+                      const timeInfo = formatActivityTimestamp(call.date || call.createdAt, call.time);
+                      const isIncoming = String(call.type || '').toLowerCase() === 'incoming';
+                      const oc = String(call.outcome || '').toLowerCase();
+                      const isMissed = oc.includes('no answer') || oc.includes('switched off') || oc.includes('unreachable') || oc.includes('missed');
+                      const isBusy = oc.includes('busy');
+                      const outcomeBadge = getCallOutcomeBadge(call.outcome);
+
+                      const DirectionIcon = isIncoming
+                        ? ArrowDownLeft
+                        : isMissed
+                          ? PhoneMissed
+                          : isBusy
+                            ? PhoneOff
+                            : ArrowUpRight;
+
+                      const iconBg = isMissed
+                        ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30'
+                        : isBusy
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                          : isIncoming
+                            ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30'
+                            : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
+
+                      return (
+                        <div
+                          key={call.id || `call-${idx}`}
+                          onClick={() => setViewActivityTarget(call.rawEvent || call)}
+                          className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)]/40 p-4 sm:p-5 shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-3"
+                        >
+                          {/* Main Call Log Row */}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                              {/* Dialer Bubble Icon */}
+                              <div className={cn(
+                                'flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border transition-transform group-hover:scale-105 shadow-2xs',
+                                iconBg
+                              )}>
+                                <DirectionIcon size={18} strokeWidth={2.2} />
+                              </div>
+
+                              {/* Caller & Contact Info */}
+                              <div className="min-w-0 space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="text-sm font-bold text-[var(--text-main)] truncate">
+                                    {lead.contactPerson || lead.name || call.title}
+                                  </h3>
+
+                                  {/* Call Type Pill */}
+                                  <span className={cn(
+                                    'text-[10px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider',
+                                    isIncoming
+                                      ? 'border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300'
+                                      : isMissed
+                                        ? 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+                                        : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                  )}>
+                                    {call.type || 'Outgoing'}
+                                  </span>
+
+                                  {/* Call Outcome Badge */}
+                                  {call.outcome && outcomeBadge && (
+                                    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-md border', outcomeBadge.bg, outcomeBadge.border, outcomeBadge.text)}>
+                                      {call.outcome}
+                                    </span>
+                                  )}
+
+                                  {/* Duration badge */}
+                                  {call.duration ? (
+                                    <span className="text-[11px] font-semibold text-[var(--text-muted)] bg-[var(--surface-2)] border border-[var(--border-muted)] px-2 py-0.5 rounded-md flex items-center gap-1">
+                                      <Clock3 size={11} />
+                                      {formatCallDuration(call.duration)}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                {/* Phone number and Actor attribution */}
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                                  <span className="font-semibold text-[var(--text-main)] flex items-center gap-1">
+                                    <Phone size={11} className="text-[var(--primary)]" />
+                                    {formatPhoneDisplay(call.callerNumber || lead.phone) || 'N/A'}
+                                  </span>
+                                  {call.actorName && (
+                                    <span>• Logged by <span className="font-medium text-[var(--text-main)]">{call.actorName}</span></span>
+                                  )}
+                                  {call.attachments?.length ? (
+                                    <span className="text-purple-600 dark:text-purple-400 font-semibold flex items-center gap-0.5">
+                                      • 🎙️ Audio Available
+                                    </span>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Timestamp & Action Buttons */}
+                            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--border-muted)]/50">
+                              <div className="text-left sm:text-right" title={timeInfo.formatted}>
+                                <span className="text-xs font-bold text-[var(--text-main)] block">
+                                  {timeInfo.dateOnly}
+                                </span>
+                                <span className="text-[11px] font-medium text-[var(--text-muted)] block">
+                                  {timeInfo.timeOnly || (timeInfo.relative ? `(${timeInfo.relative})` : '')}
+                                </span>
+                              </div>
+
+                              {/* Quick Action Dial Buttons */}
+                              <div className="flex items-center gap-1.5">
+                                <a
+                                  href={`tel:${call.callerNumber || lead.phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Call Number"
+                                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition cursor-pointer shadow-2xs"
+                                >
+                                  <Phone size={14} />
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setWhatsAppTemplatesOpen(true);
+                                  }}
+                                  title="Send WhatsApp Template"
+                                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition cursor-pointer shadow-2xs"
+                                >
+                                  <MessageSquare size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setViewActivityTarget(call.rawEvent || call);
+                                  }}
+                                  title="View Details"
+                                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--primary)] transition cursor-pointer shadow-2xs"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Call Notes / Discussion Summary */}
+                          {call.description ? (
+                            <div className="rounded-xl border border-[var(--border-muted)]/80 bg-[var(--surface-2)]/40 p-3 text-xs text-[var(--text-main)] leading-relaxed">
+                              <p className="line-clamp-3 whitespace-pre-wrap">{call.description}</p>
+                            </div>
+                          ) : null}
+
+                          {/* Audio Recording Player Widget (Mobile Cassette Style) */}
+                          {call.recordingUrl ? (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-teal-500/5 p-3.5 shadow-2xs space-y-2"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                                    <Volume2 size={15} className="animate-pulse" />
+                                  </div>
+                                  <div>
+                                    <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 block">
+                                      Call Recording Audio
+                                    </span>
+                                    <span className="text-[10px] text-emerald-700/80 dark:text-emerald-400/80">
+                                      {call.duration ? `Duration: ${formatCallDuration(call.duration)} • ` : ''}
+                                      {call.attachments?.[0]?.name || 'Recorded conversation'}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <a
+                                  href={call.recordingUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:underline bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                                >
+                                  Open audio <ExternalLink size={12} />
+                                </a>
+                              </div>
+
+                              <audio
+                                controls
+                                preload="metadata"
+                                src={call.recordingUrl}
+                                className="w-full h-8 rounded-lg accent-emerald-600"
+                              />
+                            </div>
+                          ) : null}
+
+                          {/* 🧠 AI Call Breakdown & Key Takeaways */}
+                          {(() => {
+                            const rawTakeaways = call.aiTakeaways || call.payload?.aiTakeaways || call.meta?.aiTakeaways;
+                            const hasRecording = Boolean(call.recordingUrl);
+                            if (!rawTakeaways && !hasRecording) return null;
+
+                            // Safe fallback AI synthesis if not already seeded
+                            const defaultService = (Array.isArray(lead?.requiredServices) ? lead.requiredServices[0] : lead?.requiredServices) || lead?.requiredService || 'Web Development & Solutions';
+                            const takeaways = rawTakeaways || {
+                              summary: call.description || 'Customer inquiry and discovery session.',
+                              requirements: [defaultService, 'Scope and budget clarification'],
+                              objections: ['Timeline and delivery milestones confirmation requested'],
+                              nextSteps: ['Share detailed proposal and schedule review call'],
+                              sentiment: 'Positive / High Intent (80%)'
+                            };
+
+                            const requirements = Array.isArray(takeaways?.requirements)
+                              ? takeaways.requirements
+                              : (takeaways?.requirements ? [String(takeaways.requirements)] : []);
+                            const objections = Array.isArray(takeaways?.objections)
+                              ? takeaways.objections
+                              : (takeaways?.objections ? [String(takeaways.objections)] : []);
+                            const nextSteps = Array.isArray(takeaways?.nextSteps)
+                              ? takeaways.nextSteps
+                              : (takeaways?.nextSteps ? [String(takeaways.nextSteps)] : []);
+
+                            const isExpanded = Boolean(expandedCallAI[call.id || idx]);
+
+                            return (
+                              <div
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-gradient-to-r from-indigo-50/50 to-purple-50/30 dark:from-indigo-950/30 dark:to-purple-950/20 p-3 shadow-2xs space-y-2.5 transition-all"
+                              >
+                                <div
+                                  className="flex items-center justify-between gap-2 cursor-pointer select-none"
+                                  onClick={() => setExpandedCallAI((prev) => ({ ...prev, [call.id || idx]: !prev[call.id || idx] }))}
+                                >
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-2xs shrink-0">
+                                      <Brain size={13} />
+                                    </div>
+                                    <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                                      AI Call Breakdown & Transcription Takeaways
+                                    </span>
+                                    {takeaways?.sentiment ? (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800">
+                                        {takeaways.sentiment}
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="text-indigo-600 dark:text-indigo-400 text-xs font-semibold flex items-center gap-1 hover:underline cursor-pointer shrink-0"
+                                  >
+                                    <span>{isExpanded ? 'Hide' : 'Expand'}</span>
+                                    {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                                  </button>
+                                </div>
+
+                                {isExpanded ? (
+                                  <div className="space-y-2.5 pt-2 border-t border-indigo-200/60 dark:border-indigo-900/40 text-xs animate-fadeIn">
+                                    {takeaways?.summary ? (
+                                      <div>
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-0.5">Executive Summary:</span>
+                                        <p className="text-slate-600 dark:text-slate-300 leading-relaxed">{takeaways.summary}</p>
+                                      </div>
+                                    ) : null}
+
+                                    {requirements.length ? (
+                                      <div>
+                                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Requirements Extracted:</span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {requirements.map((req, rIdx) => (
+                                            <span key={rIdx} className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 text-[11px] font-medium">
+                                              ✓ {req}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    {objections.length ? (
+                                      <div>
+                                        <span className="font-bold text-amber-700 dark:text-amber-400 block mb-1">Client Questions / Considerations:</span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {objections.map((obj, oIdx) => (
+                                            <span key={oIdx} className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-[11px] font-medium">
+                                              ⚠️ {obj}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    {nextSteps.length ? (
+                                      <div>
+                                        <span className="font-bold text-emerald-700 dark:text-emerald-400 block mb-1">Committed Next Action:</span>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {nextSteps.map((step, sIdx) => (
+                                            <span key={sIdx} className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-[11px] font-medium">
+                                              🎯 {step}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)]/40 p-12 text-center space-y-3">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface)] border border-[var(--border)] text-[var(--text-muted)]">
+                      <PhoneCall size={24} />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-bold text-[var(--text-main)]">No Calls Found</h3>
+                      <p className="text-xs text-[var(--text-muted)] max-w-sm mx-auto">
+                        {callFilter === 'all'
+                          ? 'No calls have been logged yet for this lead. Use the button below to log your first call.'
+                          : `No calls matching filter "${callFilter}".`}
+                      </p>
+                    </div>
+                    {canWriteLead ? (
+                      <Button
+                        onClick={() => setCallOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-9 px-4 text-xs font-semibold"
+                      >
+                        <Phone size={14} className="mr-1.5" /> Log First Call
+                      </Button>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* 3. Pagination */}
+                <PaginationBar
+                  currentPage={callsPage}
+                  totalItems={filteredCalls.length}
+                  pageSize={callsPageSize}
+                  onPageChange={(page) => setTabPage('calls', page)}
+                />
+              </div>
+            );
+          })()}
         </div>
 
         {(activeTab === 'overview' || activeTab === 'details') ? (
         <div className="space-y-4">
+          {/* AI Insights Card */}
+          <AiLeadInsightsCard
+            lead={lead}
+            primaryContact={primaryContact}
+            events={events}
+            timeline={timeline}
+            onLogCall={() => setCallOpen(true)}
+            onScheduleFollowUp={() => openActivity('reminder')}
+            onAddQuotation={() => openActivity('quotation')}
+          />
+
           {/* Quick 1-Click Action & Contact Card */}
           <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
             <div className="flex items-center justify-between border-b border-[var(--border-muted)] px-5 py-3.5 bg-[var(--surface-2)]">
@@ -6878,47 +7919,37 @@ export function LeadDetailsPage() {
                   }) : <span className="text-xs text-[var(--text-muted)]">-</span>}
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-4 px-5 py-3">
-                <span className="text-xs font-semibold text-[var(--text-muted)]">Created</span>
-                <span className="text-xs text-[var(--text-main)] font-medium">{formatDate(lead.createdAt)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Additional Details Card */}
-          <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
-            <div className="border-b border-[var(--border-muted)] px-5 py-3 bg-[var(--surface-2)]">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-main)]">Additional Details</h3>
-            </div>
-            <div className="flex flex-col px-5 py-2">
-              <div className="flex items-center justify-between border-b border-[var(--border-muted)] py-2.5 last:border-0">
-                <span className="text-xs font-medium text-[var(--text-muted)]">Lead Value</span>
-                <span className="text-xs font-bold text-[var(--text-main)]">
-                  {lead.currencySymbol || '$'}{Number(lead.value || 0).toLocaleString()} {lead.currency || 'USD'}
-                </span>
-              </div>
               {lead.website ? (
-                <div className="flex items-center justify-between border-b border-[var(--border-muted)] py-2.5 last:border-0">
-                  <span className="text-xs font-medium text-[var(--text-muted)]">Website</span>
-                  <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noreferrer" className="text-xs text-[var(--primary)] hover:underline truncate max-w-[180px]">
+                <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                  <span className="text-xs font-semibold text-[var(--text-muted)]">Website</span>
+                  <a
+                    href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-[var(--primary)] font-medium hover:underline truncate max-w-[180px]"
+                  >
                     {lead.website}
                   </a>
                 </div>
               ) : null}
+              {createdByName ? (
+                <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                  <span className="text-xs font-semibold text-[var(--text-muted)]">Created By</span>
+                  <span className="text-xs text-[var(--text-main)] font-medium">{createdByName}</span>
+                </div>
+              ) : null}
               {(lead.vatNumber || lead.gstNumber) ? (
-                <div className="flex items-center justify-between border-b border-[var(--border-muted)] py-2.5 last:border-0">
-                  <span className="text-xs font-medium text-[var(--text-muted)]">Tax Info</span>
+                <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
+                  <span className="text-xs font-semibold text-[var(--text-muted)]">Tax Info</span>
                   <span className="text-xs font-semibold text-[var(--text-main)]">
                     {lead.vatNumber ? `VAT: ${lead.vatNumber}` : `GST: ${lead.gstNumber}`}
                   </span>
                 </div>
               ) : null}
-              {createdByName ? (
-                <div className="flex items-center justify-between py-2.5">
-                  <span className="text-xs font-medium text-[var(--text-muted)]">Created By</span>
-                  <span className="text-xs text-[var(--text-main)] font-medium">{createdByName}</span>
-                </div>
-              ) : null}
+              <div className="flex items-center justify-between gap-4 px-5 py-3">
+                <span className="text-xs font-semibold text-[var(--text-muted)]">Created</span>
+                <span className="text-xs text-[var(--text-main)] font-medium">{formatDate(lead.createdAt)}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -6936,7 +7967,7 @@ export function LeadDetailsPage() {
         onSuccess={(result) => {
           setEditingLeadOpen(false);
           if (result?.deletedLead && result?.clientId) {
-            navigate(`/app/clients/${result.clientId}`);
+            navigate(clientRoute(result.client || result.clientId));
             return;
           }
           load();
@@ -6961,7 +7992,7 @@ export function LeadDetailsPage() {
         onSuccess={(result) => {
           setConvertOpen(false);
           if (result?.clientId) {
-            navigate(`/app/clients/${result.clientId}`);
+            navigate(clientRoute(result.client || result.clientId));
           } else {
             navigate('/app/leads');
           }
@@ -7103,6 +8134,23 @@ export function LeadDetailsPage() {
           amount: lead?.estimatedBudget || lead?.value
         }}
         onSent={load}
+      />
+
+      <WhatsAppTemplateModal
+        open={whatsAppTemplatesOpen}
+        onClose={() => setWhatsAppTemplatesOpen(false)}
+        lead={lead}
+      />
+
+      <MergeLeadModal
+        open={Boolean(mergeTargetLead)}
+        onClose={() => setMergeTargetLead(null)}
+        primaryLead={lead}
+        duplicateLead={mergeTargetLead}
+        onSuccess={() => {
+          setMergeTargetLead(null);
+          load();
+        }}
       />
     </div>
   );

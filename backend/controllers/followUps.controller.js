@@ -10,7 +10,7 @@ function notFound(res) {
 async function list(req, res, next) {
   try {
     const result = await engine.listFollowUps(req.query || {}, req.user);
-    res.json({ success: true, data: result.rows, meta: { total: result.total, limit: result.limit, offset: result.offset } });
+    res.json({ success: true, data: result.rows, meta: { total: result.total, limit: result.limit, offset: result.offset, quickCounts: result.quickCounts || {} } });
   } catch (error) { next(error); }
 }
 
@@ -133,12 +133,17 @@ async function options(req, res, next) {
       engine.listConfig('templates'), engine.listConfig('sequences'), engine.listConfig('escalationRules'), engine.getSettings(),
       query(`select name from master_items where type='follow_up_type' and is_active=true order by sort_order,name`)
     ]);
+    const dbTypes = typeResult.rows.map((row) => row.name);
+    const followUpTypes = dbTypes.length ? [...dbTypes] : [...engine.FOLLOW_UP_TYPES];
+    engine.FOLLOW_UP_TYPES.forEach((type) => {
+      if (!followUpTypes.includes(type)) followUpTypes.push(type);
+    });
     res.json({
       success: true,
       data: {
         statuses: [...engine.ACTIVE_FOLLOW_UP_STATUSES, ...engine.CLOSED_FOLLOW_UP_STATUSES],
         priorities: engine.PRIORITIES,
-        followUpTypes: typeResult.rows.length ? typeResult.rows.map((row) => row.name) : engine.FOLLOW_UP_TYPES,
+        followUpTypes,
         outcomes: engine.OUTCOMES,
         entityTypes: ['Lead', 'Contact', 'Client', 'Opportunity', 'Deal', 'Quotation', 'Proposal', 'Invoice', 'Payment', 'Project', 'Task', 'Support ticket', 'AMC', 'Renewal', 'Custom'],
         templates, sequences, escalationRules, settings

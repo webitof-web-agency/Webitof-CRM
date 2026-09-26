@@ -11,10 +11,25 @@ import { GlobalEventsDrawer } from '../events/GlobalEventsDrawer';
 import { persistAndApplyThemeSettings } from '../../config/theme';
 
 function resolveTitle(pathname) {
-  const item = navigationGroups
-    .flatMap((group) => group.items)
-    .find((navItem) => pathname === navItem.path || pathname.startsWith(`${navItem.path}/`));
-  return item?.label || 'Dashboard';
+  for (const group of navigationGroups) {
+    for (const item of group.items) {
+      if (item.children) {
+        const child = item.children.find(
+          (c) =>
+            pathname === c.path ||
+            (c.path === '/app/hrm/overview' && pathname === '/app/hrm') ||
+            pathname.startsWith(`${c.path}/`)
+        );
+        if (child) {
+          return `${item.label} · ${child.label}`;
+        }
+      }
+      if (pathname === item.path || pathname.startsWith(`${item.path}/`)) {
+        return item.label;
+      }
+    }
+  }
+  return 'Dashboard';
 }
 
 export function AppLayout() {

@@ -100,7 +100,7 @@ function Sparkline({ color, points = [10, 20, 15, 25, 20, 30, 15] }) {
 }
 
 export function DashboardPage() {
-  const { token, hasPermission, user } = useAuth();
+  const { token, hasPermission } = useAuth();
   const canViewReports = hasPermission('reports.view');
 
   const [summary, setSummary] = useState(null);
@@ -158,86 +158,6 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Hero Banner with Modern SaaS Glass Layer */}
-      <div
-        className="relative overflow-hidden rounded-[var(--radius-card,1.25rem)] p-6 md:p-8 text-white shadow-lg"
-        style={{
-          background: 'linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 80%, black) 100%)'
-        }}
-      >
-        {/* Dynamic Gradient Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/20 via-transparent to-black/20 pointer-events-none" />
-
-        {/* Ambient Decorative Shapes (Desktop) */}
-        <div className="absolute inset-y-0 right-0 w-1/2 pointer-events-none hidden md:block overflow-hidden opacity-30">
-          <div className="absolute -top-10 right-10 w-72 h-72 rounded-full bg-white/20 blur-2xl" />
-          <div className="absolute bottom-0 right-40 w-60 h-60 rounded-full bg-white/10 blur-xl" />
-        </div>
-
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-md mb-3 border border-white/20">
-            <span>✨ Overview Workspace</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight mb-2">
-            Welcome back, {user?.fullName || user?.name || 'System Admin'} 👋
-          </h1>
-          <p className="text-white/80 max-w-xl text-xs sm:text-sm leading-relaxed mb-6">
-            Here is what is happening across your CRM, client accounts, projects, and financials today.
-          </p>
-
-          {/* Quick Metrics Bar in Hero */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-            <div className="flex items-center gap-3 rounded-xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white">
-                <Users size={18} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[11px] font-medium text-white/80 block truncate">Clients</span>
-                <span className="text-lg font-bold text-white block truncate">
-                  {summary?.totalClients || 0}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white">
-                <Folder size={18} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[11px] font-medium text-white/80 block truncate">Projects</span>
-                <span className="text-lg font-bold text-white block truncate">
-                  {summary?.totalProjects || 0}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white">
-                <FileText size={18} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[11px] font-medium text-white/80 block truncate">Invoices</span>
-                <span className="text-lg font-bold text-white block truncate">
-                  {summary?.totalInvoices || 0}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-xl bg-white/10 backdrop-blur-md p-3 border border-white/15">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/20 text-white">
-                <CalendarCheck size={18} />
-              </div>
-              <div className="min-w-0">
-                <span className="text-[11px] font-medium text-white/80 block truncate">Due Renewals</span>
-                <span className="text-lg font-bold text-white block truncate">
-                  {summary?.renewalsExpiringSoon || 0}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Primary KPI Grid (6 Columns) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         {[

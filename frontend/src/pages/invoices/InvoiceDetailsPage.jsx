@@ -14,6 +14,7 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { InvoicePreview as InvoiceDocument } from '../../components/invoices/InvoicePreview';
 import { normalizeInvoiceNumber } from '../../lib/invoiceNumber';
+import { canonicalRoute, invoiceRoute } from '../../utils/entityRoutes';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,12 @@ export function InvoiceDetailsPage() {
   const [copied, setCopied] = useState(false);
 
   const canEdit = hasPermission('invoices.manage') || hasPermission('invoices.write');
+
+  useEffect(() => {
+    if (!invoice?.id) return;
+    const next = canonicalRoute('invoices', invoice, `/app/invoices/${id}`);
+    if (next) navigate(next, { replace: true });
+  }, [id, invoice, navigate]);
 
   useEffect(() => {
     let active = true;
@@ -227,7 +234,7 @@ export function InvoiceDetailsPage() {
               
               {/* Edit (only Draft/Sent) */}
               {canEdit && ['Draft', 'Sent'].includes(invoice.status) && (
-                <Button variant="secondary" onClick={() => navigate(`/app/invoices/${id}/edit`)} className="bg-white border-slate-200 shadow-sm hover:border-amber-200 hover:text-amber-700 hover:bg-amber-50/50">
+                <Button variant="secondary" onClick={() => navigate(invoiceRoute(invoice, 'edit'))} className="bg-white border-slate-200 shadow-sm hover:border-amber-200 hover:text-amber-700 hover:bg-amber-50/50">
                   <Pencil size={16} className="mr-1.5" /> Edit
                 </Button>
               )}

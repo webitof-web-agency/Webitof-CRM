@@ -17,6 +17,7 @@ import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { formatDateOnlyDisplay } from '../../lib/dateOnly';
 import { cn } from '../../lib/cn';
+import { canonicalRoute } from '../../utils/entityRoutes';
 
 function formatMoney(value) {
   const amount = Number(value || 0);
@@ -86,6 +87,12 @@ export function ExpenseDetailsPage() {
       active = false;
     };
   }, [id, token, canRead, navigate]);
+
+  useEffect(() => {
+    if (!expense?.id) return;
+    const next = canonicalRoute('expenses', expense, `/app/expenses/${id}`);
+    if (next) navigate(next, { replace: true });
+  }, [expense, id, navigate]);
 
   if (loading) return <PageLoader />;
   if (!expense) return null;

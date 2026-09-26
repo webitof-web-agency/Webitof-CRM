@@ -52,6 +52,7 @@ app.post(`${API_PREFIX}/admin/backup/run`, async (req, res) => {
 
 async function start() {
   await ensureDatabase();
+  require('./services/hrm/automation').schedule();
   const server = http.createServer(app);
   registerSocketHub(server, {
     origin: process.env.CORS_ORIGIN || true

@@ -59,6 +59,7 @@ import { cn } from '../../lib/cn';
 import { normalizeSharedLabels, mergeSharedLabelOptions } from '../../lib/labels';
 import { formatDateOnlyDisplay, formatDateOnlyInput, isSameDateOnly } from '../../lib/dateOnly';
 import { EventFeedPanel } from '../../components/events/EventFeedPanel';
+import { canonicalRoute, invoiceRoute, paymentRoute } from '../../utils/entityRoutes';
 
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
@@ -1207,7 +1208,6 @@ export function ClientDetailsPage() {
       try {
         const results = await Promise.allSettled([
           api.resources.get('/clients', `${id}/summary`, token),
-          api.files.list(token, '', 'clients', id),
           api.settings.get(token),
           api.resources.list('/users/lookup', token, ''),
           api.resources.list('/masters/amc_type', token, ''),
@@ -1216,16 +1216,20 @@ export function ClientDetailsPage() {
 
         if (!active) return;
 
-        const [summaryRes, filesRes, settingsRes, usersRes, amcTypesRes, billingCyclesRes] = results;
+        const [summaryRes, settingsRes, usersRes, amcTypesRes, billingCyclesRes] = results;
+        let resolvedClientId = id;
         if (summaryRes.status === 'fulfilled') {
-          setData(summaryRes.value.data || null);
+          const nextData = summaryRes.value.data || null;
+          resolvedClientId = nextData?.client?.id || id;
+          setData(nextData);
         } else {
           throw summaryRes.reason || new Error('Failed to load client details');
         }
 
-        if (filesRes.status === 'fulfilled') {
-          setFiles(filesRes.value.data || []);
-        } else {
+        try {
+          const filesRes = await api.files.list(token, '', 'clients', resolvedClientId);
+          if (active) setFiles(filesRes.data || []);
+        } catch {
           setFiles([]);
         }
 
@@ -1384,7 +1388,7 @@ export function ClientDetailsPage() {
         credit: 0,
         status: inv.status,
         raw: inv,
-        link: `/app/invoices/${inv.id}`
+        link: invoiceRoute(inv)
       });
     });
     (payments || []).forEach((pay) => {
@@ -1398,7 +1402,7 @@ export function ClientDetailsPage() {
         credit: Number(pay.amountReceived || 0),
         status: pay.paymentStatus || 'Received',
         raw: pay,
-        link: `/app/payments/${pay.id}`
+        link: paymentRoute(pay)
       });
     });
 
@@ -1418,6 +1422,12 @@ export function ClientDetailsPage() {
   const totalPaidAmount = useMemo(() => (payments || []).reduce((sum, p) => sum + Number(p.amountReceived || 0), 0), [payments]);
   const totalOpeningBalance = Number(client?.openingBalance || 0);
   const netOutstandingBalance = (totalOpeningBalance + totalInvoicedAmount) - totalPaidAmount;
+
+  useEffect(() => {
+    if (!client?.id) return;
+    const next = canonicalRoute('clients', client, `/app/clients/${id}`);
+    if (next) navigate(next, { replace: true });
+  }, [client, id, navigate]);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Activity },
@@ -1666,7 +1676,7 @@ export function ClientDetailsPage() {
             <Pencil size={16} className="mr-2" />
             Edit Client
           </Button>
-          <Button onClick={() => navigate('/app/projects', { state: { openProjectForm: true, clientId: id } })}>
+          <Button onClick={() => navigate('/app/projects', { state: { openProjectForm: true, clientId: client.id || id } })}>
             <Briefcase size={16} className="mr-2" />
             Add Project
           </Button>
