@@ -95,6 +95,15 @@ function identifierParts(value) {
     };
   }
 
+  const embeddedIdMatch = raw.match(/(?:^|-)([a-z]+_[a-zA-Z0-9]+)$/i);
+  if (embeddedIdMatch) {
+    return {
+      raw,
+      publicToken: raw,
+      shortToken: embeddedIdMatch[1].trim()
+    };
+  }
+
   return {
     raw,
     publicToken: raw.trim(),
@@ -175,6 +184,13 @@ function createRepository({
     [publicToken, raw].forEach((value) => {
       if (value && !candidates.includes(value)) candidates.push(value);
     });
+    if (!raw.includes('--')) {
+      const legacyParts = raw.split('-').filter(Boolean);
+      for (let index = legacyParts.length - 1; index > 0; index -= 1) {
+        const candidate = legacyParts.slice(0, index).join('-');
+        if (candidate && !candidates.includes(candidate)) candidates.push(candidate);
+      }
+    }
 
     for (const candidate of candidates) {
       const publicColumns = publicIdentifierColumns.filter((key) => resolveColumn(key));

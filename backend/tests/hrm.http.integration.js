@@ -9,7 +9,14 @@ test("actual HTTP login, existing routes and HR authorization work on rollback-o
   let server;
   try {
     await require("../database/migrate-hrm").migrate(db);
-    database.pool.query = (sql, params) => db.query(sql, params);
+    // The fixture routes every application query through one transaction
+    // client. Queue calls because pg clients are single-query executors.
+    let queryQueue = Promise.resolve();
+    database.pool.query = (sql, params) => {
+      const pending = queryQueue.then(() => db.query(sql, params));
+      queryQueue = pending.catch(() => undefined);
+      return pending;
+    };
     let seq = 0;
     database.withTransaction = async (fn) => {
       const name = `hrm_http_${++seq}`;
@@ -107,6 +114,15 @@ test("actual HTTP login, existing routes and HR authorization work on rollback-o
       body: "{}",
     });
     assert.equal(response.status, 403);
+    response = await fetch(`${base}/admin/backup/run`, {
+      method: "POST",
+      headers,
+    });
+    assert.equal(response.status, 403);
+    response = await fetch(`${base}/call-logs`, { headers });
+    assert.equal(response.status, 403);
+    response = await fetch(`${base}/admin/backup/run`, { method: "POST" });
+    assert.equal(response.status, 401);
     response = await fetch(`${base}/hrm/employees`);
     assert.equal(response.status, 401);
     const adminToken = auth.signToken({ sub: admin.id });

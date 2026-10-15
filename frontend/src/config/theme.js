@@ -14,7 +14,7 @@ function hexToRgba(hex, opacity) {
 
 export const systemTheme = {
   colors: {
-    primary: '#3b82f6',
+    primary: '#4361ee',
     background: '#f8fafc',
     surface: '#ffffff',
     surface2: '#f1f5f9',

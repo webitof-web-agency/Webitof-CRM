@@ -1,4 +1,5 @@
 import {
+  PhoneCall,
   Banknote,
   CircleDollarSign,
   Boxes,
@@ -9,6 +10,7 @@ import {
   LucideFileText,
   MessageSquareText,
   ReceiptText,
+  FileSignature,
   RotateCw,
   ShieldCheck,
   SquareUser,
@@ -47,7 +49,9 @@ import {
   FileCheck2,
   SlidersHorizontal,
   History,
-  Settings
+  Settings,
+  Scale,
+  FileImage
 } from 'lucide-react';
 
 export const navigationGroups = [
@@ -75,9 +79,16 @@ export const navigationGroups = [
           { label: 'Analytics', path: '/app/follow-ups?view=analytics', icon: BarChart3 }
         ]
       },
+            {
+        label: 'Call History',
+        path: '/app/call-history',
+        icon: PhoneCall,
+        permissions: ['calls.read', 'leads.read', 'dashboard.view']
+      },
       { label: 'Leads', path: '/app/leads', icon: Target, permission: 'leads.read' },
       { label: 'Clients', path: '/app/clients', icon: Building2, permission: 'clients.read' },
       { label: 'Projects', path: '/app/projects', icon: BriefcaseBusiness, permission: 'projects.read' },
+      { label: 'Quotations', path: '/app/quotations', icon: FileSignature, permission: 'leads.read' },
       { label: 'Invoices', path: '/app/invoices', icon: ReceiptText, permission: 'invoices.read' },
       { label: 'Payments', path: '/app/payments', icon: Banknote, permission: 'payments.read' },
       { label: 'Finance', path: '/app/finance', icon: CircleDollarSign, permission: 'reports.view' },
@@ -135,6 +146,29 @@ export const navigationGroups = [
   {
     title: 'Administration',
     items: [
+      {
+        label: 'Service Master',
+        path: '/app/service-master',
+        icon: Boxes,
+        permission: 'masters.read',
+        children: [
+          { label: 'All Services', path: '/app/service-master/services', icon: LayoutList },
+          { label: 'Categories', path: '/app/service-master/categories', icon: FolderOpen },
+          { label: 'Tech Stacks', path: '/app/service-master/tech-stacks', icon: SlidersHorizontal }
+        ]
+      },
+      {
+        label: 'Quotation Master',
+        path: '/app/quotation-master',
+        icon: FileImage,
+        permission: 'masters.read'
+      },
+      {
+        label: 'Legal Master',
+        path: '/app/legal-master',
+        icon: Scale,
+        permission: 'masters.read'
+      },
       { label: 'Masters', path: '/app/masters', icon: ShieldCheck, permission: 'masters.read' },
       { label: 'Reports', path: '/app/reports', icon: SquareUser, permission: 'reports.view' },
       { label: 'Files', path: '/app/files', icon: FileArchive, permission: 'files.read' },

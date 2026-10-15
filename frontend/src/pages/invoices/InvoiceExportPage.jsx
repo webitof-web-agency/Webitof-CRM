@@ -153,7 +153,7 @@ export function InvoiceExportPage() {
               <Printer size={16} />
               Print
             </Button>
-            <Button onClick={handleDownloadPDF} disabled={downloading} className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+            <Button variant="primary" onClick={handleDownloadPDF} disabled={downloading} className="gap-2">
               <Download size={16} />
               {downloading ? 'Generating...' : 'Download PDF'}
             </Button>

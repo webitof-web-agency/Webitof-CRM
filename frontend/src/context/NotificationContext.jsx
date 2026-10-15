@@ -30,6 +30,7 @@ export function NotificationProvider({ children }) {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [socketInstance, setSocketInstance] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -71,6 +72,7 @@ export function NotificationProvider({ children }) {
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
+      setSocketInstance(null);
       }
       return;
     }
@@ -115,6 +117,7 @@ export function NotificationProvider({ children }) {
 
     socket.connect();
     socketRef.current = socket;
+    setSocketInstance(socket);
 
     return () => {
       socket.disconnect();
@@ -159,7 +162,8 @@ export function NotificationProvider({ children }) {
     loading,
     refresh,
     markRead,
-    markAllRead
+    markAllRead,
+    socket: socketInstance
   };
 
   return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>;

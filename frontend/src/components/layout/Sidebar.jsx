@@ -31,7 +31,7 @@ function SidebarLink({ item, onNavigate, open, isChild = false }) {
             : 'h-10 text-xs',
           !isChild && (open ? 'mx-3 px-3.5 rounded-[14px]' : 'mx-2 justify-center px-0 rounded-[14px]'),
           active
-            ? 'bg-gradient-to-r from-[#0071E3]/15 to-[#0071E3]/5 dark:from-[#0071E3]/25 dark:to-[#0071E3]/10 text-[#0071E3] dark:text-[#2997FF] border border-[#0071E3]/25 dark:border-[#0071E3]/35 shadow-xs font-bold'
+            ? 'bg-gradient-to-r from-[var(--primary)]/15 to-[var(--primary)]/5 dark:from-[var(--primary)]/25 dark:to-[var(--primary)]/10 text-[var(--primary)] dark:text-[var(--primary)] border border-[var(--primary)]/25 dark:border-[var(--primary)]/35 shadow-xs font-bold'
             : 'text-[var(--sidebar-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[var(--text-main)] border border-transparent'
         );
       }}
@@ -48,7 +48,7 @@ function SidebarLink({ item, onNavigate, open, isChild = false }) {
                 className={cn(
                   'shrink-0 transition-colors duration-150',
                   active
-                    ? 'text-[#0071E3] dark:text-[#2997FF]'
+                    ? 'text-[var(--primary)] dark:text-[var(--primary)]'
                     : 'text-[var(--sidebar-text)] group-hover:text-[var(--text-main)]'
                 )}
               />
@@ -57,7 +57,7 @@ function SidebarLink({ item, onNavigate, open, isChild = false }) {
                 className={cn(
                   'h-1.5 w-1.5 rounded-full shrink-0 transition-colors duration-150',
                   active
-                    ? 'bg-[#0071E3] dark:bg-[#2997FF]'
+                    ? 'bg-[var(--primary)] dark:bg-[var(--primary)]'
                     : 'bg-[var(--sidebar-text)]/40 group-hover:bg-[var(--text-main)]'
                 )}
               />
@@ -73,7 +73,7 @@ function SidebarLink({ item, onNavigate, open, isChild = false }) {
             {item.badge ? (
               <span
                 className={cn(
-                  'ml-auto rounded-full bg-[#0071E3]/15 dark:bg-[#0071E3]/25 px-2 py-0.5 text-[10px] font-bold text-[#0071E3] dark:text-[#2997FF]',
+                  'ml-auto rounded-full bg-[var(--primary)]/15 dark:bg-[var(--primary)]/25 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)] dark:text-[var(--primary)]',
                   !open && !isChild && 'hidden'
                 )}
               >
@@ -107,7 +107,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
         className={cn(
           'group relative flex h-10 items-center justify-center overflow-hidden whitespace-nowrap rounded-[14px] text-xs font-semibold transition-all duration-150 mx-2 px-0',
           isParentActive
-            ? 'bg-gradient-to-r from-[#0071E3]/15 to-[#0071E3]/5 dark:from-[#0071E3]/25 dark:to-[#0071E3]/10 text-[#0071E3] dark:text-[#2997FF] border border-[#0071E3]/25 dark:border-[#0071E3]/35 shadow-xs font-bold'
+            ? 'bg-gradient-to-r from-[var(--primary)]/15 to-[var(--primary)]/5 dark:from-[var(--primary)]/25 dark:to-[var(--primary)]/10 text-[var(--primary)] dark:text-[var(--primary)] border border-[var(--primary)]/25 dark:border-[var(--primary)]/35 shadow-xs font-bold'
             : 'text-[var(--sidebar-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[var(--text-main)] border border-transparent'
         )}
         title={item.label}
@@ -118,7 +118,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
           className={cn(
             'shrink-0 transition-colors duration-150',
             isParentActive
-              ? 'text-[#0071E3] dark:text-[#2997FF]'
+              ? 'text-[var(--primary)] dark:text-[var(--primary)]'
               : 'text-[var(--sidebar-text)] group-hover:text-[var(--text-main)]'
           )}
         />
@@ -133,7 +133,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
         className={cn(
           'group relative flex h-10 items-center justify-between overflow-hidden whitespace-nowrap rounded-[14px] text-xs font-semibold transition-all duration-150 mx-3 px-3.5 cursor-pointer select-none',
           isParentActive
-            ? 'bg-[#0071E3]/10 dark:bg-[#0071E3]/20 text-[#0071E3] dark:text-[#2997FF] font-bold border border-[#0071E3]/25 dark:border-[#0071E3]/35'
+            ? 'bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 text-[var(--primary)] dark:text-[var(--primary)] font-bold border border-[var(--primary)]/25 dark:border-[var(--primary)]/35'
             : 'text-[var(--sidebar-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[var(--text-main)] border border-transparent'
         )}
       >
@@ -152,13 +152,13 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
             className={cn(
               'shrink-0 transition-colors duration-150',
               isParentActive
-                ? 'text-[#0071E3] dark:text-[#2997FF]'
+                ? 'text-[var(--primary)] dark:text-[var(--primary)]'
                 : 'text-[var(--sidebar-text)] group-hover:text-[var(--text-main)]'
             )}
           />
           <span className="truncate">{item.label}</span>
           {item.badge ? (
-            <span className="rounded-full bg-[#0071E3]/15 dark:bg-[#0071E3]/25 px-2 py-0.5 text-[10px] font-bold text-[#0071E3] dark:text-[#2997FF]">
+            <span className="rounded-full bg-[var(--primary)]/15 dark:bg-[var(--primary)]/25 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)] dark:text-[var(--primary)]">
               {item.badge}
             </span>
           ) : null}
@@ -212,7 +212,23 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
 export function Sidebar({ open = false, onClose }) {
   const { user } = useAuth();
   const location = useLocation();
-  const [logos, setLogos] = useState({});
+  const [logos, setLogos] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem('webitof-logos');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {
+      primary: '/assets/images/horizontal-logo.png',
+      primaryDark: '/assets/images/horizontal-white-logo.png',
+      sidebar: '/assets/images/horizontal-logo.png',
+      sidebarDark: '/assets/images/horizontal-white-logo.png',
+      sidebarCollapsed: '/assets/images/round-logo.png',
+      sidebarCollapsedDark: '/assets/images/webitof-icon-white.png',
+      favicon: '/assets/images/round-logo.png',
+      loginLight: '/assets/images/webitof-icon.png',
+      loginDark: '/assets/images/webitof-icon-white.png'
+    };
+  });
   const [collapsedGroups, setCollapsedGroups] = useState({});
   const [expandedItems, setExpandedItems] = useState({});
 
@@ -224,6 +240,20 @@ export function Sidebar({ open = false, onClose }) {
       } catch (e) {}
     };
     loadLogos();
+
+    // Fetch live public settings so unauthenticated / fresh browsers get updated logos
+    fetch('/api/settings/public')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.data?.logos) {
+          setLogos(data.data.logos);
+          try {
+            window.localStorage.setItem('webitof-logos', JSON.stringify(data.data.logos));
+          } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
     window.addEventListener('logos-updated', loadLogos);
     return () => window.removeEventListener('logos-updated', loadLogos);
   }, []);
@@ -350,33 +380,48 @@ export function Sidebar({ open = false, onClose }) {
         >
           <div className="flex items-center gap-2.5 min-w-0">
             {open ? (
-              logos.sidebar ? (
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* Expanded Light Mode Logo */}
                 <img
-                  src={logos.sidebar}
-                  alt="Logo"
-                  className="h-9 w-auto max-w-[160px] object-contain"
+                  src={logos.sidebar || logos.primary || '/assets/images/horizontal-logo.png'}
+                  alt="Webitof CRM"
+                  className={cn(
+                    "h-9 w-auto max-w-[160px] object-contain transition-opacity duration-200",
+                    (logos.sidebarDark || logos.primaryDark || '/assets/images/horizontal-white-logo.png')
+                      ? "dark:hidden"
+                      : ""
+                  )}
                 />
-              ) : (
-                <div className="flex items-center gap-2.5">
-                  <div className="relative flex h-8.5 w-8.5 items-center justify-center rounded-[12px] bg-gradient-to-b from-[#0077ED] via-[#0071E3] to-[#005bb5] text-white shadow-md shadow-blue-500/25 border border-white/40 font-extrabold text-sm">
-                    <span className="drop-shadow-xs">W</span>
-                    <div className="absolute inset-0 rounded-[12px] bg-gradient-to-tr from-white/30 via-transparent to-transparent pointer-events-none" />
-                  </div>
-                  <span className="font-extrabold text-sm tracking-tight text-slate-900 dark:text-white">
-                    Webitof CRM
-                  </span>
-                </div>
-              )
-            ) : logos.sidebarCollapsed ? (
-              <img
-                src={logos.sidebarCollapsed}
-                alt="Logo"
-                className="h-8 w-8 object-contain rounded-lg"
-              />
+                {/* Expanded Dark Mode Logo */}
+                {(logos.sidebarDark || logos.primaryDark || '/assets/images/horizontal-white-logo.png') && (
+                  <img
+                    src={logos.sidebarDark || logos.primaryDark || '/assets/images/horizontal-white-logo.png'}
+                    alt="Webitof CRM"
+                    className="h-9 w-auto max-w-[160px] object-contain hidden dark:block transition-opacity duration-200"
+                  />
+                )}
+              </div>
             ) : (
-              <div className="relative flex h-8.5 w-8.5 items-center justify-center rounded-[12px] bg-gradient-to-b from-[#0077ED] via-[#0071E3] to-[#005bb5] text-white shadow-md shadow-blue-500/25 border border-white/40 font-extrabold text-sm">
-                <span className="drop-shadow-xs">W</span>
-                <div className="absolute inset-0 rounded-[12px] bg-gradient-to-tr from-white/30 via-transparent to-transparent pointer-events-none" />
+              <div className="flex items-center justify-center min-w-0">
+                {/* Collapsed Light Mode Logo */}
+                <img
+                  src={logos.sidebarCollapsed || logos.favicon || '/assets/images/round-logo.png'}
+                  alt="Webitof"
+                  className={cn(
+                    "h-8 w-8 object-contain rounded-full shadow-xs transition-opacity duration-200",
+                    (logos.sidebarCollapsedDark || '/assets/images/webitof-icon-white.png')
+                      ? "dark:hidden"
+                      : ""
+                  )}
+                />
+                {/* Collapsed Dark Mode Logo */}
+                {(logos.sidebarCollapsedDark || '/assets/images/webitof-icon-white.png') && (
+                  <img
+                    src={logos.sidebarCollapsedDark || '/assets/images/webitof-icon-white.png'}
+                    alt="Webitof"
+                    className="h-8 w-auto max-w-[34px] object-contain drop-shadow-xs hidden dark:block transition-opacity duration-200"
+                  />
+                )}
               </div>
             )}
           </div>

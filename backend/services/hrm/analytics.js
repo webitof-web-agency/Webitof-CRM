@@ -1,5 +1,12 @@
 const c = require("./core");
 const calc = require("./calculations");
+
+async function queryBatch(db, tasks) {
+  const results = [];
+  for (const task of tasks) results.push(await task());
+  return results;
+}
+
 async function analytics(user, q = {}, db = c.dbDefault) {
   const p = await c.policy(db);
   const { start, end } = c.range(q, p);
@@ -13,43 +20,43 @@ async function analytics(user, q = {}, db = c.dbDefault) {
       rows: [],
       policy: p,
     };
-  const [a, w, l, h, m, x, alloc, salary, goals, reviews] = await Promise.all([
-    db.query(
+  const [a, w, l, h, m, x, alloc, salary, goals, reviews] = await queryBatch(db, [
+    () => db.query(
       "SELECT * FROM hrm_attendance WHERE employee_id=ANY($1::text[]) AND work_date BETWEEN $2 AND $3",
       [ids, start, end],
     ),
-    db.query(
+    () => db.query(
       `SELECT r.id AS report_id,r.employee_id,r.work_date,r.status,r.submitted_at,w.project_id,w.minutes,w.billable,w.blocker,w.task_id FROM hrm_work_reports r LEFT JOIN hrm_work_entries w ON w.report_id=r.id WHERE r.employee_id=ANY($1::text[]) AND r.work_date BETWEEN $2 AND $3`,
       [ids, start, end],
     ),
-    db.query(
+    () => db.query(
       "SELECT * FROM hrm_requests WHERE employee_id=ANY($1::text[]) AND kind='leave' AND status='Approved' AND start_date<=$3 AND end_date>=$2",
       [ids, start, end],
     ),
-    db.query("SELECT * FROM hrm_holidays WHERE work_date BETWEEN $1 AND $2", [
+    () => db.query("SELECT * FROM hrm_holidays WHERE work_date BETWEEN $1 AND $2", [
       `${start.slice(0, 7)}-01`,
       require("./payroll").monthBounds(end).end,
     ]),
-    db.query("SELECT * FROM master_items WHERE type='hrm_shift'"),
-    db.query(
+    () => db.query("SELECT * FROM master_items WHERE type='hrm_shift'"),
+    () => db.query(
       "SELECT * FROM hrm_employment_history WHERE employee_id=ANY($1::text[]) AND effective_date<=$2",
       [ids, end],
     ),
-    db.query(
+    () => db.query(
       "SELECT * FROM hrm_allocations WHERE employee_id=ANY($1::text[]) AND start_date<=$3 AND end_date>=$2 AND archived_at IS NULL",
       [ids, start, end],
     ),
     c.can(user, "view_salary")
-      ? db.query(
+      ? () => db.query(
           "SELECT * FROM hrm_salary_history WHERE employee_id=ANY($1::text[]) AND effective_date<=$2",
           [ids, end],
         )
-      : Promise.resolve({ rows: [] }),
-    db.query(
+      : () => Promise.resolve({ rows: [] }),
+    () => db.query(
       "SELECT * FROM hrm_records WHERE employee_id=ANY($1::text[]) AND kind='goal' AND archived_at IS NULL AND (start_date IS NULL OR start_date<=$3) AND (end_date IS NULL OR end_date>=$2)",
       [ids, start, end],
     ),
-    db.query(
+    () => db.query(
       "SELECT * FROM hrm_records WHERE employee_id=ANY($1::text[]) AND kind='review' AND status='Published' AND coalesce(end_date,created_at::date) BETWEEN $2 AND $3",
       [ids, start, end],
     ),
@@ -280,16 +287,16 @@ async function dashboard(user, q = {}, db = c.dbDefault) {
   ).rows;
   const today = c.today(p);
   const n = values.length;
-  const [attendance, pending, trend] = await Promise.all([
-    db.query(
+  const [attendance, pending, trend] = await queryBatch(db, [
+    () => db.query(
       `SELECT status,count(*)::int AS count,count(*) FILTER(WHERE check_in IS NOT NULL AND check_out IS NULL)::int AS working FROM hrm_attendance WHERE employee_id IN(${scoped}) AND work_date=$${n + 1} GROUP BY status`,
       [...values, today],
     ),
-    db.query(
+    () => db.query(
       `SELECT kind,status,count(*)::int AS count FROM hrm_requests WHERE employee_id IN(${scoped}) AND status IN ('Submitted','Manager Approved') GROUP BY kind,status`,
       values,
     ),
-    db.query(
+    () => db.query(
       `SELECT r.work_date,coalesce(sum(w.minutes),0)::int AS minutes,coalesce(sum(w.minutes) FILTER(WHERE w.billable),0)::int AS billable_minutes,count(DISTINCT r.employee_id)::int AS reporters FROM hrm_work_reports r LEFT JOIN hrm_work_entries w ON w.report_id=r.id WHERE r.employee_id IN(${scoped}) AND r.work_date BETWEEN $${n + 1} AND $${n + 2} AND r.status IN ('Submitted','Reviewed','Approved') GROUP BY r.work_date ORDER BY r.work_date`,
       [...values, start, end],
     ),

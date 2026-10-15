@@ -11,6 +11,13 @@ import { GlobalEventsDrawer } from '../events/GlobalEventsDrawer';
 import { persistAndApplyThemeSettings } from '../../config/theme';
 
 function resolveTitle(pathname) {
+  if (pathname.includes('/leads') && pathname.includes('/quotations')) {
+    return 'Leads / Quotation Builder';
+  }
+  if (pathname.startsWith('/app/quotations') && (pathname.includes('/new') || pathname.includes('/builder'))) {
+    return 'Quotations / Quotation Builder';
+  }
+
   for (const group of navigationGroups) {
     for (const item of group.items) {
       if (item.children) {

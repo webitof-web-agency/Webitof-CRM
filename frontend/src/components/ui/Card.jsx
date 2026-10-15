@@ -10,7 +10,7 @@ const cardVariants = {
   flat:
     'bg-white/60 dark:bg-white/[0.04] border border-black/[0.06] dark:border-white/[0.06] shadow-none backdrop-blur-md',
   interactive:
-    'liquid-glass-card border border-white/80 dark:border-white/10 shadow-[var(--shadow-card)] glass-card-interactive cursor-pointer hover:border-[#0071E3]/40 dark:hover:border-[#2997FF]/40'
+    'liquid-glass-card border border-white/80 dark:border-white/10 shadow-[var(--shadow-card)] glass-card-interactive cursor-pointer hover:border-[var(--primary)]/40 dark:hover:border-[var(--primary)]/40'
 };
 
 export function Card({

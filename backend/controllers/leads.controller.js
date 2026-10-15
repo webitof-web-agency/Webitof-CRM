@@ -827,8 +827,14 @@ function getBulkLeadIds(value) {
 }
 
 async function buildLeadOptions() {
-  const serviceRows = await masterItemModel.listByType('service');
-  const services = serviceRows
+  const [serviceRows, serviceCategoryRows, amcRows, legalRows] = await Promise.all([
+    masterItemModel.listByType('service'),
+    masterItemModel.listByType('service_category'),
+    masterItemModel.listByType('amc_type'),
+    masterItemModel.listByType('legal_term')
+  ]);
+  const categoryMap = new Map((serviceCategoryRows || []).map((category) => [String(category.id), category.name]));
+  const services = (serviceRows || [])
     .filter((service) => service?.isActive !== false && String(service?.name || '').trim())
     .sort((a, b) => {
       const orderDiff = Number(a.sortOrder || 0) - Number(b.sortOrder || 0);
@@ -838,9 +844,90 @@ async function buildLeadOptions() {
     .map((service) => String(service.name).trim());
   const serviceOptions = [...new Set([...services, 'Other'])];
 
+  const serviceCatalog = (serviceRows || [])
+    .filter((service) => service?.isActive !== false && String(service?.name || '').trim())
+    .map((service) => {
+      const payload = service.payload || {};
+      const categoryId = service.categoryId || payload.categoryId || '';
+      return {
+        id: service.id,
+        name: String(service.name).trim(),
+        categoryId,
+        categoryName: service.categoryName || payload.categoryName || categoryMap.get(String(categoryId)) || '',
+        serviceKind: service.serviceKind || payload.serviceKind || 'primary',
+        parentServiceIds: Array.isArray(service.parentServiceIds) ? service.parentServiceIds : (Array.isArray(payload.parentServiceIds) ? payload.parentServiceIds : []),
+        defaultPrice: Number(service.defaultPrice ?? payload.defaultPrice ?? 0),
+        minimumBudget: Number(service.minimumBudget ?? payload.minimumBudget ?? 0),
+        gstRate: Number(service.gstRate ?? payload.gstRate ?? 18),
+        unit: service.unit || payload.unit || 'Project',
+        sacCode: service.sacCode || payload.sacCode || payload.sac || '',
+        description: service.description || payload.description || '',
+        featuresText: service.featuresText || payload.featuresText || '',
+        scopeOfWork: service.scopeOfWork || payload.scopeOfWork || '',
+        technologyStackIds: Array.isArray(service.technologyStackIds) ? service.technologyStackIds : (Array.isArray(payload.technologyStackIds) ? payload.technologyStackIds : []),
+        technologyStack: service.technologyStack || payload.technologyStack || '',
+        timeline: service.timeline || payload.timeline || '',
+        paymentInfo: service.paymentInfo || payload.paymentInfo || '',
+        paymentPlan: service.paymentPlan || payload.paymentPlan || null,
+        termsAndConditions: service.termsAndConditions || payload.termsAndConditions || '',
+        afterCompletion: service.afterCompletion || payload.afterCompletion || '',
+        amcPlanId: service.amcPlanId || payload.amcPlanId || '',
+        nextYearCost: Number(service.nextYearCost ?? payload.nextYearCost ?? 0),
+        sortOrder: Number(service.sortOrder || 0)
+      };
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+
+  const amcPlans = (amcRows || [])
+    .filter((plan) => plan?.isActive !== false && String(plan?.name || '').trim())
+    .map((plan) => {
+      const payload = plan.payload || {};
+      return {
+        id: plan.id,
+        name: plan.name,
+        planCode: plan.planCode || payload.planCode || '',
+        description: plan.description || payload.description || '',
+        defaultCost: Number(plan.defaultCost ?? payload.defaultCost ?? 0),
+        nextYearCost: Number(plan.nextYearCost ?? payload.nextYearCost ?? payload.defaultCost ?? 0),
+        defaultBillingCycle: plan.defaultBillingCycle || payload.defaultBillingCycle || 'Yearly',
+        durationMonths: Number(plan.durationMonths ?? payload.durationMonths ?? 12),
+        supportHours: Number(plan.supportHours ?? payload.supportHours ?? 0),
+        responseSlaHours: Number(plan.responseSlaHours ?? payload.responseSlaHours ?? 24),
+        includedItems: plan.includedItems || payload.includedItems || '',
+        excludedItems: plan.excludedItems || payload.excludedItems || '',
+        termsAndConditions: plan.termsAndConditions || payload.termsAndConditions || '',
+        linkedServiceIds: Array.isArray(plan.linkedServiceIds) ? plan.linkedServiceIds : (Array.isArray(payload.linkedServiceIds) ? payload.linkedServiceIds : [])
+      };
+    });
+
+  const legalTerms = (legalRows || [])
+    .filter((item) => item?.isActive !== false && String(item?.name || '').trim())
+    .map((item) => {
+      const payload = item.payload || {};
+      return {
+        id: item.id,
+        name: String(item.name || '').trim(),
+        documentType: item.documentType || payload.documentType || '',
+        category: item.category || payload.category || 'General',
+        includeInQuotation: Boolean(item.includeInQuotation ?? payload.includeInQuotation ?? false),
+        content: item.content || payload.content || item.terms || payload.terms || '',
+        isDefault: Boolean(item.isDefault ?? payload.isDefault),
+        description: item.description || payload.description || '',
+        sortOrder: Number(item.sortOrder || 0)
+      };
+    })
+    .sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0) || a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+
+  const defaultLegalTerm = legalTerms.find((t) => t.isDefault) || legalTerms[0] || null;
+  const defaultTermsAndConditions = defaultLegalTerm?.content || '';
+
   return {
     ...LEAD_OPTIONS,
     services: serviceOptions,
+    serviceCatalog,
+    amcPlans,
+    legalTerms,
+    defaultTermsAndConditions,
     scoreRules: LEAD_SCORE_RULES
   };
 }

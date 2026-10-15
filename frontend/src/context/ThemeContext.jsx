@@ -68,14 +68,29 @@ export function ThemeProvider({ children }) {
 
       // Apply Branding colors
       const rawBranding = window.localStorage.getItem('webitof-branding');
-      let primaryColor = null;
+      let primaryColor = '#4361ee';
       if (rawBranding) {
-        const branding = JSON.parse(rawBranding);
-        if (branding.primaryColor) {
-          primaryColor = branding.primaryColor;
-        }
+        try {
+          const branding = JSON.parse(rawBranding);
+          if (branding.primaryColor) {
+            primaryColor = branding.primaryColor;
+          }
+        } catch (e) {}
       }
       applyTheme(primaryColor);
+
+      // Fetch live public settings so unauthenticated / fresh browsers get updated branding
+      fetch('/api/settings/public')
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.data?.branding?.primaryColor) {
+            applyTheme(data.data.branding.primaryColor);
+            try {
+              window.localStorage.setItem('webitof-branding', JSON.stringify(data.data.branding));
+            } catch (e) {}
+          }
+        })
+        .catch(() => {});
     } catch (err) {}
   }, []);
 

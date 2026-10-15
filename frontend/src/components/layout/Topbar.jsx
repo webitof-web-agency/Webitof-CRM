@@ -64,7 +64,38 @@ export function Topbar({
         <div className="min-w-0 hidden sm:block">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-bold tracking-tight text-[var(--text-main)] truncate">
-              {title}
+              {typeof title === 'string' && title.includes(' / ') ? (
+                (() => {
+                  const [parent, ...rest] = title.split(' / ');
+                  const child = rest.join(' / ');
+                  const parentPath =
+                    parent.toLowerCase() === 'leads'
+                      ? '/app/leads'
+                      : parent.toLowerCase() === 'quotations'
+                        ? '/app/quotations'
+                        : null;
+                  return (
+                    <span className="inline-flex items-center gap-1.5">
+                      {parentPath ? (
+                        <Link
+                          to={parentPath}
+                          className="font-semibold text-slate-500 dark:text-slate-400 hover:text-[var(--primary)] transition-colors"
+                        >
+                          {parent}
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-slate-500 dark:text-slate-400">{parent}</span>
+                      )}
+                      <span className="text-slate-400 dark:text-slate-500 text-xs font-normal">/</span>
+                      <span className="font-bold text-[var(--text-main)]">
+                        {child}
+                      </span>
+                    </span>
+                  );
+                })()
+              ) : (
+                title
+              )}
             </h2>
           </div>
         </div>
@@ -78,7 +109,7 @@ export function Topbar({
           className="flex w-full items-center justify-between rounded-[14px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] hover:bg-white/90 dark:hover:bg-white/[0.09] px-3.5 py-2 text-xs text-slate-500 dark:text-slate-400 transition-all duration-150 shadow-xs backdrop-blur-md group cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <Search size={14} className="text-slate-400 dark:text-slate-500 group-hover:text-[#0071E3] dark:group-hover:text-[#2997FF] transition-colors" />
+            <Search size={14} className="text-slate-400 dark:text-slate-500 group-hover:text-[var(--primary)] transition-colors" />
             <span className="font-medium">Search anything...</span>
           </div>
           <div className="flex items-center gap-1">
@@ -165,7 +196,7 @@ export function Topbar({
                   <Link
                     to="/app/notifications"
                     onClick={() => setNotificationsOpen(false)}
-                    className="inline-flex items-center gap-1 rounded-lg bg-[#0071E3]/15 dark:bg-[#0071E3]/25 px-2.5 py-1 text-[11px] font-semibold text-[#0071E3] dark:text-[#2997FF] transition hover:bg-[#0071E3]/25"
+                    className="inline-flex items-center gap-1 rounded-lg bg-[var(--primary)]/15 dark:bg-[var(--primary)]/25 px-2.5 py-1 text-[11px] font-semibold text-[var(--primary)] transition hover:bg-[var(--primary)]/25"
                   >
                     View all
                     <ArrowUpRight size={13} />
@@ -187,7 +218,7 @@ export function Topbar({
                       className={`w-full rounded-[14px] p-2.5 text-left transition-all duration-150 cursor-pointer ${
                         item.isRead
                           ? 'bg-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
-                          : 'bg-[#0071E3]/8 dark:bg-[#0071E3]/15 hover:bg-[#0071E3]/12 border border-[#0071E3]/15'
+                          : 'bg-[var(--primary)]/8 dark:bg-[var(--primary)]/15 hover:bg-[var(--primary)]/12 border border-[var(--primary)]/15'
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
@@ -195,7 +226,7 @@ export function Topbar({
                           className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] ${
                             item.isRead
                               ? 'bg-black/[0.05] dark:bg-white/10 text-slate-500 dark:text-slate-400'
-                              : 'bg-gradient-to-b from-[#0077ED] to-[#0071E3] text-white shadow-xs'
+                              : 'bg-[var(--primary)] text-white shadow-xs'
                           }`}
                         >
                           <Bell size={13} />
@@ -259,7 +290,7 @@ export function Topbar({
                   <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                     {user?.fullName || user?.name || 'System Admin'}
                   </p>
-                  <p className="text-[11px] font-semibold text-[#0071E3] dark:text-[#2997FF] truncate">
+                  <p className="text-[11px] font-semibold text-[var(--primary)] truncate">
                     {user?.role || 'Admin'}
                   </p>
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">

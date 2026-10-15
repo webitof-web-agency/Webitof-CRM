@@ -245,6 +245,31 @@ export const api = {
     deleteDriveFile: (token, driveFileId) => request(`/files/drive/${driveFileId}`, { method: 'DELETE', token }),
     getUsage: (token) => request('/files/drive/usage', { token, skipCache: true })
   },
+  callLogs: {
+    list: (token, query = {}) => {
+      const params = new URLSearchParams();
+      Object.entries(query || {}).forEach(([key, value]) => {
+        if (value == null || value === '') return;
+        params.set(key, value);
+      });
+      const suffix = params.toString() ? `?${params.toString()}` : '';
+      return request(`/call-logs${suffix}`, { token, skipCache: true });
+    },
+    stats: (token, query = {}) => {
+      const params = new URLSearchParams();
+      Object.entries(query || {}).forEach(([key, value]) => {
+        if (value == null || value === '') return;
+        params.set(key, value);
+      });
+      const suffix = params.toString() ? `?${params.toString()}` : '';
+      return request(`/call-logs/stats${suffix}`, { token, skipCache: true });
+    },
+    get: (token, id) => request(`/call-logs/${id}`, { token, skipCache: true }),
+    create: (token, payload) => request('/call-logs', { method: 'POST', token, body: payload }),
+    uploadRecording: (token, formData) => request('/call-logs/upload-recording', { method: 'POST', token, formData }),
+    update: (token, id, payload) => request(`/call-logs/${id}`, { method: 'PATCH', token, body: payload }),
+    remove: (token, id) => request(`/call-logs/${id}`, { method: 'DELETE', token })
+  },
   resources: {
     list: (path, token, search = '', query = {}, options = {}) => {
       const params = new URLSearchParams();

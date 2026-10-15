@@ -61,7 +61,8 @@ export function DataTable({
   rowActions,
   rowClassName,
   onRowClick,
-  lookups = {}
+  lookups = {},
+  compact = false
 }) {
   const [internalPage, setInternalPage] = useState(1);
   const [internalPageSize, setInternalPageSize] = useState(10);
@@ -124,12 +125,18 @@ export function DataTable({
   }
 
   return (
-    <div className="liquid-glass-card relative overflow-hidden rounded-[22px] border border-white/80 dark:border-white/10 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all">
+    <div className={cn(
+      'liquid-glass-card relative overflow-hidden border border-white/80 dark:border-white/10 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all',
+      compact ? 'rounded-2xl' : 'rounded-[22px]'
+    )}>
       {/* Top Specular Light Highlight */}
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/90 dark:via-white/20 to-transparent pointer-events-none z-20" />
 
       {/* Table Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.08] px-5 py-3.5 bg-white/40 dark:bg-white/[0.02]">
+      <div className={cn(
+        'flex flex-wrap items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] bg-white/40 dark:bg-white/[0.02]',
+        compact ? 'gap-2 px-3 py-2' : 'gap-3 px-5 py-3.5'
+      )}>
         {toolbarLeft ? (
           toolbarLeft
         ) : (
@@ -139,17 +146,18 @@ export function DataTable({
               {totalRows} {totalRows === 1 ? 'record' : 'records'}
             </span>
             {selectedIds.length ? (
-              <span className="rounded-full bg-[#0071E3]/15 px-2.5 py-0.5 text-xs font-bold text-[#0071E3] dark:text-[#2997FF] border border-[#0071E3]/25 backdrop-blur-md">
+              <span className="rounded-full bg-[var(--primary)]/15 px-2.5 py-0.5 text-xs font-bold text-[var(--primary)] dark:text-[var(--primary)] border border-[var(--primary)]/25 backdrop-blur-md">
                 {selectedIds.length} selected
               </span>
             ) : null}
           </div>
         )}
-        <div className="flex items-center gap-3">
+        <div className={cn('flex items-center', compact ? 'gap-2' : 'gap-3')}>
           {toolbarRight}
-          <div className="w-20">
+          <div className={compact ? 'w-16' : 'w-20'}>
             <Select
               searchable={false}
+              className={compact ? '[&_button]:py-1.5 [&_button]:text-xs' : ''}
               value={currentPageSize}
               onChange={(val) => changePageSize(Number(val))}
               options={[
@@ -175,7 +183,10 @@ export function DataTable({
           <thead className="bg-white/60 dark:bg-white/[0.03] backdrop-blur-md">
             <tr>
               {selectable ? (
-                <th className="sticky left-0 z-10 border-b border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#12151e]/80 backdrop-blur-md px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap w-12">
+                <th className={cn(
+                  'sticky left-0 z-10 border-b border-black/[0.06] dark:border-white/[0.08] bg-white/80 dark:bg-[#12151e]/80 backdrop-blur-md text-left text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap w-12',
+                  compact ? 'px-3 py-2' : 'px-4 py-3.5'
+                )}>
                   <Checkbox
                     checked={allVisibleSelected}
                     onChange={toggleAllVisible}
@@ -199,7 +210,8 @@ export function DataTable({
                   <th
                     key={column.key}
                     className={cn(
-                      'border-b border-[var(--border)] px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] whitespace-nowrap',
+                      'border-b border-[var(--border)] text-left text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] whitespace-nowrap',
+                      compact ? 'px-3 py-2' : 'px-4 py-3',
                       column.align === 'right' && 'text-right'
                     )}
                   >
@@ -221,7 +233,10 @@ export function DataTable({
                 );
               })}
               {rowActions ? (
-                <th className="border-b border-[var(--border)] px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] whitespace-nowrap">
+                <th className={cn(
+                  'border-b border-[var(--border)] text-right text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] whitespace-nowrap',
+                  compact ? 'px-3 py-2' : 'px-4 py-3'
+                )}>
                   Actions
                 </th>
               ) : null}
@@ -232,12 +247,12 @@ export function DataTable({
               Array.from({ length: Math.min(currentPageSize, 5) }).map((_, idx) => (
                 <tr key={idx} className="border-b border-[var(--border-muted)]">
                   {selectable ? (
-                    <td className="px-4 py-3.5 border-b border-[var(--border-muted)]">
+                    <td className={cn('border-b border-[var(--border-muted)]', compact ? 'px-3 py-2' : 'px-4 py-3.5')}>
                       <div className="h-4 w-4 rounded bg-[var(--surface-3)] animate-pulse" />
                     </td>
                   ) : null}
                   {columns.map((col, colIdx) => (
-                    <td key={colIdx} className="px-4 py-3.5 border-b border-[var(--border-muted)]">
+                    <td key={colIdx} className={cn('border-b border-[var(--border-muted)]', compact ? 'px-3 py-2' : 'px-4 py-3.5')}>
                       <div
                         className="h-4 rounded bg-[var(--surface-3)] animate-pulse"
                         style={{ width: `${60 + (colIdx % 3) * 20}%` }}
@@ -245,7 +260,7 @@ export function DataTable({
                     </td>
                   ))}
                   {rowActions ? (
-                    <td className="px-4 py-3.5 border-b border-[var(--border-muted)] text-right">
+                    <td className={cn('border-b border-[var(--border-muted)] text-right', compact ? 'px-3 py-2' : 'px-4 py-3.5')}>
                       <div className="ml-auto h-7 w-14 rounded-lg bg-[var(--surface-3)] animate-pulse" />
                     </td>
                   ) : null}
@@ -283,7 +298,8 @@ export function DataTable({
                     {selectable ? (
                       <td
                         className={cn(
-                          "sticky left-0 border-b border-[var(--border-muted)] px-4 py-3 align-middle text-xs text-[var(--text-muted)] transition-colors",
+                          'sticky left-0 border-b border-[var(--border-muted)] align-middle text-xs text-[var(--text-muted)] transition-colors',
+                          compact ? 'px-3 py-2' : 'px-4 py-3',
                           isSelected
                             ? "bg-[var(--selected-bg)]"
                             : "bg-[var(--surface)] group-hover:bg-transparent"
@@ -311,7 +327,8 @@ export function DataTable({
                         <td
                           key={column.key}
                           className={cn(
-                            'border-b border-[var(--border-muted)] px-4 py-3 align-middle text-xs font-normal text-[var(--text-main)]',
+                            'border-b border-[var(--border-muted)] align-middle text-xs font-normal text-[var(--text-main)]',
+                            compact ? 'px-3 py-2' : 'px-4 py-3',
                             column.align === 'right' && 'text-right',
                             column.mono && 'font-mono text-xs text-[var(--text-muted)]',
                             column.ellipsis && 'max-w-[260px] truncate'
@@ -323,7 +340,10 @@ export function DataTable({
                     })}
                     {rowActions ? (
                       <td
-                        className="border-b border-[var(--border-muted)] px-4 py-3 text-right"
+                        className={cn(
+                          'border-b border-[var(--border-muted)] text-right',
+                          compact ? 'px-3 py-2' : 'px-4 py-3'
+                        )}
                         onClick={(event) => event.stopPropagation()}
                         onKeyDown={(event) => event.stopPropagation()}
                       >
@@ -339,7 +359,10 @@ export function DataTable({
       </div>
 
       {/* Table Pagination */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--border)] px-5 py-3 text-xs text-[var(--text-muted)] bg-[var(--surface)]">
+      <div className={cn(
+        'flex flex-wrap items-center justify-between border-t border-[var(--border)] text-xs text-[var(--text-muted)] bg-[var(--surface)]',
+        compact ? 'gap-2 px-3 py-2' : 'gap-3 px-5 py-3'
+      )}>
         <span>
           Showing {totalRows ? startIndex + 1 : 0} to {Math.min(startIndex + currentPageSize, totalRows)} of{' '}
           {totalRows} records

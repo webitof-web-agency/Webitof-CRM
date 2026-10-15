@@ -1,21 +1,21 @@
 const c = require("./core");
 const calc = require("./calculations");
 async function calendarData(db, employeeId, start, end) {
-  const [h, l, m, x] = await Promise.all([
-    db.query("SELECT * FROM hrm_holidays WHERE work_date BETWEEN $1 AND $2", [
-      start,
-      end,
-    ]),
-    db.query(
-      "SELECT * FROM hrm_requests WHERE employee_id=$1 AND kind='leave' AND status='Approved' AND start_date<=$3 AND end_date>=$2",
-      [employeeId, start, end],
-    ),
-    db.query("SELECT * FROM master_items WHERE type='hrm_shift'"),
-    db.query(
-      "SELECT * FROM hrm_employment_history WHERE employee_id=$1 AND effective_date<=$2 ORDER BY effective_date,created_at",
-      [employeeId, end],
-    ),
-  ]);
+  // `db` is normally a transaction client. A pg Client can only execute one
+  // query at a time; starting these together is deprecated and breaks in pg 9.
+  const h = await db.query(
+    "SELECT * FROM hrm_holidays WHERE work_date BETWEEN $1 AND $2",
+    [start, end],
+  );
+  const l = await db.query(
+    "SELECT * FROM hrm_requests WHERE employee_id=$1 AND kind='leave' AND status='Approved' AND start_date<=$3 AND end_date>=$2",
+    [employeeId, start, end],
+  );
+  const m = await db.query("SELECT * FROM master_items WHERE type='hrm_shift'");
+  const x = await db.query(
+    "SELECT * FROM hrm_employment_history WHERE employee_id=$1 AND effective_date<=$2 ORDER BY effective_date,created_at",
+    [employeeId, end],
+  );
   return {
     holidays: h.rows.map(c.camel),
     leave: l.rows.map(c.camel),

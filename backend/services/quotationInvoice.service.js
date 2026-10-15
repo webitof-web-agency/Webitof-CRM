@@ -35,6 +35,17 @@ function parseServiceNames(value) {
   return String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
 }
 
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 function getQuotationSnapshot(event = {}, lead = {}, settings = {}) {
   const description = String(event.description || '');
   const serviceNames = parseServiceNames(
@@ -63,6 +74,9 @@ function getQuotationSnapshot(event = {}, lead = {}, settings = {}) {
   const status = String(
     readQuotationField(event, 'status', getStructuredField(description, 'Status') || 'Draft')
   ).trim() || 'Draft';
+  const items = parseJsonArray(
+    readQuotationField(event, 'items', getStructuredField(description, 'Items JSON'))
+  );
 
   return {
     title: String(event.title || 'Quotation').trim() || 'Quotation',
@@ -72,7 +86,8 @@ function getQuotationSnapshot(event = {}, lead = {}, settings = {}) {
     discountValue,
     gstApplicable,
     gstRate,
-    status
+    status,
+    items
   };
 }
 
@@ -115,7 +130,40 @@ function buildQuotationInvoiceDraft({ quotation, lead, client, services = [], se
   validateApprovedQuotation(quotation);
   const serviceMap = new Map(services.map((service) => [String(service.name || '').trim().toLowerCase(), service]));
   let allocated = 0;
-  const items = quotation.serviceNames.map((serviceName, index) => {
+  const quotedItems = Array.isArray(quotation.items)
+    ? quotation.items.filter((item) => String(item?.name || item?.serviceName || '').trim())
+    : [];
+  const items = quotedItems.length ? quotedItems.map((quotedItem) => {
+    const cleanName = String(quotedItem.name || quotedItem.serviceName || '').trim();
+    const service = services.find((candidate) => String(candidate.id) === String(quotedItem.serviceId || ''))
+      || serviceMap.get(cleanName.toLowerCase())
+      || null;
+    const quantity = Math.max(0, toNumber(quotedItem.qty ?? quotedItem.quantity, 1)) || 1;
+    const rate = Math.max(0, toNumber(quotedItem.rate, toNumber(quotedItem.amount, 0) / quantity));
+    return {
+      serviceId: service?.id || quotedItem.serviceId || '',
+      serviceName: cleanName,
+      description: quotedItem.description || cleanName,
+      quantity,
+      qty: quantity,
+      unit: quotedItem.unit || service?.unit || 'Nos',
+      rate: round2(rate),
+      discount: 0,
+      hsnCode: quotedItem.hsnCode || service?.sacCode || '',
+      gstRate: quotation.gstApplicable ? quotation.gstRate : 0,
+      taxRate: quotation.gstApplicable ? quotation.gstRate : 0,
+      manualRateOverride: true,
+      quotedRateLocked: true,
+      serviceSnapshot: service ? {
+        id: service.id,
+        name: service.name,
+        sacCode: service.sacCode,
+        unit: service.unit,
+        defaultPrice: round2(rate),
+        gstRate: quotation.gstApplicable ? quotation.gstRate : 0
+      } : null
+    };
+  }) : quotation.serviceNames.map((serviceName, index) => {
     const cleanName = String(serviceName || '').trim();
     const lookupName = cleanName.toLowerCase().startsWith('other:') ? 'other' : cleanName.toLowerCase();
     const service = serviceMap.get(lookupName) || serviceMap.get(cleanName.toLowerCase()) || null;

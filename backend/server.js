@@ -2,11 +2,13 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 const http = require('http');
 require('dotenv').config();
 
 const apiRoutes = require('./routes');
 const notFound = require('./middlewares/notFound');
+const { requireAuth, requirePermission } = require('./middlewares/auth');
 
 const errorHandler = require('./middlewares/errorHandler');
 const { ensureDatabase } = require('./config/initDb');
@@ -26,6 +28,8 @@ app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
+app.use('/assets', express.static(path.join(__dirname, '../frontend/public/assets')));
+app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
 
 app.get('/', (req, res) => {
   res.json({
@@ -36,20 +40,23 @@ app.get('/', (req, res) => {
 });
 
 app.use(API_PREFIX, apiRoutes);
-app.use(notFound);
-app.use(errorHandler);
 
 // ─── Manual Backup Trigger (Admin only) ───────────────────────────────────────
-app.post(`${API_PREFIX}/admin/backup/run`, async (req, res) => {
+app.post(`${API_PREFIX}/admin/backup/run`, requireAuth, requirePermission('settings.write'), async (req, res) => {
   try {
     const { runBackup } = require('./scripts/backup');
     console.log('📦 Manual backup triggered via API');
-    runBackup(); // fire and forget
+    void runBackup().catch((error) => {
+      console.error('Manual backup failed:', error.message);
+    });
     res.json({ success: true, message: 'Backup started in background' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+app.use(notFound);
+app.use(errorHandler);
 
 async function start() {
   await ensureDatabase();

@@ -27,6 +27,8 @@ const rolesRoutes = require('./roles.routes');
 const permissionsRoutes = require('./permissions.routes');
 const followUpsRoutes = require('./followUps.routes');
 const followUpConfigRoutes = require('./followUpConfig.routes');
+const callLogsRoutes = require('./callLogs.routes');
+const callLogsController = require('../controllers/callLogs.controller');
 const { requireAuth } = require('../middlewares/auth');
 
 const router = express.Router();
@@ -50,8 +52,16 @@ const invoicesPublicRouter = express.Router();
 const invoicesController = require('../controllers/invoices.controller');
 invoicesPublicRouter.get('/public/:id', invoicesController.getPublic);
 router.use('/invoices', invoicesPublicRouter);
+const settingsController = require('../controllers/settings.controller');
+router.get('/settings/public', settingsController.fetchPublicSettings);
+// Public audio playback routes so HTML5 <audio> players and downloads load seamlessly
+router.get('/call-logs/recordings/:filename', callLogsController.streamRecording);
+router.get('/call-logs/recordings/:filename/download', callLogsController.downloadRecording);
+router.get('/calls/recordings/:filename', callLogsController.streamRecording);
 
 router.use(requireAuth);
+router.use('/call-logs', callLogsRoutes);
+router.use('/calls', callLogsRoutes);
 router.use('/hrm', require('./hrm.routes'));
 router.use('/events', eventsRoutes);
 router.use('/leads', leadsRoutes);

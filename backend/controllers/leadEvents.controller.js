@@ -105,11 +105,12 @@ async function filterEventsByPipelineAccess(rows = [], req) {
 
 async function list(req, res, next) {
   try {
-    const { scopeType, scopeId, search } = req.query || {};
+    const { scopeType, scopeId, eventType, search } = req.query || {};
     let rows = await leadEventModel.list({
       where: {
         ...(scopeType ? { scopeType } : {}),
-        ...(scopeId ? { scopeId } : {})
+        ...(scopeId ? { scopeId } : {}),
+        ...(eventType ? { eventType: String(eventType).trim().toLowerCase() } : {})
       },
       search,
       orderBy: 'coalesce(start_date, end_date, created_at) DESC, updated_at DESC'

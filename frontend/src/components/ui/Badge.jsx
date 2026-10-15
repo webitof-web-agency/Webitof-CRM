@@ -12,7 +12,7 @@ const tones = {
   info:
     'bg-sky-500/15 text-sky-700 dark:text-sky-400 border-sky-500/30 backdrop-blur-md',
   primary:
-    'bg-[#0071E3]/15 text-[#0071E3] dark:text-[#2997FF] border-[#0071E3]/30 backdrop-blur-md',
+    'bg-[var(--primary)]/15 text-[var(--primary)] dark:text-[var(--primary)] border-[var(--primary)]/30 backdrop-blur-md',
   purple:
     'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30 backdrop-blur-md',
   cyan:

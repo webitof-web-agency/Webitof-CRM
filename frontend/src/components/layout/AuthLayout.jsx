@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { ShieldCheck, Lock } from 'lucide-react';
+import { cn } from '../../lib/cn';
 
 export function AuthLayout({
   title,
@@ -9,22 +10,63 @@ export function AuthLayout({
   isAuthenticating = false,
   children
 }) {
-  const [logo, setLogo] = useState(null);
+  const [logos, setLogos] = useState(() => {
+    try {
+      const raw = window.localStorage.getItem('webitof-logos');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          loginLight: parsed.loginLight || parsed.primary || '/assets/images/webitof-icon.png',
+          loginDark: parsed.loginDark || '/assets/images/webitof-icon-white.png'
+        };
+      }
+    } catch (e) {}
+    return {
+      loginLight: '/assets/images/webitof-icon.png',
+      loginDark: '/assets/images/webitof-icon-white.png'
+    };
+  });
 
   useEffect(() => {
     const loadLogos = () => {
       try {
         const raw = window.localStorage.getItem('webitof-logos');
-        if (raw) setLogo(JSON.parse(raw).primary);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setLogos({
+            loginLight: parsed.loginLight || parsed.primary || '/assets/images/webitof-icon.png',
+            loginDark: parsed.loginDark || '/assets/images/webitof-icon-white.png'
+          });
+        }
       } catch (e) {}
     };
     loadLogos();
+
+    // Fetch live public settings so unauthenticated / fresh browsers get updated logos
+    fetch('/api/settings/public')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.data?.logos) {
+          const l = data.data.logos;
+          const updated = {
+            loginLight: l.loginLight || l.primary || '/assets/images/webitof-icon.png',
+            loginDark: l.loginDark || '/assets/images/webitof-icon-white.png'
+          };
+          setLogos(updated);
+          try {
+            const current = JSON.parse(window.localStorage.getItem('webitof-logos') || '{}');
+            window.localStorage.setItem('webitof-logos', JSON.stringify({ ...current, ...l }));
+          } catch (e) {}
+        }
+      })
+      .catch(() => {});
+
     window.addEventListener('logos-updated', loadLogos);
     return () => window.removeEventListener('logos-updated', loadLogos);
   }, []);
 
   return (
-    <div className="relative min-h-screen w-full flex flex-col justify-between items-center bg-[#f4f7fb] dark:bg-[#07090e] text-slate-900 dark:text-[#f5f5f7] transition-colors duration-300 overflow-x-hidden p-4 sm:p-6 md:p-8 font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Display','Plus_Jakarta_Sans',sans-serif] selection:bg-blue-500/25 selection:text-blue-600 dark:selection:text-blue-300">
+    <div className="relative h-screen max-h-screen w-full flex flex-col justify-between items-center bg-[#f4f7fb] dark:bg-[#07090e] text-slate-900 dark:text-[#f5f5f7] transition-colors duration-300 overflow-hidden px-4 py-3 sm:px-6 sm:py-4 font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Display','Plus_Jakarta_Sans',sans-serif] selection:bg-blue-500/25 selection:text-blue-600 dark:selection:text-blue-300">
       {/* ===================================================================== */}
       {/* iOS 26 / visionOS VIBRANT LIQUID AURORA BACKDROP                       */}
       {/* ===================================================================== */}
@@ -43,7 +85,7 @@ export function AuthLayout({
       {/* ===================================================================== */}
       {/* TOP FLOATING THEME SWITCHER CAPSULE                                   */}
       {/* ===================================================================== */}
-      <header className="relative z-20 flex w-full max-w-4xl items-center justify-end py-1">
+      <header className="absolute top-3 right-3 sm:top-4 sm:right-6 z-30">
         {/* Theme Switcher Glass Capsule */}
         <div className="liquid-glass-pill px-2.5 py-1.5 rounded-full flex items-center gap-2 shadow-sm">
           <ThemeSwitcher />
@@ -53,30 +95,57 @@ export function AuthLayout({
       {/* ===================================================================== */}
       {/* CENTER: iOS 26 LIQUID GLASS CARD                                      */}
       {/* ===================================================================== */}
-      <main className="relative z-20 my-auto flex w-full flex-col items-center justify-center py-6">
-        <div className="w-full max-w-[430px]">
+      <main className="relative z-20 my-auto flex w-full flex-col items-center justify-center py-1">
+        <div className="w-full max-w-[420px]">
           {/* Liquid Glass Container */}
-          <div className="liquid-glass-card relative rounded-[32px] overflow-hidden transition-all duration-300 animate-fade-scale">
+          <div className="liquid-glass-card relative rounded-[28px] sm:rounded-[32px] overflow-hidden transition-all duration-300 animate-fade-scale">
             {/* Top Specular Light Reflection */}
             <div className={`absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-white/90 dark:via-white/35 to-transparent transition-opacity duration-300 ${isAuthenticating ? 'opacity-100' : 'opacity-70'}`} />
 
             {/* Card Body Container */}
-            <div className="p-7 sm:p-9">
-              {/* 3D Liquid Glass App Icon */}
-              <div className="mb-6 flex flex-col items-center justify-center text-center">
-                <div className="relative mb-3.5 flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-b from-[#0077ED] via-[#0071E3] to-[#005bb5] text-white font-black text-2xl shadow-xl shadow-blue-500/35 border border-white/40 ring-4 ring-blue-500/15 transition-transform duration-300">
-                  {isAuthenticating && (
-                    <div className="absolute inset-0 rounded-[22px] ring-4 ring-cyan-400/80 animate-biometric-radar pointer-events-none" />
-                  )}
-                  <span className="drop-shadow-md">W</span>
-                  <div className="absolute inset-0 rounded-[22px] bg-gradient-to-tr from-white/30 via-transparent to-transparent pointer-events-none" />
-                </div>
+            <div className="p-6 sm:p-8">
+              {/* Brand Logo for Light and Dark Modes */}
+              <div className="mb-4 sm:mb-5 flex flex-col items-center justify-center text-center">
+                {logos?.loginLight || logos?.loginDark ? (
+                  <div className="relative mb-3 flex items-center justify-center min-h-[44px] w-full">
+                    {logos.loginLight && (
+                      <img
+                        src={logos.loginLight}
+                        alt="Webitof"
+                        className={cn(
+                          "h-12 sm:h-14 w-auto max-w-[220px] object-contain transition-transform duration-300 drop-shadow-sm",
+                          isAuthenticating && "scale-105 animate-pulse",
+                          logos.loginDark && logos.loginDark !== logos.loginLight ? "dark:hidden" : ""
+                        )}
+                      />
+                    )}
+                    {logos.loginDark && logos.loginDark !== logos.loginLight && (
+                      <img
+                        src={logos.loginDark}
+                        alt="Webitof"
+                        className={cn(
+                          "h-12 sm:h-14 w-auto max-w-[220px] object-contain transition-transform duration-300 drop-shadow-sm",
+                          isAuthenticating && "scale-105 animate-pulse",
+                          "hidden dark:block"
+                        )}
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative mb-3 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[var(--primary)] text-white font-black text-xl shadow-xl shadow-[var(--primary)]/35 border border-white/40 ring-4 ring-[var(--primary)]/15 transition-transform duration-300">
+                    {isAuthenticating && (
+                      <div className="absolute inset-0 rounded-[20px] ring-4 ring-cyan-400/80 animate-biometric-radar pointer-events-none" />
+                    )}
+                    <span className="drop-shadow-md">W</span>
+                    <div className="absolute inset-0 rounded-[20px] bg-gradient-to-tr from-white/30 via-transparent to-transparent pointer-events-none" />
+                  </div>
+                )}
 
-                <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                   {title}
                 </h1>
                 {subtitle ? (
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-[320px]">
+                  <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300 font-medium leading-relaxed max-w-[320px]">
                     {subtitle}
                   </p>
                 ) : null}
@@ -92,8 +161,8 @@ export function AuthLayout({
       {/* ===================================================================== */}
       {/* FOOTER: CLEAN FLOATING GLASS CAPSULE FOOTER                           */}
       {/* ===================================================================== */}
-      <footer className="relative z-20 flex w-full max-w-4xl items-center justify-center py-2">
-        <div className="liquid-glass-pill flex items-center gap-3 px-6 py-2 rounded-full text-xs text-slate-700 dark:text-slate-300 shadow-sm">
+      <footer className="relative z-20 flex w-full max-w-4xl items-center justify-center py-1 shrink-0">
+        <div className="liquid-glass-pill flex items-center gap-3 px-5 py-1.5 rounded-full text-xs text-slate-700 dark:text-slate-300 shadow-sm">
           <span>&copy; {new Date().getFullYear()} Webitof Inc.</span>
           <span>•</span>
           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-[#30d158]">

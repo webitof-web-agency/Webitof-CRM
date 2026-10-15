@@ -67,7 +67,7 @@ export function ResetPasswordPage() {
               setForm((current) => ({ ...current, identifier: event.target.value }))
             }
             required
-            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[#0071E3] dark:focus:border-[#00C6FF] focus:ring-4 focus:ring-[#0071E3]/20"
+            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
           />
         </div>
 
@@ -82,7 +82,7 @@ export function ResetPasswordPage() {
             placeholder="123456"
             autoFocus
             required
-            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[#0071E3] dark:focus:border-[#00C6FF] focus:ring-4 focus:ring-[#0071E3]/20 font-mono tracking-widest"
+            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 font-mono tracking-widest"
           />
         </div>
 
@@ -100,7 +100,7 @@ export function ResetPasswordPage() {
               }
               placeholder="••••••••••••"
               required
-              className="liquid-glass-input h-10.5 pr-10 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[#0071E3] dark:focus:border-[#00C6FF] focus:ring-4 focus:ring-[#0071E3]/20"
+              className="liquid-glass-input h-10.5 pr-10 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
             />
             <button
               type="button"
@@ -126,13 +126,13 @@ export function ResetPasswordPage() {
             }
             placeholder="••••••••••••"
             required
-            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[#0071E3] dark:focus:border-[#00C6FF] focus:ring-4 focus:ring-[#0071E3]/20"
+            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
           />
         </div>
 
         <Button
           type="submit"
-          className="w-full h-11.5 text-sm font-bold rounded-[16px] bg-gradient-to-r from-[#0077ED] via-[#0071E3] to-[#005bb5] hover:brightness-110 active:scale-[0.98] text-white shadow-xl shadow-blue-600/30 border border-white/30 transition-all duration-200 mt-2 cursor-pointer"
+          className="w-full h-11.5 text-sm font-bold rounded-[16px] bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-xl shadow-[var(--primary)]/30 border border-white/30 transition-all duration-200 mt-2 cursor-pointer"
           loading={busy}
         >
           <span>Save New Password</span>
@@ -141,7 +141,7 @@ export function ResetPasswordPage() {
 
         <div className="flex items-center justify-between pt-2 text-xs">
           <Link
-            className="inline-flex items-center gap-1 font-semibold text-[#0071E3] dark:text-[#2997FF] hover:underline transition-colors"
+            className="inline-flex items-center gap-1 font-semibold text-[var(--primary)] hover:underline transition-colors"
             to="/login"
           >
             <ArrowLeft size={13} />

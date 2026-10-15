@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Plus, RefreshCw, ShieldCheck, Layers3, Clock3, Edit2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../api/client';
@@ -15,6 +16,13 @@ import { ConfirmDialog } from '../components/overlays/ConfirmDialog';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { sortRows } from '../lib/resource';
 import { cn } from '../lib/cn';
+import { STATIC_TECHNOLOGIES } from '../config/technologyStacks';
+import {
+  SERVICE_PAYMENT_PLAN_OPTIONS,
+  createServicePaymentPlan,
+  formatServicePaymentPlan,
+  normalizeServicePaymentPlan
+} from '../config/paymentPlans';
 
 const masterTypes = [
   { key: 'service_category', label: 'Service Categories' },
@@ -23,7 +31,7 @@ const masterTypes = [
   { key: 'tax_rate', label: 'Tax Rates' },
   { key: 'vendor', label: 'Vendors' },
   { key: 'renewal_provider', label: 'Renewal Providers' },
-  { key: 'amc_type', label: 'AMC Types' },
+  { key: 'amc_type', label: 'AMC Plans' },
   { key: 'billing_cycle', label: 'Billing Cycles' },
   { key: 'invoice_term', label: 'Invoice Terms' },
   { key: 'follow_up_type', label: 'Follow-up Types' }
@@ -37,7 +45,7 @@ function singularLabel(label = 'Item') {
     'Tax Rates': 'Tax Rate',
     Vendors: 'Vendor',
     'Renewal Providers': 'Renewal Provider',
-    'AMC Types': 'AMC Type',
+    'AMC Plans': 'AMC Plan',
     'Billing Cycles': 'Billing Cycle',
     'Invoice Terms': 'Invoice Term',
     'Follow-up Types': 'Follow-up Type'
@@ -68,11 +76,114 @@ const SERVICE_FIELDS = [
     placeholder: 'Select service category'
   },
   { name: 'sacCode', label: 'SAC Code', type: 'text', placeholder: 'e.g. 998314' },
+  {
+    name: 'serviceKind',
+    label: 'Service Type',
+    type: 'select',
+    options: [
+      { value: 'primary', label: 'Primary service' },
+      { value: 'addon', label: 'Add-on service' }
+    ],
+    defaultValue: 'primary'
+  },
+  {
+    name: 'parentServiceIds',
+    label: 'Available With (Parent Services)',
+    type: 'multiselect',
+    lookupKey: 'services',
+    lookupDescriptionKey: 'categoryName',
+    placeholder: 'Select services where this add-on should be suggested',
+    visibleWhen: { field: 'serviceKind', equals: 'addon' }
+  },
   { name: 'unit', label: 'Unit', type: 'select', options: SERVICE_UNIT_OPTIONS, defaultValue: 'Nos' },
   { name: 'defaultPrice', label: 'Default Price', type: 'money', defaultValue: 0 },
+  { name: 'minimumBudget', label: 'Minimum Suggested Budget', type: 'money', defaultValue: 0, description: 'Used to flag whether the lead budget is suitable.', descriptionDisplay: 'tooltip' },
   { name: 'gstRate', label: 'GST Rate (%)', type: 'number', defaultValue: 18 },
-  { name: 'description', label: 'Description', type: 'textarea', placeholder: 'Optional service notes' },
+  { name: 'description', label: 'Short Description', type: 'textarea', rows: 6, placeholder: 'Short service summary shown in quotation builder' },
+  { name: 'scopeOfWork', label: 'Scope of Work', type: 'textarea', rows: 6, placeholder: 'Complete default scope/deliverables for this service' },
+  { name: 'featuresText', label: 'Default Feature List', type: 'textarea', rows: 6, placeholder: 'One feature per line. These become editable quotation features.' },
+  {
+    name: 'technologyStackIds',
+    label: 'Technology Stack',
+    type: 'checkbox_group',
+    lookupKey: 'technologies',
+    lookupDescriptionKey: 'description',
+    description: 'Select all technologies used for this service. Options are grouped by capability.',
+    collapsibleGroups: true,
+    showOptionDescriptions: false,
+    showOptionIcons: true
+  },
+  {
+    name: 'paymentPlan',
+    label: 'Payment Information / Milestones',
+    type: 'payment_plan',
+    options: SERVICE_PAYMENT_PLAN_OPTIONS,
+    defaultValue: createServicePaymentPlan(),
+    required: true,
+    description: 'Choose a standard payment plan or create a manual installment schedule. The total must be 100%.'
+  },
+  { name: 'termsAndConditions', label: 'Terms & Conditions', type: 'textarea', rows: 3, placeholder: 'Service-specific quotation terms' },
+  { name: 'afterCompletion', label: 'After Project Completion We Provide', type: 'textarea', rows: 3, placeholder: 'Training, warranty, handover, credentials, etc.' },
+  { name: 'timeline', label: 'Default Timeline', type: 'text', placeholder: 'e.g. 6-8 weeks' },
+  {
+    name: 'amcPlanId',
+    label: 'Recommended AMC Plan',
+    type: 'text',
+    lookupKey: 'amcPlans',
+    lookupDescriptionKey: 'description',
+    placeholder: 'Select an AMC plan'
+  },
+  { name: 'nextYearCost', label: 'Default Cost From Next Year', type: 'money', defaultValue: 0, description: 'Renewal/AMC/hosting cost used in next-year summary.', descriptionDisplay: 'tooltip' },
   { name: 'isRecurring', label: 'Recurring Service', type: 'checkbox', defaultValue: false },
+  { name: 'isActive', label: 'Active', type: 'checkbox', defaultValue: true },
+  { name: 'sortOrder', label: 'Sort Order', type: 'number', defaultValue: 0 }
+];
+
+const SERVICE_FIELD_CLASS_NAMES = {
+  parentServiceIds: 'md:col-span-2 xl:col-span-6',
+  description: 'md:col-span-2 xl:col-span-4',
+  scopeOfWork: 'md:col-span-2 xl:col-span-4',
+  featuresText: 'md:col-span-2 xl:col-span-4',
+  technologyStackIds: 'md:col-span-2 xl:col-span-12',
+  paymentPlan: 'md:col-span-2 xl:col-span-12',
+  termsAndConditions: 'md:col-span-1 xl:col-span-6',
+  afterCompletion: 'md:col-span-1 xl:col-span-6',
+  timeline: 'md:col-span-1 xl:col-span-2',
+  amcPlanId: 'md:col-span-1 xl:col-span-3',
+  nextYearCost: 'md:col-span-1 xl:col-span-2',
+  isRecurring: 'md:col-span-1 xl:col-span-2',
+  isActive: 'md:col-span-1 xl:col-span-2',
+  sortOrder: 'md:col-span-1 xl:col-span-1'
+};
+
+const AMC_TYPE_FIELDS = [
+  { name: 'name', label: 'AMC Plan Name', type: 'text', required: true, placeholder: 'e.g. Website Care - Standard' },
+  { name: 'planCode', label: 'Plan Code', type: 'text', placeholder: 'e.g. AMC-WEB-STD' },
+  { name: 'description', label: 'Plan Description', type: 'textarea', rows: 3, placeholder: 'Short summary shown in quotations' },
+  { name: 'defaultCost', label: 'Plan Cost', type: 'money', defaultValue: 0 },
+  { name: 'nextYearCost', label: 'Renewal Cost', type: 'money', defaultValue: 0 },
+  {
+    name: 'defaultBillingCycle',
+    label: 'Billing Cycle',
+    type: 'select',
+    options: ['Monthly', 'Quarterly', 'Half Yearly', 'Yearly'].map((value) => ({ value, label: value })),
+    defaultValue: 'Yearly'
+  },
+  { name: 'durationMonths', label: 'Plan Duration (Months)', type: 'number', defaultValue: 12 },
+  { name: 'supportHours', label: 'Included Support Hours', type: 'number', defaultValue: 0 },
+  { name: 'responseSlaHours', label: 'Response SLA (Hours)', type: 'number', defaultValue: 24 },
+  { name: 'includedItems', label: 'What Is Included', type: 'textarea', rows: 7, placeholder: 'One included item per line' },
+  { name: 'excludedItems', label: 'What Is Not Included', type: 'textarea', rows: 7, placeholder: 'One excluded item per line' },
+  { name: 'termsAndConditions', label: 'AMC Terms & Conditions', type: 'textarea', rows: 5 },
+  {
+    name: 'linkedServiceIds',
+    label: 'Applicable Services',
+    type: 'multiselect',
+    lookupKey: 'services',
+    lookupDescriptionKey: 'categoryName',
+    placeholder: 'Select services that can use this AMC plan'
+  },
+  { name: 'autoInvoice', label: 'Auto Invoice', type: 'checkbox', defaultValue: false },
   { name: 'isActive', label: 'Active', type: 'checkbox', defaultValue: true },
   { name: 'sortOrder', label: 'Sort Order', type: 'number', defaultValue: 0 }
 ];
@@ -103,14 +214,32 @@ function getMasterConfig(activeType, lookups = {}) {
           render: (row) => serviceCategories.find((item) => String(item.id) === String(row.categoryId))?.name || row.categoryName || row.category || '-'
         },
         { key: 'sacCode', label: 'SAC' },
+        { key: 'serviceKind', label: 'Type', render: (row) => row.serviceKind === 'addon' ? 'Add-on' : 'Primary' },
         { key: 'defaultPrice', label: 'Default Price', align: 'right', type: 'money' },
+        { key: 'timeline', label: 'Timeline' },
         { key: 'gstRate', label: 'GST %', align: 'right' },
         { key: 'unit', label: 'Unit' },
         { key: 'isRecurring', label: 'Recurring', type: 'badge' },
         { key: 'sortOrder', label: 'Order', align: 'right' },
         { key: 'isActive', label: 'Active', type: 'badge' }
       ],
-      fullWidthFields: ['description']
+      fullWidthFields: ['parentServiceIds', 'description', 'featuresText', 'scopeOfWork', 'technologyStackIds', 'paymentPlan', 'termsAndConditions', 'afterCompletion']
+    };
+  }
+
+  if (activeType === 'amc_type') {
+    return {
+      fields: AMC_TYPE_FIELDS,
+      columns: [
+        { key: 'name', label: 'AMC Plan' },
+        { key: 'planCode', label: 'Code' },
+        { key: 'defaultCost', label: 'Cost', type: 'money', align: 'right' },
+        { key: 'defaultBillingCycle', label: 'Billing' },
+        { key: 'supportHours', label: 'Support Hrs', align: 'right' },
+        { key: 'responseSlaHours', label: 'SLA Hrs', align: 'right' },
+        { key: 'isActive', label: 'Active', type: 'badge' }
+      ],
+      fullWidthFields: ['description', 'includedItems', 'excludedItems', 'termsAndConditions', 'linkedServiceIds']
     };
   }
 
@@ -150,12 +279,50 @@ function normalizeMasterRecord(type, record = {}, lookups = {}) {
       defaultPrice: Number(record.defaultPrice ?? 0),
       gstRate: Number(record.gstRate ?? 18),
       description: record.description || record.payload?.description || '',
+      serviceKind: record.serviceKind || record.payload?.serviceKind || 'primary',
+      parentServiceIds: Array.isArray(record.parentServiceIds) ? record.parentServiceIds : (Array.isArray(record.payload?.parentServiceIds) ? record.payload.parentServiceIds : []),
+      minimumBudget: Number(record.minimumBudget ?? record.payload?.minimumBudget ?? 0),
+      featuresText: record.featuresText || record.payload?.featuresText || '',
+      scopeOfWork: record.scopeOfWork || record.payload?.scopeOfWork || '',
+      technologyStack: record.technologyStack || record.payload?.technologyStack || '',
+      technologyStackIds: Array.isArray(record.technologyStackIds) ? record.technologyStackIds : (Array.isArray(record.payload?.technologyStackIds) ? record.payload.technologyStackIds : []),
+      timeline: record.timeline || record.payload?.timeline || '',
+      paymentInfo: record.paymentInfo || record.payload?.paymentInfo || '',
+      paymentPlan: normalizeServicePaymentPlan(
+        record.paymentPlan || record.payload?.paymentPlan,
+        record.paymentInfo || record.payload?.paymentInfo || ''
+      ),
+      termsAndConditions: record.termsAndConditions || record.payload?.termsAndConditions || '',
+      afterCompletion: record.afterCompletion || record.payload?.afterCompletion || '',
+      amcPlanId: record.amcPlanId || record.payload?.amcPlanId || '',
+      nextYearCost: Number(record.nextYearCost ?? record.payload?.nextYearCost ?? 0),
       isRecurring: Boolean(record.isRecurring),
       isActive: record.isActive !== false,
       sortOrder: Number(record.sortOrder ?? 0),
       priceHistory: Array.isArray(record.priceHistory) ? record.priceHistory : Array.isArray(record.payload?.priceHistory) ? record.payload.priceHistory : [],
       lastPriceChangeAt: record.lastPriceChangeAt || record.payload?.lastPriceChangeAt || '',
       lastPriceChangeBy: record.lastPriceChangeBy || record.payload?.lastPriceChangeBy || null
+    };
+  }
+
+  if (type === 'amc_type') {
+    return {
+      ...record,
+      planCode: record.planCode || record.payload?.planCode || '',
+      description: record.description || record.payload?.description || '',
+      defaultCost: Number(record.defaultCost ?? record.payload?.defaultCost ?? 0),
+      nextYearCost: Number(record.nextYearCost ?? record.payload?.nextYearCost ?? 0),
+      defaultBillingCycle: record.defaultBillingCycle || record.payload?.defaultBillingCycle || 'Yearly',
+      durationMonths: Number(record.durationMonths ?? record.payload?.durationMonths ?? 12),
+      supportHours: Number(record.supportHours ?? record.payload?.supportHours ?? 0),
+      responseSlaHours: Number(record.responseSlaHours ?? record.payload?.responseSlaHours ?? 24),
+      includedItems: record.includedItems || record.payload?.includedItems || '',
+      excludedItems: record.excludedItems || record.payload?.excludedItems || '',
+      termsAndConditions: record.termsAndConditions || record.payload?.termsAndConditions || '',
+      linkedServiceIds: Array.isArray(record.linkedServiceIds) ? record.linkedServiceIds : (Array.isArray(record.payload?.linkedServiceIds) ? record.payload.linkedServiceIds : []),
+      autoInvoice: Boolean(record.autoInvoice ?? record.payload?.autoInvoice),
+      isActive: record.isActive !== false,
+      sortOrder: Number(record.sortOrder ?? 0)
     };
   }
 
@@ -169,9 +336,10 @@ const masterFields = [
   { name: 'payload', label: 'Payload JSON', type: 'json', description: 'Store type-specific config here.' }
 ];
 
-export function MastersPage() {
+export function MastersPage({ initialType = '', serviceMasterOnly = false }) {
   const { token, hasPermission } = useAuth();
-  const [activeType, setActiveType] = useState(masterTypes[0].key);
+  const navigate = useNavigate();
+  const [activeType, setActiveType] = useState(initialType || (serviceMasterOnly ? 'service' : 'expense_category'));
   const [recordsByType, setRecordsByType] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -187,6 +355,22 @@ export function MastersPage() {
   const debouncedSearch = useDebouncedValue(search, 250);
   const canWrite = hasPermission('masters.write');
   const canDelete = hasPermission('masters.delete');
+  const availableTypes = useMemo(
+    () => serviceMasterOnly
+      ? masterTypes.filter((type) => ['service', 'service_category'].includes(type.key))
+      : masterTypes.filter((type) => !['service', 'service_category'].includes(type.key)),
+    [serviceMasterOnly]
+  );
+
+  useEffect(() => {
+    if (!initialType || initialType === activeType) return;
+    setActiveType(initialType);
+    setServiceStatusFilter('all');
+    setSortKey('sortOrder');
+    setSortDirection('asc');
+    setActiveRecord(null);
+    setDeleteTarget(null);
+  }, [initialType, activeType]);
 
   useEffect(() => {
     let mounted = true;
@@ -227,7 +411,10 @@ export function MastersPage() {
   const rows = recordsByType[activeType] || [];
   const activeTypeMeta = masterTypes.find((type) => type.key === activeType) || masterTypes[0];
   const lookupData = useMemo(() => ({
-    serviceCategories: recordsByType.service_category || []
+    serviceCategories: recordsByType.service_category || [],
+    services: recordsByType.service || [],
+    amcPlans: recordsByType.amc_type || [],
+    technologies: STATIC_TECHNOLOGIES
   }), [recordsByType]);
   const activeTypeConfig = useMemo(() => getMasterConfig(activeType, lookupData), [activeType, lookupData]);
   const visibleRows = useMemo(() => {
@@ -255,18 +442,26 @@ export function MastersPage() {
   }, [recordsByType.service]);
 
   const stats = useMemo(() => {
-    const total = masterTypes.reduce((sum, type) => sum + (recordsByType[type.key]?.length || 0), 0);
+    const total = availableTypes.reduce((sum, type) => sum + (recordsByType[type.key]?.length || 0), 0);
     const active = rows.filter((row) => row.isActive).length;
     const inactive = rows.length - active;
     return { total, active, inactive, current: rows.length };
-  }, [recordsByType, rows]);
+  }, [availableTypes, recordsByType, rows]);
 
   function openCreate() {
+    if (serviceMasterOnly && activeType === 'service') {
+      navigate('/app/service-master/services/new');
+      return;
+    }
     setActiveRecord(null);
     setEditorOpen(true);
   }
 
   function openEdit(record) {
+    if (serviceMasterOnly && activeType === 'service') {
+      navigate(`/app/service-master/services/${record.id}/edit`);
+      return;
+    }
     setActiveRecord(record);
     setEditorOpen(true);
   }
@@ -285,7 +480,7 @@ export function MastersPage() {
           ? (current[activeType] || []).map((item) => (item.id === savedRecord.id ? savedRecord : item))
           : [savedRecord, ...(current[activeType] || [])]
       }));
-      if (activeType === 'service' || activeType === 'service_category') {
+      if (['service', 'service_category'].includes(activeType)) {
         api.cache.invalidate('/invoices/service-catalog');
         api.cache.invalidate('/leads/options');
       }
@@ -308,7 +503,7 @@ export function MastersPage() {
         ...current,
         [activeType]: (current[activeType] || []).filter((item) => item.id !== deleteTarget.id)
       }));
-      if (activeType === 'service' || activeType === 'service_category') {
+      if (['service', 'service_category'].includes(activeType)) {
         api.cache.invalidate('/invoices/service-catalog');
         api.cache.invalidate('/leads/options');
       }
@@ -348,8 +543,14 @@ export function MastersPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-[var(--text-main)]">Masters</h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">Manage reusable lookup data used throughout the CRM.</p>
+          <h1 className="text-xl font-bold tracking-tight text-[var(--text-main)]">{serviceMasterOnly ? 'Service Master' : 'Masters'}</h1>
+          <p className="mt-1 text-sm text-[var(--text-muted)]">
+            {serviceMasterOnly
+              ? (activeType === 'service'
+                ? 'Manage quotation-ready services, pricing, features and add-ons.'
+                : 'Organize services into reusable categories.')
+              : 'Manage reusable lookup data used throughout the CRM.'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {canWrite ? (
@@ -406,8 +607,8 @@ export function MastersPage() {
         </Card>
       </div>
 
-      <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
-        {masterTypes.map((type) => (
+      {!serviceMasterOnly ? <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
+        {availableTypes.map((type) => (
           <button
             key={type.key}
             type="button"
@@ -429,7 +630,7 @@ export function MastersPage() {
             {type.label}
           </button>
         ))}
-      </div>
+      </div> : null}
 
       <div className="pt-2">
 
@@ -596,6 +797,104 @@ export function MastersPage() {
         onClose={() => setDeleteTarget(null)}
         busy={busy}
       />
+    </div>
+  );
+}
+
+export function ServiceMasterFormPage() {
+  const { serviceId } = useParams();
+  const navigate = useNavigate();
+  const { token, hasPermission } = useAuth();
+  const [record, setRecord] = useState(null);
+  const [lookups, setLookups] = useState({ serviceCategories: [], services: [], amcPlans: [], technologies: [] });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const editing = Boolean(serviceId);
+  const canWrite = hasPermission('masters.write');
+
+  useEffect(() => {
+    let mounted = true;
+    async function load() {
+      setLoading(true);
+      try {
+        const [categoryResponse, serviceResponse, amcResponse] = await Promise.all([
+          api.resources.list('/masters/service_category', token),
+          api.resources.list('/masters/service', token),
+          api.resources.list('/masters/amc_type', token)
+        ]);
+        if (!mounted) return;
+        const serviceCategories = (categoryResponse.data || []).map((item) => normalizeMasterRecord('service_category', item));
+        const services = (serviceResponse.data || []).map((item) => normalizeMasterRecord('service', item, { serviceCategories }));
+        const amcPlans = (amcResponse.data || []).map((item) => normalizeMasterRecord('amc_type', item));
+        const technologies = STATIC_TECHNOLOGIES;
+        const current = editing ? services.find((item) => String(item.id) === String(serviceId)) : null;
+        if (editing && !current) {
+          toast.error('Service not found');
+          navigate('/app/service-master/services', { replace: true });
+          return;
+        }
+        setLookups({ serviceCategories, services, amcPlans, technologies });
+        setRecord(current);
+      } catch (error) {
+        toast.error(error.message || 'Unable to load service form');
+        navigate('/app/service-master/services', { replace: true });
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+    load();
+    return () => { mounted = false; };
+  }, [editing, navigate, serviceId, token]);
+
+  async function saveService(payload) {
+    if (!canWrite) {
+      toast.error('You do not have permission to save services');
+      return;
+    }
+    setBusy(true);
+    try {
+      const servicePayload = {
+        ...payload,
+        paymentInfo: formatServicePaymentPlan(payload.paymentPlan)
+      };
+      if (editing) {
+        await api.resources.update('/masters/service', serviceId, servicePayload, token);
+      } else {
+        await api.resources.create('/masters/service', servicePayload, token);
+      }
+      api.cache.invalidate('/masters/service');
+      api.cache.invalidate('/invoices/service-catalog');
+      api.cache.invalidate('/leads/options');
+      toast.success(editing ? 'Service updated' : 'Service created');
+      navigate('/app/service-master/services');
+    } catch (error) {
+      toast.error(error.message || 'Unable to save service');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) return <div className="py-16 text-center text-sm text-[var(--text-muted)]">Loading service form...</div>;
+
+  return (
+    <div className="mx-auto w-full max-w-7xl space-y-5">
+      <Card className="p-4">
+        <ResourceForm
+          key={record?.id || 'new-service'}
+          fields={SERVICE_FIELDS}
+          record={record}
+          lookups={lookups}
+          onSubmit={saveService}
+          onCancel={() => navigate('/app/service-master/services')}
+          submitLabel={editing ? 'Update Service' : 'Create Service'}
+          busy={busy}
+          fullWidthFields={['parentServiceIds', 'description', 'featuresText', 'scopeOfWork', 'technologyStackIds', 'paymentPlan', 'termsAndConditions', 'afterCompletion']}
+          compact
+          gridClassName="grid gap-x-4 gap-y-3 md:grid-cols-2 xl:grid-cols-12"
+          defaultFieldClassName="xl:col-span-3"
+          fieldClassNames={SERVICE_FIELD_CLASS_NAMES}
+        />
+      </Card>
     </div>
   );
 }

@@ -1,32 +1,12 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { lazy, Suspense, useEffect } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
-import { useEffect } from 'react';
 import { ProtectedRoute } from './components/guards/ProtectedRoute';
 import { PermissionRoute } from './components/guards/PermissionRoute';
 import { AppLayout } from './components/layout/AppLayout';
-import { LoginPage } from './pages/auth/LoginPage';
-import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
-import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { UsersPage } from './pages/UsersPage';
-import { UserDetailPage } from './pages/UserDetailPage';
-import { RolesPage } from './pages/RolesPage';
-import { ReportsPage } from './pages/ReportsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { FilesPage } from './pages/FilesPage';
-import { FinancePage } from './pages/finance/FinancePage';
-import { ExpenseDetailsPage } from './pages/expenses/ExpenseDetailsPage';
-import { AmcDetailPage } from './pages/amc/AmcDetailPage';
-import { BankingPage } from './pages/BankingPage';
-import { MastersPage } from './pages/MastersPage';
-import { NotFoundPage } from './pages/NotFoundPage';
-import { ResourcePage } from './pages/ResourcePage';
-import { ProfilePage } from './pages/ProfilePage';
-import { LeadsPage } from './pages/LeadsPage';
-import { LeadDetailsPage, LeadQuotationPage } from './pages/leads/LeadDetailsPage';
 import { schemaRegistry } from './config/resourceSchemas';
 
 const resourceSchemas = [
@@ -37,25 +17,53 @@ const resourceSchemas = [
   schemaRegistry.renewals
 ].filter(Boolean);
 
-import { ShowcasePage } from './components/Showcase';
-import { ClientsListPage } from './pages/clients/ClientsListPage';
-import { ClientDetailsPage } from './pages/clients/ClientDetailsPage';
-import { ClientFormPage } from './pages/clients/ClientFormPage';
-import { ProjectsListPage } from './pages/projects/ProjectsListPage';
-import { ProjectDetailsPage } from './pages/projects/ProjectDetailsPage';
-import { InvoicesListPage } from './pages/invoices/InvoicesListPage';
-import { InvoiceBuilderPage } from './pages/invoices/InvoiceBuilderPage';
-import { InvoiceExportPage } from './pages/invoices/InvoiceExportPage';
-import { InvoiceDetailsPage } from './pages/invoices/InvoiceDetailsPage';
-import { InvoicePublicPage } from './pages/invoices/InvoicePublicPage';
-import { PaymentsListPage } from './pages/payments/PaymentsListPage';
-import { PaymentBuilderPage } from './pages/payments/PaymentBuilderPage';
-import { PaymentDetailPage } from './pages/payments/PaymentDetailPage';
-import { AutomationPage } from './pages/AutomationPage';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { FollowUpsPage } from './pages/followups/FollowUpsPage';
-import { lazy, Suspense } from 'react';
-const HrmPage = lazy(() => import('./pages/hrm/HrmPage').then(module => ({ default: module.HrmPage })));
+const lazyNamed = (loader, exportName) => lazy(() => loader().then((module) => ({ default: module[exportName] })));
+const LoginPage = lazyNamed(() => import('./pages/auth/LoginPage'), 'LoginPage');
+const ForgotPasswordPage = lazyNamed(() => import('./pages/auth/ForgotPasswordPage'), 'ForgotPasswordPage');
+const ResetPasswordPage = lazyNamed(() => import('./pages/auth/ResetPasswordPage'), 'ResetPasswordPage');
+const DashboardPage = lazyNamed(() => import('./pages/DashboardPage'), 'DashboardPage');
+const UsersPage = lazyNamed(() => import('./pages/UsersPage'), 'UsersPage');
+const UserDetailPage = lazyNamed(() => import('./pages/UserDetailPage'), 'UserDetailPage');
+const RolesPage = lazyNamed(() => import('./pages/RolesPage'), 'RolesPage');
+const ReportsPage = lazyNamed(() => import('./pages/ReportsPage'), 'ReportsPage');
+const SettingsPage = lazyNamed(() => import('./pages/SettingsPage'), 'SettingsPage');
+const FilesPage = lazyNamed(() => import('./pages/FilesPage'), 'FilesPage');
+const FinancePage = lazyNamed(() => import('./pages/finance/FinancePage'), 'FinancePage');
+const ExpenseDetailsPage = lazyNamed(() => import('./pages/expenses/ExpenseDetailsPage'), 'ExpenseDetailsPage');
+const AmcDetailPage = lazyNamed(() => import('./pages/amc/AmcDetailPage'), 'AmcDetailPage');
+const BankingPage = lazyNamed(() => import('./pages/BankingPage'), 'BankingPage');
+const MastersPage = lazyNamed(() => import('./pages/MastersPage'), 'MastersPage');
+const ServiceMasterFormPage = lazyNamed(() => import('./pages/MastersPage'), 'ServiceMasterFormPage');
+const TechnologyStacksPage = lazyNamed(() => import('./pages/TechnologyStacksPage'), 'TechnologyStacksPage');
+const QuotationMasterPage = lazyNamed(() => import('./pages/QuotationMasterPage'), 'QuotationMasterPage');
+const LegalMasterPage = lazyNamed(() => import('./pages/LegalMasterPage'), 'LegalMasterPage');
+const NotFoundPage = lazyNamed(() => import('./pages/NotFoundPage'), 'NotFoundPage');
+const ResourcePage = lazyNamed(() => import('./pages/ResourcePage'), 'ResourcePage');
+const ProfilePage = lazyNamed(() => import('./pages/ProfilePage'), 'ProfilePage');
+const LeadsPage = lazyNamed(() => import('./pages/LeadsPage'), 'LeadsPage');
+const LeadDetailsPage = lazyNamed(() => import('./pages/leads/LeadDetailsPage'), 'LeadDetailsPage');
+const LeadQuotationPage = lazyNamed(() => import('./pages/leads/LeadDetailsPage'), 'LeadQuotationPage');
+const ShowcasePage = lazyNamed(() => import('./components/Showcase'), 'ShowcasePage');
+const ClientsListPage = lazyNamed(() => import('./pages/clients/ClientsListPage'), 'ClientsListPage');
+const ClientDetailsPage = lazyNamed(() => import('./pages/clients/ClientDetailsPage'), 'ClientDetailsPage');
+const ClientFormPage = lazyNamed(() => import('./pages/clients/ClientFormPage'), 'ClientFormPage');
+const ProjectsListPage = lazyNamed(() => import('./pages/projects/ProjectsListPage'), 'ProjectsListPage');
+const ProjectDetailsPage = lazyNamed(() => import('./pages/projects/ProjectDetailsPage'), 'ProjectDetailsPage');
+const QuotationsListPage = lazyNamed(() => import('./pages/quotations/QuotationsListPage'), 'QuotationsListPage');
+const QuotationPreviewPage = lazyNamed(() => import('./pages/quotations/QuotationPreviewPage'), 'QuotationPreviewPage');
+const InvoicesListPage = lazyNamed(() => import('./pages/invoices/InvoicesListPage'), 'InvoicesListPage');
+const InvoiceBuilderPage = lazyNamed(() => import('./pages/invoices/InvoiceBuilderPage'), 'InvoiceBuilderPage');
+const InvoiceExportPage = lazyNamed(() => import('./pages/invoices/InvoiceExportPage'), 'InvoiceExportPage');
+const InvoiceDetailsPage = lazyNamed(() => import('./pages/invoices/InvoiceDetailsPage'), 'InvoiceDetailsPage');
+const InvoicePublicPage = lazyNamed(() => import('./pages/invoices/InvoicePublicPage'), 'InvoicePublicPage');
+const PaymentsListPage = lazyNamed(() => import('./pages/payments/PaymentsListPage'), 'PaymentsListPage');
+const PaymentBuilderPage = lazyNamed(() => import('./pages/payments/PaymentBuilderPage'), 'PaymentBuilderPage');
+const PaymentDetailPage = lazyNamed(() => import('./pages/payments/PaymentDetailPage'), 'PaymentDetailPage');
+const AutomationPage = lazyNamed(() => import('./pages/AutomationPage'), 'AutomationPage');
+const NotificationsPage = lazyNamed(() => import('./pages/NotificationsPage'), 'NotificationsPage');
+const FollowUpsPage = lazyNamed(() => import('./pages/followups/FollowUpsPage'), 'FollowUpsPage');
+const CallHistoryPage = lazyNamed(() => import('./pages/calls/CallHistoryPage'), 'CallHistoryPage');
+const HrmPage = lazyNamed(() => import('./pages/hrm/HrmPage'), 'HrmPage');
 
 function AppRoutes() {
   return (
@@ -95,7 +103,7 @@ function AppRoutes() {
           path="leads/:id/quotations/new"
           element={
             <PermissionRoute permission="leads.read">
-              <LeadQuotationPage />
+              <LeadQuotationPage mode="create" />
             </PermissionRoute>
           }
         />
@@ -103,7 +111,7 @@ function AppRoutes() {
           path="leads/:id/quotations/:quotationId"
           element={
             <PermissionRoute permission="leads.read">
-              <LeadQuotationPage />
+              <LeadQuotationPage mode="edit" />
             </PermissionRoute>
           }
         />
@@ -160,6 +168,14 @@ function AppRoutes() {
           element={
             <PermissionRoute permission="projects.read">
               <ProjectDetailsPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="quotations"
+          element={
+            <PermissionRoute permission="leads.read">
+              <QuotationsListPage />
             </PermissionRoute>
           }
         />
@@ -240,6 +256,14 @@ function AppRoutes() {
           element={<NotificationsPage />}
         />
         <Route
+          path="call-history"
+          element={
+            <PermissionRoute permissions={['calls.read', 'leads.read', 'dashboard.view']}>
+              <CallHistoryPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
           path="follow-ups"
           element={
             <PermissionRoute permissions={['followups.view_own', 'followups.view_team', 'followups.view_all']}>
@@ -306,6 +330,64 @@ function AppRoutes() {
             </PermissionRoute>
           }
         />
+        <Route path="service-master" element={<Navigate to="/app/service-master/services" replace />} />
+        <Route
+          path="service-master/services"
+          element={
+            <PermissionRoute permission="masters.read">
+              <MastersPage initialType="service" serviceMasterOnly />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="service-master/services/new"
+          element={
+            <PermissionRoute permission="masters.write">
+              <ServiceMasterFormPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="service-master/services/:serviceId/edit"
+          element={
+            <PermissionRoute permission="masters.write">
+              <ServiceMasterFormPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="service-master/categories"
+          element={
+            <PermissionRoute permission="masters.read">
+              <MastersPage initialType="service_category" serviceMasterOnly />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="service-master/tech-stacks"
+          element={
+            <PermissionRoute permission="masters.read">
+              <TechnologyStacksPage />
+            </PermissionRoute>
+          }
+        />
+        <Route path="service-master/quotation-master" element={<Navigate to="/app/quotation-master" replace />} />
+        <Route
+          path="quotation-master"
+          element={
+            <PermissionRoute permission="masters.read">
+              <QuotationMasterPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="legal-master"
+          element={
+            <PermissionRoute permission="masters.read">
+              <LegalMasterPage />
+            </PermissionRoute>
+          }
+        />
         <Route
           path="users"
           element={
@@ -363,8 +445,10 @@ function AppRoutes() {
         <Route path="showcase" element={<ShowcasePage />} />
       </Route>
 
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="/quotations/preview" element={<QuotationPreviewPage />} />
+      <Route path="/quotation/preview" element={<QuotationPreviewPage />} />
       <Route path="/invoice/public/:id" element={<InvoicePublicPage />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
@@ -407,6 +491,8 @@ function TitleUpdater() {
       else if (path.includes('/automation')) pageName = 'Automation';
       else if (path.includes('/clients')) pageName = 'Clients';
       else if (path.includes('/projects')) pageName = 'Projects';
+      else if (path.includes('/leads') && path.includes('/quotations')) pageName = 'Leads · Quotation Builder';
+      else if (path.includes('/quotations')) pageName = 'Quotations';
       else if (path.includes('/invoices')) pageName = 'Invoices';
       else if (path.includes('/payments')) pageName = 'Payments';
       else if (path.includes('/finance')) pageName = 'Finance';
@@ -416,6 +502,13 @@ function TitleUpdater() {
       else if (path.includes('/banking')) pageName = 'Banking';
       else if (path.includes('/amc')) pageName = 'AMC';
       else if (path.includes('/renewals')) pageName = 'Renewals';
+      else if (path.includes('/quotation-master')) pageName = 'Quotation Master';
+      else if (path.includes('/service-master')) pageName = path.includes('/tech-stacks')
+          ? 'Service Master · Tech Stacks'
+          : path.includes('/categories')
+            ? 'Service Master · Categories'
+            : 'Service Master · All Services';
+      else if (path.includes('/legal-master')) pageName = 'Legal Master';
       else if (path.includes('/masters')) pageName = 'Masters';
       else if (path.includes('/reports')) pageName = 'Reports';
       else if (path.includes('/users')) pageName = 'Users';
@@ -474,7 +567,9 @@ export default function App() {
         <HashRouter>
           <NotificationProvider>
             <TitleUpdater />
-            <AppRoutes />
+            <Suspense fallback={<div className="p-6" role="status">Loading…</div>}>
+              <AppRoutes />
+            </Suspense>
             <Toaster richColors position="top-right" closeButton />
           </NotificationProvider>
         </HashRouter>

@@ -1,22 +1,86 @@
 export const DEFAULT_SETTINGS = {
   company: {
     name: 'Webitof',
-    legalName: 'Webitof IT Services',
-    logoUrl: './assets/images/placeholder-logo.svg',
-    address: 'Raipur, Chhattisgarh',
+    legalName: 'WEBITOF WEB AGENCY (OPC) PRIVATE LIMITED',
+    logoUrl: '/assets/images/horizontal-logo.png',
+    address: 'Unit No. 3033, 3rd Floor, Currency Tower, VIP Rd, Vishal Nagar, Raipur, Chhattisgarh 492001, India',
+    registeredOffice: '182, Ward No. 5, Bhathapara, Saloni Seoni, Raipur, Chhattisgarh 493661, India',
     city: 'Raipur',
     state: 'Chhattisgarh',
     stateCode: '22',
     country: 'India',
     pincode: '492001',
-    gstin: '22AAAAA0000A1Z5',
-    pan: 'AAAAA0000A',
-    cin: '',
-    udyam: '',
+    gstin: '22AADCW3373Q1ZW',
+    pan: 'AADCW3373Q',
+    cin: 'U72900CT2022OPC013562',
+    udyam: 'UDYAM-CG-14-0034411',
+    tan: 'JBPW00418F',
     iso: '',
-    email: 'accounts@webitof.com',
-    phone: '+91 90000 00000',
-    website: 'https://webitof.com'
+    email: 'contact@webitof.com',
+    phone: '+91 9174786123',
+    alternatePhone: '+91 9183456123',
+    website: 'https://webitof.com',
+    signatoryName: 'Hitesh Kumar Kurre',
+    signatoryDesignation: 'Managing Director',
+    signatureUrl: '',
+    signatureFileId: '',
+    certificates: [
+      {
+        id: 'webitof-incorporation',
+        type: 'incorporation',
+        label: 'Certificate of Incorporation (COI)',
+        docNumber: 'U72900CT2022OPC013562',
+        name: 'CERTIFICATE OF INCORPORATION.PDF',
+        url: '/assets/docs/CERTIFICATE OF INCORPORATION.PDF',
+        mimeType: 'application/pdf',
+        source: 'Ministry of Corporate Affairs (MCA)',
+        uploadedAt: '2022-08-05T00:00:00.000Z'
+      },
+      {
+        id: 'webitof-gst',
+        type: 'gst',
+        label: 'GST Registration Certificate (Form GST REG-06)',
+        docNumber: '22AADCW3373Q1ZW',
+        name: 'GST Webitof.pdf',
+        url: '/assets/docs/GST Webitof.pdf',
+        mimeType: 'application/pdf',
+        source: 'GST System / CBIC',
+        uploadedAt: '2026-07-11T00:00:00.000Z'
+      },
+      {
+        id: 'webitof-udyam',
+        type: 'udyam',
+        label: 'Udyam MSME Registration Certificate',
+        docNumber: 'UDYAM-CG-14-0034411',
+        name: 'Udyam Registration Certificate Full 2026.pdf',
+        url: '/assets/docs/Udyam Registration Certificate Full 2026.pdf',
+        mimeType: 'application/pdf',
+        source: 'Ministry of MSME',
+        uploadedAt: '2022-08-11T00:00:00.000Z'
+      },
+      {
+        id: 'webitof-pan',
+        type: 'pan',
+        label: 'Company Permanent Account Number (PAN Card)',
+        docNumber: 'AADCW3373Q',
+        name: 'Webitof PAN .pdf',
+        url: '/assets/docs/Webitof PAN .pdf',
+        mimeType: 'application/pdf',
+        source: 'Income Tax Department',
+        uploadedAt: '2022-08-05T00:00:00.000Z'
+      },
+      {
+        id: 'webitof-tan',
+        type: 'tan',
+        label: 'Tax Deduction Account Number (TAN) Allotment Letter',
+        docNumber: 'JBPW00418F',
+        name: 'Webitof TAN.pdf',
+        url: '/assets/docs/Webitof TAN.pdf',
+        mimeType: 'application/pdf',
+        source: 'Income Tax Department',
+        uploadedAt: '2022-08-05T00:00:00.000Z'
+      }
+    ]
   },
   gst: {
     defaultRate: 18,
@@ -56,7 +120,7 @@ export const DEFAULT_SETTINGS = {
     upiId: 'webitof@upi'
   },
   branding: {
-    primaryColor: '#2392f8',
+    primaryColor: '#4361ee',
     accentColor: '#5e1cd5'
   },
   smtp: {
@@ -85,10 +149,20 @@ export const DEFAULT_SETTINGS = {
     cardRadius: '1.5rem'
   },
   logos: {
-    primary: '',
-    sidebar: '',
-    sidebarCollapsed: '',
-    favicon: ''
+    primary: '/assets/images/horizontal-logo.png',
+    primaryDark: '/assets/images/horizontal-white-logo.png',
+    sidebar: '/assets/images/horizontal-logo.png',
+    sidebarDark: '/assets/images/horizontal-white-logo.png',
+    sidebarCollapsed: '/assets/images/round-logo.png',
+    sidebarCollapsedDark: '/assets/images/webitof-icon-white.png',
+    quotation: '/assets/images/main-logo.png',
+    favicon: '/assets/images/round-logo.png',
+    loginLight: '/assets/images/webitof-icon.png',
+    loginDark: '/assets/images/webitof-icon-white.png'
+  },
+  invoiceTheme: {
+    primaryColor: '#4361EE',
+    watermarkUrl: '/assets/images/invoice_watermark.png'
   },
   statuses: {
     leads: [

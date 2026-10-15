@@ -74,7 +74,11 @@ const PERMISSIONS = [
   { code: 'files.delete', name: 'Delete Files', module: 'files', action: 'delete', description: 'Delete file metadata or archive files.' },
   { code: 'users.manage', name: 'Manage Users', module: 'users', action: 'manage', description: 'Create and edit users and their role assignments.' },
   { code: 'roles.manage', name: 'Manage Roles', module: 'roles', action: 'manage', description: 'Create and edit roles.' },
-  { code: 'permissions.manage', name: 'Manage Permissions', module: 'permissions', action: 'manage', description: 'Create and edit permission mappings.' }
+  { code: 'permissions.manage', name: 'Manage Permissions', module: 'permissions', action: 'manage', description: 'Create and edit permission mappings.' },
+  { code: 'calls.read', name: 'Read Call History', module: 'calls', action: 'read', description: 'View staff call logs and call history.' },
+  { code: 'calls.write', name: 'Write Call Records', module: 'calls', action: 'write', description: 'Create and log staff calls and recordings.' },
+  { code: 'calls.recording_view', name: 'View/Listen Call Recordings', module: 'calls', action: 'recording_view', description: 'Listen to and download call audio recordings.' },
+  { code: 'calls.delete', name: 'Delete Call Records', module: 'calls', action: 'delete', description: 'Delete call records.' }
 ];
 
 const PERMISSION_CODES = PERMISSIONS.map((permission) => permission.code);
@@ -125,7 +129,9 @@ const DEFAULT_ROLE_DEFINITIONS = [
       'settings.read',
       'reports.view',
       'files.read',
-      'files.write'
+      'files.write',
+      'calls.read',
+      'calls.recording_view'
     ]
   },
   {
@@ -158,7 +164,10 @@ const DEFAULT_ROLE_DEFINITIONS = [
       'invoices.write',
       'payments.read',
       'files.read',
-      'files.write'
+      'files.write',
+      'calls.read',
+      'calls.write',
+      'calls.recording_view'
     ]
   }
 ];

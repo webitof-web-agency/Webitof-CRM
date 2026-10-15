@@ -21,7 +21,25 @@ async function saveSettings(req, res, next) {
   }
 }
 
+async function fetchPublicSettings(req, res, next) {
+  try {
+    const settings = await getSettings();
+    const publicData = {
+      companyName: settings?.company?.name || 'Webitof',
+      legalName: settings?.company?.legalName || '',
+      logoUrl: settings?.company?.logoUrl || '',
+      logos: settings?.logos || {},
+      branding: settings?.branding || {},
+      ui: settings?.ui || {}
+    };
+    res.json({ success: true, data: publicData });
+  } catch (error) {
+    next(error);
+  }
+}
+
 module.exports = {
   fetchSettings,
+  fetchPublicSettings,
   saveSettings
 };

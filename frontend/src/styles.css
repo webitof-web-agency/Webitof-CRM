@@ -54,13 +54,13 @@
   --radius-card: 1.25rem;
 
   /* Primary Brand Dynamic Colors */
-  --primary: #0071E3;
-  --primary-hover: #0077ED;
-  --primary-subtle: rgba(0, 113, 227, 0.09);
+  --primary: #4361ee;
+  --primary-hover: #3753db;
+  --primary-subtle: rgba(67, 97, 238, 0.09);
   --primary-foreground: #ffffff;
   --secondary: #64748b;
   --secondary-foreground: #ffffff;
-  --accent: #0071E3;
+  --accent: #4361ee;
   --accent-foreground: #ffffff;
 
   /* Background & Liquid Glass Surfaces */
@@ -108,14 +108,14 @@
   --input-bg: rgba(255, 255, 255, 0.75);
   --input-border: rgba(15, 23, 42, 0.14);
   --hover-bg: rgba(15, 23, 42, 0.05);
-  --selected-bg: rgba(0, 113, 227, 0.09);
+  --selected-bg: rgba(67, 97, 238, 0.09);
 
   /* Sidebar */
   --sidebar-bg: rgba(255, 255, 255, 0.78);
   --sidebar-border: rgba(15, 23, 42, 0.08);
   --sidebar-text: #64748b;
-  --sidebar-text-active: #0071E3;
-  --sidebar-bg-active: rgba(0, 113, 227, 0.10);
+  --sidebar-text-active: #4361ee;
+  --sidebar-bg-active: rgba(67, 97, 238, 0.10);
 
   /* Apple Liquid Specular Shadows */
   --shadow-subtle: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
@@ -173,14 +173,14 @@
   --input-bg: rgba(255, 255, 255, 0.06);
   --input-border: rgba(255, 255, 255, 0.13);
   --hover-bg: rgba(255, 255, 255, 0.07);
-  --selected-bg: rgba(0, 113, 227, 0.22);
+  --selected-bg: rgba(67, 97, 238, 0.22);
 
   /* macOS Frosted Sidebar */
   --sidebar-bg: rgba(12, 14, 20, 0.78);
   --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-text: #8e8e93;
-  --sidebar-text-active: #2997FF;
-  --sidebar-bg-active: rgba(41, 151, 255, 0.16);
+  --sidebar-text-active: #4361ee;
+  --sidebar-bg-active: rgba(67, 97, 238, 0.16);
 
   /* Apple Ambient Depth & Hairline Inner Glows */
   --shadow-subtle: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
@@ -327,8 +327,8 @@ a {
 
 .liquid-glass-input:focus {
   background: rgba(255, 255, 255, 0.95) !important;
-  border-color: #0071E3 !important;
-  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.15), inset 0 1px 2px 0 rgba(0, 0, 0, 0.02) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 4px var(--primary-subtle), inset 0 1px 2px 0 rgba(0, 0, 0, 0.02) !important;
 }
 
 .dark .liquid-glass-input, [data-theme="dark"] .liquid-glass-input {
@@ -342,8 +342,8 @@ a {
 
 .dark .liquid-glass-input:focus, [data-theme="dark"] .liquid-glass-input:focus {
   background: rgba(255, 255, 255, 0.1) !important;
-  border-color: #2997FF !important;
-  box-shadow: 0 0 0 4px rgba(41, 151, 255, 0.2), inset 0 1px 2px 0 rgba(0, 0, 0, 0.4) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.25), inset 0 1px 2px 0 rgba(0, 0, 0, 0.4) !important;
 }
 
 .liquid-glass-pill {

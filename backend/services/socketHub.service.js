@@ -52,6 +52,7 @@ function registerSocketHub(httpServer, options = {}) {
     const userId = socket.data?.user?.id;
     if (userId) {
       socket.join(`user:${userId}`);
+      socket.join('authenticated');
       socket.emit('notification:connected', { userId });
     }
   });
@@ -61,6 +62,11 @@ function registerSocketHub(httpServer, options = {}) {
 
 function getHub() {
   return io;
+}
+
+function broadcastEvent(eventName, payload) {
+  if (!io) return;
+  io.emit(eventName, payload);
 }
 
 function emitToUser(userId, eventName, payload) {
@@ -75,6 +81,7 @@ function emitToUsers(userIds = [], eventName, payload) {
 }
 
 module.exports = {
+  broadcastEvent,
   emitToUser,
   emitToUsers,
   getHub,

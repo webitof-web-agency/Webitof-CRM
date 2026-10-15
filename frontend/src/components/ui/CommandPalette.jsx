@@ -29,7 +29,9 @@ import {
   ArrowRight,
   Sparkles,
   Loader2,
-  FileText
+  FileText,
+  Scale,
+  FileImage
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -151,6 +153,7 @@ export function CommandPalette({ open, onClose }) {
       { id: 'nav-leads', label: 'Leads & Opportunities', category: 'Navigation', icon: Target, path: '/app/leads', permission: 'leads.read' },
       { id: 'nav-clients', label: 'Clients & Accounts', category: 'Navigation', icon: Building2, path: '/app/clients', permission: 'clients.read' },
       { id: 'nav-projects', label: 'Projects & Workspaces', category: 'Navigation', icon: BriefcaseBusiness, path: '/app/projects', permission: 'projects.read' },
+      { id: 'nav-quotations', label: 'Quotations', category: 'Navigation', icon: FileText, path: '/app/quotations', permission: 'leads.read' },
       { id: 'nav-invoices', label: 'Invoices & Billing', category: 'Navigation', icon: ReceiptText, path: '/app/invoices', permission: 'invoices.read' },
       { id: 'nav-payments', label: 'Payments & Collections', category: 'Navigation', icon: Banknote, path: '/app/payments', permission: 'payments.read' },
       { id: 'nav-finance', label: 'Finance & Ledger', category: 'Navigation', icon: CircleDollarSign, path: '/app/finance', permission: 'reports.view' },
@@ -162,6 +165,9 @@ export function CommandPalette({ open, onClose }) {
       { id: 'nav-files', label: 'File Manager', category: 'Navigation', icon: FileArchive, path: '/app/files', permission: 'files.read' },
       { id: 'nav-users', label: 'User Management', category: 'Navigation', icon: Users, path: '/app/users', permission: 'users.manage' },
       { id: 'nav-roles', label: 'Roles & Permissions', category: 'Navigation', icon: UserCog, path: '/app/roles', permission: 'roles.manage' },
+      { id: 'nav-service-master', label: 'Service Master', category: 'Navigation', icon: Boxes, path: '/app/service-master', permission: 'masters.read' },
+      { id: 'nav-quotation-master', label: 'Quotation Master', category: 'Navigation', icon: FileImage, path: '/app/quotation-master', permission: 'masters.read' },
+      { id: 'nav-legal-master', label: 'Legal Master (Terms & Conditions)', category: 'Navigation', icon: Scale, path: '/app/legal-master', permission: 'masters.read' },
       { id: 'nav-settings', label: 'System Settings', category: 'Navigation', icon: Cog, path: '/app/settings', permission: 'settings.read' },
       { id: 'nav-notifications', label: 'Notification Center', category: 'Navigation', icon: Bell, path: '/app/notifications' }
     ];

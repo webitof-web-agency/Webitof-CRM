@@ -5,6 +5,9 @@ export function normalizeOption(option) {
       label: option.label ?? option.name ?? option.title ?? option.code ?? String(option.value ?? option.id ?? ''),
       description: option.description ?? '',
       color: option.color ?? option.badgeColor ?? '',
+      group: option.group ?? option.category ?? '',
+      groups: Array.isArray(option.groups) ? option.groups : [],
+      milestones: Array.isArray(option.milestones) ? option.milestones : [],
       disabled: Boolean(option.disabled ?? option.isDisabled ?? option.readOnly)
     };
   }
@@ -14,6 +17,8 @@ export function normalizeOption(option) {
     label: String(option ?? ''),
     description: '',
     color: '',
+    group: '',
+    groups: [],
     disabled: false
   };
 }
@@ -112,7 +117,9 @@ export function getFieldOptions(field, lookups = {}) {
       normalizeOption({
         value: item.id ?? item.value ?? item.code ?? item.name,
         label: lookupLabel(item, field),
-        description: lookupDescription(item, field)
+        description: lookupDescription(item, field),
+        group: item.category || item.payload?.category || '',
+        groups: item.groups || item.payload?.groups || []
       })
     );
   }
@@ -261,8 +268,19 @@ export function buildInitialDraft(fields = [], record = {}) {
       return draft;
     }
 
-    if (field.type === 'multiselect' || field.type === 'attachment') {
+    if (field.type === 'multiselect' || field.type === 'checkbox_group' || field.type === 'attachment') {
       draft[field.name] = Array.isArray(current) ? current : Array.isArray(field.defaultValue) ? field.defaultValue : [];
+      return draft;
+    }
+
+    if (field.type === 'payment_plan') {
+      const source = current && typeof current === 'object' ? current : field.defaultValue;
+      draft[field.name] = source && typeof source === 'object'
+        ? {
+            ...source,
+            milestones: Array.isArray(source.milestones) ? source.milestones.map((item) => ({ ...item })) : []
+          }
+        : { type: '', milestones: [] };
       return draft;
     }
 
@@ -298,8 +316,26 @@ export function serializeDraft(fields = [], draft = {}) {
       continue;
     }
 
-    if (field.type === 'multiselect' || field.type === 'attachment') {
+    if (field.type === 'multiselect' || field.type === 'checkbox_group' || field.type === 'attachment') {
       payload[field.name] = Array.isArray(value) ? value.filter(Boolean) : [];
+      continue;
+    }
+
+    if (field.type === 'payment_plan') {
+      const plan = value && typeof value === 'object' ? value : {};
+      const milestones = Array.isArray(plan.milestones)
+        ? plan.milestones.map((item) => ({
+            percentage: Number(item?.percentage || 0),
+            milestone: String(item?.milestone || '').trim()
+          }))
+        : [];
+      if (!plan.type) throw new Error('Select a payment plan');
+      if (!milestones.length) throw new Error('Add at least one payment milestone');
+      if (milestones.some((item) => item.percentage <= 0)) throw new Error('Every payment installment must be greater than 0%');
+      if (milestones.some((item) => !item.milestone)) throw new Error('Enter a condition for every payment installment');
+      const total = milestones.reduce((sum, item) => sum + item.percentage, 0);
+      if (Math.abs(total - 100) > 0.01) throw new Error(`Payment milestone total must be 100%. Current total is ${total}%.`);
+      payload[field.name] = { type: String(plan.type), milestones };
       continue;
     }
 

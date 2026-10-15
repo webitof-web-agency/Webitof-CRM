@@ -21,7 +21,14 @@ const TYPE_ALIASES = {
   invoice_term: 'invoice_term',
   invoice_terms: 'invoice_term',
   follow_up_type: 'follow_up_type',
-  follow_up_types: 'follow_up_type'
+  follow_up_types: 'follow_up_type',
+  legal_term: 'legal_term',
+  legal_terms: 'legal_term',
+  legal_master: 'legal_term',
+  legal: 'legal_term',
+  quotation_master: 'quotation_master',
+  quotation_masters: 'quotation_master',
+  quotation: 'quotation_master'
 };
 
 const ALLOWED_TYPES = new Set(Object.values(TYPE_ALIASES));
@@ -98,6 +105,58 @@ function normalizeServicePayloadForSave(current = null, patch = {}, user = null)
   };
 }
 
+async function unsetOtherDefaultLegalTerms(excludeId = null) {
+  try {
+    const { query } = require('../config/db');
+    if (excludeId) {
+      await query(
+        `UPDATE master_items
+         SET payload = payload || '{"isDefault": false}'::jsonb
+         WHERE type = 'legal_term' AND id != $1 AND (payload->>'isDefault')::boolean = true`,
+        [excludeId]
+      );
+    } else {
+      await query(
+        `UPDATE master_items
+         SET payload = payload || '{"isDefault": false}'::jsonb
+         WHERE type = 'legal_term' AND (payload->>'isDefault')::boolean = true`
+      );
+    }
+  } catch (err) {
+    console.error('Failed to unset previous default legal terms:', err.message);
+  }
+}
+
+function normalizeLegalTermPayloadForSave(current = null, patch = {}) {
+  const currentPayload = current?.payload || {};
+  const isDefault = patch.isDefault !== undefined
+    ? Boolean(patch.isDefault)
+    : (patch.payload?.isDefault !== undefined
+      ? Boolean(patch.payload.isDefault)
+      : Boolean(current?.isDefault ?? currentPayload.isDefault));
+  const category = patch.category || patch.payload?.category || current?.category || currentPayload.category || 'Quotation';
+  const content = patch.content !== undefined
+    ? patch.content
+    : (patch.terms !== undefined
+      ? patch.terms
+      : (patch.payload?.content ?? patch.payload?.terms ?? current?.content ?? currentPayload.content ?? ''));
+  const description = patch.description !== undefined
+    ? patch.description
+    : (patch.payload?.description ?? current?.description ?? currentPayload.description ?? '');
+
+  return {
+    ...patch,
+    payload: {
+      ...currentPayload,
+      ...(patch.payload || {}),
+      category,
+      content,
+      description,
+      isDefault
+    }
+  };
+}
+
 async function listMasters(req, res, next) {
   try {
     const type = req.params.type ? assertAllowedType(req.params.type) : null;
@@ -120,9 +179,15 @@ async function listMasters(req, res, next) {
 async function createMaster(req, res, next) {
   try {
     const type = assertAllowedType(req.params.type);
-    const body = type === 'service'
-      ? normalizeServicePayloadForSave(null, req.body || {}, req.user)
-      : (req.body || {});
+    let body = req.body || {};
+    if (type === 'service') {
+      body = normalizeServicePayloadForSave(null, body, req.user);
+    } else if (type === 'legal_term') {
+      body = normalizeLegalTermPayloadForSave(null, body);
+      if (body.payload?.isDefault) {
+        await unsetOtherDefaultLegalTerms(null);
+      }
+    }
     const record = await createByType(type, body);
     res.status(201).json({ success: true, data: record });
   } catch (error) {
@@ -133,10 +198,16 @@ async function createMaster(req, res, next) {
 async function updateMaster(req, res, next) {
   try {
     const type = assertAllowedType(req.params.type);
-    const current = type === 'service' ? await findOne(type, req.params.id) : null;
-    const body = type === 'service'
-      ? normalizeServicePayloadForSave(current, req.body || {}, req.user)
-      : (req.body || {});
+    const current = (type === 'service' || type === 'legal_term') ? await findOne(type, req.params.id) : null;
+    let body = req.body || {};
+    if (type === 'service') {
+      body = normalizeServicePayloadForSave(current, body, req.user);
+    } else if (type === 'legal_term') {
+      body = normalizeLegalTermPayloadForSave(current, body);
+      if (body.payload?.isDefault) {
+        await unsetOtherDefaultLegalTerms(req.params.id);
+      }
+    }
     const record = await updateByType(type, req.params.id, body);
     if (!record) {
       return res.status(404).json({ success: false, message: 'Record not found' });

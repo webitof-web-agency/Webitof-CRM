@@ -4,21 +4,21 @@ import { cn } from '../../lib/cn';
 
 const variants = {
   primary:
-    'bg-gradient-to-r from-[#0077ED] via-[#0071E3] to-[#005bb5] hover:brightness-110 active:scale-[0.98] text-white shadow-md shadow-blue-500/25 border border-white/30 focus-visible:ring-[#0071E3]',
+    'bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-md shadow-[var(--primary)]/25 border border-white/20 focus-visible:ring-[var(--primary)]',
   secondary:
-    'bg-white/70 dark:bg-white/[0.08] hover:bg-white/95 dark:hover:bg-white/[0.14] text-slate-800 dark:text-slate-100 border border-black/10 dark:border-white/15 active:scale-[0.98] shadow-xs backdrop-blur-md focus-visible:ring-[#0071E3]',
+    'bg-white/70 dark:bg-white/[0.08] hover:bg-white/95 dark:hover:bg-white/[0.14] text-slate-800 dark:text-slate-100 border border-black/10 dark:border-white/15 active:scale-[0.98] shadow-xs backdrop-blur-md focus-visible:ring-[var(--primary)]',
   outline:
-    'bg-white/60 dark:bg-white/[0.05] border border-black/10 dark:border-white/15 text-slate-800 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-white/10 active:scale-[0.98] shadow-xs backdrop-blur-md focus-visible:ring-[#0071E3]',
+    'bg-white/60 dark:bg-white/[0.05] border border-black/10 dark:border-white/15 text-slate-800 dark:text-slate-100 hover:bg-white/90 dark:hover:bg-white/10 active:scale-[0.98] shadow-xs backdrop-blur-md focus-visible:ring-[var(--primary)]',
   ghost:
-    'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white active:scale-[0.98] focus-visible:ring-[#0071E3]',
+    'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white active:scale-[0.98] focus-visible:ring-[var(--primary)]',
   destructive:
     'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700 text-white hover:brightness-110 active:scale-[0.98] shadow-md shadow-rose-500/25 border border-white/20 focus-visible:ring-rose-400',
   danger:
     'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700 text-white hover:brightness-110 active:scale-[0.98] shadow-md shadow-rose-500/25 border border-white/20 focus-visible:ring-rose-400',
   subtle:
-    'bg-[#0071E3]/12 dark:bg-[#0071E3]/20 hover:bg-[#0071E3]/20 dark:hover:bg-[#0071E3]/30 text-[#0071E3] dark:text-[#2997FF] border border-[#0071E3]/25 active:scale-[0.98] focus-visible:ring-[#0071E3]',
+    'bg-[var(--primary)]/12 dark:bg-[var(--primary)]/20 hover:bg-[var(--primary)]/20 dark:hover:bg-[var(--primary)]/30 text-[var(--primary)] dark:text-[var(--primary)] border border-[var(--primary)]/25 active:scale-[0.98] focus-visible:ring-[var(--primary)]',
   glass:
-    'bg-white/70 dark:bg-white/[0.08] hover:bg-white/95 dark:hover:bg-white/[0.16] border border-white/80 dark:border-white/20 text-slate-900 dark:text-white shadow-xs backdrop-blur-xl active:scale-[0.98] focus-visible:ring-[#0071E3]'
+    'bg-white/70 dark:bg-white/[0.08] hover:bg-white/95 dark:hover:bg-white/[0.16] border border-white/80 dark:border-white/20 text-slate-900 dark:text-white shadow-xs backdrop-blur-xl active:scale-[0.98] focus-visible:ring-[var(--primary)]'
 };
 
 const sizes = {

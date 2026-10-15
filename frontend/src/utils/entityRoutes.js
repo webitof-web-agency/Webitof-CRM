@@ -58,11 +58,7 @@ function pickValue(record = {}, keys = []) {
 }
 
 function shortId(id = '') {
-  const value = String(id || '').trim();
-  if (!value) return '';
-  const [prefix, rest = ''] = value.split('_');
-  if (!rest) return value.slice(0, 12);
-  return `${prefix}_${rest.slice(0, 8)}`;
+  return String(id || '').trim();
 }
 
 function routeSegment(type, recordOrId = {}) {
@@ -77,7 +73,7 @@ function routeSegment(type, recordOrId = {}) {
     if (!slug || slug === tokenSlug) {
       return encodeURIComponent(publicToken);
     }
-    return encodeURIComponent(`${publicToken}-${slug}`);
+    return encodeURIComponent(`${publicToken}--${slug}`);
   }
 
   const id = shortId(recordOrId?.id);
@@ -86,7 +82,7 @@ function routeSegment(type, recordOrId = {}) {
   if (!slug || slug === idSlug) {
     return encodeURIComponent(id);
   }
-  return encodeURIComponent(`${slug}-${id}`);
+  return encodeURIComponent(`${slug}--${id}`);
 }
 
 export function entityRoute(type, recordOrId, suffix = '') {

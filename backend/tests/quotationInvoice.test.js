@@ -93,3 +93,39 @@ test('quotation can create a no-tax invoice with a flat discount', () => {
   assert.equal(draft.totalAmount, 4500);
   assert.equal(draft.amountType, 'No Tax');
 });
+
+test('itemized quotation preserves primary and add-on rates in the invoice', () => {
+  const event = {
+    title: 'E-commerce proposal',
+    serviceNames: ['E-commerce Website Development', 'WhatsApp Business API Integration'],
+    amount: 120000,
+    discountType: 'percent',
+    discountValue: 0,
+    gstApplicable: false,
+    gstRate: 0,
+    status: 'Approved',
+    items: [
+      { serviceId: 'svc-ecommerce', name: 'E-commerce Website Development', qty: 1, rate: 95000, amount: 95000 },
+      { serviceId: 'svc-whatsapp', name: 'WhatsApp Business API Integration', qty: 1, rate: 25000, amount: 25000, isAddon: true }
+    ]
+  };
+  const snapshot = getQuotationSnapshot(event, {}, settings);
+  const draft = buildQuotationInvoiceDraft({
+    quotation: snapshot,
+    lead: {},
+    client,
+    services: [
+      { id: 'svc-ecommerce', name: 'E-commerce Website Development', unit: 'Project', sacCode: '998314' },
+      { id: 'svc-whatsapp', name: 'WhatsApp Business API Integration', unit: 'Project', sacCode: '998314' }
+    ],
+    settings,
+    invoiceDate: '2026-10-09',
+    dueDate: '2026-10-24'
+  });
+
+  assert.equal(snapshot.items.length, 2);
+  assert.equal(draft.items.length, 2);
+  assert.equal(draft.items[0].rate, 95000);
+  assert.equal(draft.items[1].rate, 25000);
+  assert.equal(draft.totalAmount, 120000);
+});

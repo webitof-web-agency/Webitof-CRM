@@ -9,13 +9,16 @@ const {
   DEFAULT_SERVICES,
   DEFAULT_EXPENSE_CATEGORIES,
   DEFAULT_TAX_RATES,
+  DEFAULT_QUOTATION_MASTERS,
   DEFAULT_VENDORS,
   DEFAULT_RENEWAL_PROVIDERS,
   DEFAULT_AMC_TYPES,
   DEFAULT_BILLING_CYCLES,
-  DEFAULT_INVOICE_TERMS
+  DEFAULT_INVOICE_TERMS,
+  DEFAULT_LEGAL_TERMS
 } = require('../database/defaultData');
 const { createId } = require('../utils/format');
+const { ensureCallLogsSchema } = require('../database/callLogs.schema');
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
@@ -55,6 +58,7 @@ async function ensureDatabase() {
   await ensureWorkflowAutomationHistorySchema();
   await ensureNotificationsSchema();
   await ensurePaymentStatusSchema();
+  await ensureCallLogsSchema();
   await ensureInvoiceSourceIndexes();
   await withTransaction(migrateHrm);
   if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
@@ -62,7 +66,9 @@ async function ensureDatabase() {
     await seedAutomationDemoData();
     await seedNotificationDemoData();
   }
-  await seedRbac();
+  if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
+    await seedRbac();
+  }
 }
 
 async function ensureLeadPipelineSchema() {
@@ -540,11 +546,13 @@ async function seedDefaultData() {
     ...DEFAULT_SERVICES,
     ...DEFAULT_EXPENSE_CATEGORIES,
     ...DEFAULT_TAX_RATES,
+    ...DEFAULT_QUOTATION_MASTERS,
     ...DEFAULT_VENDORS,
     ...DEFAULT_RENEWAL_PROVIDERS,
     ...DEFAULT_AMC_TYPES,
     ...DEFAULT_BILLING_CYCLES,
-    ...DEFAULT_INVOICE_TERMS
+    ...DEFAULT_INVOICE_TERMS,
+    ...DEFAULT_LEGAL_TERMS
   ];
 
   for (const item of masters) {
@@ -552,7 +560,7 @@ async function seedDefaultData() {
       `insert into master_items (id, type, name, is_active, sort_order, payload)
        values ($1,$2,$3,$4,$5,$6)
        on conflict (type, name)
-       do update set is_active = excluded.is_active, sort_order = excluded.sort_order, payload = excluded.payload, updated_at = now()`,
+       do nothing`,
       [
         item.id || createId(item.type || 'master'),
         item.type,
@@ -970,8 +978,9 @@ async function seedAutomationDemoData() {
 }
 
 async function seedNotificationDemoData() {
-  const bootstrapEmail = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@webitof.com');
+  const bootstrapEmail = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || '');
   const bootstrapUsername = normalizeUsername(process.env.BOOTSTRAP_ADMIN_USERNAME || bootstrapEmail);
+  if (!bootstrapEmail && !bootstrapUsername) return;
 
   const userResult = await query(
     `select id, email
@@ -1220,8 +1229,8 @@ async function seedRbac() {
       }
     }
 
-    const bootstrapEmail = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || 'admin@webitof.com');
-    const bootstrapPassword = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || 'Admin@12345').trim();
+    const bootstrapEmail = normalizeEmail(process.env.BOOTSTRAP_ADMIN_EMAIL || '');
+    const bootstrapPassword = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || '').trim();
     const bootstrapName = String(process.env.BOOTSTRAP_ADMIN_NAME || 'System Admin').trim() || 'System Admin';
     const bootstrapUsername = normalizeUsername(process.env.BOOTSTRAP_ADMIN_USERNAME || bootstrapEmail);
 

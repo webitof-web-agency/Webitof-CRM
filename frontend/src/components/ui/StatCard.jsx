@@ -28,7 +28,7 @@ export function StatCard({
           </div>
         </div>
         {Icon ? (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-b from-[#0077ED]/15 to-[#0071E3]/5 dark:from-[#0071E3]/25 dark:to-[#0071E3]/10 text-[#0071E3] dark:text-[#2997FF] border border-[#0071E3]/25 dark:border-[#0071E3]/35 shadow-xs">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-gradient-to-b from-[var(--primary)]/15 to-[var(--primary)]/5 dark:from-[var(--primary)]/25 dark:to-[var(--primary)]/10 text-[var(--primary)] dark:text-[var(--primary)] border border-[var(--primary)]/25 dark:border-[var(--primary)]/35 shadow-xs">
             <Icon size={20} strokeWidth={2.2} />
           </div>
         ) : null}

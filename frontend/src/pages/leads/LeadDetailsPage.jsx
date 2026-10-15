@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send, Sparkles, ArrowRightCircle, PhoneCall, Bell, CheckSquare, MessageCircle, Zap, Volume2, RotateCw, ExternalLink, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import { FileComposerModal } from '../../components/ui/FileComposerModal';
 import { UserAvatar } from '../../components/ui/UserAvatar';
 import { AttachmentPicker } from '../../components/ui/AttachmentPicker';
 import { SearchableSelect } from '../../components/forms/SearchableSelect';
+import { RichTextEditor } from '../../components/forms/RichTextEditor';
 import { PhoneInput } from '../../components/forms/PhoneInput';
 import { LeadFormModal } from '../../components/forms/LeadFormModal';
 import { ConvertLeadModal } from '../../components/forms/ConvertLeadModal';
@@ -35,7 +36,7 @@ import { WhatsAppTemplateModal } from '../../components/leads/WhatsAppTemplateMo
 import { LeadStageVelocityBadge } from '../../components/leads/LeadStageVelocityBadge';
 import { MergeLeadModal } from '../../components/leads/MergeLeadModal';
 import { FollowUpCadenceStepper } from '../../components/followups/FollowUpQuickPresets';
-import { GitMerge, Brain, ChevronUp, ChevronDown } from 'lucide-react';
+import { GitMerge, Brain, ChevronUp, ChevronDown, Scale, RotateCcw, ShieldCheck } from 'lucide-react';
 import { normalizeEventAttachment, normalizeEventAttachments } from '../../components/events/eventAttachments';
 import {
   DEFAULT_LEAD_OPTIONS,
@@ -48,6 +49,7 @@ import {
   MILESTONE_PRESETS,
   buildWhatsAppProposalPitch
 } from '../../config/quotationPresets';
+import { QuotationBuilderModal } from '../../components/quotations/QuotationBuilderModal';
 import {
   canonicalRoute,
   clientRoute,
@@ -146,6 +148,17 @@ const EMPTY_QUOTATION = {
   validUntil: '',
   amount: '',
   items: [],
+  features: [],
+  scopeOfWork: '',
+  technologyStack: '',
+  timeline: '',
+  customContent: '',
+  paymentInfo: '',
+  termsAndConditions: '',
+  legalAgreements: [],
+  afterCompletion: '',
+  amcPlan: null,
+  nextYearCostSummary: '',
   milestoneTemplate: '',
   terms: '',
   discountEnabled: false,
@@ -440,13 +453,63 @@ function getStructuredFields(text, label) {
 function removeStructuredQuotationLines(text) {
   return String(text || '')
     .split(/\r?\n/)
-    .filter((line) => !/^\s*(service|amount|discount type|discount value|gst applicable|gst rate|total amount|status|quotation link|task|reminder|comments?)\s*:/i.test(line))
+    .filter((line) => !/^\s*(service|amount|items json|quotation data json|milestone template|discount type|discount value|gst applicable|gst rate|total amount|status|quotation link|task|reminder|comments?)\s*:/i.test(line))
     .join('\n')
     .trim();
 }
 
 function cleanSingleLine(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function textLines(value) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueTextLines(...values) {
+  return Array.from(new Set(values.flatMap(textLines)));
+}
+
+function joinTextBlocks(...values) {
+  return values
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .filter((value, index, rows) => rows.indexOf(value) === index)
+    .join('\n\n');
+}
+
+function stripHtml(value) {
+  if (!value) return '';
+  if (typeof document === 'undefined') return String(value).replace(/<[^>]*>/g, ' ');
+  const container = document.createElement('div');
+  container.innerHTML = String(value);
+  return container.textContent || container.innerText || '';
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[char]));
+}
+
+function safeRichHtml(value) {
+  if (typeof document === 'undefined') return escapeHtml(stripHtml(value));
+  const template = document.createElement('template');
+  template.innerHTML = String(value || '');
+  template.content.querySelectorAll('script,style,iframe,object,embed,form,input,button').forEach((node) => node.remove());
+  template.content.querySelectorAll('*').forEach((node) => {
+    Array.from(node.attributes).forEach((attribute) => {
+      const name = attribute.name.toLowerCase();
+      const val = String(attribute.value || '').trim().toLowerCase();
+      if (name.startsWith('on') || name === 'style' || (['href', 'src'].includes(name) && val.startsWith('javascript:'))) {
+        node.removeAttribute(attribute.name);
+      }
+    });
+  });
+  return template.innerHTML;
 }
 
 function splitStructuredParts(value) {
@@ -605,6 +668,15 @@ function getQuotationDetails(event, lead = null) {
     gstApplicable,
     gstRate
   });
+  const structuredQuotationData = (() => {
+    try {
+      const raw = getStructuredField(description, 'Quotation Data JSON');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  })();
+  const readDetail = (key, fallback = '') => event?.[key] ?? event?.payload?.[key] ?? structuredQuotationData?.[key] ?? fallback;
   return {
     id: event?.id || '',
     title: event?.title || 'Quotation',
@@ -615,12 +687,34 @@ function getQuotationDetails(event, lead = null) {
     amount,
     items: (() => {
       try {
+        const directItems = readDetail('items', null);
+        if (Array.isArray(directItems)) return directItems;
         const raw = getStructuredField(description, 'Items JSON');
         return raw ? JSON.parse(raw) : [];
       } catch {
         return [];
       }
     })(),
+    features: Array.isArray(readDetail('features', [])) ? readDetail('features', []) : textLines(readDetail('features', '')),
+    scopeOfWork: readDetail('scopeOfWork', ''),
+    technologyStack: readDetail('technologyStack', ''),
+    timeline: readDetail('timeline', ''),
+    customContent: readDetail('customContent', ''),
+    paymentInfo: readDetail('paymentInfo', ''),
+    termsAndConditions: readDetail('termsAndConditions', ''),
+    legalAgreements: (() => {
+      const direct = readDetail('legalAgreements', null);
+      if (Array.isArray(direct)) return direct;
+      try {
+        const raw = getStructuredField(description, 'Legal Agreements JSON');
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    })(),
+    afterCompletion: readDetail('afterCompletion', ''),
+    amcPlan: readDetail('amcPlan', null),
+    nextYearCostSummary: readDetail('nextYearCostSummary', ''),
     milestoneTemplate: getStructuredField(description, 'Milestone Template') || '',
     discountEnabled: discountValue > 0,
     discountType,
@@ -2246,14 +2340,83 @@ function EventModal({ open, onClose, onSave, leadId, initialValue = null, labelO
 
 
 
+const LEGAL_CATEGORIES = [
+  'All',
+  'General',
+  'Contracts',
+  'Project Governance',
+  'Commercial',
+  'Confidentiality',
+  'Intellectual Property',
+  'Security & Privacy',
+  'Operations',
+  'Maintenance'
+];
+
+function buildInitialLegalAgreements(savedAgreements, masterLegalTerms = [], fallbackTerms = '') {
+  if (Array.isArray(masterLegalTerms) && masterLegalTerms.length > 0) {
+    const savedMap = new Map((savedAgreements || []).map((item) => [String(item.id || item.documentType || item.name).toLowerCase(), item]));
+    return masterLegalTerms.map((term) => {
+      const key1 = String(term.id || '').toLowerCase();
+      const key2 = String(term.documentType || '').toLowerCase();
+      const key3 = String(term.name || '').toLowerCase();
+      const saved = (key1 && savedMap.get(key1)) || (key2 && savedMap.get(key2)) || (key3 && savedMap.get(key3));
+
+      if (saved) {
+        return {
+          id: term.id,
+          name: saved.name || term.name,
+          documentType: saved.documentType || term.documentType || 'terms_and_conditions',
+          category: saved.category || term.category || 'General',
+          enabled: saved.enabled !== undefined ? Boolean(saved.enabled) : Boolean(term.includeInQuotation),
+          content: saved.content !== undefined ? saved.content : (term.content || '')
+        };
+      }
+
+      const isTerms = term.documentType === 'terms_and_conditions' || String(term.name).toLowerCase().includes('terms');
+      return {
+        id: term.id,
+        name: term.name,
+        documentType: term.documentType || 'terms_and_conditions',
+        category: term.category || 'General',
+        enabled: Boolean(term.includeInQuotation),
+        content: (isTerms && fallbackTerms?.trim()) ? fallbackTerms : (term.content || '')
+      };
+    });
+  }
+
+  if (Array.isArray(savedAgreements) && savedAgreements.length > 0) {
+    return savedAgreements;
+  }
+
+  if (fallbackTerms?.trim()) {
+    return [{
+      id: 'default-terms',
+      name: 'Terms & Conditions',
+      documentType: 'terms_and_conditions',
+      category: 'General',
+      enabled: true,
+      content: fallbackTerms
+    }];
+  }
+
+  return [];
+}
+
 function QuotationEditor({
   onClose,
   onSave,
   leadId,
   lead = null,
+  settings = null,
+  quotationMaster = null,
   initialValue = null,
   busy = false,
   serviceOptions = [],
+  serviceCatalog = [],
+  amcPlans = [],
+  legalTerms = [],
+  defaultTermsAndConditions = '',
   currency = 'INR',
   defaultAmount = '',
   defaultGstApplicable = false,
@@ -2262,12 +2425,21 @@ function QuotationEditor({
   const [formData, setFormData] = useState(EMPTY_QUOTATION);
   const [reminderDraft, setReminderDraft] = useState({ title: '', date: '', time: '' });
   const [commentDraft, setCommentDraft] = useState('');
+  const [featureDraft, setFeatureDraft] = useState('');
   const [pdfBusy, setPdfBusy] = useState(false);
   const [whatsAppOpen, setWhatsAppOpen] = useState(false);
+  const [expandedAgreements, setExpandedAgreements] = useState({});
+  const [legalSearch, setLegalSearch] = useState('');
+  const [legalCategoryFilter, setLegalCategoryFilter] = useState('All');
 
   useEffect(() => {
     if (initialValue?.id || initialValue?.title) {
       const details = getQuotationDetails(initialValue, lead);
+      const initialAgreements = buildInitialLegalAgreements(
+        details.legalAgreements,
+        legalTerms,
+        details.termsAndConditions || defaultTermsAndConditions || ''
+      );
       setFormData({
         ...EMPTY_QUOTATION,
         title: details.title || '',
@@ -2276,6 +2448,17 @@ function QuotationEditor({
         validUntil: formatDateInput(details.validUntil),
         amount: details.amount != null ? String(details.amount) : '',
         items: details.items || [],
+        features: details.features || [],
+        scopeOfWork: details.scopeOfWork || '',
+        technologyStack: details.technologyStack || '',
+        timeline: details.timeline || '',
+        customContent: details.customContent || '',
+        paymentInfo: details.paymentInfo || '',
+        termsAndConditions: details.termsAndConditions || defaultTermsAndConditions || '',
+        legalAgreements: initialAgreements,
+        afterCompletion: details.afterCompletion || '',
+        amcPlan: details.amcPlan || null,
+        nextYearCostSummary: details.nextYearCostSummary || '',
         milestoneTemplate: details.milestoneTemplate || '',
         terms: details.terms || '',
         discountEnabled: details.discountEnabled,
@@ -2295,33 +2478,200 @@ function QuotationEditor({
     }
     const today = new Date();
     const defaultServices = serviceOptions.length ? serviceOptions : (lead ? getLeadServiceNames(lead) : []);
+    const templatePatch = buildServiceTemplatePatch(defaultServices);
+    const initialTerms = templatePatch.termsAndConditions?.trim()
+      ? templatePatch.termsAndConditions
+      : (defaultTermsAndConditions || '');
+    const initialAgreements = buildInitialLegalAgreements(
+      null,
+      legalTerms,
+      initialTerms
+    );
     setFormData({
       ...EMPTY_QUOTATION,
       serviceNames: defaultServices,
       title: defaultServices.length ? `${defaultServices.join(', ')} proposal for ${lead?.companyName || lead?.name || 'Client'}` : '',
       proposalDate: toDateOnlyString(today),
       validUntil: toDateOnlyString(addDaysToDate(today, 30)),
-      amount: defaultAmount != null && defaultAmount !== '' ? String(defaultAmount) : '',
+      amount: templatePatch.amount || (defaultAmount != null && defaultAmount !== '' ? String(defaultAmount) : ''),
+      ...templatePatch,
+      termsAndConditions: initialTerms,
+      legalAgreements: initialAgreements,
       gstApplicable: Boolean(defaultGstApplicable),
       gstRate: String(defaultGstRate || 18)
     });
     setReminderDraft({ title: '', date: '', time: '' });
     setCommentDraft('');
-  }, [initialValue, serviceOptions, defaultAmount, defaultGstApplicable, defaultGstRate, lead]);
+  }, [initialValue, serviceOptions, serviceCatalog, amcPlans, legalTerms, defaultTermsAndConditions, defaultAmount, defaultGstApplicable, defaultGstRate, lead]);
+
+  function toggleAgreement(index) {
+    setFormData((prev) => {
+      const list = [...(prev.legalAgreements || [])];
+      if (list[index]) {
+        list[index] = { ...list[index], enabled: !list[index].enabled };
+      }
+      return { ...prev, legalAgreements: list };
+    });
+  }
+
+  function updateAgreementContent(index, newContent) {
+    setFormData((prev) => {
+      const list = [...(prev.legalAgreements || [])];
+      if (list[index]) {
+        list[index] = { ...list[index], content: newContent };
+      }
+      return { ...prev, legalAgreements: list };
+    });
+  }
+
+  function resetAgreementToTemplate(index) {
+    setFormData((prev) => {
+      const list = [...(prev.legalAgreements || [])];
+      const item = list[index];
+      if (!item) return prev;
+      const master = legalTerms.find((t) => t.id === item.id || t.documentType === item.documentType || t.name === item.name);
+      if (master) {
+        list[index] = { ...list[index], content: master.content || '' };
+        toast.success(`Reset "${item.name}" to template`);
+      }
+      return { ...prev, legalAgreements: list };
+    });
+  }
+
+  function toggleAllAgreements(enableAll) {
+    setFormData((prev) => ({
+      ...prev,
+      legalAgreements: (prev.legalAgreements || []).map((a) => ({ ...a, enabled: enableAll }))
+    }));
+    toast.success(enableAll ? 'Enabled all legal agreements for this quotation' : 'Excluded all legal agreements from this quotation');
+  }
+
+  function resetAllAgreementsFromMaster() {
+    const fresh = buildInitialLegalAgreements(null, legalTerms, defaultTermsAndConditions);
+    setFormData((prev) => ({
+      ...prev,
+      legalAgreements: fresh,
+      termsAndConditions: defaultTermsAndConditions || ''
+    }));
+    toast.success('Reset all legal agreements from Legal Master templates');
+  }
+
+  function findCatalogServices(names = []) {
+    const catalogByName = new Map(serviceCatalog.map((service) => [String(service.name || '').trim().toLowerCase(), service]));
+    return names.map((name) => catalogByName.get(String(name || '').trim().toLowerCase())).filter(Boolean);
+  }
+
+  function findRecommendedAmc(selectedRecords = []) {
+    const directId = selectedRecords.map((service) => service.amcPlanId).find(Boolean);
+    if (directId) return amcPlans.find((plan) => String(plan.id) === String(directId)) || null;
+    const selectedIds = new Set(selectedRecords.map((service) => String(service.id)));
+    return amcPlans.find((plan) => (plan.linkedServiceIds || []).some((id) => selectedIds.has(String(id)))) || null;
+  }
+
+  function buildServiceTemplatePatch(names = []) {
+    const selectedRecords = findCatalogServices(names);
+    if (!selectedRecords.length) return {};
+    const items = selectedRecords.map((service, index) => {
+      const rate = Math.max(0, Number(service.defaultPrice || 0));
+      return {
+        id: `service-${service.id || index}`,
+        serviceId: service.id || '',
+        name: service.name,
+        description: service.description || service.scopeOfWork || '',
+        qty: 1,
+        rate,
+        amount: rate,
+        isAddon: service.serviceKind === 'addon',
+        templateGenerated: true
+      };
+    });
+    const catalogTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const leadBudget = Number(lead?.estimatedBudget ?? lead?.value ?? defaultAmount ?? 0);
+    const recommendedAmc = findRecommendedAmc(selectedRecords);
+    const nextYearRows = selectedRecords
+      .filter((service) => Number(service.nextYearCost || 0) > 0)
+      .map((service) => `${service.name}: ${formatLeadAmount(service.nextYearCost, currency)} / year`);
+    if (recommendedAmc && Number(recommendedAmc.nextYearCost || recommendedAmc.defaultCost || 0) > 0) {
+      nextYearRows.push(`${recommendedAmc.name}: ${formatLeadAmount(recommendedAmc.nextYearCost || recommendedAmc.defaultCost, currency)} / ${recommendedAmc.defaultBillingCycle || 'year'}`);
+    }
+    return {
+      items,
+      amount: String(catalogTotal > 0 ? catalogTotal : (leadBudget > 0 ? leadBudget : '')),
+      features: uniqueTextLines(...selectedRecords.map((service) => service.featuresText)),
+      scopeOfWork: joinTextBlocks(...selectedRecords.map((service) => service.scopeOfWork)),
+      technologyStack: uniqueTextLines(...selectedRecords.map((service) => service.technologyStack)).join('\n'),
+      timeline: uniqueTextLines(...selectedRecords.map((service) => service.timeline)).join(' + '),
+      paymentInfo: joinTextBlocks(...selectedRecords.map((service) => service.paymentInfo)),
+      termsAndConditions: joinTextBlocks(...selectedRecords.map((service) => service.termsAndConditions)),
+      afterCompletion: joinTextBlocks(...selectedRecords.map((service) => service.afterCompletion)),
+      amcPlan: recommendedAmc ? { ...recommendedAmc } : null,
+      nextYearCostSummary: nextYearRows.join('\n')
+    };
+  }
+
+  function applyServiceTemplates(names, showMessage = true) {
+    const templatePatch = buildServiceTemplatePatch(names);
+    setFormData((current) => ({
+      ...current,
+      serviceNames: names,
+      title: current.title || (names.length ? `${names.join(', ')} quotation` : ''),
+      ...templatePatch,
+      termsAndConditions: templatePatch.termsAndConditions?.trim() || current.termsAndConditions || defaultTermsAndConditions || ''
+    }));
+    if (showMessage && Object.keys(templatePatch).length) toast.success('Service template, costing and quotation sections loaded');
+  }
 
   const serviceSelectOptions = useMemo(() => {
-    const values = [...serviceOptions, ...(formData.serviceNames || [])].map(cleanSingleLine).filter(Boolean);
-    return Array.from(new Set(values)).map((item) => ({ value: item, label: item }));
-  }, [serviceOptions, formData.serviceNames]);
+    const values = [...serviceCatalog.map((service) => service.name), ...serviceOptions, ...(formData.serviceNames || [])].map(cleanSingleLine).filter(Boolean);
+    return Array.from(new Set(values)).map((item) => {
+      const service = serviceCatalog.find((entry) => String(entry.name).toLowerCase() === String(item).toLowerCase());
+      return {
+        value: item,
+        label: item,
+        description: service ? `${service.categoryName || 'Service'} · ${formatLeadAmount(service.defaultPrice, currency)}${service.serviceKind === 'addon' ? ' · Add-on' : ''}` : ''
+      };
+    });
+  }, [serviceCatalog, serviceOptions, formData.serviceNames, currency]);
 
   const selectedServices = Array.isArray(formData.serviceNames) ? formData.serviceNames.filter(Boolean) : [];
   const serviceSummary = selectedServices.join(', ');
   const proposalTitle = formData.title.trim() || (serviceSummary ? `${serviceSummary} quotation` : 'Quotation');
   const amount = toAmountNumber(formData.amount);
   const quotationTotals = calculateQuotationTotals(formData);
+  const leadBudget = Number(lead?.estimatedBudget ?? lead?.value ?? 0);
+  const budgetDifference = leadBudget > 0 ? leadBudget - quotationTotals.subtotal : null;
+  const selectedCatalogRecords = useMemo(() => findCatalogServices(selectedServices), [serviceCatalog, selectedServices]);
+  const selectedCatalogIds = useMemo(() => new Set(selectedCatalogRecords.map((service) => String(service.id))), [selectedCatalogRecords]);
+  const suggestedAddons = useMemo(() => serviceCatalog.filter((service) => (
+    service.serviceKind === 'addon'
+    && !selectedCatalogIds.has(String(service.id))
+    && (service.parentServiceIds || []).some((id) => selectedCatalogIds.has(String(id)))
+  )), [serviceCatalog, selectedCatalogIds]);
 
   function setField(key, value) {
     setFormData((cur) => ({ ...cur, [key]: value }));
+  }
+
+  function addFeature() {
+    const value = cleanSingleLine(featureDraft);
+    if (!value) return;
+    setFormData((current) => ({ ...current, features: Array.from(new Set([...(current.features || []), value])) }));
+    setFeatureDraft('');
+  }
+
+  function removeFeature(index) {
+    setFormData((current) => ({ ...current, features: (current.features || []).filter((_, itemIndex) => itemIndex !== index) }));
+  }
+
+  function applyAmcPlan(planId) {
+    const plan = amcPlans.find((item) => String(item.id) === String(planId)) || null;
+    setFormData((current) => ({
+      ...current,
+      amcPlan: plan ? { ...plan } : null,
+      nextYearCostSummary: plan
+        ? joinTextBlocks(current.nextYearCostSummary, `${plan.name}: ${formatLeadAmount(plan.nextYearCost || plan.defaultCost || 0, currency)} / ${plan.defaultBillingCycle || 'year'}`)
+        : current.nextYearCostSummary
+    }));
   }
 
   // 1-Click Package Preset Loader
@@ -2355,12 +2705,14 @@ function QuotationEditor({
     const leadServices = getLeadServiceNames(lead);
     const clientName = lead.companyName || lead.name || lead.contactPerson || 'Client';
     const leadBudget = lead.estimatedBudget || lead.value || '';
-    
+    const templatePatch = buildServiceTemplatePatch(leadServices);
+
     setFormData((cur) => ({
       ...cur,
       title: leadServices.length ? `${leadServices.join(', ')} proposal for ${clientName}` : `Custom Project Proposal for ${clientName}`,
       serviceNames: leadServices.length ? leadServices : cur.serviceNames,
-      amount: leadBudget ? String(leadBudget) : cur.amount,
+      amount: templatePatch.amount || (leadBudget ? String(leadBudget) : cur.amount),
+      ...templatePatch,
       proposalDate: toDateOnlyString(today),
       validUntil: toDateOnlyString(addDaysToDate(today, 30)),
       gstApplicable: toBooleanValue(lead.gstInvoiceRequired, false),
@@ -2444,6 +2796,7 @@ function QuotationEditor({
       ['Service', serviceSummary || '-'],
       ['Proposal date', formData.proposalDate || '-'],
       ['Valid until', formData.validUntil || '-'],
+      ['Timeline', formData.timeline || '-'],
       ['Base amount', amount != null ? formatLeadAmount(amount, currency) : '-'],
       ['Discount', formData.discountEnabled ? formatLeadAmount(quotationTotals.discountAmount, currency) : '-'],
       ['GST', formData.gstApplicable ? `${formatLeadAmount(quotationTotals.gstAmount, currency)} (${formData.gstRate || 0}%)` : 'Not applicable'],
@@ -2454,82 +2807,85 @@ function QuotationEditor({
     ];
   }
 
-  function openPreview({ print = false } = {}) {
-    const preview = window.open('', '_blank', 'noopener,noreferrer,width=900,height=700');
-    if (!preview) {
-      toast.error('Popup blocked. Allow popups to preview quotation.');
-      return;
+  function openOutputTab(actionLabel) {
+    // Do not pass window dimensions/features here: those make browsers render a popup
+    // instead of a normal tab. Opening synchronously also avoids async popup blocking.
+    const outputTab = window.open('about:blank', '_blank');
+    if (!outputTab) {
+      toast.error(`Unable to open ${actionLabel}. Please allow new tabs for this site.`);
+      return null;
     }
-    const rows = getSummaryLines().map(([label, value]) => `<tr><th>${label}</th><td>${String(value).replace(/[<>&]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[char]))}</td></tr>`).join('');
-    
-    let itemsHtml = '';
-    if (formData.items?.length) {
-      const itemRows = formData.items.map((it, idx) => `
-        <tr>
-          <td>${idx + 1}</td>
-          <td><strong>${it.name || 'Deliverable'}</strong>${it.description ? `<br><small style="color:#64748b">${it.description}</small>` : ''}</td>
-          <td style="text-align:center">${it.qty || 1}</td>
-          <td style="text-align:right">₹${Number(it.rate || 0).toLocaleString('en-IN')}</td>
-          <td style="text-align:right">₹${Number(it.amount || 0).toLocaleString('en-IN')}</td>
-        </tr>
-      `).join('');
-      itemsHtml = `
-        <h3 style="margin-top:24px;margin-bottom:8px;font-size:16px;">Scope of Deliverables</h3>
-        <table style="margin-bottom:24px;width:100%;border-collapse:collapse;">
-          <thead>
-            <tr style="background:#f8fafc;">
-              <th style="width:40px;padding:8px;border-bottom:1px solid #e2e8f0;">#</th>
-              <th style="padding:8px;border-bottom:1px solid #e2e8f0;">Deliverable</th>
-              <th style="width:60px;text-align:center;padding:8px;border-bottom:1px solid #e2e8f0;">Qty</th>
-              <th style="width:120px;text-align:right;padding:8px;border-bottom:1px solid #e2e8f0;">Rate</th>
-              <th style="width:120px;text-align:right;padding:8px;border-bottom:1px solid #e2e8f0;">Amount</th>
-            </tr>
-          </thead>
-          <tbody>${itemRows}</tbody>
-        </table>
-      `;
+    try {
+      outputTab.opener = null;
+    } catch {
+      // Some browsers expose opener as read-only; the output can still be shown safely.
     }
+    return outputTab;
+  }
 
-    preview.document.write(`
+  function renderOutputStatus(outputTab, title, message, tone = 'loading') {
+    if (!outputTab || outputTab.closed) return;
+    const color = tone === 'error' ? '#dc2626' : '#2563eb';
+    outputTab.document.open();
+    outputTab.document.write(`
       <!doctype html>
       <html>
         <head>
-          <title>${proposalTitle}</title>
+          <title>${escapeHtml(title)}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
           <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 40px auto; max-width: 800px; line-height: 1.5; }
-            h1 { font-size: 24px; margin: 0 0 6px; color: #0f172a; }
-            p { color: #64748b; margin: 0 0 24px; }
-            table { border-collapse: collapse; width: 100%; margin-top: 12px; }
-            th, td { border-bottom: 1px solid #e2e8f0; padding: 10px 12px; text-align: left; font-size: 14px; }
-            th { color: #64748b; font-size: 12px; font-weight: 600; width: 180px; }
+            body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #0f172a; }
+            .status { width: min(420px, calc(100vw - 40px)); padding: 28px; border: 1px solid #e2e8f0; border-radius: 16px; background: white; text-align: center; box-shadow: 0 12px 35px rgba(15, 23, 42, .08); }
+            .dot { display: inline-block; width: 10px; height: 10px; margin-right: 8px; border-radius: 999px; background: ${color}; }
+            h1 { margin: 0 0 8px; font-size: 18px; }
+            p { margin: 0; color: #64748b; font-size: 14px; }
           </style>
         </head>
-        <body>
-          <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #3b82f6;padding-bottom:16px;margin-bottom:24px;">
-            <div>
-              <h1>${proposalTitle}</h1>
-              <p style="margin:0">Client: <strong>${lead?.companyName || lead?.name || 'Valued Client'}</strong></p>
-            </div>
-            <div style="text-align:right">
-              <span style="display:inline-block;padding:4px 12px;border-radius:20px;background:#dbeafe;color:#1e40af;font-size:12px;font-weight:bold;">${formData.status || 'Draft'}</span>
-            </div>
-          </div>
-          ${itemsHtml}
-          <h3 style="margin-top:20px;margin-bottom:8px;font-size:16px;">Investment Summary</h3>
-          <table>${rows}</table>
-        </body>
+        <body><div class="status"><h1><span class="dot"></span>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></div></body>
       </html>
     `);
-    preview.document.close();
-    if (print) {
-      preview.setTimeout(() => {
-        preview.focus();
-        preview.print();
-      }, 300);
+    outputTab.document.close();
+  }
+
+  function openPreview({ print = false } = {}) {
+    const previewKey = lead?.leadNumber || lead?.id || `draft_${Date.now()}`;
+    const refNumber = lead?.leadNumber ? `WBT-${lead.leadNumber}` : `WBT-PROP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const previewPayload = {
+      formData,
+      lead,
+      settings,
+      quotationMaster,
+      proposalTitle,
+      serviceSummary,
+      currency,
+      quotationTotals,
+      refNumber,
+      savedAt: new Date().toISOString()
+    };
+
+    try {
+      localStorage.setItem(`crm_quotation_preview_${previewKey}`, JSON.stringify(previewPayload));
+      localStorage.setItem('crm_quotation_preview_latest', JSON.stringify(previewPayload));
+    } catch (err) {
+      console.warn('Failed to store preview in localStorage:', err);
+    }
+
+    const previewUrl = `#/quotations/preview?key=${encodeURIComponent(previewKey)}${print ? '&print=1' : ''}`;
+    const outputTab = window.open(previewUrl, '_blank');
+    if (!outputTab) {
+      toast.error('Unable to open preview tab. Please allow popups for this site.');
     }
   }
 
-  async function generatePdf(download = false) {
+    async function generatePdf(download = false) {
+    const pdfTab = openOutputTab(download ? 'PDF download' : 'PDF preview');
+    if (!pdfTab) return;
+    renderOutputStatus(
+      pdfTab,
+      download ? 'Preparing PDF download' : 'Preparing PDF preview',
+      'Your quotation PDF is being generated. This tab will update automatically.'
+    );
     setPdfBusy(true);
     try {
       const { jsPDF } = await import('jspdf');
@@ -2550,13 +2906,79 @@ function QuotationEditor({
         pdf.text(String(value || '-'), 62, y);
         y += 8;
       });
-      const fileName = `${proposalTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'quotation'}.pdf`;
-      if (download) {
-        pdf.save(fileName);
-      } else {
-        window.open(pdf.output('bloburl'), '_blank', 'noopener,noreferrer');
+      const pdfSections = [
+        ['Project Cost Summary', (formData.items || []).map((item, index) => (
+          `${index + 1}. ${item.name || 'Deliverable'} - ${item.qty || 1} x ${formatLeadAmount(item.rate || 0, currency)} = ${formatLeadAmount(item.amount || 0, currency)}`
+        )).join('\n')],
+        ['Scope of Work / Complete Feature List', (formData.features || []).map((feature) => `- ${feature}`).join('\n')],
+        ['Detailed Scope of Work', formData.scopeOfWork],
+        ['Technology Stack', formData.technologyStack],
+        ['Timeline', formData.timeline],
+        ['Additional Project Details', stripHtml(formData.customContent)],
+        ['Payment Information', formData.paymentInfo],
+        ['We Provide After Project Completion', formData.afterCompletion],
+        ['AMC / Maintenance Plan', formData.amcPlan ? [
+          formData.amcPlan.name,
+          formData.amcPlan.description,
+          `Cost: ${formatLeadAmount(formData.amcPlan.defaultCost || 0, currency)} / ${formData.amcPlan.defaultBillingCycle || 'Yearly'}`,
+          formData.amcPlan.includedItems ? `Included:\n${formData.amcPlan.includedItems}` : '',
+          formData.amcPlan.excludedItems ? `Not included:\n${formData.amcPlan.excludedItems}` : ''
+        ].filter(Boolean).join('\n') : ''],
+        ['Cost Summary for Next Year', formData.nextYearCostSummary]
+      ];
+      const enabledAgreements = (formData.legalAgreements || []).filter((a) => a.enabled && String(a.content || '').trim());
+      if (enabledAgreements.length > 0) {
+        enabledAgreements.forEach((agreement) => {
+          pdfSections.push([agreement.name, agreement.content]);
+        });
+      } else if (String(formData.termsAndConditions || '').trim()) {
+        pdfSections.push(['Terms & Conditions', formData.termsAndConditions]);
       }
+      const activePdfSections = pdfSections.filter(([, value]) => String(value || '').trim());
+      activePdfSections.forEach(([heading, value]) => {
+        const bodyLines = pdf.splitTextToSize(String(value), 180);
+        const requiredHeight = 9 + (bodyLines.length * 4.5);
+        if (y + requiredHeight > 282) {
+          pdf.addPage();
+          y = 18;
+        }
+        pdf.setFontSize(11);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text(heading, 14, y);
+        y += 6;
+        pdf.setFontSize(9);
+        pdf.setTextColor(51, 65, 85);
+        bodyLines.forEach((line) => {
+          if (y > 282) {
+            pdf.addPage();
+            y = 18;
+          }
+          pdf.text(line, 14, y);
+          y += 4.5;
+        });
+        y += 4;
+      });
+      const fileName = `${proposalTitle.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'quotation'}.pdf`;
+      const pdfBlob = pdf.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      if (download) {
+        const downloadLink = document.createElement('a');
+        downloadLink.href = pdfUrl;
+        downloadLink.download = fileName;
+        downloadLink.style.display = 'none';
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        downloadLink.remove();
+      }
+      pdfTab.location.replace(pdfUrl);
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
     } catch (error) {
+      renderOutputStatus(
+        pdfTab,
+        'PDF generation failed',
+        error.message || 'The quotation PDF could not be generated.',
+        'error'
+      );
       toast.error(error.message || 'Failed to generate PDF');
     } finally {
       setPdfBusy(false);
@@ -2588,11 +3010,28 @@ function QuotationEditor({
     }
 
     const title = formData.title.trim() || `${serviceSummary} quotation`;
+    const defaultTermsMatch = (formData.legalAgreements || []).find((a) => a.enabled && (a.documentType === 'terms_and_conditions' || String(a.name || '').toLowerCase().includes('terms')));
+    const quotationData = {
+      items: formData.items || [],
+      features: formData.features || [],
+      scopeOfWork: formData.scopeOfWork || '',
+      technologyStack: formData.technologyStack || '',
+      timeline: formData.timeline || '',
+      customContent: formData.customContent || '',
+      paymentInfo: formData.paymentInfo || '',
+      termsAndConditions: defaultTermsMatch?.content || formData.termsAndConditions || '',
+      legalAgreements: formData.legalAgreements || [],
+      afterCompletion: formData.afterCompletion || '',
+      amcPlan: formData.amcPlan || null,
+      nextYearCostSummary: formData.nextYearCostSummary || ''
+    };
     const description = [
       serviceSummary ? `Service: ${cleanSingleLine(serviceSummary)}` : '',
       amount != null ? `Amount: ${amount}` : '',
       formData.items?.length ? `Items JSON: ${JSON.stringify(formData.items)}` : '',
       formData.milestoneTemplate ? `Milestone Template: ${cleanSingleLine(formData.milestoneTemplate)}` : '',
+      `Quotation Data JSON: ${JSON.stringify(quotationData)}`,
+      formData.legalAgreements?.length ? `Legal Agreements JSON: ${JSON.stringify(formData.legalAgreements)}` : '',
       `Discount Type: ${formData.discountType || 'percent'}`,
       `Discount Value: ${discountValue}`,
       `GST Applicable: ${formData.gstApplicable ? 'Yes' : 'No'}`,
@@ -2615,6 +3054,12 @@ function QuotationEditor({
       color: '#0891b2',
       labels: ['Quotation', formData.status || 'Draft'],
       serviceNames: selectedServices,
+      ...quotationData,
+      milestoneTemplate: formData.milestoneTemplate || '',
+      quotationLink: formData.quotationLink.trim(),
+      comments: formData.comments.trim(),
+      reminders: formData.reminders || [],
+      postedComments: formData.postedComments || [],
       amount: amount ?? 0,
       discountType: formData.discountType || 'percent',
       discountValue,
@@ -2703,11 +3148,7 @@ function QuotationEditor({
                   value={selectedServices}
                   onChange={(value) => {
                     const nextServices = Array.isArray(value) ? value : [];
-                    setFormData((cur) => ({
-                      ...cur,
-                      serviceNames: nextServices,
-                      title: cur.title || (nextServices.length ? `${nextServices.join(', ')} quotation` : '')
-                    }));
+                    applyServiceTemplates(nextServices, false);
                   }}
                   options={serviceSelectOptions}
                   placeholder="Select service"
@@ -2716,6 +3157,46 @@ function QuotationEditor({
                   triggerClassName="min-h-10 py-2"
                 />
               </label>
+
+              {(leadBudget > 0 || suggestedAddons.length > 0) ? (
+                <div className="md:col-span-2 grid gap-3 lg:grid-cols-2">
+                  {leadBudget > 0 ? (
+                    <div className={cn(
+                      'rounded-xl border p-3.5',
+                      budgetDifference != null && budgetDifference >= 0
+                        ? 'border-emerald-200 bg-emerald-50/70'
+                        : 'border-amber-200 bg-amber-50/70'
+                    )}>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Lead Budget Fit</div>
+                          <div className="mt-1 text-sm font-semibold text-slate-900">Budget: {formatLeadAmount(leadBudget, currency)}</div>
+                        </div>
+                        <span className={cn('rounded-full px-2.5 py-1 text-xs font-bold', budgetDifference >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800')}>
+                          {budgetDifference >= 0 ? `${formatLeadAmount(budgetDifference, currency)} available` : `${formatLeadAmount(Math.abs(budgetDifference), currency)} over budget`}
+                        </span>
+                      </div>
+                    </div>
+                  ) : null}
+                  {suggestedAddons.length ? (
+                    <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3.5">
+                      <div className="text-xs font-bold uppercase tracking-wider text-violet-700">Suggested Add-ons</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {suggestedAddons.map((addon) => (
+                          <button
+                            key={addon.id}
+                            type="button"
+                            onClick={() => applyServiceTemplates([...selectedServices, addon.name])}
+                            className="rounded-lg border border-violet-200 bg-white px-2.5 py-1.5 text-left text-xs font-semibold text-violet-800 hover:border-violet-400"
+                          >
+                            + {addon.name} · {formatLeadAmount(addon.defaultPrice, currency)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               {/* Itemized Deliverables & Scope Builder */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/30 p-3.5 md:col-span-2 space-y-3">
@@ -2794,6 +3275,375 @@ function QuotationEditor({
                 )}
               </div>
 
+              <div className="rounded-xl border border-slate-200 bg-white p-3.5 md:col-span-2 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-bold text-slate-800">Complete Feature List</div>
+                    <div className="text-xs text-slate-500">Loaded from Service Master. Add or remove features for this quotation.</div>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{formData.features?.length || 0} features</span>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <Input
+                    value={featureDraft}
+                    onChange={(event) => setFeatureDraft(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addFeature();
+                      }
+                    }}
+                    placeholder="Add an extra feature..."
+                  />
+                  <Button type="button" variant="outline" onClick={addFeature}><PlusCircle size={15} /> Add feature</Button>
+                </div>
+                {formData.features?.length ? (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {formData.features.map((feature, index) => (
+                      <div key={`${feature}-${index}`} className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                        <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" />
+                        <span className="flex-1">{feature}</span>
+                        <button type="button" onClick={() => removeFeature(index)} className="text-slate-400 hover:text-rose-500"><X size={14} /></button>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-xs text-slate-400">No default features found. Add project-specific features above.</div>}
+              </div>
+
+              <div className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <div className="mb-4">
+                  <div className="text-sm font-bold text-slate-800">Quotation Template Sections</div>
+                  <div className="text-xs text-slate-500">These sections are automatically loaded from the selected services and remain editable.</div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-600">Scope of Work</span>
+                    <Textarea value={formData.scopeOfWork} onChange={(event) => setField('scopeOfWork', event.target.value)} rows={5} placeholder="Complete scope of work..." />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-sm font-medium text-slate-600">Technology Stack</span>
+                    <Textarea value={formData.technologyStack} onChange={(event) => setField('technologyStack', event.target.value)} rows={4} placeholder="One technology per line" />
+                  </label>
+                  <label>
+                    <span className="mb-1.5 block text-sm font-medium text-slate-600">Timeline</span>
+                    <Textarea value={formData.timeline} onChange={(event) => setField('timeline', event.target.value)} rows={4} placeholder="Delivery stages and timeline" />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-600">Payment Information</span>
+                    <Textarea value={formData.paymentInfo} onChange={(event) => setField('paymentInfo', event.target.value)} rows={4} placeholder="Payment milestones and bank/payment notes" />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-600">We Provide After Project Completion</span>
+                    <Textarea value={formData.afterCompletion} onChange={(event) => setField('afterCompletion', event.target.value)} rows={4} placeholder="Warranty, training, handover and support..." />
+                  </label>
+                  <label className="md:col-span-2">
+                    <span className="mb-1.5 block text-sm font-medium text-slate-600">Custom Input (Rich Text)</span>
+                    <RichTextEditor value={formData.customContent} onChange={(value) => setField('customContent', value)} />
+                  </label>
+                </div>
+              </div>
+
+              {/* 📋 Legal Agreements & Compliance Clauses (Positioned at the end of quotation) */}
+              {(() => {
+                const list = formData.legalAgreements || [];
+                const filtered = list.map((item, originalIndex) => ({ item, originalIndex })).filter(({ item }) => {
+                  if (legalCategoryFilter !== 'All' && item.category !== legalCategoryFilter) return false;
+                  if (legalSearch.trim()) {
+                    const q = legalSearch.toLowerCase().trim();
+                    const matchName = String(item.name || '').toLowerCase().includes(q);
+                    const matchCat = String(item.category || '').toLowerCase().includes(q);
+                    const matchContent = String(item.content || '').toLowerCase().includes(q);
+                    if (!matchName && !matchCat && !matchContent) return false;
+                  }
+                  return true;
+                });
+                const enabledCount = list.filter((a) => a.enabled).length;
+
+                return (
+                  <div className="md:col-span-2 rounded-xl border border-blue-200 bg-blue-50/20 p-4 space-y-4">
+                    {/* Top Header */}
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                          <Scale size={17} className="text-blue-600" />
+                          Legal Agreements & Compliance Clauses
+                          <span className="text-[11px] font-normal text-slate-500">(Rendered at End of Quotation)</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Select which IT company agreements to attach to this quotation. Toggle ON or OFF for each agreement.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn(
+                          "text-xs font-semibold px-2.5 py-1 rounded-full border",
+                          enabledCount > 0
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-slate-100 text-slate-600 border-slate-200"
+                        )}>
+                          {enabledCount} of {list.length} Included
+                        </span>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs border-slate-300 text-slate-700 hover:bg-slate-100"
+                          onClick={() => toggleAllAgreements(true)}
+                          title="Enable all agreements in proposal"
+                        >
+                          Include All
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs border-slate-300 text-slate-700 hover:bg-slate-100"
+                          onClick={() => toggleAllAgreements(false)}
+                          title="Exclude all agreements from proposal"
+                        >
+                          Exclude All
+                        </Button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs gap-1 border-blue-200 text-blue-700 hover:bg-blue-100/60"
+                          onClick={resetAllAgreementsFromMaster}
+                          title="Reset all agreements to Legal Master defaults"
+                        >
+                          <RotateCcw size={12} /> Reset Defaults
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Filter and Search Bar */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-1 border-t border-blue-100/80">
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                        {LEGAL_CATEGORIES.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setLegalCategoryFilter(cat)}
+                            className={cn(
+                              "px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer",
+                              legalCategoryFilter === cat
+                                ? "bg-blue-600 text-white shadow-2xs"
+                                : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                            )}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="relative min-w-[200px] sm:w-56 shrink-0">
+                        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={legalSearch}
+                          onChange={(e) => setLegalSearch(e.target.value)}
+                          placeholder="Search agreements (NDA, SOW, SLA)..."
+                          className="h-8 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-7 text-xs text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                        />
+                        {legalSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setLegalSearch('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Agreements Cards Grid / List */}
+                    {list.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-300 p-6 text-center bg-white">
+                        <Scale size={24} className="mx-auto text-slate-400 mb-2" />
+                        <p className="text-xs text-slate-600 font-medium">No legal templates loaded yet.</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-3 text-xs"
+                          onClick={resetAllAgreementsFromMaster}
+                        >
+                          Initialize 13 IT Agreements from Legal Master
+                        </Button>
+                      </div>
+                    ) : filtered.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-slate-300 p-4 text-center bg-white text-xs text-slate-500">
+                        No agreements match filter &quot;{legalSearch || legalCategoryFilter}&quot;.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-[520px] overflow-y-auto pr-1">
+                        {filtered.map(({ item: agreement, originalIndex }) => {
+                          const keyId = agreement.id || agreement.name || originalIndex;
+                          const isExpanded = Boolean(expandedAgreements[keyId]);
+
+                          return (
+                            <div
+                              key={keyId}
+                              className={cn(
+                                "rounded-xl border transition-all duration-200",
+                                agreement.enabled
+                                  ? "border-blue-200 bg-white shadow-xs"
+                                  : "border-slate-200/80 bg-slate-50/70 opacity-75 hover:opacity-100"
+                              )}
+                            >
+                              <div className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  {/* Interactive Toggle Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleAgreement(originalIndex)}
+                                    role="switch"
+                                    aria-checked={agreement.enabled}
+                                    className={cn(
+                                      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
+                                      agreement.enabled ? "bg-emerald-600" : "bg-slate-300"
+                                    )}
+                                    title={agreement.enabled ? "Toggle OFF to exclude from proposal" : "Toggle ON to include in proposal"}
+                                  >
+                                    <span
+                                      className={cn(
+                                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                        agreement.enabled ? "translate-x-5" : "translate-x-0"
+                                      )}
+                                    />
+                                  </button>
+
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className={cn(
+                                        "text-xs truncate",
+                                        agreement.enabled ? "text-slate-900 font-bold" : "text-slate-600 font-medium"
+                                      )}>
+                                        {agreement.name}
+                                      </span>
+
+                                      {agreement.category && (
+                                        <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                                          {agreement.category}
+                                        </span>
+                                      )}
+
+                                      {agreement.enabled ? (
+                                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                          <CheckCircle2 size={11} /> Included in Proposal
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                                          Excluded
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {!isExpanded && (
+                                      <p className="text-[11px] text-slate-400 truncate mt-0.5 max-w-xl">
+                                        {agreement.content?.replace(/\n/g, ' ') || 'No clauses configured'}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => setExpandedAgreements((prev) => ({ ...prev, [keyId]: !prev[keyId] }))}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-blue-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                                  >
+                                    {isExpanded ? (
+                                      <>
+                                        <span>Collapse</span>
+                                        <ChevronUp size={13} />
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>Edit Clauses</span>
+                                        <ChevronDown size={13} />
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => resetAgreementToTemplate(originalIndex)}
+                                    className="p-1 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-md transition cursor-pointer"
+                                    title="Reset clauses to template default"
+                                  >
+                                    <RotateCcw size={13} />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Expanded Clauses Editor */}
+                              {isExpanded && (
+                                <div className="border-t border-slate-100 bg-slate-50/50 p-3.5 space-y-2 rounded-b-xl">
+                                  <div className="flex items-center justify-between text-xs text-slate-500">
+                                    <span>Proposal clauses (customizable for this client):</span>
+                                    <span className="text-[11px] text-slate-400 font-mono">
+                                      {(agreement.content || '').length} characters
+                                    </span>
+                                  </div>
+                                  <Textarea
+                                    value={agreement.content || ''}
+                                    onChange={(e) => updateAgreementContent(originalIndex, e.target.value)}
+                                    rows={5}
+                                    placeholder="Agreement clauses..."
+                                    className="font-mono text-xs leading-relaxed bg-white"
+                                  />
+                                  <p className="text-[11px] text-slate-400 italic">
+                                    * Changes made here are saved with this quotation and do not alter the Legal Master templates.
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="md:col-span-2 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 space-y-4">
+                <div>
+                  <div className="text-sm font-bold text-slate-800">AMC / Maintenance Plan</div>
+                  <div className="text-xs text-slate-500">Select a reusable AMC plan; inclusions and exclusions come from AMC Master.</div>
+                </div>
+                <SearchableSelect
+                  value={formData.amcPlan?.id || ''}
+                  onChange={applyAmcPlan}
+                  options={amcPlans.map((plan) => ({
+                    value: plan.id,
+                    label: plan.name,
+                    description: `${formatLeadAmount(plan.defaultCost, currency)} · ${plan.defaultBillingCycle || 'Yearly'} · ${plan.responseSlaHours || '-'}h SLA`
+                  }))}
+                  placeholder="No AMC plan selected"
+                />
+                {formData.amcPlan ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label>
+                      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-emerald-800">Included</span>
+                      <Textarea value={formData.amcPlan.includedItems || ''} onChange={(event) => setField('amcPlan', { ...formData.amcPlan, includedItems: event.target.value })} rows={6} />
+                    </label>
+                    <label>
+                      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-rose-700">Not Included</span>
+                      <Textarea value={formData.amcPlan.excludedItems || ''} onChange={(event) => setField('amcPlan', { ...formData.amcPlan, excludedItems: event.target.value })} rows={6} />
+                    </label>
+                  </div>
+                ) : null}
+                <label>
+                  <span className="mb-1.5 block text-sm font-medium text-slate-600">Cost Summary for Next Year</span>
+                  <Textarea value={formData.nextYearCostSummary} onChange={(event) => setField('nextYearCostSummary', event.target.value)} rows={4} placeholder="Renewals, hosting, AMC and license costs for year two..." />
+                </label>
+              </div>
+
               <label>
                 <span className="mb-1.5 block text-sm font-medium text-slate-600">Proposal date</span>
                 <Input className="h-10 px-3 py-2" type="date" value={formData.proposalDate} onChange={(event) => setField('proposalDate', event.target.value)} />
@@ -2805,8 +3655,8 @@ function QuotationEditor({
               </label>
 
               <label>
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">Base amount ({currency || 'INR'})</span>
-                <Input className="h-10 px-3 py-2 font-mono font-semibold" type="number" min="0" step="0.01" value={formData.amount} onChange={(event) => setField('amount', event.target.value)} placeholder="0.00" />
+                <span className="mb-1.5 block text-sm font-medium text-slate-600">Base amount ({currency || 'INR'}) {formData.items?.length ? '· calculated from line items' : ''}</span>
+                <Input className="h-10 px-3 py-2 font-mono font-semibold" type="number" min="0" step="0.01" value={formData.amount} onChange={(event) => setField('amount', event.target.value)} readOnly={Boolean(formData.items?.length)} placeholder="0.00" />
               </label>
 
               <label>
@@ -2903,8 +3753,39 @@ function QuotationEditor({
               </div>
 
               <label className="md:col-span-2">
-                <span className="mb-1.5 block text-sm font-medium text-slate-600">Quotation link (Google Drive / Figma / Doc)</span>
-                <Input className="h-10 px-3 py-2" value={formData.quotationLink} onChange={(event) => setField('quotationLink', event.target.value)} placeholder="https://docs.google.com/..." />
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="block text-sm font-medium text-slate-600">Quotation link (Preview / Client URL)</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const pKey = lead?.leadNumber || lead?.id || `draft_${Date.now()}`;
+                      const fullUrl = `${window.location.origin}${window.location.pathname}#/quotations/preview?key=${encodeURIComponent(pKey)}`;
+                      setField('quotationLink', fullUrl);
+                      try {
+                        const refNum = lead?.leadNumber ? `WBT-${lead.leadNumber}` : `WBT-PROP-${new Date().getFullYear()}-001`;
+                        const pPayload = {
+                          formData,
+                          lead,
+                          settings,
+                          proposalTitle,
+                          serviceSummary,
+                          currency,
+                          quotationTotals,
+                          refNumber: refNum,
+                          savedAt: new Date().toISOString()
+                        };
+                        localStorage.setItem(`crm_quotation_preview_${pKey}`, JSON.stringify(pPayload));
+                        localStorage.setItem('crm_quotation_preview_latest', JSON.stringify(pPayload));
+                      } catch {}
+                      navigator.clipboard?.writeText(fullUrl);
+                      toast.success('Live preview link generated & copied to clipboard!');
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-700 font-semibold inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <ExternalLink size={12} /> Auto-generate CRM Preview Link
+                  </button>
+                </div>
+                <Input className="h-10 px-3 py-2 font-mono text-xs" value={formData.quotationLink} onChange={(event) => setField('quotationLink', event.target.value)} placeholder="https://..." />
               </label>
 
               <label className="md:col-span-2">
@@ -3010,42 +3891,66 @@ function QuotationEditor({
   );
 }
 
-export function LeadQuotationPage() {
+export function LeadQuotationPage({ mode = '' }) {
   const { id, quotationId } = useParams();
   const [searchParams] = useSearchParams();
   const fromRevisionId = searchParams.get('fromRevision');
   const navigate = useNavigate();
   const { token, user, hasPermission } = useAuth();
   const [data, setData] = useState(null);
+  const [quotationOptions, setQuotationOptions] = useState({ serviceCatalog: [], amcPlans: [] });
+  const [settings, setSettings] = useState(null);
+  const [quotationMaster, setQuotationMaster] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const loadRequestRef = useRef(0);
+  const isCreateMode = mode === 'create' || !quotationId || String(quotationId).toLowerCase() === 'new';
+  const effectiveQuotationId = isCreateMode ? '' : quotationId;
 
   async function load() {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     try {
-      const response = await api.resources.get('/leads', `${id}/summary`, token);
+      const [response, optionsResponse, settingsResponse, quotationMasterResponse] = await Promise.all([
+        api.resources.get('/leads', `${id}/summary`, token),
+        api.resources.list('/leads/options', token),
+        api.settings.get(token).catch(() => null),
+        api.resources.list('/masters/quotation_master', token).catch(() => null)
+      ]);
+      if (requestId !== loadRequestRef.current) return;
       setData(response.data || null);
+      setQuotationOptions(optionsResponse.data || { serviceCatalog: [], amcPlans: [], legalTerms: [], defaultTermsAndConditions: '' });
+      setSettings(settingsResponse?.data || null);
+      setQuotationMaster(quotationMasterResponse?.data?.[0] || null);
     } catch (error) {
+      if (requestId !== loadRequestRef.current) return;
       toast.error(error.message || 'Failed to load lead');
       navigate('/app/leads');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
   }
 
   useEffect(() => {
     load();
+    return () => {
+      loadRequestRef.current += 1;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, quotationId, token]);
+  }, [id, effectiveQuotationId, token]);
 
   const lead = data?.lead || null;
   const events = data?.events || [];
   const serviceNames = useMemo(() => getLeadServiceNames(lead), [lead]);
+  const serviceCatalog = quotationOptions.serviceCatalog || [];
+  const amcPlans = quotationOptions.amcPlans || [];
+  const legalTerms = quotationOptions.legalTerms || [];
+  const defaultTermsAndConditions = quotationOptions.defaultTermsAndConditions || '';
   
   const quotationEvent = useMemo(() => {
-    if (!quotationId) return null;
-    return events.find((event) => matchesRouteIdentifier(quotationId, event)) || null;
-  }, [events, quotationId]);
+    if (!effectiveQuotationId) return null;
+    return events.find((event) => matchesRouteIdentifier(effectiveQuotationId, event)) || null;
+  }, [events, effectiveQuotationId]);
 
   const revisionSourceEvent = useMemo(() => {
     if (!fromRevisionId) return null;
@@ -3066,21 +3971,55 @@ export function LeadQuotationPage() {
   const canWriteLead = hasPermission('leads.write') || hasPermission('leads.manage');
 
   useEffect(() => {
-    if (!loading && quotationId && data && !quotationEvent) {
-      toast.error('Quotation not found');
+    if (!loading && !isCreateMode && effectiveQuotationId && data && !quotationEvent) {
+      toast.error('Quotation not found', { id: 'quotation-not-found' });
       navigate(leadRoute(lead || id));
     }
-  }, [loading, quotationId, data, quotationEvent, navigate, id, lead]);
+  }, [loading, isCreateMode, effectiveQuotationId, data, quotationEvent, navigate, id, lead]);
+
+  useEffect(() => {
+    if (isCreateMode) toast.dismiss('quotation-not-found');
+  }, [isCreateMode]);
 
   useEffect(() => {
     if (loading || !lead?.id) return;
     const base = leadRoute(lead);
-    const next = quotationId && quotationEvent
+    const next = !isCreateMode && quotationEvent
       ? `${base}/quotations/${eventRouteSegment(quotationEvent)}`
       : `${base}/quotations/new${window.location.hash.includes('?') ? window.location.hash.slice(window.location.hash.indexOf('?')) : ''}`;
     const current = window.location.hash.replace(/^#/, '');
     if (current !== next) navigate(next, { replace: true });
-  }, [loading, lead, quotationEvent, quotationId, navigate]);
+  }, [loading, lead, quotationEvent, isCreateMode, navigate]);
+
+  const currentSavedEventIdRef = useRef(quotationEvent?.id || null);
+
+  useEffect(() => {
+    if (quotationEvent?.id) {
+      currentSavedEventIdRef.current = quotationEvent.id;
+    }
+  }, [quotationEvent?.id]);
+
+  async function autoSaveQuotation(payload) {
+    if (!canWriteLead || !lead?.id) return;
+    try {
+      const targetId = currentSavedEventIdRef.current || quotationEvent?.id;
+      if (targetId) {
+        await api.resources.update('/lead-events', targetId, {
+          ...payload,
+          status: payload.status || 'Draft',
+          eventType: 'quotation',
+          scopeType: 'lead',
+          scopeId: lead.id,
+          leadId: lead.id,
+          clientId: '',
+          projectId: '',
+          visibility: payload.visibility || 'all_team'
+        }, token);
+      }
+    } catch (err) {
+      console.warn('Background auto-save failed:', err);
+    }
+  }
 
   async function saveQuotation(payload) {
     if (!canWriteLead) {
@@ -3090,8 +4029,9 @@ export function LeadQuotationPage() {
     setBusy(true);
     try {
       let response;
-      if (quotationEvent?.id) {
-        response = await api.resources.update('/lead-events', quotationEvent.id, {
+      const targetId = currentSavedEventIdRef.current || quotationEvent?.id;
+      if (targetId) {
+        response = await api.resources.update('/lead-events', targetId, {
           ...payload,
           eventType: 'quotation',
           scopeType: 'lead',
@@ -3132,32 +4072,30 @@ export function LeadQuotationPage() {
     }
   }
 
-  if (loading || !lead || (quotationId && !quotationEvent)) return <PageLoader />;
+  if (loading || !lead || (!isCreateMode && !quotationEvent)) return <PageLoader />;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-        <button type="button" onClick={() => navigate(leadRoute(lead))} className="inline-flex items-center gap-2 font-medium text-slate-600 hover:text-[var(--primary)]">
-          <ArrowLeft size={16} /> Back to Lead
-        </button>
-        <span>/</span>
-        <span className="font-semibold text-slate-900">{lead.companyName || lead.name || lead.contactPerson || 'Lead'}</span>
-        <span className="text-slate-400">{lead.leadNumber || ''}</span>
-      </div>
-      <QuotationEditor
-        onClose={() => navigate(leadRoute(lead))}
-        onSave={saveQuotation}
-        leadId={id}
-        lead={lead}
-        initialValue={quotationEvent || revisionSourceEvent}
-        busy={busy}
-        serviceOptions={serviceNames}
-        currency={lead.currency || 'INR'}
-        defaultAmount={defaultAmount}
-        defaultGstApplicable={toBooleanValue(lead.gstInvoiceRequired, false)}
-        defaultGstRate={18}
-      />
-    </div>
+    <QuotationBuilderModal
+      isModal={false}
+      onClose={() => navigate(leadRoute(lead))}
+      onSave={saveQuotation}
+      onAutoSave={autoSaveQuotation}
+      leadId={id}
+      lead={lead}
+      settings={settings}
+      quotationMaster={quotationMaster}
+      initialValue={quotationEvent || revisionSourceEvent}
+      busy={busy}
+      serviceOptions={serviceNames}
+      serviceCatalog={serviceCatalog}
+      amcPlans={amcPlans}
+      legalTerms={legalTerms}
+      defaultTermsAndConditions={defaultTermsAndConditions}
+      currency={lead.currency || 'INR'}
+      defaultAmount={defaultAmount}
+      defaultGstApplicable={toBooleanValue(lead.gstInvoiceRequired, false)}
+      defaultGstRate={18}
+    />
   );
 }
 
@@ -4124,6 +5062,7 @@ export function LeadDetailsPage() {
   const [duplicateLeads, setDuplicateLeads] = useState([]);
   const [mergeTargetLead, setMergeTargetLead] = useState(null);
   const [expandedCallAI, setExpandedCallAI] = useState({});
+  const loadRequestRef = useRef(0);
 
   const [contactOpen, setContactOpen] = useState(false);
   const [contactBusy, setContactBusy] = useState(false);
@@ -4177,6 +5116,7 @@ export function LeadDetailsPage() {
   };
 
   async function load() {
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     try {
       const [summaryRes, filesRes, settingsRes, usersRes, pipelinesRes, leadOptionsRes] = await Promise.allSettled([
@@ -4187,6 +5127,7 @@ export function LeadDetailsPage() {
         api.resources.list('/lead-pipelines', token),
         api.resources.list('/leads/options', token)
       ]);
+      if (requestId !== loadRequestRef.current) return;
 
       if (summaryRes.status === 'fulfilled') {
         setData(summaryRes.value.data);
@@ -4222,15 +5163,19 @@ export function LeadDetailsPage() {
         setLeadOptions((current) => ({ ...current, ...(leadOptionsRes.value.data || {}) }));
       }
     } catch (error) {
+      if (requestId !== loadRequestRef.current) return;
       toast.error(error.message || 'Failed to load lead details');
       navigate('/app/leads');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestRef.current) setLoading(false);
     }
   }
 
   useEffect(() => {
     load();
+    return () => {
+      loadRequestRef.current += 1;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, token]);
 
@@ -6077,24 +7022,34 @@ export function LeadDetailsPage() {
 
             return (
               <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">
-                <div className="flex flex-col gap-3 border-b border-[var(--border-muted)] px-5 py-4 md:flex-row md:items-center md:justify-between bg-[var(--surface-2)]/50">
+                <div className="flex flex-col gap-2 border-b border-[var(--border-muted)] bg-[var(--surface-2)]/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-base font-bold text-[var(--text-main)]">Quotations</h2>
-                    <p className="text-xs text-[var(--text-muted)]">Proposal amount, status, validity and service details</p>
+                    <h2 className="text-sm font-bold text-[var(--text-main)]">Quotations</h2>
+                    <p className="text-[11px] text-[var(--text-muted)]">Proposal amount, status, validity and service details</p>
                   </div>
                   {canWriteLead ? (
-                    <Button variant="outline" size="sm" className="shadow-sm" onClick={() => openActivity('quotation')}>
-                      <PlusCircle size={15} className="mr-1.5" />
+                    <Button variant="outline" size="sm" className="h-8 px-3 text-xs shadow-sm" onClick={() => openActivity('quotation')}>
+                      <PlusCircle size={14} className="mr-1.5" />
                       Add quotation
                     </Button>
                   ) : null}
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-separate border-spacing-0">
+                  <table className="min-w-[980px] w-full table-fixed border-separate border-spacing-0">
+                    <colgroup>
+                      <col className="w-[25%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[11%]" />
+                      <col className="w-[9%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[11%]" />
+                      <col className="w-[14%]" />
+                    </colgroup>
                     <thead className="bg-[var(--surface-2)]">
                       <tr>
-                        {['Quotation', 'Service', 'Proposal date', 'Valid until', 'Amount', 'Status', 'Invoice', 'Comments', ''].map((heading) => (
-                          <th key={heading || 'actions'} className="border-b border-[var(--border)] px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                        {['Quotation / Service', 'Proposal date', 'Valid until', 'Amount', 'Status', 'Invoice', 'Comments', ''].map((heading) => (
+                          <th key={heading || 'actions'} className="border-b border-[var(--border)] px-3 py-2 text-left text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">
                             {heading}
                           </th>
                         ))}
@@ -6103,22 +7058,25 @@ export function LeadDetailsPage() {
                     <tbody>
                       {pagedQuotations.length ? pagedQuotations.map((item) => (
                         <tr key={item.id} className="transition hover:bg-[var(--hover-bg)]">
-                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm">
+                          <td className="border-b border-[var(--border-muted)] px-3 py-2">
                             <button
                               type="button"
                               onClick={() => navigate(leadRoute(lead, `quotations/${eventRouteSegment(item.event || item)}`))}
-                              className="text-left font-semibold text-[var(--text-main)] hover:text-[var(--primary)] hover:underline cursor-pointer"
+                              className="block w-full truncate text-left text-xs font-semibold text-[var(--text-main)] hover:text-[var(--primary)] hover:underline cursor-pointer"
+                              title={item.title}
                             >
                               {item.title}
                             </button>
+                            <div className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]" title={item.serviceName}>
+                              {item.serviceName || 'No service specified'}
+                            </div>
                           </td>
-                          <td className="max-w-[220px] truncate border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]" title={item.serviceName}>{item.serviceName || '-'}</td>
-                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]">{formatDate(item.proposalDate)}</td>
-                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]">{formatDate(item.validUntil)}</td>
-                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm font-semibold text-[var(--text-main)]">{item.totalAmount != null ? formatLeadAmount(item.totalAmount, lead.currency) : '-'}</td>
-                          <td className="border-b border-[var(--border-muted)] px-4 py-3">
+                          <td className="whitespace-nowrap border-b border-[var(--border-muted)] px-3 py-2 text-xs text-[var(--text-muted)]">{formatDate(item.proposalDate)}</td>
+                          <td className="whitespace-nowrap border-b border-[var(--border-muted)] px-3 py-2 text-xs text-[var(--text-muted)]">{formatDate(item.validUntil)}</td>
+                          <td className="whitespace-nowrap border-b border-[var(--border-muted)] px-3 py-2 text-xs font-semibold text-[var(--text-main)]">{item.totalAmount != null ? formatLeadAmount(item.totalAmount, lead.currency) : '-'}</td>
+                          <td className="border-b border-[var(--border-muted)] px-3 py-2">
                             <span className={cn(
-                              'inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold',
+                              'inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold',
                               String(item.status).toLowerCase() === 'sent'
                                 ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300'
                                 : String(item.status).toLowerCase() === 'draft'
@@ -6130,24 +7088,24 @@ export function LeadDetailsPage() {
                               {item.status || 'Draft'}
                             </span>
                           </td>
-                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-sm">
+                          <td className="truncate border-b border-[var(--border-muted)] px-3 py-2 text-xs">
                             {item.invoiceId ? (
                               <button type="button" onClick={() => navigate(invoiceRoute({ id: item.invoiceId, invoiceNumber: item.invoiceNumber }))} className="font-semibold text-[var(--primary)] hover:underline cursor-pointer">
                                 {item.invoiceNumber || 'View invoice'}
                               </button>
                             ) : <span className="text-[var(--text-muted)]">-</span>}
                           </td>
-                          <td className="max-w-[260px] truncate border-b border-[var(--border-muted)] px-4 py-3 text-sm text-[var(--text-muted)]" title={item.comments}>{item.comments || '-'}</td>
-                          <td className="border-b border-[var(--border-muted)] px-4 py-3 text-right">
-                            <div className="flex justify-end gap-1">
+                          <td className="truncate border-b border-[var(--border-muted)] px-3 py-2 text-xs text-[var(--text-muted)]" title={item.comments}>{item.comments || '-'}</td>
+                          <td className="border-b border-[var(--border-muted)] px-2 py-2 text-right">
+                            <div className="flex justify-end gap-0.5">
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => navigate(leadRoute(lead, `quotations/${eventRouteSegment(item.event || item)}`))}
                                 title="View quotation"
-                                className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                                className="h-6 w-6 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
                               >
-                                <Eye size={15} />
+                                <Eye size={14} />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -6171,9 +7129,9 @@ export function LeadDetailsPage() {
                                   }
                                 }}
                                 title="Share proposal via WhatsApp"
-                                className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
+                                className="h-6 w-6 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
                               >
-                                <MessageCircle size={15} />
+                                <MessageCircle size={14} />
                               </Button>
                               {canWriteLead ? (
                                 <>
@@ -6182,27 +7140,27 @@ export function LeadDetailsPage() {
                                     size="icon"
                                     onClick={() => navigate(`${leadRoute(lead, 'quotations/new')}?fromRevision=${eventRouteSegment(item.event || item)}`)}
                                     title="Duplicate / Clone as Revision"
-                                    className="h-7 w-7 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                                    className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
                                   >
-                                    <RotateCw size={15} />
+                                    <RotateCw size={14} />
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => navigate(leadRoute(lead, `quotations/${eventRouteSegment(item.event || item)}`))}
                                     title="Edit quotation"
-                                    className="h-7 w-7 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
+                                    className="h-6 w-6 text-[var(--text-muted)] hover:text-[var(--primary)] hover:bg-[var(--primary)]/10 cursor-pointer"
                                   >
-                                    <Edit3 size={15} />
+                                    <Edit3 size={14} />
                                   </Button>
                                   <Button
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => setActivityDeleteTarget(item.event)}
                                     title="Delete quotation"
-                                    className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
+                                    className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-500/10 cursor-pointer"
                                   >
-                                    <Trash2 size={15} />
+                                    <Trash2 size={14} />
                                   </Button>
                                 </>
                               ) : null}
@@ -6211,7 +7169,7 @@ export function LeadDetailsPage() {
                         </tr>
                       )) : (
                         <tr>
-                          <td colSpan={9} className="px-4 py-10 text-center text-sm text-[var(--text-muted)]">
+                          <td colSpan={8} className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
                             No quotation added yet.
                           </td>
                         </tr>
@@ -6219,14 +7177,16 @@ export function LeadDetailsPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="px-5 pb-4">
-                  <PaginationBar
-                    currentPage={quotationPage}
-                    totalItems={quotationRows.length}
-                    pageSize={quotationPageSize}
-                    onPageChange={(page) => setTabPage('quotations', page)}
-                  />
-                </div>
+                {quotationRows.length > quotationPageSize ? (
+                  <div className="px-4 pb-3">
+                    <PaginationBar
+                      currentPage={quotationPage}
+                      totalItems={quotationRows.length}
+                      pageSize={quotationPageSize}
+                      onPageChange={(page) => setTabPage('quotations', page)}
+                    />
+                  </div>
+                ) : null}
               </div>
             );
           })()}
