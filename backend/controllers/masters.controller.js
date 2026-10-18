@@ -184,11 +184,12 @@ async function createMaster(req, res, next) {
       body = normalizeServicePayloadForSave(null, body, req.user);
     } else if (type === 'legal_term') {
       body = normalizeLegalTermPayloadForSave(null, body);
-      if (body.payload?.isDefault) {
-        await unsetOtherDefaultLegalTerms(null);
-      }
     }
     const record = await createByType(type, body);
+    // Unset other defaults only after the save succeeds, so a failed save cannot drop the current default.
+    if (type === 'legal_term' && body.payload?.isDefault && record?.id) {
+      await unsetOtherDefaultLegalTerms(record.id);
+    }
     res.status(201).json({ success: true, data: record });
   } catch (error) {
     next(error);
@@ -204,13 +205,14 @@ async function updateMaster(req, res, next) {
       body = normalizeServicePayloadForSave(current, body, req.user);
     } else if (type === 'legal_term') {
       body = normalizeLegalTermPayloadForSave(current, body);
-      if (body.payload?.isDefault) {
-        await unsetOtherDefaultLegalTerms(req.params.id);
-      }
     }
     const record = await updateByType(type, req.params.id, body);
     if (!record) {
       return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+    // Use the resolved record id (req.params.id may be a slug) and only after a successful save.
+    if (type === 'legal_term' && body.payload?.isDefault) {
+      await unsetOtherDefaultLegalTerms(record.id);
     }
     res.json({ success: true, data: record });
   } catch (error) {

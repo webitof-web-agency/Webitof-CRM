@@ -52,8 +52,8 @@ function registerSocketHub(httpServer, options = {}) {
     const userId = socket.data?.user?.id;
     if (userId) {
       socket.join(`user:${userId}`);
-      socket.join('authenticated');
       socket.emit('notification:connected', { userId });
+      joinPermissionRooms(socket, userId);
     }
   });
 
@@ -64,9 +64,32 @@ function getHub() {
   return io;
 }
 
-function broadcastEvent(eventName, payload) {
-  if (!io) return;
-  io.emit(eventName, payload);
+// Realtime events scoped to a `perm:<room>` room; a socket joins only when it holds every listed permission.
+const ROOM_PERMISSIONS = {
+  'calls.read': ['calls.read'],
+  'calls.recording_view': ['calls.read', 'calls.recording_view']
+};
+
+function joinPermissionRooms(socket, userId) {
+  // Lazy require avoids a load-time cycle through the service graph.
+  const { getUserAccessProfile } = require('./auth.service');
+  getUserAccessProfile(userId)
+    .then((profile) => {
+      if (!profile || !profile.isActive) return;
+      const granted = Array.isArray(profile.permissions) ? profile.permissions : [];
+      Object.entries(ROOM_PERMISSIONS).forEach(([room, required]) => {
+        if (profile.isSuperAdmin || required.every((permission) => granted.includes(permission))) {
+          socket.join(`perm:${room}`);
+        }
+      });
+    })
+    .catch(() => {});
+}
+
+function emitToPermission(permission, eventName, payload, { except } = {}) {
+  if (!io || !permission) return;
+  const target = io.to(`perm:${permission}`);
+  (except ? target.except(`perm:${except}`) : target).emit(eventName, payload);
 }
 
 function emitToUser(userId, eventName, payload) {
@@ -81,7 +104,7 @@ function emitToUsers(userIds = [], eventName, payload) {
 }
 
 module.exports = {
-  broadcastEvent,
+  emitToPermission,
   emitToUser,
   emitToUsers,
   getHub,

@@ -52,11 +52,9 @@ export const UTGST_STATES = new Set([
   'chandigarh',
   'dadra and nagar haveli and daman and diu',
   'lakshadweep',
-  'delhi',
-  'puducherry',
-  'jammu and kashmir',
   'ladakh'
 ]);
+// Delhi, Puducherry and Jammu & Kashmir have their own legislatures, so they levy SGST, not UTGST.
 
 export function normalizeState(state = '') {
   return String(state || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -161,7 +159,8 @@ export function calculateQuotationTotals({
   supplierState = DEFAULT_SUPPLIER_STATE,
   clientState = '',
   placeOfSupply = '',
-  clientGstin = ''
+  clientGstin = '',
+  clientCountry = 'India'
 } = {}) {
   const round2 = (val) => Math.round((Number(val || 0) + Number.EPSILON) * 100) / 100;
 
@@ -184,6 +183,7 @@ export function calculateQuotationTotals({
     clientState,
     placeOfSupply,
     clientGstin,
+    clientCountry,
     gstApplicable,
     gstRate
   });
@@ -193,13 +193,14 @@ export function calculateQuotationTotals({
   let sgstAmount = 0;
   let gstAmount = 0;
 
+  // Rounded to paise and split exactly like the invoice engine, so an approved quotation and its invoice agree.
   if (treatment.taxType === 'IGST') {
-    igstAmount = Math.round((taxableAmount * treatment.gstRate) / 100);
+    igstAmount = round2((taxableAmount * treatment.gstRate) / 100);
     gstAmount = igstAmount;
   } else if (treatment.taxType === 'CGST_SGST' || treatment.taxType === 'CGST_UTGST') {
-    cgstAmount = Math.round((taxableAmount * treatment.cgstRate) / 100);
-    sgstAmount = Math.round((taxableAmount * treatment.sgstRate) / 100);
-    gstAmount = cgstAmount + sgstAmount;
+    gstAmount = round2((taxableAmount * treatment.gstRate) / 100);
+    cgstAmount = round2(gstAmount / 2);
+    sgstAmount = round2(gstAmount - cgstAmount);
   }
 
   const totalAmount = round2(taxableAmount + gstAmount);

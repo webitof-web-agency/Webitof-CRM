@@ -78,6 +78,28 @@ import {
   calculateQuotationTotals,
   resolveTaxTreatment
 } from '../../utils/taxCalculationEngine';
+import { normalizeServicePaymentPlan } from '../../config/paymentPlans';
+
+const TECHNOLOGY_NAME_BY_ID = new Map((STATIC_TECHNOLOGIES || []).map((tech) => [String(tech.id), tech.name]));
+
+// Converts a service master payment plan ({ percentage, milestone }) into builder milestones,
+// or returns null when the plan does not add up to 100%.
+function milestonesFromServicePlan(service) {
+  const plan = normalizeServicePaymentPlan(
+    service.paymentPlan || service.payload?.paymentPlan,
+    service.paymentInfo || service.payload?.paymentInfo || ''
+  );
+  const milestones = (plan.milestones || [])
+    .filter((item) => Number(item.percentage) > 0)
+    .map((item, index) => ({
+      id: `ms-${index + 1}`,
+      name: item.milestone || `Payment milestone ${index + 1}`,
+      percentage: Number(item.percentage),
+      dueEvent: item.milestone || ''
+    }));
+  const total = milestones.reduce((sum, item) => sum + item.percentage, 0);
+  return milestones.length && Math.abs(total - 100) < 0.01 ? milestones : null;
+}
 
 function cleanSingleLine(value) {
   return String(value || '').replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -486,9 +508,13 @@ function buildServiceTemplatePatch({
     ? scopeParts.join('\n\n')
     : (lead?.requirements || lead?.notes || `Complete end-to-end delivery of the agreed deliverables including requirement discovery, system architecture, UI/UX implementation, testing, and production rollout.`);
 
-  // Extract tech stack
+  // Extract tech stack: the service master stores checkbox ids; older records only have the free-text string.
   const techLines = resolvedServices
-    .map((s) => s.technologyStack || s.payload?.technologyStack)
+    .map((s) => {
+      const ids = Array.isArray(s.technologyStackIds) ? s.technologyStackIds : (s.payload?.technologyStackIds || []);
+      const names = ids.map((id) => TECHNOLOGY_NAME_BY_ID.get(String(id))).filter(Boolean);
+      return names.length ? names.join(', ') : (s.technologyStack || s.payload?.technologyStack);
+    })
     .filter(Boolean);
   const technologyStack = techLines.length
     ? Array.from(new Set(techLines.flatMap((t) => String(t).split(/,\s*|\r?\n/)).map((t) => t.trim()).filter(Boolean))).join(', ')
@@ -531,8 +557,11 @@ function buildServiceTemplatePatch({
     }
   }
 
-  // Milestones
-  const defaultMilestones = MILESTONE_PRESETS[1].milestones; // 40/30/20/10 sprint
+  // Milestones: the first primary service with a configured payment plan wins; otherwise the 40/30/20/10 sprint.
+  const planService = [...resolvedServices]
+    .sort((a, b) => Number((a.serviceKind || a.payload?.serviceKind) === 'addon') - Number((b.serviceKind || b.payload?.serviceKind) === 'addon'))
+    .find((s) => s.paymentPlan || s.payload?.paymentPlan || s.paymentInfo || s.payload?.paymentInfo);
+  const defaultMilestones = (planService && milestonesFromServicePlan(planService)) || MILESTONE_PRESETS[1].milestones;
   const calculatedMilestones = calculateMilestoneAmounts(defaultMilestones, Number(finalAmount || 0));
 
   // Proposal Title: End with "Proposal for <lead name / company name>"
@@ -617,34 +646,32 @@ const LEGAL_CATEGORIES = [
 ];
 
 function buildInitialLegalAgreements(savedAgreements, masterLegalTerms = [], fallbackTerms = '') {
-  const masterList = (Array.isArray(masterLegalTerms) && masterLegalTerms.length > 0)
-    ? masterLegalTerms
-    : IT_LEGAL_PRESETS.map((p) => ({
-        id: p.type,
-        name: p.label,
-        documentType: p.type,
-        category: p.category,
-        includeInQuotation: Boolean(p.includeInQuotation),
-        content: p.content
-      }));
+  // Show every active Legal Master template in the builder. The master-level
+  // "Show in Quotation" toggle only controls whether it starts selected.
+  const masterList = (Array.isArray(masterLegalTerms) ? masterLegalTerms : [])
+    .filter((term) => term?.isActive !== false);
 
   if (Array.isArray(savedAgreements) && savedAgreements.length > 0) {
     const savedMap = new Map(
       savedAgreements.map((item) => [String(item.id || item.documentType || item.name).toLowerCase(), item])
     );
-    return masterList.map((term) => {
+    const matchedSaved = new Set();
+    const merged = masterList.map((term) => {
       const key1 = String(term.id || '').toLowerCase();
       const key2 = String(term.documentType || '').toLowerCase();
       const key3 = String(term.name || '').toLowerCase();
       const saved = (key1 && savedMap.get(key1)) || (key2 && savedMap.get(key2)) || (key3 && savedMap.get(key3));
 
       if (saved) {
+        matchedSaved.add(saved);
         return {
           id: term.id,
           name: saved.name || term.name,
           documentType: saved.documentType || term.documentType || 'terms_and_conditions',
           category: saved.category || term.category || 'General',
-          enabled: saved.enabled !== undefined ? Boolean(saved.enabled) : Boolean(term.includeInQuotation),
+          enabled: saved.enabled !== undefined
+            ? Boolean(saved.enabled)
+            : Boolean(term.includeInQuotation),
           content: saved.content !== undefined ? saved.content : (term.content || '')
         };
       }
@@ -658,6 +685,20 @@ function buildInitialLegalAgreements(savedAgreements, masterLegalTerms = [], fal
         content: term.content || ''
       };
     });
+
+    // Keep agreements saved on the quotation whose master term was since deleted/deactivated
+    // (or that were custom), instead of silently dropping them from the document.
+    const orphaned = savedAgreements
+      .filter((item) => item && !matchedSaved.has(item))
+      .map((item, index) => ({
+        id: item.id || `saved-agreement-${index + 1}`,
+        name: item.name || 'Agreement',
+        documentType: item.documentType || 'terms_and_conditions',
+        category: item.category || 'General',
+        enabled: item.enabled !== undefined ? Boolean(item.enabled) : true,
+        content: item.content || ''
+      }));
+    return [...merged, ...orphaned];
   }
 
   return masterList.map((term) => {
@@ -773,9 +814,10 @@ export function QuotationBuilderModal({
 
   const autoSaveDraftKey = useMemo(() => {
     const rawLeadId = lead?.leadNumber || leadId || lead?.id || 'lead';
-    const quoteId = initialValue?.id || 'new';
+    // A revision has no id yet; key it by its source so it never shares the plain "new" draft.
+    const quoteId = initialValue?.id || (initialValue?.revisionOfId ? `rev-${initialValue.revisionOfId}` : 'new');
     return `crm_quotation_draft_${rawLeadId}_${quoteId}`;
-  }, [lead?.leadNumber, lead?.id, leadId, initialValue?.id]);
+  }, [lead?.leadNumber, lead?.id, leadId, initialValue?.id, initialValue?.revisionOfId]);
 
   const clientRecord = lead?.convertedClient || lead?.convertedClientId || lead?.clientId || null;
   const isClient = Boolean(clientRecord);
@@ -802,7 +844,14 @@ export function QuotationBuilderModal({
     }
 
     if (savedDraft?.formData && !initialValue?.id) {
-      const restoredFormData = { ...savedDraft.formData };
+      const restoredFormData = {
+        ...savedDraft.formData,
+        legalAgreements: buildInitialLegalAgreements(
+          savedDraft.formData.legalAgreements,
+          legalTerms,
+          defaultTermsAndConditions
+        )
+      };
       if (restoredFormData.title && /\s+proposal for\s+/i.test(restoredFormData.title) && !restoredFormData.title.includes(' - Proposal for ')) {
         restoredFormData.title = restoredFormData.title.replace(/\s+proposal for\s+/i, ' - Proposal for ');
       }
@@ -822,11 +871,20 @@ export function QuotationBuilderModal({
     }
 
     if (initialValue?.id || initialValue?.title) {
-      const details = initialValue.payload || initialValue;
+      // Column fields (title, startDate, endDate) live on the record, not in `payload`;
+      // the record's top-level values (including a revision's new title) win.
+      const details = { ...(initialValue.payload || {}), ...initialValue };
 
       // Check if draft has newer modifications
       if (savedDraft?.formData && savedDraft?.savedAt && initialValue.updatedAt && new Date(savedDraft.savedAt) > new Date(initialValue.updatedAt)) {
-        setFormData(savedDraft.formData);
+        setFormData({
+          ...savedDraft.formData,
+          legalAgreements: buildInitialLegalAgreements(
+            savedDraft.formData.legalAgreements,
+            legalTerms,
+            defaultTermsAndConditions
+          )
+        });
         if (savedDraft.currentStep) setCurrentStep(savedDraft.currentStep);
         setDraftRestoredAt(savedDraft.savedAt);
         setLastSavedAt(savedDraft.savedAt);
@@ -884,12 +942,18 @@ export function QuotationBuilderModal({
         amcPlan: details.amcPlan || null,
         nextYearCostSummary: details.nextYearCostSummary || '',
         milestoneTemplate: details.milestoneTemplate || '',
-        discountEnabled: Boolean(details.discountEnabled),
+        // Older quotations never stored discountEnabled; infer it from a non-zero value.
+        discountEnabled: details.discountEnabled != null
+          ? Boolean(details.discountEnabled)
+          : Number(details.discountValue || 0) > 0,
         discountType: details.discountType || 'percent',
         discountValue: details.discountValue ? String(details.discountValue) : '',
         gstApplicable: Boolean(details.gstApplicable ?? defaultGstApplicable),
         gstRate: String(details.gstRate ?? defaultGstRate),
-        status: details.status || 'Draft',
+        // Quotations saved by the legacy editor keep status only in the "Status:" description line.
+        status: details.status
+          || (String(details.description || '').match(/^\s*Status:\s*(.+)$/im)?.[1] || '').trim()
+          || 'Draft',
         quotationLink: details.quotationLink || '',
         comments: details.comments || ''
       });
@@ -957,7 +1021,9 @@ export function QuotationBuilderModal({
   ]);
 
   // Client & Supplier Location Context
-  const clientState = lead?.state || lead?.city || '';
+  // A city is never a GST state; falling back to it would turn intra-state supplies into IGST.
+  const clientState = lead?.state || '';
+  const clientCountry = lead?.country || 'India';
   const clientGstin = lead?.gstin || lead?.taxId || '';
   const supplierState = settings?.company?.state || 'Chhattisgarh';
 
@@ -972,9 +1038,14 @@ export function QuotationBuilderModal({
       gstRate: formData.gstRate,
       supplierState,
       clientState,
+      clientCountry,
       clientGstin
     });
-  }, [formData.amount, formData.discountEnabled, formData.discountType, formData.discountValue, formData.gstApplicable, formData.gstRate, supplierState, clientState, clientGstin]);
+  }, [formData.amount, formData.discountEnabled, formData.discountType, formData.discountValue, formData.gstApplicable, formData.gstRate, supplierState, clientState, clientCountry, clientGstin]);
+
+  // The backend invoice draft applies discountValue unconditionally, so never persist
+  // a value the user has toggled off.
+  const effectiveDiscountValue = formData.discountEnabled ? (formData.discountValue || 0) : 0;
 
   // Milestone Validation & Calculation
   const milestoneValidation = useMemo(() => {
@@ -1258,20 +1329,22 @@ export function QuotationBuilderModal({
         nextYearCostSummary: formData.nextYearCostSummary || ''
       };
 
+      // Status (and its label) is deliberately omitted: a background sync must not
+      // downgrade an approved quotation or approve one before the user clicks Save.
       onAutoSave({
         title: formData.title.trim(),
         startDate: formData.proposalDate || '',
         endDate: formData.validUntil || '',
         color: '#0891b2',
-        labels: ['Quotation', formData.status || 'Draft'],
         serviceNames: formData.serviceNames || [],
         ...quotationData,
         milestoneTemplate: formData.milestoneTemplate || '',
         quotationLink: formData.quotationLink ? formData.quotationLink.trim() : '',
         comments: formData.comments ? formData.comments.trim() : '',
         amount: commercialTotals.subtotal,
+        discountEnabled: Boolean(formData.discountEnabled),
         discountType: formData.discountType,
-        discountValue: formData.discountValue || 0,
+        discountValue: effectiveDiscountValue,
         gstApplicable: Boolean(formData.gstApplicable),
         gstRate: commercialTotals.gstRate,
         subtotal: commercialTotals.subtotal,
@@ -1279,13 +1352,12 @@ export function QuotationBuilderModal({
         taxableAmount: commercialTotals.taxableAmount,
         taxType: commercialTotals.taxType,
         gstAmount: commercialTotals.gstAmount,
-        totalAmount: commercialTotals.totalAmount,
-        status: 'Draft'
+        totalAmount: commercialTotals.totalAmount
       });
     }, 2500);
 
     return () => clearTimeout(serverTimer);
-  }, [formData, commercialTotals, calculatedMilestones, onAutoSave]);
+  }, [formData, commercialTotals, calculatedMilestones, onAutoSave, effectiveDiscountValue]);
 
   function handleDiscardDraft() {
     if (!window.confirm('Discard auto-saved draft and reload template defaults from the Lead?')) return;
@@ -1620,7 +1692,10 @@ export function QuotationBuilderModal({
 
   // Open Preview / Print
   function openPreview({ print = false } = {}) {
-    const previewKey = lead?.leadNumber || lead?.id || `draft_${Date.now()}`;
+    const leadKey = lead?.leadNumber || lead?.id || '';
+    const quotationId = initialValue?.id || '';
+    // Per-quotation storage key, so previews of two quotations of the same lead never overwrite each other.
+    const previewKey = leadKey ? (quotationId ? `${leadKey}--${quotationId}` : leadKey) : `draft_${Date.now()}`;
     const refNumber = lead?.leadNumber ? `WBT-${lead.leadNumber}` : `WBT-PROP-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const previewPayload = {
@@ -1646,7 +1721,11 @@ export function QuotationBuilderModal({
       console.warn('Failed to store preview in localStorage:', err);
     }
 
-    const previewUrl = `#/quotations/preview?key=${encodeURIComponent(previewKey)}${print ? '&print=1' : ''}`;
+    const previewParams = new URLSearchParams({ key: previewKey });
+    if (leadKey) previewParams.set('lead', leadKey);
+    if (quotationId) previewParams.set('quotation', quotationId);
+    if (print) previewParams.set('print', '1');
+    const previewUrl = `#/quotations/preview?${previewParams.toString()}`;
     const outputTab = window.open(previewUrl, '_blank');
     if (!outputTab) {
       toast.error('Unable to open preview tab. Please allow popups for this site.');
@@ -1699,7 +1778,7 @@ export function QuotationBuilderModal({
       `Quotation Data JSON: ${JSON.stringify(quotationData)}`,
       formData.legalAgreements?.length ? `Legal Agreements JSON: ${JSON.stringify(formData.legalAgreements)}` : '',
       `Discount Type: ${formData.discountType || 'percent'}`,
-      `Discount Value: ${formData.discountValue || 0}`,
+      `Discount Value: ${effectiveDiscountValue}`,
       `GST Applicable: ${formData.gstApplicable ? 'Yes' : 'No'}`,
       `GST Rate: ${formData.gstApplicable ? commercialTotals.gstRate : 0}`,
       `Tax Type: ${commercialTotals.taxType}`,
@@ -1723,9 +1802,13 @@ export function QuotationBuilderModal({
       milestoneTemplate: formData.milestoneTemplate || '',
       quotationLink: formData.quotationLink.trim(),
       comments: formData.comments.trim(),
+      // Sent explicitly: the backend reads status from the payload before the description,
+      // so omitting it leaves any previously stored status in force.
+      status: formData.status || 'Draft',
       amount: commercialTotals.subtotal,
+      discountEnabled: Boolean(formData.discountEnabled),
       discountType: formData.discountType,
-      discountValue: formData.discountValue || 0,
+      discountValue: effectiveDiscountValue,
       gstApplicable: Boolean(formData.gstApplicable),
       gstRate: commercialTotals.gstRate,
       subtotal: commercialTotals.subtotal,

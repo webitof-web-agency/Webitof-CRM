@@ -301,4 +301,20 @@ export const api = {
   }
 };
 
+let publicSettingsRequest = null;
+
+// Unauthenticated branding/logo settings. The layout, sidebar and theme all ask for it on load,
+// so concurrent callers share one in-flight request; resolves to null on failure.
+export function fetchPublicSettings() {
+  if (!publicSettingsRequest) {
+    publicSettingsRequest = fetch(`${API_BASE_URL}/settings/public`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null)
+      .finally(() => {
+        publicSettingsRequest = null;
+      });
+  }
+  return publicSettingsRequest;
+}
+
 export { API_BASE_URL };

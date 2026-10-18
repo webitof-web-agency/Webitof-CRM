@@ -258,7 +258,7 @@ function AppRoutes() {
         <Route
           path="call-history"
           element={
-            <PermissionRoute permissions={['calls.read', 'leads.read', 'dashboard.view']}>
+            <PermissionRoute permissions={['calls.read']}>
               <CallHistoryPage />
             </PermissionRoute>
           }

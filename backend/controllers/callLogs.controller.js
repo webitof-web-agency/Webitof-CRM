@@ -1,11 +1,15 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { query } = require('../config/db');
 const { createId, nowIso } = require('../utils/format');
-const { broadcastEvent } = require('../services/socketHub.service');
+const { hasPermission } = require('../middlewares/auth');
+const { emitToPermission } = require('../services/socketHub.service');
 
 const RECORDINGS_DIR = path.join(__dirname, '..', 'uploads', 'recordings');
+const RECORDING_URL_TTL_SECONDS = 12 * 60 * 60;
+const LOCAL_RECORDING_URL = /^\/api\/(?:call-logs|calls)\/recordings\/([^/?#]+)/;
 if (!fs.existsSync(RECORDINGS_DIR)) {
   fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
 }
@@ -79,8 +83,137 @@ function normalizePhone(val) {
   return String(val).replace(/[^0-9+]/g, '').trim();
 }
 
+function safeRecordingFileName(value) {
+  if (!value) return null;
+  return path.basename(String(value)) || null;
+}
+
+// Recordings are fetched by <audio>/<a> tags that cannot send the Bearer header,
+// so the API hands out short-lived HMAC-signed URLs instead of public paths.
+function recordingSignature(fileName, expiresAt) {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is missing in environment configuration.');
+  }
+  return crypto
+    .createHmac('sha256', process.env.JWT_SECRET)
+    .update(`call-recording:${fileName}:${expiresAt}`)
+    .digest('hex');
+}
+
+function signedRecordingUrl(fileName) {
+  const safeName = safeRecordingFileName(fileName);
+  const expiresAt = Math.floor(Date.now() / 1000) + RECORDING_URL_TTL_SECONDS;
+  return `/api/call-logs/recordings/${encodeURIComponent(safeName)}?expires=${expiresAt}&signature=${recordingSignature(safeName, expiresAt)}`;
+}
+
+function hasValidRecordingSignature(fileName, params = {}) {
+  const expiresAt = Number(params.expires);
+  const signature = String(params.signature || '');
+  if (!Number.isInteger(expiresAt) || expiresAt < Date.now() / 1000) return false;
+  const expected = recordingSignature(fileName, expiresAt);
+  return signature.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+function recordingUrlFor(row) {
+  const storedUrl = String(row.recording_url || '');
+  const localMatch = storedUrl.match(LOCAL_RECORDING_URL);
+  let fileName = row.recording_file_name || '';
+  if (!fileName && localMatch) {
+    try { fileName = decodeURIComponent(localMatch[1]); } catch (_) { fileName = localMatch[1]; }
+  }
+  if (fileName && (!storedUrl || localMatch)) return signedRecordingUrl(fileName);
+  return storedUrl || null;
+}
+
+function canViewRecordings(user) {
+  return hasPermission(user, 'calls.recording_view');
+}
+
+// Callers log calls as themselves; only super admins may attribute a call to another user.
+function resolveCallOwner(req, body) {
+  const requestedUserId = body.userId || body.user_id || null;
+  if (req.user?.isSuperAdmin && requestedUserId && requestedUserId !== req.user.id) {
+    return {
+      userId: requestedUserId,
+      staffName: body.staffName || body.staff_name || 'Staff',
+      staffPhone: body.staffPhone || body.staff_phone || '',
+      staffEmail: body.staffEmail || body.staff_email || ''
+    };
+  }
+  return {
+    userId: req.user?.id || null,
+    staffName: req.user?.fullName || req.user?.username || 'Staff',
+    staffPhone: req.user?.phone || '',
+    staffEmail: req.user?.email || ''
+  };
+}
+
+function canModifyCall(user, ownerId) {
+  return Boolean(user?.isSuperAdmin) || String(ownerId || '') === String(user?.id || '');
+}
+
+// Matches on the last 10 digits (or the exact digits when shorter) so formatting
+// differences like '+91 98765 43210' vs '+919876543210' still link the call.
+async function findContactByPhone(customerPhone) {
+  const digits = customerPhone.replace(/\D/g, '');
+  if (!digits) return {};
+  const useSuffix = digits.length >= 10;
+  const key = useSuffix ? digits.slice(-10) : digits;
+  const digitsExpr = (column) => {
+    const cleaned = `regexp_replace(COALESCE(${column}, ''), '\\D', '', 'g')`;
+    return useSuffix ? `RIGHT(${cleaned}, 10)` : cleaned;
+  };
+
+  const leadMatch = await query(
+    `SELECT id, name FROM leads
+     WHERE ${digitsExpr('phone')} = $1 OR ${digitsExpr('alternate_phone')} = $1
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [key]
+  );
+  if (leadMatch.rows[0]) {
+    return { leadId: leadMatch.rows[0].id, name: leadMatch.rows[0].name };
+  }
+
+  const clientMatch = await query(
+    `SELECT id, name, company_name FROM clients
+     WHERE ${digitsExpr('mobile')} = $1
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    [key]
+  );
+  if (clientMatch.rows[0]) {
+    return { clientId: clientMatch.rows[0].id, name: clientMatch.rows[0].company_name || clientMatch.rows[0].name };
+  }
+  return {};
+}
+
+function emitCallEvent(eventName, row) {
+  emitToPermission('calls.recording_view', eventName, formatCallRow(row, { canViewRecording: true }));
+  emitToPermission('calls.read', eventName, formatCallRow(row, { canViewRecording: false }), {
+    except: 'calls.recording_view'
+  });
+}
+
+// Returns the on-disk path for a signed recording request, or sends the error response and returns null.
+function resolveSignedRecording(req, res) {
+  const safeFilename = safeRecordingFileName(req.params.filename);
+  if (!safeFilename || !hasValidRecordingSignature(safeFilename, req.query)) {
+    res.status(403).json({ success: false, message: 'Recording link is invalid or has expired' });
+    return null;
+  }
+
+  const filePath = path.join(RECORDINGS_DIR, safeFilename);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ success: false, message: 'Recording file not found' });
+    return null;
+  }
+  return { filePath, safeFilename };
+}
+
 // Map db row to clean JSON
-function formatCallRow(row) {
+function formatCallRow(row, { canViewRecording = false } = {}) {
   if (!row) return null;
   return {
     id: row.id,
@@ -101,7 +234,7 @@ function formatCallRow(row) {
     endedAt: row.ended_at,
     outcome: row.outcome || '',
     notes: row.notes || '',
-    recordingUrl: row.recording_url || (row.recording_file_name ? `/api/call-logs/recordings/${row.recording_file_name}` : null),
+    recordingUrl: canViewRecording ? recordingUrlFor(row) : null,
     recordingFileName: row.recording_file_name || null,
     recordingFileSize: Number(row.recording_file_size || 0),
     recordingDuration: Number(row.recording_duration || 0),
@@ -233,10 +366,11 @@ module.exports = {
         LIMIT ${limitNum} OFFSET ${offset}
       `;
       const listRes = await query(listSql, values);
+      const canViewRecording = canViewRecordings(req.user);
 
       res.json({
         success: true,
-        data: listRes.rows.map(formatCallRow),
+        data: listRes.rows.map((row) => formatCallRow(row, { canViewRecording })),
         stats: {
           totalCalls: Number(stats.total_calls || 0),
           outgoingCalls: Number(stats.outgoing_calls || 0),
@@ -344,7 +478,7 @@ module.exports = {
       if (!result.rows[0]) {
         return res.status(404).json({ success: false, message: 'Call log not found' });
       }
-      res.json({ success: true, data: formatCallRow(result.rows[0]) });
+      res.json({ success: true, data: formatCallRow(result.rows[0], { canViewRecording: canViewRecordings(req.user) }) });
     } catch (error) {
       next(error);
     }
@@ -354,11 +488,8 @@ module.exports = {
     try {
       const body = req.body || {};
       const id = body.id || body.clientReferenceId || createId('call');
-      const userId = body.userId || body.user_id || req.user?.id || null;
-      const staffName = body.staffName || body.staff_name || req.user?.fullName || req.user?.username || 'Staff';
-      const staffPhone = body.staffPhone || body.staff_phone || req.user?.phone || '';
-      const staffEmail = body.staffEmail || body.staff_email || req.user?.email || '';
-      
+      const { userId, staffName, staffPhone, staffEmail } = resolveCallOwner(req, body);
+
       const customerPhone = normalizePhone(body.customerPhone || body.phone || body.customer_phone);
       if (!customerPhone) {
         return res.status(400).json({ success: false, message: 'Customer phone number is required' });
@@ -370,33 +501,21 @@ module.exports = {
 
       // Auto-lookup matching lead or client by phone if not explicitly passed
       if (!leadId && !clientId) {
-        const leadMatch = await query(
-          `SELECT id, name FROM leads WHERE phone ILIKE $1 OR phone ILIKE $2 LIMIT 1`,
-          [`%${customerPhone.slice(-10)}%`, customerPhone]
-        );
-        if (leadMatch.rows[0]) {
-          leadId = leadMatch.rows[0].id;
-          if (!customerName) customerName = leadMatch.rows[0].name;
-        } else {
-          const clientMatch = await query(
-            `SELECT id, name, company_name FROM clients WHERE mobile ILIKE $1 OR phone ILIKE $1 LIMIT 1`,
-            [`%${customerPhone.slice(-10)}%`]
-          );
-          if (clientMatch.rows[0]) {
-            clientId = clientMatch.rows[0].id;
-            if (!customerName) customerName = clientMatch.rows[0].company_name || clientMatch.rows[0].name;
-          }
-        }
+        const match = await findContactByPhone(customerPhone);
+        leadId = match.leadId || null;
+        clientId = match.clientId || null;
+        if (!customerName && match.name) customerName = match.name;
       }
 
       const callType = String(body.callType || body.type || 'outgoing').toLowerCase();
       const callStatus = String(body.callStatus || body.status || 'completed').toLowerCase();
       const durationSeconds = Number(body.durationSeconds || body.duration_seconds || 0);
       const startedAt = body.startedAt || body.started_at ? new Date(body.startedAt || body.started_at) : new Date();
-      const outcome = body.outcome || body.callOutcome || '';
-      const notes = body.notes || body.callNotes || '';
+      // null (not '') so the ON CONFLICT COALESCE keeps existing values on re-sync.
+      const outcome = body.outcome || body.callOutcome || null;
+      const notes = body.notes || body.callNotes || null;
       const recordingUrl = body.recordingUrl || body.recording_url || null;
-      const recordingFileName = body.recordingFileName || body.recording_file_name || null;
+      const recordingFileName = safeRecordingFileName(body.recordingFileName || body.recording_file_name);
       const source = body.source || 'mobile_app';
       const deviceId = body.deviceId || body.device_id || null;
       const deviceModel = body.deviceModel || body.device_model || null;
@@ -424,6 +543,7 @@ module.exports = {
           recording_url = COALESCE(EXCLUDED.recording_url, call_logs.recording_url),
           recording_file_name = COALESCE(EXCLUDED.recording_file_name, call_logs.recording_file_name),
           updated_at = now()
+        WHERE call_logs.user_id IS NOT DISTINCT FROM EXCLUDED.user_id
         RETURNING *
       `;
 
@@ -436,12 +556,17 @@ module.exports = {
       ];
 
       const result = await query(insertSql, values);
-      const savedCall = formatCallRow(result.rows[0]);
+      if (!result.rows[0]) {
+        // The id already belongs to another user's call; the upsert's WHERE kept it untouched.
+        return res.status(409).json({ success: false, message: 'A call with this id already exists for another user' });
+      }
 
-      // Emit real-time notification to all connected CRM clients
-      broadcastEvent('call:created', savedCall);
+      emitCallEvent('call:created', result.rows[0]);
 
-      res.status(201).json({ success: true, data: savedCall });
+      res.status(201).json({
+        success: true,
+        data: formatCallRow(result.rows[0], { canViewRecording: canViewRecordings(req.user) })
+      });
     } catch (error) {
       next(error);
     }
@@ -456,7 +581,7 @@ module.exports = {
         return res.status(400).json({ success: false, message: 'Audio recording file or recordingUrl is required' });
       }
 
-      const fileName = file ? file.filename : (body.recordingFileName || '');
+      const fileName = file ? file.filename : safeRecordingFileName(body.recordingFileName);
       const fileSize = file ? file.size : Number(body.recordingFileSize || 0);
       const mimeType = file ? file.mimetype : (body.recordingMimeType || 'audio/mp3');
       const recordingUrl = file ? `/api/call-logs/recordings/${fileName}` : body.recordingUrl;
@@ -466,6 +591,14 @@ module.exports = {
 
       let callRow;
       if (callId) {
+        const existingRes = await query('SELECT user_id FROM call_logs WHERE id = $1', [callId]);
+        if (existingRes.rows[0] && !canModifyCall(req.user, existingRes.rows[0].user_id)) {
+          if (file) {
+            try { fs.unlinkSync(path.join(RECORDINGS_DIR, file.filename)); } catch (_) {}
+          }
+          return res.status(403).json({ success: false, message: 'You can only attach recordings to your own calls' });
+        }
+
         // Update existing call log
         const updateSql = `
           UPDATE call_logs
@@ -489,9 +622,7 @@ module.exports = {
       if (!callRow) {
         // Create new call log with recording
         const id = callId || createId('call');
-        const userId = body.userId || body.user_id || req.user?.id || null;
-        const staffName = body.staffName || body.staff_name || req.user?.fullName || 'Staff';
-        const staffPhone = body.staffPhone || body.staff_phone || req.user?.phone || '';
+        const { userId, staffName, staffPhone } = resolveCallOwner(req, body);
         const customerPhone = normalizePhone(body.customerPhone || body.phone || 'Unknown');
         const customerName = body.customerName || body.name || 'Customer';
         const callType = String(body.callType || body.type || 'outgoing').toLowerCase();
@@ -525,10 +656,12 @@ module.exports = {
         callRow = insertRes.rows[0];
       }
 
-      const formatted = formatCallRow(callRow);
-      broadcastEvent('call:updated', formatted);
+      emitCallEvent('call:updated', callRow);
 
-      res.status(201).json({ success: true, data: formatted });
+      res.status(201).json({
+        success: true,
+        data: formatCallRow(callRow, { canViewRecording: canViewRecordings(req.user) })
+      });
     } catch (error) {
       next(error);
     }
@@ -536,13 +669,9 @@ module.exports = {
 
   streamRecording: (req, res) => {
     try {
-      const { filename } = req.params;
-      const safeFilename = path.basename(filename);
-      const filePath = path.join(RECORDINGS_DIR, safeFilename);
-
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ success: false, message: 'Recording file not found' });
-      }
+      const recording = resolveSignedRecording(req, res);
+      if (!recording) return undefined;
+      const { filePath, safeFilename } = recording;
 
       const stat = fs.statSync(filePath);
       const fileSize = stat.size;
@@ -590,15 +719,9 @@ module.exports = {
 
   downloadRecording: (req, res) => {
     try {
-      const { filename } = req.params;
-      const safeFilename = path.basename(filename);
-      const filePath = path.join(RECORDINGS_DIR, safeFilename);
-
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ success: false, message: 'Recording file not found' });
-      }
-
-      res.download(filePath, safeFilename);
+      const recording = resolveSignedRecording(req, res);
+      if (!recording) return undefined;
+      res.download(recording.filePath, recording.safeFilename);
     } catch (error) {
       res.status(500).json({ success: false, message: error.message });
     }
@@ -649,10 +772,12 @@ module.exports = {
         return res.status(404).json({ success: false, message: 'Call log not found' });
       }
 
-      const updated = formatCallRow(result.rows[0]);
-      broadcastEvent('call:updated', updated);
+      emitCallEvent('call:updated', result.rows[0]);
 
-      res.json({ success: true, data: updated });
+      res.json({
+        success: true,
+        data: formatCallRow(result.rows[0], { canViewRecording: canViewRecordings(req.user) })
+      });
     } catch (error) {
       next(error);
     }
@@ -662,15 +787,22 @@ module.exports = {
     try {
       const { id } = req.params;
       const findRes = await query('SELECT recording_file_name FROM call_logs WHERE id = $1', [id]);
-      if (findRes.rows[0]?.recording_file_name) {
-        const filePath = path.join(RECORDINGS_DIR, findRes.rows[0].recording_file_name);
-        if (fs.existsSync(filePath)) {
+      const storedFileName = findRes.rows[0]?.recording_file_name;
+      if (storedFileName) {
+        // recording_file_name can come from client input, so never let it escape RECORDINGS_DIR.
+        const safeFileName = path.basename(String(storedFileName));
+        const filePath = path.join(RECORDINGS_DIR, safeFileName);
+        const sharedRes = await query(
+          'SELECT 1 FROM call_logs WHERE recording_file_name = $1 AND id <> $2 LIMIT 1',
+          [storedFileName, id]
+        );
+        if (!sharedRes.rows.length && fs.existsSync(filePath)) {
           try { fs.unlinkSync(filePath); } catch (_) {}
         }
       }
 
       await query('DELETE FROM call_logs WHERE id = $1', [id]);
-      broadcastEvent('call:deleted', { id });
+      emitToPermission('calls.read', 'call:deleted', { id });
 
       res.json({ success: true, message: 'Call log deleted successfully', id });
     } catch (error) {

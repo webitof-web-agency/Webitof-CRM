@@ -129,3 +129,34 @@ test('itemized quotation preserves primary and add-on rates in the invoice', () 
   assert.equal(draft.items[1].rate, 25000);
   assert.equal(draft.totalAmount, 120000);
 });
+
+test('negotiated quotation amount overrides the item total on the invoice', () => {
+  const draft = buildQuotationInvoiceDraft({
+    quotation: {
+      title: 'Negotiated proposal',
+      serviceNames: ['Website Development', 'SEO'],
+      amount: 100000,
+      discountType: 'percent',
+      discountValue: 0,
+      gstApplicable: true,
+      gstRate: 18,
+      status: 'Approved',
+      items: [
+        { name: 'Website Development', qty: 1, rate: 90000 },
+        { name: 'SEO', qty: 3, rate: 10000 }
+      ]
+    },
+    lead: {},
+    client,
+    services: [],
+    settings,
+    invoiceDate: '2026-10-09',
+    dueDate: '2026-10-24'
+  });
+
+  const subtotal = draft.items.reduce((sum, item) => sum + item.quantity * item.rate, 0);
+  assert.equal(Math.round(subtotal * 100) / 100, 100000);
+  assert.equal(draft.items[1].quantity, 3);
+  assert.equal(draft.taxableAmount, 100000);
+  assert.equal(draft.totalAmount, 118000);
+});

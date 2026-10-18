@@ -334,7 +334,16 @@ const callData = [
   }
 ];
 
+// Rows this script owns; re-running replaces only these, never real call history.
+const SEED_SOURCE = 'demo_seed_30';
+
 async function seed30Calls() {
+  if (!process.argv.includes('--yes-seed-calls')) {
+    console.error('This inserts 30 demo calls attached to existing users and leads.');
+    console.error('Run again with: node database/seed_30_calls.js --yes-seed-calls');
+    process.exit(1);
+  }
+
   try {
     console.log('Seeding 30 call records...');
 
@@ -347,8 +356,8 @@ async function seed30Calls() {
       { id: null, full_name: 'Hitesh Admin', phone: '+91 98111 22334', email: 'digitalweb.hitesh@gmail.com' }
     ];
 
-    // Clear previous seed logs so we have a fresh, consistent set of 30 records
-    await query(`DELETE FROM call_logs`);
+    // Clear only this script's previous rows so re-runs stay at a consistent set of 30
+    await query(`DELETE FROM call_logs WHERE source = $1`, [SEED_SOURCE]);
 
     for (let i = 0; i < callData.length; i++) {
       const item = callData[i];
@@ -398,7 +407,7 @@ async function seed30Calls() {
           recordingFileName,
           item.hasRecording ? 96044 : 0,
           item.hasRecording ? (item.duration || 6) : 0,
-          'mobile_app',
+          SEED_SOURCE,
           'synced',
           startedAt,
           startedAt
@@ -406,7 +415,7 @@ async function seed30Calls() {
       );
     }
 
-    const countRes = await query(`SELECT COUNT(*)::int as count FROM call_logs`);
+    const countRes = await query(`SELECT COUNT(*)::int as count FROM call_logs WHERE source = $1`, [SEED_SOURCE]);
     console.log(`Successfully seeded ${countRes.rows[0].count} call records!`);
     process.exit(0);
   } catch (err) {

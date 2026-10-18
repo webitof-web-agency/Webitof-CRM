@@ -42,6 +42,9 @@ async function ensureCallLogsSchema() {
     CREATE INDEX IF NOT EXISTS idx_call_logs_source ON call_logs(source);
   `);
 
+  // Demo calls are attached to real users/leads, so only seed them when demo data is enabled.
+  if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() !== 'true') return;
+
   const countRes = await query(`SELECT COUNT(*)::int as count FROM call_logs`);
   if (Number(countRes.rows[0]?.count || 0) === 0) {
     const usersRes = await query(`SELECT id, full_name, phone, email FROM users LIMIT 5`);

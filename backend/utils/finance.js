@@ -31,7 +31,8 @@ function getStateCode(state = '', gstin = '') {
 }
 
 function isUtgstState(state = '') {
-  return ['andaman and nicobar islands', 'chandigarh', 'dadra and nagar haveli and daman and diu', 'lakshadweep', 'delhi', 'puducherry', 'jammu and kashmir', 'ladakh'].includes(normalizeKey(state));
+  // Delhi, Puducherry and Jammu & Kashmir have their own legislatures, so they levy SGST, not UTGST.
+  return ['andaman and nicobar islands', 'chandigarh', 'dadra and nagar haveli and daman and diu', 'lakshadweep', 'ladakh'].includes(normalizeKey(state));
 }
 
 function getPlaceOfSupplyForClient(client = {}, settings = {}) {
@@ -136,7 +137,7 @@ function calculateGstBreakdown({
     placeOfSupplyStateCode: getStateCode(placeOfSupply || clientState, clientGstin),
     taxableAmount: amount,
     gstRate: rate,
-    cgst: context.gstType === 'CGST_SGST' ? half : 0,
+    cgst: context.gstType === 'CGST_SGST' || context.gstType === 'CGST_UTGST' ? half : 0,
     sgst: context.gstType === 'CGST_SGST' ? round2(gstAmount - half) : 0,
     utgst: context.gstType === 'CGST_UTGST' ? round2(gstAmount - half) : 0,
     igst: context.gstType === 'IGST' ? gstAmount : 0,

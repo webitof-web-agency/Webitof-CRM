@@ -4,7 +4,6 @@ const { requirePermission } = require('../middlewares/auth');
 
 const router = express.Router();
 
-router.get('/public', controller.fetchPublicSettings);
 router.get('/', requirePermission('settings.read'), controller.fetchSettings);
 router.put('/', requirePermission('settings.write'), controller.saveSettings);
 

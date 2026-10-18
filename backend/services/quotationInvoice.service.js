@@ -126,6 +126,41 @@ function normalizeServiceRecord(row = {}) {
   };
 }
 
+function withRate(item, rate) {
+  return {
+    ...item,
+    rate,
+    serviceSnapshot: item.serviceSnapshot ? { ...item.serviceSnapshot, defaultPrice: rate } : null
+  };
+}
+
+// The builder lets the base amount be negotiated independently of the line items, and the
+// client approves that amount, so scale the item rates until their subtotal equals it.
+function alignItemsToAmount(items, amount) {
+  if (!items.length) return items;
+  const lineTotals = items.map((item) => item.quantity * item.rate);
+  const subtotal = lineTotals.reduce((sum, value) => sum + value, 0);
+  if (Math.abs(round2(subtotal) - amount) < 0.005) return items;
+
+  const weights = subtotal > 0
+    ? lineTotals.map((value) => value / subtotal)
+    : items.map(() => 1 / items.length);
+  // A quantity-1 line can absorb the rounding remainder exactly.
+  const qtyOneIndex = items.map((item) => item.quantity === 1).lastIndexOf(true);
+  const remainderIndex = qtyOneIndex >= 0 ? qtyOneIndex : items.length - 1;
+
+  let allocated = 0;
+  const aligned = items.map((item, index) => {
+    if (index === remainderIndex) return item;
+    const rate = round2((amount * weights[index]) / item.quantity);
+    allocated = round2(allocated + rate * item.quantity);
+    return withRate(item, rate);
+  });
+  const remainderItem = aligned[remainderIndex];
+  aligned[remainderIndex] = withRate(remainderItem, round2((amount - allocated) / remainderItem.quantity));
+  return aligned;
+}
+
 function buildQuotationInvoiceDraft({ quotation, lead, client, services = [], settings = {}, invoiceDate, dueDate }) {
   validateApprovedQuotation(quotation);
   const serviceMap = new Map(services.map((service) => [String(service.name || '').trim().toLowerCase(), service]));
@@ -133,7 +168,7 @@ function buildQuotationInvoiceDraft({ quotation, lead, client, services = [], se
   const quotedItems = Array.isArray(quotation.items)
     ? quotation.items.filter((item) => String(item?.name || item?.serviceName || '').trim())
     : [];
-  const items = quotedItems.length ? quotedItems.map((quotedItem) => {
+  const items = quotedItems.length ? alignItemsToAmount(quotedItems.map((quotedItem) => {
     const cleanName = String(quotedItem.name || quotedItem.serviceName || '').trim();
     const service = services.find((candidate) => String(candidate.id) === String(quotedItem.serviceId || ''))
       || serviceMap.get(cleanName.toLowerCase())
@@ -163,7 +198,7 @@ function buildQuotationInvoiceDraft({ quotation, lead, client, services = [], se
         gstRate: quotation.gstApplicable ? quotation.gstRate : 0
       } : null
     };
-  }) : quotation.serviceNames.map((serviceName, index) => {
+  }), quotation.amount) : quotation.serviceNames.map((serviceName, index) => {
     const cleanName = String(serviceName || '').trim();
     const lookupName = cleanName.toLowerCase().startsWith('other:') ? 'other' : cleanName.toLowerCase();
     const service = serviceMap.get(lookupName) || serviceMap.get(cleanName.toLowerCase()) || null;

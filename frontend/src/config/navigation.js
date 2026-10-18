@@ -83,7 +83,7 @@ export const navigationGroups = [
         label: 'Call History',
         path: '/app/call-history',
         icon: PhoneCall,
-        permissions: ['calls.read', 'leads.read', 'dashboard.view']
+        permissions: ['calls.read']
       },
       { label: 'Leads', path: '/app/leads', icon: Target, permission: 'leads.read' },
       { label: 'Clients', path: '/app/clients', icon: Building2, permission: 'clients.read' },

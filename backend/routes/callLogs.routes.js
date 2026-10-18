@@ -4,9 +4,7 @@ const { requirePermission } = require('../middlewares/auth');
 
 const router = express.Router();
 
-// Audio playback & download (audio streaming should be directly accessible by audio element)
-router.get('/recordings/:filename', controller.streamRecording);
-router.get('/recordings/:filename/download', controller.downloadRecording);
+// Recording playback/download routes are mounted (signature-checked) in routes/index.js.
 
 // Stats
 router.get('/stats', requirePermission('calls.read'), controller.stats);

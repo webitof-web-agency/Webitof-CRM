@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { themes } from '../config/themes';
 import { applyTheme, applyThemeMode, applyUiSettings } from '../config/theme';
+import { fetchPublicSettings } from '../api/client';
 
 const STORAGE_KEY = 'webitof-theme-preference';
 
@@ -80,8 +81,7 @@ export function ThemeProvider({ children }) {
       applyTheme(primaryColor);
 
       // Fetch live public settings so unauthenticated / fresh browsers get updated branding
-      fetch('/api/settings/public')
-        .then((res) => (res.ok ? res.json() : null))
+      fetchPublicSettings()
         .then((data) => {
           if (data?.data?.branding?.primaryColor) {
             applyTheme(data.data.branding.primaryColor);
