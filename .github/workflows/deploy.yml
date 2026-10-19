@@ -1,0 +1,251 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - ".github/workflows/deploy.yml"
+
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to deploy"
+        required: true
+        default: "both"
+        type: choice
+        options:
+          - both
+          - backend
+          - frontend
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.result.outputs.backend }}
+      frontend: ${{ steps.result.outputs.frontend }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        if: github.event_name == 'push'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - "backend/**"
+              - ".github/workflows/deploy.yml"
+            frontend:
+              - "frontend/**"
+              - ".github/workflows/deploy.yml"
+
+      - name: Resolve deploy targets
+        id: result
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            case "${{ inputs.target }}" in
+              both)     BACKEND=true;  FRONTEND=true ;;
+              backend)  BACKEND=true;  FRONTEND=false ;;
+              frontend) BACKEND=false; FRONTEND=true ;;
+            esac
+          else
+            BACKEND="${{ steps.filter.outputs.backend }}"
+            FRONTEND="${{ steps.filter.outputs.frontend }}"
+          fi
+
+          echo "backend=$BACKEND" >> "$GITHUB_OUTPUT"
+          echo "frontend=$FRONTEND" >> "$GITHUB_OUTPUT"
+          echo "Deploy backend: $BACKEND"
+          echo "Deploy frontend: $FRONTEND"
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: production-backend
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify backend files
+        run: |
+          echo "Checking backend deployment files..."
+
+          test -f backend/package.json || {
+            echo "ERROR: backend/package.json is missing"
+            exit 1
+          }
+
+          test -f backend/package-lock.json || {
+            echo "ERROR: backend/package-lock.json is not committed to GitHub"
+            echo "Backend contents:"
+            ls -la backend/
+            exit 1
+          }
+
+          ls -lah backend/package.json backend/package-lock.json
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/crm
+          chmod 600 ~/.ssh/crm
+
+          ssh-keyscan \
+            -p "${{ secrets.SSH_PORT }}" \
+            -H "${{ secrets.SSH_HOST }}" \
+            >> ~/.ssh/known_hosts
+
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload backend
+        run: |
+          rsync -az --delete \
+            --no-owner \
+            --no-group \
+            --chown=www:www \
+            --exclude=".env" \
+            --exclude="node_modules" \
+            --exclude="logs" \
+            --exclude="uploads" \
+            -e "ssh -i ~/.ssh/crm -p ${{ secrets.SSH_PORT }}" \
+            backend/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/www/wwwroot/WebitofCRM/backend/
+
+      - name: Install and restart backend
+        run: |
+          ssh \
+            -i ~/.ssh/crm \
+            -p "${{ secrets.SSH_PORT }}" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" << 'EOF'
+
+          set -e
+
+          cd /www/wwwroot/WebitofCRM/backend
+
+          if [ ! -f package-lock.json ]; then
+            echo "ERROR: package-lock.json was not deployed"
+            ls -la
+            exit 1
+          fi
+
+          echo "Package files:"
+          ls -lah package.json package-lock.json
+
+          echo "Installing dependencies..."
+          npm ci
+
+          echo "Running build if configured..."
+          npm run build --if-present
+
+          echo "Restarting backend..."
+          pm2 restart WebitofCRM-backend --update-env
+
+          pm2 save
+
+          echo "Deployment completed successfully."
+
+          EOF
+
+  frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: production-frontend
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify frontend files
+        run: |
+          echo "Checking frontend deployment files..."
+
+          test -f frontend/package.json || {
+            echo "ERROR: frontend/package.json is missing"
+            exit 1
+          }
+
+          test -f frontend/package-lock.json || {
+            echo "ERROR: frontend/package-lock.json is not committed to GitHub"
+            echo "Frontend contents:"
+            ls -la frontend/
+            exit 1
+          }
+
+          ls -lah frontend/package.json frontend/package-lock.json
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          # Optional repo variables; when unset the app falls back to same-origin /api.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_SOCKET_URL: ${{ vars.VITE_SOCKET_URL }}
+        run: |
+          npm run build
+
+          test -f dist/index.html || {
+            echo "ERROR: build did not produce dist/index.html"
+            exit 1
+          }
+
+          ls -lah dist/
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/crm
+          chmod 600 ~/.ssh/crm
+
+          ssh-keyscan \
+            -p "${{ secrets.SSH_PORT }}" \
+            -H "${{ secrets.SSH_HOST }}" \
+            >> ~/.ssh/known_hosts
+
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload frontend build
+        run: |
+          ssh \
+            -i ~/.ssh/crm \
+            -p "${{ secrets.SSH_PORT }}" \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "mkdir -p /www/wwwroot/WebitofCRM/frontend/dist"
+
+          rsync -az --delete \
+            --no-owner \
+            --no-group \
+            --chown=www:www \
+            -e "ssh -i ~/.ssh/crm -p ${{ secrets.SSH_PORT }}" \
+            frontend/dist/ \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/www/wwwroot/WebitofCRM/frontend/dist/
+
+          echo "Frontend deployment completed successfully."
