@@ -1,4 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const DEFAULT_API_URL = import.meta.env.PROD ? 'https://crmapi.webitof.com/api' : '/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
 const CACHE_PREFIX = 'webitof-api-cache:v7';
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const memoryCache = new Map();

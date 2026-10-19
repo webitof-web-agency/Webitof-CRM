@@ -1,15 +1,15 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'sonner';
-import { api } from '../api/client';
+import { API_BASE_URL, api } from '../api/client';
 import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext(null);
 
 function resolveSocketUrl() {
   if (typeof window === 'undefined') return '';
-  const raw = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '';
-  if (!raw) return window.location.origin;
+  const raw = import.meta.env.VITE_SOCKET_URL || API_BASE_URL;
+  if (!/^https?:\/\//.test(raw)) return window.location.origin;
   const normalized = String(raw).replace(/\/api\/?$/, '');
   return normalized || window.location.origin;
 }

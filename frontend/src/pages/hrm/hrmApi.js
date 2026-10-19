@@ -1,4 +1,4 @@
-import { request } from "../../api/client";
+import { API_BASE_URL, request } from "../../api/client";
 export function hrm(token, path, options = {}) {
   return request(`/hrm${path}`, { token, skipCache: true, ...options }).then(
     (r) => r.data,
@@ -6,7 +6,7 @@ export function hrm(token, path, options = {}) {
 }
 export async function downloadHrm(token, path, name) {
   const response = await fetch(
-    `${import.meta.env.VITE_API_URL || "/api"}/hrm${path}`,
+    `${API_BASE_URL}/hrm${path}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!response.ok) {
