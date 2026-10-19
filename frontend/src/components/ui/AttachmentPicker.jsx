@@ -5,7 +5,7 @@ import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from './Button';
 import { FileBrowserModal } from './FileBrowserModal';
-import { uploadFilesToDrive } from '../../lib/fileUpload';
+import { getFileOpenUrl, uploadFilesToDrive } from '../../lib/fileUpload';
 
 export function AttachmentPicker({
   attachments = [],
@@ -68,7 +68,7 @@ export function AttachmentPicker({
 
     setRemovingId(driveFileId);
     try {
-      await api.files.deleteDriveFile(token, driveFileId);
+      await api.files.remove(token, driveFileId);
       onRemoveFile?.(driveFileId, file);
       api.cache.invalidate('/files');
       toast.success('Attachment removed');
@@ -107,8 +107,8 @@ export function AttachmentPicker({
               key={file.driveFileId || file.id}
               className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3 py-1 text-xs font-semibold text-[var(--text-main)]"
             >
-              {file.driveWebViewLink ? (
-                <a href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="max-w-[240px] truncate hover:underline hover:text-[var(--primary)]">
+              {getFileOpenUrl(file) ? (
+                <a href={getFileOpenUrl(file)} target="_blank" rel="noreferrer" className="max-w-[240px] truncate hover:underline hover:text-[var(--primary)]">
                   {file.name}
                 </a>
               ) : (

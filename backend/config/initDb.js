@@ -61,6 +61,7 @@ async function ensureDatabase() {
   await ensureCallLogsSchema();
   await ensureInvoiceSourceIndexes();
   await withTransaction(migrateHrm);
+  await ensureStorageSchema();
   if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
     await seedDefaultData();
     await seedAutomationDemoData();
@@ -504,6 +505,28 @@ async function ensurePaymentStatusSchema() {
     WHERE payment_status IS NULL OR payment_status = '';
   `);
   await query(`ALTER TABLE payments ALTER COLUMN payment_status SET NOT NULL;`);
+}
+
+async function ensureStorageSchema() {
+  // Uploads can live on local disk or Google Drive; rows created before this were all on Drive.
+  await query(`ALTER TABLE file_assets ALTER COLUMN drive_file_id DROP NOT NULL;`);
+  await query(`ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS storage_provider text NOT NULL DEFAULT 'gdrive';`);
+  await query(`ALTER TABLE file_assets ALTER COLUMN storage_provider SET DEFAULT 'local';`);
+  await query(`ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS storage_key text;`);
+  await query(`ALTER TABLE file_assets ADD COLUMN IF NOT EXISTS storage_bucket text;`);
+  await query(`UPDATE file_assets SET storage_key = drive_file_id, storage_bucket = drive_folder_id WHERE storage_key IS NULL AND drive_file_id IS NOT NULL;`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_file_assets_storage_provider ON file_assets(storage_provider);`);
+  await query(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key text PRIMARY KEY,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  // New HRM documents and call recordings are stored through the storage provider.
+  await query(`ALTER TABLE hrm_documents ALTER COLUMN content DROP NOT NULL;`);
+  await query(`ALTER TABLE hrm_documents ADD COLUMN IF NOT EXISTS file_asset_id text;`);
+  await query(`ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS recording_file_asset_id text;`);
 }
 
 async function ensureInvoiceSourceIndexes() {
@@ -1282,5 +1305,6 @@ async function seedRbac() {
 module.exports = {
   ensureDatabase,
   ensureInvoiceSourceIndexes,
+  ensureStorageSchema,
   ensureLeadManagementSchema
 };

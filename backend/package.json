@@ -8,6 +8,7 @@
   "scripts": {
     "migrate:hrm": "node database/migrate-hrm.js",
     "test:hrm": "node --test tests/hrm.test.js tests/hrm.integration.js",
+    "test:storage": "node --test tests/googleDrive.test.js",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "check": "node --check server.js",
@@ -33,7 +34,6 @@
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
-    "googleapis": "^173.0.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.1",

@@ -1,12 +1,29 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Folder, FileText, Image as ImageIcon, Video, FileArchive, Search, ChevronRight, Home, Grid as GridIcon, List as ListIcon, Check, Upload, FolderPlus, MoreVertical, Edit2, Trash2 } from 'lucide-react';
-import { Modal } from './Modal';
+import { Folder, FileText, Image as ImageIcon, Video, FileArchive, Search, ChevronRight, Home, Grid as GridIcon, List as ListIcon, Check, Upload } from 'lucide-react';
 import { Input } from './Input';
 import { cn } from '../../lib/cn';
-import { API_BASE_URL, api } from '../../api/client';
+import { api } from '../../api/client';
+import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
 import imageCompression from 'browser-image-compression';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
+
+const MONTH_LABELS = {
+  jan: 'January', feb: 'February', mar: 'March', apr: 'April', may: 'May', jun: 'June',
+  jul: 'July', aug: 'August', sep: 'September', oct: 'October', nov: 'November', dec: 'December'
+};
+
+// Folders come from the upload layout: year / month / section / record, plus site and earlier uploads.
+function folderLabel(name = '') {
+  if (MONTH_LABELS[name]) return MONTH_LABELS[name];
+  if (name === 'site') return 'Site assets';
+  if (name === 'earlier-uploads') return 'Earlier uploads';
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function toBrowserFile(file) {
+  return { ...file, name: file.originalName || file.name || 'Unknown File' };
+}
 
 function getFileIcon(mimeType = '') {
   if (mimeType.startsWith('image/')) return ImageIcon;
@@ -18,7 +35,7 @@ function getFileIcon(mimeType = '') {
 export function FileBrowser({ onSelectFile, allowSelect = false, selectable = false, selectedIds = [], onSelectionChange = () => {}, onViewFile, onUploadComplete, refreshTrigger = 0, showUpload = true, showSidebar = false, uploadModule, uploadEntityId }) {
   const { token } = useAuth();
   const fileInputRef = useRef(null);
-  const [currentPath, setCurrentPath] = useState([{ id: '', name: 'Home' }]);
+  const [currentPath, setCurrentPath] = useState([{ path: '', name: 'Home' }]);
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState('grid');
   
@@ -27,49 +44,32 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
   const [files, setFiles] = useState([]);
   const [driveUsage, setDriveUsage] = useState(0);
   
-  const [newFolderOpen, setNewFolderOpen] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [creatingFolder, setCreatingFolder] = useState(false);
-  
-  const [activeMenuId, setActiveMenuId] = useState(null);
-  
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameTarget, setRenameTarget] = useState(null);
-  const [renameValue, setRenameValue] = useState('');
-  const [renaming, setRenaming] = useState(false);
-  
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const currentFolderPath = currentPath[currentPath.length - 1].path;
 
-  const currentFolderId = currentPath[currentPath.length - 1].id;
-
-  const loadDirectory = useCallback(async (folderId) => {
+  const loadDirectory = useCallback(async (folderPath) => {
     setLoading(true);
     try {
-      const response = await api.files.driveBrowse(token, folderId);
-      const data = response.data || { files: [] };
-      
-      const allItems = data.files || [];
-      setFolders(allItems.filter((f) => f.mimeType === 'application/vnd.google-apps.folder' && f.name !== 'CRM_Hidden_System'));
-      setFiles(allItems.filter(f => f.mimeType !== 'application/vnd.google-apps.folder'));
+      const response = await api.files.browse(token, folderPath);
+      const data = response.data || { folders: [], files: [] };
+      setFolders(data.folders || []);
+      setFiles((data.files || []).map(toBrowserFile));
     } catch (error) {
-      toast.error(error.message || 'Failed to load Drive folder');
+      toast.error(error.message || 'Failed to load folder');
     } finally {
       setLoading(false);
     }
   }, [token]);
 
   useEffect(() => {
-    loadDirectory(currentFolderId);
-    
-    // Fetch total drive usage
+    loadDirectory(currentFolderPath);
+
+    // Fetch total storage usage
     if (showSidebar) {
       api.files.getUsage(token)
         .then(res => setDriveUsage(res.data?.usage || 0))
         .catch(console.error);
     }
-  }, [currentFolderId, refreshTrigger, loadDirectory, showSidebar, token]);
+  }, [currentFolderPath, refreshTrigger, loadDirectory, showSidebar, token]);
 
   const handleUpload = async (e) => {
     const files = e.target.files;
@@ -96,31 +96,25 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
         formData.append('file', uploadFile);
       }
       
-      if (uploadModule) {
-        // Smart Upload: bypass current folder and let backend place it using module structure
-        formData.append('moduleName', uploadModule);
-        if (uploadEntityId) formData.append('entityId', uploadEntityId);
-      } else {
-        // Normal Upload: place in current folder
-        formData.append('moduleName', 'general');
-        formData.append('folderId', currentFolderId || '');
-      }
+      // The backend places files by module and record (year/month/section/record).
+      formData.append('moduleName', uploadModule || 'general');
+      if (uploadModule && uploadEntityId) formData.append('entityId', uploadEntityId);
 
       const response = await api.files.upload(token, formData);
       const uploaded = Array.isArray(response.data) ? response.data : [];
       toast.success('Files uploaded successfully');
-      loadDirectory(currentFolderId); // Refresh after upload
+      loadDirectory(currentFolderPath); // Refresh after upload
       onUploadComplete?.(uploaded);
     } catch (error) {
-      toast.error('Upload failed');
+      toast.error(error.message || 'Upload failed');
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleFolderClick = (folderId, folderName) => {
-    setCurrentPath(prev => [...prev, { id: folderId, name: folderName }]);
+  const handleFolderClick = (folderPath, folderName) => {
+    setCurrentPath(prev => [...prev, { path: folderPath, name: folderLabel(folderName) }]);
     setSearch('');
   };
 
@@ -137,71 +131,8 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const filteredFolders = folders.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
+  const filteredFolders = folders.filter(f => folderLabel(f.name).toLowerCase().includes(search.toLowerCase()));
   const filteredFiles = files.filter(f => f.name.toLowerCase().includes(search.toLowerCase()));
-
-  const handleCreateFolder = async (e) => {
-    e.preventDefault();
-    if (!newFolderName.trim()) return;
-    
-    setCreatingFolder(true);
-    try {
-      await api.files.createFolder(token, {
-        name: newFolderName,
-        parentDriveId: currentFolderId || null
-      });
-      toast.success('Folder created');
-      setNewFolderOpen(false);
-      setNewFolderName('');
-      loadDirectory(currentFolderId);
-    } catch (error) {
-      toast.error('Failed to create folder');
-    } finally {
-      setCreatingFolder(false);
-    }
-  };
-
-  const handleRename = async (e) => {
-    e.preventDefault();
-    if (!renameValue.trim() || !renameTarget) return;
-    
-    setRenaming(true);
-    try {
-      await api.files.renameDriveFile(token, renameTarget.id, renameValue);
-      toast.success('Renamed successfully');
-      setRenameOpen(false);
-      setRenameTarget(null);
-      loadDirectory(currentFolderId);
-    } catch (error) {
-      toast.error('Rename failed');
-    } finally {
-      setRenaming(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    
-    setDeleting(true);
-    try {
-      await api.files.deleteDriveFile(token, deleteTarget.id);
-      toast.success('Moved to trash');
-      setDeleteOpen(false);
-      setDeleteTarget(null);
-      loadDirectory(currentFolderId);
-    } catch (error) {
-      toast.error('Failed to move to trash');
-    } finally {
-      setDeleting(false);
-    }
-  };
-  
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = () => setActiveMenuId(null);
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
 
   const renderGridFile = (file) => {
     const isSelected = selectedIds.includes(file.id);
@@ -220,15 +151,15 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
           if (allowSelect) onSelectFile?.(file);
           else if (selectable) onSelectionChange(isSelected ? selectedIds.filter(id => id !== file.id) : [...selectedIds, file.id]);
           else if (onViewFile) onViewFile(file);
-          else if (file.driveWebViewLink) window.open(file.driveWebViewLink, '_blank');
+          else window.open(getFileOpenUrl(file), '_blank', 'noopener');
         }}
       >
         <div 
           className="flex h-32 items-center justify-center bg-[var(--surface-2)]/50 mb-3 overflow-hidden border border-[var(--border)] rounded-xl"
         >
-          {isImage && file.driveFileId ? (
-            <img 
-              src={`${API_BASE_URL}/files/drive/${file.driveFileId}/view`} 
+          {isImage ? (
+            <img
+              src={getFileViewUrl(file)}
               alt={name}
               className="h-full w-full object-cover transition-transform group-hover:scale-105"
               onError={(e) => {
@@ -237,7 +168,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
               }}
             />
           ) : null}
-          <div className={cn("flex items-center justify-center", (isImage && file.driveFileId) ? 'hidden' : 'flex')}>
+          <div className={cn("flex items-center justify-center", isImage ? 'hidden' : 'flex')}>
             <Icon size={36} strokeWidth={1.5} className="text-[var(--text-muted)]" />
           </div>
         </div>
@@ -292,22 +223,20 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
               <div>
                 <div className="flex items-center justify-between mb-2 px-2">
                   <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Folders</h4>
-                  <button onClick={() => setNewFolderOpen(true)} className="text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer">
-                    <FolderPlus size={14} />
-                  </button>
                 </div>
                 <div className="space-y-1">
                   {folders.map(folder => (
                     <button
-                      key={folder.id}
+                      key={folder.path}
                       type="button"
-                      onClick={() => handleFolderClick(folder.id, folder.name)}
+                      onClick={() => handleFolderClick(folder.path, folder.name)}
                       className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] cursor-pointer"
                     >
                       <div className="flex items-center gap-2.5 truncate">
                         <Folder size={15} className="text-[var(--text-muted)]" />
-                        <span className="truncate">{folder.name}</span>
+                        <span className="truncate">{folderLabel(folder.name)}</span>
                       </div>
+                      <span className="text-[10px]">{folder.fileCount}</span>
                     </button>
                   ))}
                   {folders.length === 0 && (
@@ -362,15 +291,6 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {showUpload && (
             <>
-              <button
-                type="button"
-                onClick={() => setNewFolderOpen(true)}
-                className="inline-flex items-center justify-center rounded-xl font-semibold transition text-xs h-9 px-3.5 bg-[var(--surface-2)] text-[var(--text-main)] hover:bg-[var(--hover-bg)] border border-[var(--border)] cursor-pointer"
-              >
-                <FolderPlus size={14} className="mr-1.5" />
-                New Folder
-              </button>
-
               <input 
                 type="file" 
                 multiple
@@ -447,55 +367,17 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                   {filteredFolders.map(folder => (
                     <button
-                      key={folder.id}
+                      key={folder.path}
                       type="button"
-                      onClick={() => handleFolderClick(folder.id, folder.name)}
+                      onClick={() => handleFolderClick(folder.path, folder.name)}
                       className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left shadow-2xs transition-all hover:border-[var(--primary)] hover:shadow-xs cursor-pointer"
                     >
                       <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-2.5 overflow-hidden">
                           <Folder size={18} className="text-blue-500 group-hover:text-[var(--primary)] shrink-0" fill="currentColor" fillOpacity={0.2} />
-                          <span className="truncate text-xs font-semibold text-[var(--text-main)]">{folder.name}</span>
+                          <span className="truncate text-xs font-semibold text-[var(--text-main)]">{folderLabel(folder.name)}</span>
                         </div>
-                        {/* Folder Action Menu */}
-                        <div className="relative shrink-0" onClick={e => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => setActiveMenuId(activeMenuId === folder.id ? null : folder.id)}
-                            className="p-1 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                          >
-                            <MoreVertical size={15} />
-                          </button>
-                          {activeMenuId === folder.id && (
-                            <div className="absolute right-0 top-full mt-1 w-36 rounded-xl border border-[var(--border-glass)] bg-[var(--surface)] shadow-[var(--shadow-modal)] z-20 overflow-hidden text-xs">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveMenuId(null);
-                                  setRenameTarget(folder);
-                                  setRenameValue(folder.name);
-                                  setRenameOpen(true);
-                                }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
-                              >
-                                <Edit2 size={13} />
-                                Rename
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setActiveMenuId(null);
-                                  setDeleteTarget(folder);
-                                  setDeleteOpen(true);
-                                }}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                              >
-                                <Trash2 size={13} />
-                                Trash
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <span className="shrink-0 text-[10px] text-[var(--text-muted)]">{folder.fileCount}</span>
                       </div>
                     </button>
                   ))}
@@ -525,19 +407,19 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                       <tbody className="divide-y divide-[var(--border)]">
                         {/* Folders in List Mode */}
                         {filteredFolders.map(folder => (
-                          <tr 
-                            key={`folder-${folder.id}`} 
-                            onClick={() => handleFolderClick(folder.id, folder.name)}
+                          <tr
+                            key={`folder-${folder.path}`}
+                            onClick={() => handleFolderClick(folder.path, folder.name)}
                             className="cursor-pointer hover:bg-[var(--hover-bg)] transition-colors group"
                           >
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
                                 <Folder size={16} className="text-blue-500 group-hover:text-[var(--primary)]" fill="currentColor" fillOpacity={0.2} />
-                                <span className="font-semibold text-[var(--text-main)]">{folder.name}</span>
+                                <span className="font-semibold text-[var(--text-main)]">{folderLabel(folder.name)}</span>
                               </div>
                             </td>
+                            <td className="px-4 py-3 text-[var(--text-muted)]">{folder.fileCount} files</td>
                             <td className="px-4 py-3 text-[var(--text-muted)]">-</td>
-                            <td className="px-4 py-3 text-[var(--text-muted)]">{new Date(folder.updatedAt).toLocaleDateString()}</td>
                           </tr>
                         ))}
                         
@@ -557,7 +439,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                                 if (allowSelect) onSelectFile?.(file);
                                 else if (selectable) onSelectionChange(isSelected ? selectedIds.filter(id => id !== file.id) : [...selectedIds, file.id]);
                                 else if (onViewFile) onViewFile(file);
-                                else if (file.driveWebViewLink) window.open(file.driveWebViewLink, '_blank');
+                                else window.open(getFileOpenUrl(file), '_blank', 'noopener');
                               }}
                             >
                               <td className="px-4 py-3">
@@ -589,98 +471,6 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
       </div>
       </div>
     </div>
-
-    {/* New Folder Modal */}
-      <Modal open={newFolderOpen} onClose={() => !creatingFolder && setNewFolderOpen(false)} title="Create New Folder">
-        <form onSubmit={handleCreateFolder} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Folder Name</label>
-            <Input 
-              value={newFolderName} 
-              onChange={(e) => setNewFolderName(e.target.value)} 
-              placeholder="e.g. 2026 Invoices" 
-              autoFocus
-              disabled={creatingFolder}
-            />
-          </div>
-          <div className="flex justify-end gap-3 pt-2">
-            <button 
-              type="button"
-              onClick={() => setNewFolderOpen(false)}
-              disabled={creatingFolder}
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit"
-              disabled={creatingFolder || !newFolderName.trim()}
-              className="inline-flex items-center justify-center rounded-[var(--radius-button,0.5rem)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {creatingFolder ? 'Creating...' : 'Create Folder'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-    {/* Rename Modal */}
-    <Modal open={renameOpen} onClose={() => !renaming && setRenameOpen(false)} title="Rename Item">
-      <form onSubmit={handleRename} className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">New Name</label>
-          <Input 
-            value={renameValue} 
-            onChange={(e) => setRenameValue(e.target.value)} 
-            autoFocus
-            disabled={renaming}
-          />
-        </div>
-        <div className="flex justify-end gap-3 pt-2">
-          <button 
-            type="button"
-            onClick={() => setRenameOpen(false)}
-            disabled={renaming}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit"
-            disabled={renaming || !renameValue.trim() || renameValue === renameTarget?.name}
-            className="inline-flex items-center justify-center rounded-[var(--radius-button,0.5rem)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {renaming ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      </form>
-    </Modal>
-
-    {/* Delete Modal */}
-    <Modal open={deleteOpen} onClose={() => !deleting && setDeleteOpen(false)} title="Move to Trash">
-      <div className="space-y-4">
-        <p className="text-sm text-slate-600">
-          Are you sure you want to move <strong>{deleteTarget?.name}</strong> to trash?
-          Files in trash can be restored from Google Drive if needed.
-        </p>
-        <div className="flex justify-end gap-3 pt-2">
-          <button 
-            type="button"
-            onClick={() => setDeleteOpen(false)}
-            disabled={deleting}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900"
-          >
-            Cancel
-          </button>
-          <button 
-            type="button"
-            onClick={handleDelete}
-            disabled={deleting}
-            className="inline-flex items-center justify-center rounded-[var(--radius-button,0.5rem)] bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {deleting ? 'Moving...' : 'Move to Trash'}
-          </button>
-        </div>
-      </div>
-    </Modal>
 
     </>
   );

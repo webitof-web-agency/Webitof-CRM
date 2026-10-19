@@ -1,5 +1,5 @@
 const fileAssetModel = require('../models/fileAsset.model');
-const { deleteFileByDriveId } = require('./driveStorage.service');
+const { findByRef, removeFile } = require('./file.service');
 
 function normalizeKey(value = '') {
   return String(value || '').trim().toLowerCase();
@@ -50,26 +50,18 @@ function collectDriveFileIds(value, out = new Set()) {
   return out;
 }
 
-async function maybeTrashDirectUpload(driveFileId, context = {}) {
-  const normalizedDriveFileId = normalizeId(driveFileId);
-  if (!normalizedDriveFileId) return false;
-
-  const records = await fileAssetModel.list({ where: { driveFileId: normalizedDriveFileId } });
-  if (!records.length) return false;
+async function maybeTrashDirectUpload(fileRef, context = {}) {
+  const record = await findByRef(normalizeId(fileRef));
+  if (!record) return false;
 
   const expectedModule = normalizeKey(context.moduleName);
   const expectedEntityId = normalizeId(context.entityId);
+  if (!expectedModule || !expectedEntityId) return false;
+  if (normalizeKey(record.moduleName) !== expectedModule || normalizeId(record.entityId) !== expectedEntityId) {
+    return false;
+  }
 
-  const matchesContext = records.some((record) => {
-    const recordModule = normalizeKey(record.moduleName);
-    const recordEntityId = normalizeId(record.entityId);
-    if (!recordModule || !expectedModule || !expectedEntityId) return false;
-    return recordModule === expectedModule && recordEntityId === expectedEntityId;
-  });
-
-  if (!matchesContext) return false;
-
-  await deleteFileByDriveId(normalizedDriveFileId);
+  await removeFile(record);
   return true;
 }
 

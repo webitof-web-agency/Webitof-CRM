@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key, PenTool, FileCheck2, ExternalLink, Eye, Download, Pencil, EyeOff } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key, PenTool, FileCheck2, ExternalLink, Eye, Download, Pencil, EyeOff, HardDrive } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../data/indiaLocations';
 import { Modal } from '../components/ui/Modal';
 import { toast } from 'sonner';
 import { api, API_BASE_URL } from '../api/client';
+import { getFileViewUrl } from '../lib/fileUpload';
+import { StorageSettingsPanel } from '../components/settings/StorageSettingsPanel';
 import { Card } from '../components/ui/Card';
 import { Input, Textarea } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -96,11 +99,17 @@ const COMPANY_CERTIFICATE_TYPES = [
 ];
 
 export function SettingsPage() {
-  const { token } = useAuth();
+  const { token, hasPermission } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState('company');
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'company');
+  // Google Drive sign-in redirects back with ?tab=storage&gdrive=connected|error&message=…
+  const [oauthResult] = useState(() => (searchParams.get('gdrive')
+    ? { gdrive: searchParams.get('gdrive'), message: searchParams.get('message') || '' }
+    : null));
+  const clearOauthResult = useCallback(() => setSearchParams({}, { replace: true }), [setSearchParams]);
   const [uploadingLogo, setUploadingLogo] = useState(null);
   const [pendingLogos, setPendingLogos] = useState({});
   const [browserOpenKey, setBrowserOpenKey] = useState(null);
@@ -310,8 +319,8 @@ export function SettingsPage() {
             formData.append('isPublic', 'true');
             const fileRes = await api.files.upload(token, formData);
             const uploadedFile = fileRes.data?.[0];
-            if (uploadedFile && uploadedFile.driveFileId) {
-              finalLogos[key] = `${API_BASE_URL}/files/drive/${uploadedFile.driveFileId}/view`;
+            if (uploadedFile?.id) {
+              finalLogos[key] = getFileViewUrl(uploadedFile);
             }
           }
         }
@@ -370,9 +379,7 @@ export function SettingsPage() {
       formData.append('isPublic', 'true');
       const fileRes = await api.files.upload(token, formData);
       const uploaded = fileRes.data?.[0];
-      const url = uploaded?.driveFileId
-        ? `${API_BASE_URL}/files/drive/${uploaded.driveFileId}/view`
-        : URL.createObjectURL(file);
+      const url = uploaded?.id ? getFileViewUrl(uploaded) : URL.createObjectURL(file);
       const currentCompany = settings.company || {};
       let nextCompany;
 
@@ -443,7 +450,7 @@ export function SettingsPage() {
 
   async function handleCompanyFileBrowserSelect(file) {
     if (!file) return;
-    const url = file.driveFileId ? `${API_BASE_URL}/files/drive/${file.driveFileId}/view` : file.url;
+    const url = getFileViewUrl(file);
     const currentCompany = settings.company || {};
 
     if (companyBrowserKey === 'signature') {
@@ -490,6 +497,7 @@ export function SettingsPage() {
     { id: 'custom_fields', label: 'Custom Fields', icon: ListTodo },
     { id: 'followups', label: 'Follow-ups & SLA', icon: Clock3 },
     { id: 'integrations', label: 'Webhooks & API', icon: Globe },
+    { id: 'storage', label: 'Storage & Backup', icon: HardDrive },
   ];
 
   if (loading) {
@@ -1364,8 +1372,8 @@ export function SettingsPage() {
                 uploadModule="settings"
                 uploadEntityId="logos"
                 onSelect={(file) => {
-                  if (browserOpenKey && file.driveFileId) {
-                    const url = `${API_BASE_URL}/files/drive/${file.driveFileId}/view`;
+                  if (browserOpenKey && getFileViewUrl(file)) {
+                    const url = getFileViewUrl(file);
                     setPendingLogos(prev => ({
                       ...prev,
                       [browserOpenKey]: {
@@ -1837,8 +1845,8 @@ export function SettingsPage() {
                       formData.append('isPublic', 'true');
                       const fileRes = await api.files.upload(token, formData);
                       const uploaded = fileRes.data?.[0];
-                      if (uploaded?.driveFileId) {
-                        const url = `${API_BASE_URL}/files/drive/${uploaded.driveFileId}/view`;
+                      if (uploaded?.id) {
+                        const url = getFileViewUrl(uploaded);
                         updateSection(setSettings, 'invoiceTheme', 'watermarkUrl', url);
                         setPendingWatermark(null);
                       }
@@ -1944,8 +1952,8 @@ export function SettingsPage() {
               open={watermarkBrowserOpen}
               onClose={() => setWatermarkBrowserOpen(false)}
               onSelect={(file) => {
-                if (file.driveFileId) {
-                  const url = `${API_BASE_URL}/files/drive/${file.driveFileId}/view`;
+                if (getFileViewUrl(file)) {
+                  const url = getFileViewUrl(file);
                   setPendingWatermark({ file: null, previewUrl: url, driveUrl: url });
                 }
                 setWatermarkBrowserOpen(false);
@@ -2473,6 +2481,15 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
+          )}
+
+          {activeTab === 'storage' && (
+            <StorageSettingsPanel
+              token={token}
+              canWrite={hasPermission('settings.write')}
+              oauthResult={oauthResult}
+              onOauthResultShown={clearOauthResult}
+            />
           )}
 
           {activeTab === 'integrations' && (
@@ -3171,7 +3188,7 @@ curl_close($ch);
         onClose={() => setBrowserOpenKey(null)}
         onSelect={(file) => {
           if (browserOpenKey) {
-            updateSection(setSettings, 'logos', browserOpenKey, `${API_BASE_URL}/files/drive/${file.driveFileId}/view`);
+            updateSection(setSettings, 'logos', browserOpenKey, getFileViewUrl(file));
             setBrowserOpenKey(null);
           }
         }}

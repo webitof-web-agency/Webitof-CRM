@@ -5,7 +5,8 @@ import { Tabs } from '../ui/Tabs';
 import { Input, Textarea } from '../ui/Input';
 import { Button } from '../ui/Button';
 import imageCompression from 'browser-image-compression';
-import { API_BASE_URL, api } from '../../api/client';
+import { api } from '../../api/client';
+import { getFileViewUrl } from '../../lib/fileUpload';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
 
@@ -264,11 +265,11 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
 
       const uploadRes = await api.files.upload(token, formData);
       const uploadedFile = uploadRes.data?.[0];
-      if (!uploadedFile?.driveFileId) {
+      if (!uploadedFile?.id) {
         throw new Error('Upload failed');
       }
 
-      const nextAvatarUrl = `${API_BASE_URL}/files/drive/${uploadedFile.driveFileId}/view`;
+      const nextAvatarUrl = getFileViewUrl(uploadedFile);
       setAvatarUrl(nextAvatarUrl);
       setAvatarFileId(uploadedFile.id);
       toast.success('Profile picture updated!');

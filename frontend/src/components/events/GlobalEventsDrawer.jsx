@@ -249,7 +249,7 @@ export function GlobalEventsDrawer({ open, onClose, token, user, sharedLabels = 
     try {
       const response = await api.files.list(token, '', 'events', draftId);
       const files = Array.isArray(response.data) ? response.data : [];
-      await Promise.allSettled(files.map((file) => api.files.deleteDriveFile(token, file.driveFileId || file.id)));
+      await Promise.allSettled(files.map((file) => api.files.remove(token, file.driveFileId || file.id)));
       api.cache.invalidate('/files');
     } catch (error) {
       console.error('Failed to clean up draft event attachments', error);

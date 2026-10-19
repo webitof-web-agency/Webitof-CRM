@@ -7,7 +7,7 @@ const userModel = require('../models/user.model');
 const roleModel = require('../models/role.model');
 const permissionModel = require('../models/permission.model');
 const { sendPasswordResetOtpEmail } = require('./mailer.service');
-const { deleteFile } = require('./driveStorage.service');
+const { removeFileByRef } = require('./file.service');
 const { normalizeAllowedPipelineIds } = require('./leadPipelineAccess.service');
 
 const PASSWORD_RESET_OTP_MINUTES = Math.max(1, toNumber(process.env.PASSWORD_RESET_OTP_MINUTES, 10));
@@ -380,7 +380,7 @@ async function updateUser(userId, data = {}, meta = {}) {
     await userModel.update(userId, patch, client);
 
     if (currentUser?.avatarFileId && data.avatarFileId && String(currentUser.avatarFileId) !== String(data.avatarFileId)) {
-      await deleteFile(currentUser.avatarFileId);
+      await removeFileByRef(currentUser.avatarFileId);
     }
 
     if (Array.isArray(data.roleIds)) {

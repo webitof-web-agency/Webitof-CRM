@@ -7,7 +7,8 @@ import {
   User as UserIcon, Check, X, Briefcase, Building2, Tag
 } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
-import { API_BASE_URL, api } from '../api/client';
+import { api } from '../api/client';
+import { getFileViewUrl } from '../lib/fileUpload';
 import { useAuth } from '../context/AuthContext';
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { Input } from '../components/ui/Input';
@@ -168,11 +169,11 @@ export function UserDetailPage() {
 
       const uploadRes = await api.files.upload(token, formData);
       const uploadedFile = uploadRes.data?.[0];
-      if (!uploadedFile?.driveFileId) {
+      if (!uploadedFile?.id) {
         throw new Error('Upload failed');
       }
 
-      const nextAvatarUrl = `${API_BASE_URL}/files/drive/${uploadedFile.driveFileId}/view`;
+      const nextAvatarUrl = getFileViewUrl(uploadedFile);
       setAvatarUrl(nextAvatarUrl);
       setAvatarFileId(uploadedFile.id);
       setUser((prev) => (prev ? { ...prev, avatarUrl: nextAvatarUrl, avatarFileId: uploadedFile.id } : prev));

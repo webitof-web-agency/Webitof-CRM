@@ -18,6 +18,8 @@ const { scheduleRenewalAutomation } = require('./services/renewalAutomation.serv
 const { scheduleOutsourcingAutomation } = require('./services/outsourcingAutomation.service');
 const { registerSocketHub } = require('./services/socketHub.service');
 const { createFollowUpScheduler } = require('./services/followUpEngine.service');
+const { runScheduledBackupIfDue } = require('./services/googleDrive/backup.service');
+const googleDriveController = require('./controllers/googleDrive.controller');
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
@@ -41,19 +43,8 @@ app.get('/', (req, res) => {
 
 app.use(API_PREFIX, apiRoutes);
 
-// ─── Manual Backup Trigger (Admin only) ───────────────────────────────────────
-app.post(`${API_PREFIX}/admin/backup/run`, requireAuth, requirePermission('settings.write'), async (req, res) => {
-  try {
-    const { runBackup } = require('./scripts/backup');
-    console.log('📦 Manual backup triggered via API');
-    void runBackup().catch((error) => {
-      console.error('Manual backup failed:', error.message);
-    });
-    res.json({ success: true, message: 'Backup started in background' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Kept for older clients; same behaviour as POST /api/google-drive/backups/run.
+app.post(`${API_PREFIX.replace(/\/+$/, '')}/admin/backup/run`, requireAuth, requirePermission('settings.write'), googleDriveController.runBackupNow);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -69,35 +60,18 @@ async function start() {
     console.log(`Webitof CRM API listening on port ${PORT}`);
   });
 
-  // ─── Daily Backup Cron ──────────────────────────────────────────────────────
-  // Runs every day at 11:55 PM IST — backs up entire DB to Google Drive
-  const hasDriveCreds = process.env.GOOGLE_DRIVE_BACKUP_FOLDER_ID
-    || process.env.GOOGLE_DRIVE_REFRESH_TOKEN
-    || process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-
-  if (hasDriveCreds) {
-    try {
-      const cron = require('node-cron');
-      const { runBackup } = require('./scripts/backup');
-      const BACKUP_SCHEDULE = process.env.BACKUP_CRON_SCHEDULE || '55 23 * * *'; // 11:55 PM daily
-
-      cron.schedule(BACKUP_SCHEDULE, () => {
-        console.log('\n🕐 Scheduled daily backup triggered...');
-        runBackup().then(result => {
-          if (!result.success) console.error('❌ Scheduled backup failed:', result.error);
-        }).catch(err => {
-          console.error('❌ Backup cron error:', err.message);
-        });
-      }, { timezone: 'Asia/Kolkata' });
-
-      console.log(`✅ Daily DB backup scheduled — runs at 11:55 PM IST every night`);
-    } catch (cronErr) {
-      console.error('⚠️  Could not start backup cron:', cronErr.message);
-    }
-  } else {
-    console.log('ℹ️  Backup cron skipped — configure GOOGLE_DRIVE_BACKUP_FOLDER_ID in .env');
-  }
-  // ────────────────────────────────────────────────────────────────────────────
+  // ─── Daily Database Backup ──────────────────────────────────────────────────
+  // Checked every 15 minutes; runs once per IST date at or after GDRIVE_BACKUP_HOUR_IST.
+  const backupCycle = () => {
+    runScheduledBackupIfDue()
+      .then((result) => {
+        if (result.status === 'FAILED') console.error('Scheduled backup failed:', result.error);
+        else if (result.status === 'SUCCESS') console.log(`Scheduled backup uploaded: ${result.fileName}`);
+      })
+      .catch((error) => console.error('Backup schedule check failed:', error.message));
+  };
+  backupCycle();
+  setInterval(backupCycle, 15 * 60 * 1000).unref();
 
   try {
     const AMC_AUTOMATION_SCHEDULE = process.env.AMC_AUTOMATION_CRON || '15 9 * * *';

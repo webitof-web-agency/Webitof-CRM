@@ -5,7 +5,7 @@ const {
   resetPasswordWithOtp
 } = require('../services/auth.service');
 const userModel = require('../models/user.model');
-const { deleteFile } = require('../services/driveStorage.service');
+const { removeFileByRef } = require('../services/file.service');
 
 async function loginController(req, res, next) {
   try {
@@ -94,7 +94,7 @@ async function updateProfileController(req, res, next) {
     if (!updatedUser) return res.status(404).json({ success: false, message: 'User not found' });
 
     if (currentUser?.avatarFileId && avatarFileId && String(currentUser.avatarFileId) !== String(avatarFileId)) {
-      await deleteFile(currentUser.avatarFileId);
+      await removeFileByRef(currentUser.avatarFileId);
     }
 
     const profile = await getUserAccessProfile(userId);
@@ -113,7 +113,7 @@ async function deleteAvatarController(req, res, next) {
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     if (user.avatarFileId) {
-      await deleteFile(user.avatarFileId);
+      await removeFileByRef(user.avatarFileId);
     }
 
     await userModel.update(userId, { avatarUrl: null, avatarFileId: null });

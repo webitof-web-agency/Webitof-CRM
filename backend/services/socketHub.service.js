@@ -32,6 +32,9 @@ function registerSocketHub(httpServer, options = {}) {
       }
 
       const payload = jwt.verify(token, getJwtSecret());
+      if (payload.purpose || payload.scope) {
+        return next(new Error('Authentication required'));
+      }
       socket.data.user = {
         id: payload.uid || payload.sub || payload.id || null,
         email: payload.email || '',

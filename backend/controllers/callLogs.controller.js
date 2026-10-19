@@ -4,6 +4,9 @@ const multer = require('multer');
 const { query } = require('../config/db');
 const { createId, nowIso } = require('../utils/format');
 const { broadcastEvent } = require('../services/socketHub.service');
+const { AUDIO_TYPES, removeFileByRef, saveUpload } = require('../services/file.service');
+
+const MAX_RECORDING_BYTES = 100 * 1024 * 1024;
 
 const RECORDINGS_DIR = path.join(__dirname, '..', 'uploads', 'recordings');
 if (!fs.existsSync(RECORDINGS_DIR)) {
@@ -48,30 +51,11 @@ if (!fs.existsSync(SAMPLE_AUDIO_PATH)) {
   }
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, RECORDINGS_DIR);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname || '.mp3') || '.mp3';
-    const cleanName = path.basename(file.originalname || 'rec', ext).replace(/[^a-zA-Z0-9_-]/g, '_');
-    cb(null, `call-rec-${Date.now()}-${cleanName.slice(0, 30)}${ext}`);
-  }
-});
-
+// Recordings are stored through the active storage provider (local disk or Google Drive).
+// Recordings saved before that stay in RECORDINGS_DIR and keep streaming from there.
 const upload = multer({
-  storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB
-  fileFilter: (req, file, cb) => {
-    const mime = (file.mimetype || '').toLowerCase();
-    const ext = path.extname(file.originalname || '').toLowerCase();
-    const allowedExts = ['.mp3', '.wav', '.m4a', '.aac', '.ogg', '.amr', '.3gp', '.flac', '.webm', '.caf'];
-    if (mime.startsWith('audio/') || mime.startsWith('video/') || allowedExts.includes(ext) || mime === 'application/octet-stream') {
-      cb(null, true);
-    } else {
-      cb(null, true); // Allow upload flexibly for mobile device recordings
-    }
-  }
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_RECORDING_BYTES }
 });
 
 function normalizePhone(val) {
@@ -456,16 +440,33 @@ module.exports = {
         return res.status(400).json({ success: false, message: 'Audio recording file or recordingUrl is required' });
       }
 
-      const fileName = file ? file.filename : (body.recordingFileName || '');
-      const fileSize = file ? file.size : Number(body.recordingFileSize || 0);
-      const mimeType = file ? file.mimetype : (body.recordingMimeType || 'audio/mp3');
-      const recordingUrl = file ? `/api/call-logs/recordings/${fileName}` : body.recordingUrl;
-      const durationSeconds = Number(body.durationSeconds || body.duration_seconds || 0);
-
       const callId = body.callId || body.call_id || body.clientReferenceId;
+      const targetCallId = callId || createId('call');
+
+      let stored = null;
+      if (file) {
+        stored = await saveUpload({
+          buffer: file.buffer,
+          originalName: file.originalname || 'recording.mp3',
+          moduleName: 'calls',
+          entityId: targetCallId,
+          types: AUDIO_TYPES,
+          maxBytes: MAX_RECORDING_BYTES
+        });
+      }
+
+      const fileName = stored ? stored.storedName : (body.recordingFileName || '');
+      const fileSize = stored ? stored.sizeBytes : Number(body.recordingFileSize || 0);
+      const mimeType = stored ? stored.mimeType : (body.recordingMimeType || 'audio/mp3');
+      const recordingUrl = stored ? `${(process.env.API_PREFIX || '/api').replace(/\/+$/, '')}${stored.viewUrl}` : body.recordingUrl;
+      const recordingFileAssetId = stored ? stored.id : null;
+      const durationSeconds = Number(body.durationSeconds || body.duration_seconds || 0);
 
       let callRow;
       if (callId) {
+        const previous = await query('SELECT recording_file_asset_id FROM call_logs WHERE id = $1', [callId]);
+        const previousAssetId = previous.rows[0]?.recording_file_asset_id;
+
         // Update existing call log
         const updateSql = `
           UPDATE call_logs
@@ -476,19 +477,24 @@ module.exports = {
             recording_mime_type = $4,
             recording_duration = GREATEST(recording_duration, $5),
             duration_seconds = CASE WHEN duration_seconds > 0 THEN duration_seconds ELSE $5 END,
+            recording_file_asset_id = $7,
             updated_at = now()
           WHERE id = $6
           RETURNING *
         `;
-        const updateRes = await query(updateSql, [recordingUrl, fileName, fileSize, mimeType, durationSeconds, callId]);
+        const updateRes = await query(updateSql, [recordingUrl, fileName, fileSize, mimeType, durationSeconds, callId, recordingFileAssetId]);
         if (updateRes.rows[0]) {
           callRow = updateRes.rows[0];
+          // The new recording replaced an earlier stored one.
+          if (stored && previousAssetId && previousAssetId !== stored.id) {
+            await removeFileByRef(previousAssetId);
+          }
         }
       }
 
       if (!callRow) {
         // Create new call log with recording
-        const id = callId || createId('call');
+        const id = targetCallId;
         const userId = body.userId || body.user_id || req.user?.id || null;
         const staffName = body.staffName || body.staff_name || req.user?.fullName || 'Staff';
         const staffPhone = body.staffPhone || body.staff_phone || req.user?.phone || '';
@@ -505,14 +511,14 @@ module.exports = {
             duration_seconds, started_at, outcome, notes,
             recording_url, recording_file_name, recording_file_size,
             recording_duration, recording_mime_type, source, sync_status,
-            created_at, updated_at
+            recording_file_asset_id, created_at, updated_at
           ) VALUES (
             $1, $2, $3, $4,
             $5, $6, $7, 'completed',
             $8, now(), $9, $10,
             $11, $12, $13,
             $8, $14, 'mobile_app', 'synced',
-            now(), now()
+            $15, now(), now()
           ) RETURNING *
         `;
         const insertRes = await query(insertSql, [
@@ -520,7 +526,7 @@ module.exports = {
           customerPhone || 'Direct Call', customerName, callType,
           durationSeconds, outcome, notes,
           recordingUrl, fileName, fileSize,
-          mimeType
+          mimeType, recordingFileAssetId
         ]);
         callRow = insertRes.rows[0];
       }
@@ -661,8 +667,10 @@ module.exports = {
   remove: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const findRes = await query('SELECT recording_file_name FROM call_logs WHERE id = $1', [id]);
-      if (findRes.rows[0]?.recording_file_name) {
+      const findRes = await query('SELECT recording_file_name, recording_file_asset_id FROM call_logs WHERE id = $1', [id]);
+      if (findRes.rows[0]?.recording_file_asset_id) {
+        await removeFileByRef(findRes.rows[0].recording_file_asset_id);
+      } else if (findRes.rows[0]?.recording_file_name) {
         const filePath = path.join(RECORDINGS_DIR, findRes.rows[0].recording_file_name);
         if (fs.existsSync(filePath)) {
           try { fs.unlinkSync(filePath); } catch (_) {}

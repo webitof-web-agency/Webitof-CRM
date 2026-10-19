@@ -1,4 +1,12 @@
 const c = require("./core");
+const fileAssetModel = require("../../models/fileAsset.model");
+const { readFileBuffer, removeFile, saveUpload } = require("../file.service");
+const HRM_DOCUMENT_TYPES = {
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+};
 const { RECORDS } = require("../../config/hrmRecords");
 async function record(user, kind, body, id = null, db = null) {
   const config = RECORDS[kind];
@@ -319,19 +327,43 @@ async function uploadDocument(user, body, file, db = null) {
               .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
           : b[0] === 255 && b[1] === 216 && b[2] === 255;
     if (!valid) c.fail("File content does not match its type");
-    const r = await c.insert(tx, "hrm_documents", {
-      employeeId: e.id,
-      title: c.text(body.title, "Document title", 200, true),
-      category: c.text(body.category, "Document category", 100, true),
-      fileName: require("node:path")
-        .basename(file.originalname)
-        .replace(/[\r\n]/g, ""),
-      mimeType: file.mimetype,
-      sizeBytes: b.length,
-      content: b,
-      expiresOn: c.date(body.expiresOn, "Expiry date", true),
-      createdBy: user.id,
+    const fileName = require("node:path")
+      .basename(file.originalname)
+      .replace(/[\r\n]/g, "");
+    const extension = require("node:path").extname(fileName).toLowerCase();
+    if (HRM_DOCUMENT_TYPES[extension] !== file.mimetype)
+      c.fail("File extension does not match its type");
+    const title = c.text(body.title, "Document title", 200, true);
+    const category = c.text(body.category, "Document category", 100, true);
+    const expiresOn = c.date(body.expiresOn, "Expiry date", true);
+    // Stored through the active storage provider (local disk or Google Drive).
+    const stored = await saveUpload({
+      buffer: b,
+      originalName: fileName,
+      moduleName: "hrm",
+      entityId: e.id,
+      types: HRM_DOCUMENT_TYPES,
+      maxBytes: 10485760,
+      dbClient: tx,
     });
+    let r;
+    try {
+      r = await c.insert(tx, "hrm_documents", {
+        employeeId: e.id,
+        title,
+        category,
+        fileName,
+        mimeType: file.mimetype,
+        sizeBytes: b.length,
+        content: null,
+        fileAssetId: stored.id,
+        expiresOn,
+        createdBy: user.id,
+      });
+    } catch (error) {
+      await removeFile(stored);
+      throw error;
+    }
     delete r.content;
     await c.audit(
       tx,
@@ -378,6 +410,11 @@ async function document(user, id, { verify = false } = {}, db = null) {
     const r = c.camel(
       (await tx.query("SELECT * FROM hrm_documents WHERE id=$1", [id])).rows[0],
     );
+    if (!r.content && r.fileAssetId) {
+      const asset = await fileAssetModel.findById(r.fileAssetId, tx);
+      r.content = asset ? await readFileBuffer(asset) : null;
+      if (!r.content) c.fail("Document file could not be read from storage", 502);
+    }
     await c.audit(
       tx,
       user,

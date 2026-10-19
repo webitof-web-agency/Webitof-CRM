@@ -5,7 +5,8 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { User, Mail, Shield, Camera, Key, Save, Phone, MapPin, Trash2, Upload, X, Image } from 'lucide-react';
-import { api, API_BASE_URL } from '../api/client';
+import { api } from '../api/client';
+import { getFileViewUrl } from '../lib/fileUpload';
 import { toast } from 'sonner';
 import imageCompression from 'browser-image-compression';
 
@@ -46,7 +47,7 @@ export function ProfilePage() {
         const uploadedFile = uploadRes.data?.[0];
 
         if (uploadedFile) {
-          payload.avatarUrl = `${API_BASE_URL}/files/drive/${uploadedFile.driveFileId}/view`;
+          payload.avatarUrl = getFileViewUrl(uploadedFile);
           payload.avatarFileId = uploadedFile.id;
         } else {
           throw new Error("Upload failed");

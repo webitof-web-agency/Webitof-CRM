@@ -61,10 +61,9 @@ export function FilesPage() {
       }
       
       formData.append('moduleName', 'general');
-      formData.append('folderId', ''); // Root folder for direct uploads
-      
+
       await api.files.upload(token, formData);
-      toast.success('Files uploaded to Google Drive');
+      toast.success('Files uploaded');
       setUploadOpen(false);
       setRefreshTrigger(prev => prev + 1); // Refresh FileBrowser
     } catch (error) {
@@ -78,13 +77,13 @@ export function FilesPage() {
     if (!deleteTarget) return;
     setBusy(true);
     try {
-      await api.files.deleteDriveFile(token, deleteTarget.id);
-      toast.success('Moved to trash');
+      await api.files.remove(token, deleteTarget.id);
+      toast.success('File deleted');
       setDeleteTarget(null);
       await load();
       setViewingFile(null); // Close the modal if it's open
     } catch (error) {
-      toast.error(error.message || 'Unable to move to trash');
+      toast.error(error.message || 'Unable to delete the file');
     } finally {
       setBusy(false);
     }
@@ -157,9 +156,9 @@ export function FilesPage() {
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title="Move to Trash"
-        description={`Are you sure you want to move ${deleteTarget?.name || deleteTarget?.originalName} to trash?`}
-        confirmLabel={busy ? 'Moving...' : 'Move to Trash'}
+        title="Delete file"
+        description={`Delete ${deleteTarget?.name || deleteTarget?.originalName}? Records that link to it will no longer open it. This can't be undone.`}
+        confirmLabel={busy ? 'Deleting...' : 'Delete'}
         confirmVariant="danger"
         onConfirm={deleteFile}
         onClose={() => setDeleteTarget(null)}

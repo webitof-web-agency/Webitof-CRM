@@ -42,8 +42,14 @@ router.get('/health', (req, res) => {
 });
 
 const filesController = require('../controllers/files.controller');
+const googleDriveController = require('../controllers/googleDrive.controller');
+const { requirePermission } = require('../middlewares/auth');
 
-router.get('/files/drive/:driveFileId/view', filesController.viewDriveFile);
+// File ids are random 128-bit values, so these links work in <img>/<audio> without a session.
+router.get('/files/:id/view', filesController.viewFile);
+router.get('/files/drive/:driveFileId/view', filesController.viewLegacyDriveFile);
+// Google redirects the browser here; the signed OAuth state is what authorizes it.
+router.get('/google-drive/oauth/callback', googleDriveController.oauthCallback);
 
 router.use('/auth', authRoutes);
 
@@ -84,6 +90,8 @@ router.use('/masters', mastersRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/files', filesRoutes);
+router.use('/google-drive', require('./googleDrive.routes'));
+router.get('/backup/download', requirePermission('settings.write'), googleDriveController.downloadLocalBackup);
 router.use('/notifications', notificationsRoutes);
 router.use('/users', usersRoutes);
 router.use('/roles', rolesRoutes);

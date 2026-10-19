@@ -127,6 +127,25 @@ export async function request(path, { method = 'GET', body, token, headers = {},
   return data;
 }
 
+// Fetches an authenticated download (e.g. a database backup) and saves it in the browser.
+export async function downloadWithAuth(path, token, fallbackName = 'download') {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (!response.ok) await parseResponse(response);
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const match = /filename="([^"]+)"/.exec(disposition);
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = match?.[1] || fallbackName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export const api = {
   auth: {
     login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
@@ -236,15 +255,29 @@ export const api = {
   files: {
     list: (token, search = '', moduleName = '', entityId = '', folderKey = '') =>
       request(`/files?search=${search}&moduleName=${moduleName}&entityId=${entityId}&folderKey=${folderKey}`, { token, skipCache: true }),
-    driveBrowse: (token, folderId = '') =>
-      request(`/files/drive/browse?folderId=${folderId}`, { token, skipCache: true }),
+    browse: (token, path = '', search = '') =>
+      request(`/files/browse?path=${encodeURIComponent(path)}&search=${encodeURIComponent(search)}`, { token, skipCache: true }),
     get: (token, id) => request(`/files/${id}`, { token, skipCache: true }),
     upload: (token, formData) => request('/files/upload', { method: 'POST', token, formData }),
     archive: (token, id) => request(`/files/${id}/archive`, { method: 'PATCH', token }),
-    createFolder: (token, payload) => request('/files/drive/folder', { method: 'POST', token, body: payload }),
-    renameDriveFile: (token, driveFileId, name) => request(`/files/drive/${driveFileId}/rename`, { method: 'PUT', token, body: { name } }),
-    deleteDriveFile: (token, driveFileId) => request(`/files/drive/${driveFileId}`, { method: 'DELETE', token }),
-    getUsage: (token) => request('/files/drive/usage', { token, skipCache: true })
+    // id is a file id, or the Drive id of an older upload.
+    rename: (token, id, name) => request(`/files/${encodeURIComponent(id)}/rename`, { method: 'PUT', token, body: { name } }),
+    remove: (token, id) => request(`/files/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+    getUsage: (token) => request('/files/usage', { token, skipCache: true })
+  },
+  storage: {
+    get: (token) => request('/settings/storage', { token, skipCache: true }),
+    save: (token, activeProvider) => request('/settings/storage', { method: 'PUT', token, body: { activeProvider } }),
+    test: (token, provider) => request('/settings/storage/test', { method: 'POST', token, body: { provider } })
+  },
+  googleDrive: {
+    status: (token) => request('/google-drive/status', { token, skipCache: true }),
+    getConfig: (token) => request('/google-drive/config', { token, skipCache: true }),
+    saveConfig: (token, payload) => request('/google-drive/config', { method: 'PUT', token, body: payload }),
+    connect: (token) => request('/google-drive/connect', { method: 'POST', token }),
+    disconnect: (token) => request('/google-drive/disconnect', { method: 'POST', token }),
+    backups: (token) => request('/google-drive/backups', { token, skipCache: true }),
+    runBackup: (token) => request('/google-drive/backups/run', { method: 'POST', token })
   },
   callLogs: {
     list: (token, query = {}) => {

@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Activity, CalendarDays, CalendarPlus, CheckCircle2, ChevronLeft, ChevronRight, Clock3, Edit3, HelpCircle, Mail, MapPin, Mic, Paperclip, Phone, Save, Tag, UserPlus, Users, Wand2, X, Trash2, Layers, MoreHorizontal, Hexagon, CheckCircle, Search, User, RefreshCcw, PlusCircle, Anchor, Eye, Printer, FileText, Download, MessageSquare, Send, Sparkles, ArrowRightCircle, PhoneCall, Bell, CheckSquare, MessageCircle, Zap, Volume2, RotateCw, ExternalLink, PhoneIncoming, PhoneOutgoing, PhoneMissed, PhoneOff, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
+import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
 import { useAuth } from '../../context/AuthContext';
 import { PageLoader } from '../../components/ui/Loader';
 import { Card } from '../../components/ui/Card';
@@ -329,9 +330,9 @@ function AttachmentChips({ attachments = [], onRemove }) {
           className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
         >
           <span className="truncate">{file.name}</span>
-          {file.driveWebViewLink ? (
+          {getFileOpenUrl(file) ? (
             <a
-              href={file.driveWebViewLink}
+              href={getFileOpenUrl(file)}
               target="_blank"
               rel="noreferrer"
               className="text-[var(--primary)] hover:underline"
@@ -958,7 +959,7 @@ function extractCallData(item) {
     item.payload?.callRecordingUrl ||
     item.recordingUrl ||
     item.recordingFile?.url ||
-    item.recordingFile?.driveWebViewLink ||
+    getFileViewUrl(item.recordingFile) ||
     (Array.isArray(item.attachments) && item.attachments.some((a) => a?.kind === 'call_recording' || (typeof a?.url === 'string' && a.url.match(/\.(mp3|wav|ogg|m4a|aac|webm)($|\?)/i))))
   );
   const isCall = kind === 'call' || kind === 'call_logged' || title.includes('call') || hasRecording;
@@ -970,7 +971,7 @@ function extractCallData(item) {
     item.payload?.callRecordingUrl ||
     item.recordingUrl ||
     item.recordingFile?.url ||
-    item.recordingFile?.driveWebViewLink ||
+    getFileViewUrl(item.recordingFile) ||
     (Array.isArray(item.attachments) && item.attachments.find((a) => a?.kind === 'call_recording' || (typeof a?.url === 'string' && a.url.match(/\.(mp3|wav|ogg|m4a|aac|webm)($|\?)/i)))?.url) ||
     null;
 
@@ -1860,9 +1861,9 @@ function AttachmentList({ items = [] }) {
       {files.map((file) => {
         const key = file.driveFileId || file.id || file.name;
         const label = file.name || file.originalName || 'File';
-        if (file.driveWebViewLink) {
+        if (getFileOpenUrl(file)) {
           return (
-            <a key={key} href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs font-medium text-[var(--primary)] hover:underline">
+            <a key={key} href={getFileOpenUrl(file)} target="_blank" rel="noreferrer" className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-xs font-medium text-[var(--primary)] hover:underline">
               {label}
             </a>
           );
@@ -4582,8 +4583,8 @@ function ActivityViewModal({
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {item.attachments.map((file) => {
-                const fileUrl = file.driveWebViewLink || file.webContentLink || file.url || `#${file.driveFileId || file.id}`;
-                const downloadUrl = file.webContentLink || file.downloadUrl || file.driveWebViewLink || file.url;
+                const fileUrl = getFileOpenUrl(file) || file.webContentLink || file.url || `#${file.driveFileId || file.id}`;
+                const downloadUrl = file.webContentLink || file.downloadUrl || getFileOpenUrl(file) || file.url;
 
                 return (
                   <div
@@ -4605,7 +4606,7 @@ function ActivityViewModal({
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      {file.driveWebViewLink || file.url ? (
+                      {getFileOpenUrl(file) || file.url ? (
                         <a
                           href={fileUrl}
                           target="_blank"
@@ -7227,9 +7228,9 @@ export function LeadDetailsPage() {
                   {pagedFiles.length ? pagedFiles.map((file) => (
                     <a
                       key={file.id}
-                      href={file.driveWebViewLink || `#${file.id}`}
-                      target={file.driveWebViewLink ? '_blank' : undefined}
-                      rel={file.driveWebViewLink ? 'noreferrer' : undefined}
+                      href={getFileOpenUrl(file) || `#${file.id}`}
+                      target={getFileOpenUrl(file) ? '_blank' : undefined}
+                      rel={getFileOpenUrl(file) ? 'noreferrer' : undefined}
                       className="rounded-2xl border border-[var(--border-muted)] bg-[var(--surface-2)] p-4 transition hover:border-[var(--primary)] hover:shadow-sm"
                     >
                       <div className="flex items-start gap-3">
@@ -7546,7 +7547,7 @@ export function LeadDetailsPage() {
                             {item.attachments.slice(0, 3).map((file) => (
                               <a
                                 key={file.driveFileId || file.id}
-                                href={file.driveWebViewLink || file.webContentLink || file.url || `#${file.driveFileId || file.id}`}
+                                href={getFileOpenUrl(file) || file.webContentLink || file.url || `#${file.driveFileId || file.id}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-main)] hover:border-[var(--primary)] hover:text-[var(--primary)] transition cursor-pointer"
@@ -8211,9 +8212,9 @@ export function LeadDetailsPage() {
                                 {item.attachments.slice(0, 4).map((file) => (
                                   <a
                                     key={file.driveFileId || file.id}
-                                    href={file.driveWebViewLink || `#${file.driveFileId || file.id}`}
-                                    target={file.driveWebViewLink ? '_blank' : undefined}
-                                    rel={file.driveWebViewLink ? 'noreferrer' : undefined}
+                                    href={getFileOpenUrl(file) || `#${file.driveFileId || file.id}`}
+                                    target={getFileOpenUrl(file) ? '_blank' : undefined}
+                                    rel={getFileOpenUrl(file) ? 'noreferrer' : undefined}
                                     className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)] hover:border-[var(--primary)] hover:text-[var(--text-main)] transition cursor-pointer"
                                   >
                                     <Paperclip size={11} />

@@ -22,6 +22,10 @@ async function requireAuth(req, res, next) {
     }
 
     const decoded = jwt.verify(token, getJwtSecret());
+    // OAuth state and other purpose-bound tokens share JWT_SECRET but are never sessions.
+    if (decoded.purpose || decoded.scope) {
+      return res.status(401).json({ success: false, message: 'Invalid token payload' });
+    }
     const userId = decoded.sub || decoded.uid || decoded.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Invalid token payload' });

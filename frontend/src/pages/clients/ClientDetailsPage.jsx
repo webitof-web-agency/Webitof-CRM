@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
+import { getFileOpenUrl } from '../../lib/fileUpload';
 import { useAuth } from '../../context/AuthContext';
 import { exportToCsv } from '../../lib/exportCsv';
 import { PageLoader } from '../../components/ui/Loader';
@@ -568,9 +569,9 @@ function ActivityCard({ item, onEdit, onDelete }) {
           {item.attachments.map((file) => (
             <a
               key={file.driveFileId || file.id}
-              href={file.driveWebViewLink || `#${file.driveFileId || file.id}`}
-              target={file.driveWebViewLink ? '_blank' : undefined}
-              rel={file.driveWebViewLink ? 'noreferrer' : undefined}
+              href={getFileOpenUrl(file) || `#${file.driveFileId || file.id}`}
+              target={getFileOpenUrl(file) ? '_blank' : undefined}
+              rel={getFileOpenUrl(file) ? 'noreferrer' : undefined}
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-300"
             >
               <Paperclip size={12} />
@@ -2427,9 +2428,9 @@ export function ClientDetailsPage() {
                 {files.length ? files.map((file) => (
                   <a
                     key={file.id}
-                    href={file.driveWebViewLink || `#${file.id}`}
-                    target={file.driveWebViewLink ? '_blank' : undefined}
-                    rel={file.driveWebViewLink ? 'noreferrer' : undefined}
+                    href={getFileOpenUrl(file) || `#${file.id}`}
+                    target={getFileOpenUrl(file) ? '_blank' : undefined}
+                    rel={getFileOpenUrl(file) ? 'noreferrer' : undefined}
                     className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-[var(--primary)] hover:shadow-sm"
                   >
                     <div className="flex items-start gap-3">

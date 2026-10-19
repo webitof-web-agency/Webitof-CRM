@@ -13,7 +13,8 @@ import {
   UsersRound
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api, API_BASE_URL } from '../api/client';
+import { api } from '../api/client';
+import { getFileViewUrl } from '../lib/fileUpload';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -169,8 +170,8 @@ export function QuotationMasterPage() {
       data.append('isPublic', 'true');
       const response = await api.files.upload(token, data);
       const uploaded = response?.data?.[0];
-      if (!uploaded?.driveFileId) throw new Error('Upload did not return a file reference');
-      const imageUrl = `${API_BASE_URL}/files/drive/${uploaded.driveFileId}/view`;
+      if (!uploaded?.id) throw new Error('Upload did not return a file reference');
+      const imageUrl = getFileViewUrl(uploaded);
       if (target === 'background') {
         setForm((current) => ({ ...current, backgroundImageUrl: imageUrl, backgroundImageFileId: uploaded.id || '' }));
       } else {

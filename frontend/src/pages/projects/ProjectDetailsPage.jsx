@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
+import { getFileOpenUrl } from '../../lib/fileUpload';
 import { useAuth } from '../../context/AuthContext';
 import { PageLoader } from '../../components/ui/Loader';
 import { Card } from '../../components/ui/Card';
@@ -1941,8 +1942,8 @@ export function ProjectDetailsPage() {
                           <div className="font-semibold text-slate-900">{file.name}</div>
                           <div className="mt-1 text-xs text-slate-500">{file.activityTitle || 'Attachment'}</div>
                         </div>
-                        {file.driveWebViewLink ? (
-                          <a href={file.driveWebViewLink} target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
+                        {getFileOpenUrl(file) ? (
+                          <a href={getFileOpenUrl(file)} target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
                             Open
                           </a>
                         ) : null}

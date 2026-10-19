@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Modal } from './Modal';
 import { Eye, Download, Copy, Check, FileText, Image as ImageIcon, Video, FileArchive, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { API_BASE_URL } from '../../api/client';
+import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
 
 function getFileIcon(mimeType = '') {
   if (mimeType.startsWith('image/')) return ImageIcon;
@@ -19,6 +19,9 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
   const isImage = file.mimeType?.startsWith('image/');
   const Icon = getFileIcon(file.mimeType);
   const name = file.originalName || file.storedName || file.name || 'Unknown File';
+  const viewUrl = getFileViewUrl(file);
+  const openUrl = getFileOpenUrl(file);
+  const downloadUrl = viewUrl ? `${viewUrl}${viewUrl.includes('?') ? '&' : '?'}download=1` : file.driveWebContentLink || '';
 
   const formatSize = (bytes) => {
     if (!bytes) return '0 B';
@@ -30,7 +33,7 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(file.driveWebViewLink || file.driveWebContentLink || '');
+      await navigator.clipboard.writeText(openUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -44,9 +47,9 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
         
         {/* Left Side: Preview */}
         <div className="w-full md:w-[55%] lg:w-[60%] shrink-0 bg-[var(--surface-2)]/50 rounded-2xl border border-[var(--border)] flex items-center justify-center overflow-hidden min-h-[300px]">
-          {isImage && file.driveFileId ? (
-            <img 
-              src={`${API_BASE_URL}/files/drive/${file.driveFileId}/view`} 
+          {isImage && viewUrl ? (
+            <img
+              src={viewUrl}
               alt={name}
               className="max-h-[60vh] max-w-full object-contain"
               onError={(e) => {
@@ -55,7 +58,7 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
               }}
             />
           ) : null}
-          <div className={cn("flex-col items-center justify-center text-[var(--text-muted)] gap-3", (isImage && file.driveFileId) ? 'hidden' : 'flex')}>
+          <div className={cn("flex-col items-center justify-center text-[var(--text-muted)] gap-3", (isImage && viewUrl) ? 'hidden' : 'flex')}>
             <Icon size={64} strokeWidth={1} />
             <span className="text-xs font-semibold">No preview available</span>
           </div>
@@ -98,7 +101,7 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
               <div className="flex items-center gap-2 mt-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/40 px-3 py-2">
                 <input 
                   readOnly 
-                  value={file.driveWebViewLink || file.driveWebContentLink || ''} 
+                  value={openUrl}
                   className="flex-1 bg-transparent text-xs text-[var(--text-muted)] focus:outline-none"
                 />
                 <button 
@@ -115,20 +118,20 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
           <div className="mt-6 pt-4 border-t border-[var(--border)]">
             <h4 className="text-xs font-bold text-[var(--text-main)] mb-3">Actions</h4>
             <div className="flex flex-wrap items-center gap-2">
-              {file.driveWebViewLink && (
-                <button 
+              {openUrl && (
+                <button
                   type="button"
-                  onClick={() => window.open(file.driveWebViewLink, '_blank')}
+                  onClick={() => window.open(openUrl, '_blank', 'noopener')}
                   className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors shadow-2xs cursor-pointer"
                 >
                   <Eye size={14} className="text-blue-500" />
                   View
                 </button>
               )}
-              {file.driveWebContentLink && (
-                <button 
+              {downloadUrl && (
+                <button
                   type="button"
-                  onClick={() => window.open(file.driveWebContentLink, '_blank')}
+                  onClick={() => window.open(downloadUrl, '_blank', 'noopener')}
                   className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors shadow-2xs cursor-pointer"
                 >
                   <Download size={14} className="text-emerald-500" />
