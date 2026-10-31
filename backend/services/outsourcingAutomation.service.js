@@ -2,11 +2,12 @@ const outsourcingModel = require('../models/outsourcingExpense.model');
 const masterItemModel = require('../models/masterItem.model');
 const workflowAutomationLogModel = require('../models/workflowAutomationLog.model');
 const { getSettings } = require('../models/settings.model');
-const { createId, round2, toNumber } = require('../utils/format');
+const { businessDate, createId, round2, toNumber } = require('../utils/format');
 const { resolveSmtpConfig, sendMail } = require('./mailer.service');
 
 function normalizeDate(value) {
   if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : businessDate(value);
   const text = String(value).trim();
   return text ? text.slice(0, 10) : null;
 }
@@ -175,7 +176,7 @@ async function runOutsourcingAutomation({ dryRun = false, runSource = 'manual' }
   ]);
 
   const vendorMap = new Map(vendors.map((item) => [String(item.id), item]));
-  const today = normalizeDate(new Date()) || new Date().toISOString().slice(0, 10);
+  const today = businessDate();
   const runId = createId('outsrc');
   const results = [];
   let remindersSent = 0;

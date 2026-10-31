@@ -321,8 +321,15 @@ async function syncRolePermissions(client, roleId, permissionIds = [], grantedBy
 }
 
 async function createUser(data = {}, meta = {}) {
+  // No shared fallback password: every new account needs its own.
+  const initialPassword = String(data.password || data.tempPassword || '');
+  if (initialPassword.length < 8) {
+    const error = new Error('Set a password of at least 8 characters for the new user');
+    error.statusCode = 400;
+    throw error;
+  }
   return withTransaction(async (client) => {
-    const passwordHash = await hashPassword(data.password || data.passwordHash || data.tempPassword || 'ChangeMe123!');
+    const passwordHash = await hashPassword(initialPassword);
     const payload = {
       ...(data.payload || {}),
       allowedLeadPipelineIds: normalizeAllowedPipelineIds(data.allowedLeadPipelineIds ?? data.payload?.allowedLeadPipelineIds)

@@ -95,6 +95,16 @@ function normalizePhone(value) {
   return `+${digits}`;
 }
 
+// Calendar date/time in the business timezone; toISOString()/toTimeString() follow the
+// server clock (UTC in production), which shifts IST evenings and early mornings.
+function kolkataDateTime(date = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(date).map((part) => [part.type, part.value]));
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
 function getActorName(user) {
   if (!user) return 'System';
   return user.fullName || user.username || user.email || 'System';
@@ -623,8 +633,8 @@ async function convertLeadRecord(leadId, settings, db, req, options = {}) {
         invoiceNumber,
         clientId: clientRecord.id,
         projectId: projectRecord?.id || null,
-        invoiceDate: new Date().toISOString().slice(0, 10),
-        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+        invoiceDate: kolkataDateTime().date,
+        dueDate: kolkataDateTime(new Date(Date.now() + 7 * 86400000)).date,
         status: 'Draft',
         invoiceType: 'Standard',
         taxableAmount: invoiceAmount,
@@ -938,6 +948,13 @@ const baseController = createCrudController(leadModel, {
   onUpdate: async (body, req, current) => getLeadPatch(body, current, req)
 });
 
+// The webhook is public, so production needs a real LEAD_WEBHOOK_KEY; the old shared default only works in development.
+function resolveLeadWebhookKey(settings) {
+  const configured = String(settings?.leadWebhookKey || process.env.LEAD_WEBHOOK_KEY || '').trim();
+  if (configured) return configured;
+  return process.env.NODE_ENV === 'production' ? '' : 'webitof-crm-webhook-secret';
+}
+
 const leadsController = {
   ...baseController,
   options: async (req, res, next) => {
@@ -1164,7 +1181,7 @@ const leadsController = {
       if (followUpFrom) rows = rows.filter((row) => row.followUpDate && String(row.followUpDate) >= String(followUpFrom));
       if (followUpTo) rows = rows.filter((row) => row.followUpDate && String(row.followUpDate) <= String(followUpTo));
       if (String(overdue || '').toLowerCase() === 'true') {
-        const today = new Date().toISOString().slice(0, 10);
+        const today = kolkataDateTime().date;
         rows = rows.filter((row) => row.followUpDate && String(row.followUpDate) < today && !['Won', 'Lost', 'Not Interested'].includes(row.status));
       }
       if (converted === 'true') rows = rows.filter((row) => Boolean(row.convertedClientId));
@@ -1581,9 +1598,9 @@ const leadsController = {
         eventType: 'call',
         title: `${callType} call${callOutcome ? ` - ${callOutcome}` : ''}`,
         description: String(req.body?.callNotes || '').trim(),
-        startDate: callDateTime.toISOString().slice(0, 10),
-        startTime: callDateTime.toTimeString().slice(0, 5),
-        endDate: callDateTime.toISOString().slice(0, 10),
+        startDate: kolkataDateTime(callDateTime).date,
+        startTime: kolkataDateTime(callDateTime).time,
+        endDate: kolkataDateTime(callDateTime).date,
         attachments: req.body?.attachments || [],
         payload: {
           kind: 'call_logged',
@@ -1712,19 +1729,22 @@ const leadsController = {
         return res.json({ success: true, data: { leads: [], clients: [], invoices: [], projects: [] } });
       }
       const pattern = `%${q.toLowerCase()}%`;
+      // Each section is searched only when the user may read that module; leads also respect pipeline access.
+      const can = (permission) => hasPermission(req.user, permission);
+      const none = Promise.resolve({ rows: [] });
       const [leadsRes, clientsRes, invoicesRes, projectsRes] = await Promise.all([
-        query(
-          `SELECT id, name, company_name, phone, email, status, lead_number 
+        !can('leads.read') ? none : query(
+          `SELECT id, name, company_name, phone, email, status, lead_number, pipeline_id 
            FROM leads 
            WHERE lower(coalesce(name, '')) LIKE $1 
               OR lower(coalesce(company_name, '')) LIKE $1 
               OR lower(coalesce(phone, '')) LIKE $1 
               OR lower(coalesce(email, '')) LIKE $1 
               OR lower(coalesce(lead_number, '')) LIKE $1 
-           ORDER BY updated_at DESC LIMIT 5`,
+           ORDER BY updated_at DESC LIMIT 50`,
           [pattern]
         ),
-        query(
+        !can('clients.read') ? none : query(
           `SELECT id, name, company_name, mobile, email, status 
            FROM clients 
            WHERE lower(coalesce(name, '')) LIKE $1 
@@ -1734,7 +1754,7 @@ const leadsController = {
            ORDER BY updated_at DESC LIMIT 5`,
           [pattern]
         ),
-        query(
+        !can('invoices.read') ? none : query(
           `SELECT id, invoice_number, total_amount, status, invoice_date 
            FROM invoices 
            WHERE lower(coalesce(invoice_number, '')) LIKE $1 
@@ -1742,7 +1762,7 @@ const leadsController = {
            ORDER BY updated_at DESC LIMIT 5`,
           [pattern]
         ),
-        query(
+        !can('projects.read') ? none : query(
           `SELECT id, title, project_type, status, value 
            FROM projects 
            WHERE lower(coalesce(title, '')) LIKE $1 
@@ -1755,7 +1775,10 @@ const leadsController = {
       res.json({
         success: true,
         data: {
-          leads: leadsRes.rows.map((row) => ({
+          leads: leadsRes.rows
+            .filter((row) => canAccessPipeline(req.user, row.pipeline_id || DEFAULT_PIPELINE_ID))
+            .slice(0, 5)
+            .map((row) => ({
             id: row.id,
             title: row.name || row.company_name,
             subtitle: `${row.lead_number || ''} • ${row.phone || row.email || ''} • ${row.status || ''}`.trim(),
@@ -1790,10 +1813,22 @@ const leadsController = {
     }
   },
 
+  webhookConfig: async (req, res, next) => {
+    try {
+      const key = resolveLeadWebhookKey(await getSettings());
+      res.json({ success: true, data: { key, configured: Boolean(key) } });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   captureWebhookLead: async (req, res, next) => {
     try {
       const settings = await getSettings();
-      const configuredKey = settings?.leadWebhookKey || process.env.LEAD_WEBHOOK_KEY || 'webitof-crm-webhook-secret';
+      const configuredKey = resolveLeadWebhookKey(settings);
+      if (!configuredKey) {
+        return res.status(503).json({ success: false, message: 'Lead webhook is not configured. Set LEAD_WEBHOOK_KEY on the server.' });
+      }
       const providedKey = req.query.key || req.headers['x-crm-webhook-key'] || req.body?.key;
 
       if (!providedKey || String(providedKey).trim() !== String(configuredKey).trim()) {

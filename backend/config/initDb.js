@@ -57,6 +57,7 @@ async function ensureDatabase() {
   await ensureAmcAutomationHistorySchema();
   await ensureWorkflowAutomationHistorySchema();
   await ensureNotificationsSchema();
+  await ensureAuthRateLimitSchema();
   await ensurePaymentStatusSchema();
   await ensureCallLogsSchema();
   await ensureInvoiceSourceIndexes();
@@ -70,6 +71,17 @@ async function ensureDatabase() {
   // Permission/role catalog rows must always exist (e.g. new calls.* codes); only the
   // destructive default-grant reset and bootstrap admin stay behind SEED_DEFAULT_DATA.
   await seedRbac({ resetDefaultGrants: seedDefaults });
+}
+
+// Shared failed-login / OTP request counters (see middlewares/rateLimit.js).
+async function ensureAuthRateLimitSchema() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS auth_rate_limits (
+      key text PRIMARY KEY,
+      count integer NOT NULL DEFAULT 0,
+      reset_at timestamptz NOT NULL
+    );
+  `);
 }
 
 async function ensureLeadPipelineSchema() {

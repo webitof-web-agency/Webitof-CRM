@@ -1,11 +1,16 @@
 const renewalModel = require('../models/renewal.model');
 const clientModel = require('../models/client.model');
 const workflowAutomationLogModel = require('../models/workflowAutomationLog.model');
-const { createId, round2, toNumber } = require('../utils/format');
+const { businessDate, createId, round2, toNumber } = require('../utils/format');
 const { resolveSmtpConfig, sendMail } = require('./mailer.service');
+
+// Renewals overdue by more than this many days are not emailed automatically, so stale
+// records cannot trigger a burst of client emails. They are logged for manual follow-up.
+const OVERDUE_GRACE_DAYS = toNumber(process.env.AUTOMATION_OVERDUE_GRACE_DAYS ?? 30, 30);
 
 function normalizeDate(value) {
   if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : businessDate(value);
   const text = String(value).trim();
   return text ? text.slice(0, 10) : null;
 }
@@ -210,7 +215,7 @@ async function runRenewalAutomation({ dryRun = false, runSource = 'manual' } = {
   ]);
 
   const clientMap = new Map(clients.map((item) => [String(item.id), item]));
-  const today = normalizeDate(new Date()) || new Date().toISOString().slice(0, 10);
+  const today = businessDate();
   const runId = createId('renewrun');
   const results = [];
   let remindersSent = 0;
@@ -234,7 +239,8 @@ async function runRenewalAutomation({ dryRun = false, runSource = 'manual' } = {
             ? 'Due Soon'
             : 'Upcoming';
     const reminderAlreadySent = normalizeDate(renewal.lastReminderSentForDate) === dueDate;
-    const wantsReminder = computedStatus === 'Due Soon' || computedStatus === 'Expired';
+    const tooOld = daysRemaining != null && daysRemaining < -OVERDUE_GRACE_DAYS;
+    const wantsReminder = (computedStatus === 'Due Soon' || computedStatus === 'Expired') && !tooOld;
     const title = getRenewalTitle(renewal);
     const result = {
       renewalId: renewal.id,
@@ -245,6 +251,9 @@ async function runRenewalAutomation({ dryRun = false, runSource = 'manual' } = {
       reminderSent: false,
       warnings: []
     };
+    if (tooOld && computedStatus === 'Expired') {
+      result.warnings.push(`Expired ${-daysRemaining} days ago: no automatic reminder, follow up manually`);
+    }
 
     if (baseStatus === 'Cancelled') {
       skipped += 1;

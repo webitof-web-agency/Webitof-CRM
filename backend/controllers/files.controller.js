@@ -1,9 +1,50 @@
+const crypto = require('crypto');
 const multer = require('multer');
 const path = require('path');
 const fileAssetModel = require('../models/fileAsset.model');
 const leadModel = require('../models/lead.model');
 const { archiveFile, listFiles, uploadBuffer, listDriveDirectory, createNewFolder } = require('../services/driveStorage.service');
-const { DEFAULT_PIPELINE_ID, canAccessPipeline } = require('../services/leadPipelineAccess.service');
+const { DEFAULT_PIPELINE_ID, canAccessPipeline, userHasAllPipelineAccess } = require('../services/leadPipelineAccess.service');
+const { query } = require('../config/db');
+
+// <img> tags cannot send the Bearer header, so private files are previewed through short-lived
+// HMAC-signed view URLs handed out with file listings. Branding, avatars and quotation images
+// stay public because they are embedded in public pages (login, public invoice).
+const VIEW_URL_TTL_SECONDS = 6 * 60 * 60;
+const PUBLIC_ASSET_MODULES = new Set(['users', 'settings', 'quotation-master']);
+
+function viewSignature(driveFileId, expiresAt) {
+  return crypto
+    .createHmac('sha256', process.env.JWT_SECRET)
+    .update(`drive-view:${driveFileId}:${expiresAt}`)
+    .digest('hex');
+}
+
+function hasValidViewSignature(driveFileId, params = {}) {
+  const expiresAt = Number(params.expires);
+  const signature = String(params.signature || '');
+  if (!Number.isInteger(expiresAt) || expiresAt < Date.now() / 1000) return false;
+  const expected = viewSignature(driveFileId, expiresAt);
+  return signature.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+// viewUrl is relative to the API base (e.g. /api), like the paths the frontend builds itself.
+function withViewUrl(record) {
+  if (!record?.driveFileId) return record;
+  const expiresAt = Math.floor(Date.now() / 1000) + VIEW_URL_TTL_SECONDS;
+  const id = encodeURIComponent(record.driveFileId);
+  return { ...record, viewUrl: `/files/drive/${id}/view?expires=${expiresAt}&signature=${viewSignature(record.driveFileId, expiresAt)}` };
+}
+
+async function isPublicDriveAsset(record, driveFileId) {
+  if (record?.isPublic) return true;
+  if (PUBLIC_ASSET_MODULES.has(String(record?.moduleName || '').toLowerCase())) return true;
+  // Logos and watermarks can be picked from any Drive file; once referenced in settings they are public.
+  const { getSettings } = require('../models/settings.model');
+  const settings = await getSettings();
+  return Boolean(settings && JSON.stringify(settings).includes(driveFileId));
+}
 
 const LEAD_ATTACHMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.zip']);
 const LEAD_ATTACHMENT_MIME_TYPES = new Set([
@@ -27,6 +68,23 @@ async function assertLeadFileAccess(moduleName, entityId, req) {
     error.statusCode = 403;
     throw error;
   }
+}
+
+// An unfiltered listing spans every module, so lead attachments are dropped for leads in
+// pipelines the user cannot open (assertLeadFileAccess only covers a single-lead request).
+async function filterLeadFilesByPipeline(rows, req) {
+  if (userHasAllPipelineAccess(req?.user)) return rows;
+  const leadIds = [...new Set(rows
+    .filter((row) => String(row.moduleName || '').toLowerCase() === 'leads' && row.entityId && !String(row.entityId).startsWith('lead-draft-'))
+    .map((row) => String(row.entityId)))];
+  if (!leadIds.length) return rows;
+  const result = await query('SELECT id, pipeline_id FROM leads WHERE id = ANY($1::text[])', [leadIds]);
+  const pipelineByLead = new Map(result.rows.map((row) => [String(row.id), row.pipeline_id || DEFAULT_PIPELINE_ID]));
+  return rows.filter((row) => {
+    if (String(row.moduleName || '').toLowerCase() !== 'leads' || !leadIds.includes(String(row.entityId))) return true;
+    const pipelineId = pipelineByLead.get(String(row.entityId));
+    return Boolean(pipelineId) && canAccessPipeline(req.user, pipelineId);
+  });
 }
 
 function validateLeadAttachments(files = [], moduleName = '') {
@@ -56,8 +114,8 @@ async function list(req, res, next) {
     if (req.query.entityId) filters.entityId = req.query.entityId;
     if (req.query.folderKey) filters.folderKey = req.query.folderKey;
     await assertLeadFileAccess(filters.moduleName, filters.entityId, req);
-    const rows = await listFiles(filters, req.query.search || '');
-    res.json({ success: true, data: rows });
+    const rows = await filterLeadFilesByPipeline(await listFiles(filters, req.query.search || ''), req);
+    res.json({ success: true, data: rows.map(withViewUrl) });
   } catch (error) {
     next(error);
   }
@@ -85,7 +143,7 @@ async function browseDrive(req, res, next) {
       isPublic: false
     }));
 
-    res.json({ success: true, data: { folderId: data.folderId, files: mapped } });
+    res.json({ success: true, data: { folderId: data.folderId, files: mapped.map(withViewUrl) } });
   } catch (error) {
     next(error);
   }
@@ -141,7 +199,7 @@ async function uploadFiles(req, res, next) {
         targetFolderId: folderId
       });
       const saved = await fileAssetModel.create({ ...record, ...extraPayload });
-      uploaded.push(saved);
+      uploaded.push(withViewUrl(saved));
     }
 
     res.status(201).json({ success: true, data: uploaded });
@@ -157,7 +215,7 @@ async function getById(req, res, next) {
       return res.status(404).json({ success: false, message: 'File not found' });
     }
     await assertLeadFileAccess(record.moduleName, record.entityId, req);
-    res.json({ success: true, data: record });
+    res.json({ success: true, data: withViewUrl(record) });
   } catch (error) {
     next(error);
   }
@@ -183,11 +241,14 @@ async function archive(req, res, next) {
 async function viewDriveFile(req, res, next) {
   try {
     const { getDriveClient } = require('../services/driveStorage.service');
-    const fileAssetModel = require('../models/fileAsset.model');
+    const driveFileId = String(req.params.driveFileId || '');
+    const record = (await fileAssetModel.list({ where: { driveFileId } }))[0];
+    const signed = hasValidViewSignature(driveFileId, req.query);
+    const publicAsset = !signed && await isPublicDriveAsset(record, driveFileId);
+    if (!signed && !publicAsset) {
+      return res.status(403).send('This link has expired or is private. Reopen the file from the CRM.');
+    }
     const drive = await getDriveClient();
-
-    const record = (await fileAssetModel.list({ where: { driveFileId: req.params.driveFileId } }))[0];
-    await assertLeadFileAccess(record?.moduleName, record?.entityId, req);
     const mimeType = record?.mimeType || 'image/png';
 
     const response = await drive.files.get(
@@ -196,7 +257,7 @@ async function viewDriveFile(req, res, next) {
     );
 
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'public, max-age=31536000');
+    res.setHeader('Cache-Control', publicAsset ? 'public, max-age=31536000' : 'private, max-age=3600');
     response.data.pipe(res);
   } catch (error) {
     console.error('Error fetching drive file:', error);

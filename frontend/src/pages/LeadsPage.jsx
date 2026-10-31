@@ -1136,7 +1136,7 @@ export function LeadsPage() {
   const [whatsAppData, setWhatsAppData] = useState(null);
 
   const handleExportCsv = () => {
-    if (!filteredRows || filteredRows.length === 0) {
+    if (!sortedRows || sortedRows.length === 0) {
       toast.error('No leads available to export');
       return;
     }
@@ -1156,8 +1156,8 @@ export function LeadsPage() {
       { label: 'Assigned User', accessor: (row) => users?.find((u) => u.id === row.assignedTo)?.fullName || row.assignedTo || '' },
       { label: 'Created Date', accessor: (row) => row.createdAt ? new Date(row.createdAt).toLocaleDateString('en-IN') : '' }
     ];
-    exportToCsv('leads_export', cols, filteredRows);
-    toast.success(`Exported ${filteredRows.length} leads to CSV`);
+    exportToCsv('leads_export', cols, sortedRows);
+    toast.success(`Exported ${sortedRows.length} leads to CSV`);
   };
 
   const canCreate = hasPermission('leads.manage') || hasPermission('leads.write');

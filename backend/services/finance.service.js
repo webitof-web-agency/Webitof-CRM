@@ -13,7 +13,7 @@ const {
   calculateOutsourcingExpense
 } = require('../utils/finance');
 const { getFinancialYear } = require('../utils/invoice');
-const { round2, toNumber } = require('../utils/format');
+const { businessDate, round2, toNumber } = require('../utils/format');
 
 function sumBy(items = [], iteratee = (item) => item) {
   return round2(items.reduce((sum, item) => sum + toNumber(iteratee(item)), 0));
@@ -121,8 +121,8 @@ function getInvoiceSnapshot(invoice = {}, payments = [], settings = {}, client =
   const amountPaid = round2(sumBy(payments, getPaymentAppliedAmount));
   const balanceDue = round2(Math.max(0, totals.totalAmount - amountPaid));
   const paymentProgress = totals.totalAmount > 0 ? round2(Math.min(100, (amountPaid / totals.totalAmount) * 100)) : 0;
-  const today = new Date();
-  const overdueDays = invoice.dueDate ? daysUntil(invoice.dueDate, today) : null;
+  // Whole days against today's IST calendar date: due today is 0, due yesterday is -1.
+  const overdueDays = invoice.dueDate ? daysUntil(getDateOnly(invoice.dueDate), businessDate()) : null;
   const currentStatus = String(invoice.status || '').trim();
   let computedStatus = currentStatus || 'Sent';
 
@@ -135,7 +135,8 @@ function getInvoiceSnapshot(invoice = {}, payments = [], settings = {}, client =
       computedStatus = 'Partially Paid';
     } else if (overdueDays !== null && overdueDays < 0) {
       computedStatus = 'Overdue';
-    } else if (!currentStatus) {
+    } else if (!currentStatus || ['Paid', 'Partially Paid', 'Overdue'].includes(currentStatus)) {
+      // Payments were removed or the due date moved: fall back to an open invoice.
       computedStatus = 'Sent';
     }
   }

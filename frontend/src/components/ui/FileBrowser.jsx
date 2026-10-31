@@ -228,7 +228,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
         >
           {isImage && file.driveFileId ? (
             <img 
-              src={`${API_BASE_URL}/files/drive/${file.driveFileId}/view`} 
+              src={`${API_BASE_URL}${file.viewUrl || `/files/drive/${file.driveFileId}/view`}`} 
               alt={name}
               className="h-full w-full object-cover transition-transform group-hover:scale-105"
               onError={(e) => {

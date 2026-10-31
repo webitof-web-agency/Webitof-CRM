@@ -115,6 +115,10 @@ export async function request(path, { method = 'GET', body, token, headers = {},
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, init);
+  if (response.status === 401 && token) {
+    // Expired or revoked session: AuthContext signs the user out once.
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  }
   const data = await parseResponse(response);
 
   if (method === 'GET' && !skipCache) {

@@ -46,7 +46,7 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
         <div className="w-full md:w-[55%] lg:w-[60%] shrink-0 bg-[var(--surface-2)]/50 rounded-2xl border border-[var(--border)] flex items-center justify-center overflow-hidden min-h-[300px]">
           {isImage && file.driveFileId ? (
             <img 
-              src={`${API_BASE_URL}/files/drive/${file.driveFileId}/view`} 
+              src={`${API_BASE_URL}${file.viewUrl || `/files/drive/${file.driveFileId}/view`}`} 
               alt={name}
               className="max-h-[60vh] max-w-full object-contain"
               onError={(e) => {

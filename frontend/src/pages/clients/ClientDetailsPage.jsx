@@ -1195,6 +1195,8 @@ export function ClientDetailsPage() {
   const [contactBusy, setContactBusy] = useState(false);
   const [contactDeleteTarget, setContactDeleteTarget] = useState(null);
   const [contactDeleteBusy, setContactDeleteBusy] = useState(false);
+  const [activityDeleteTarget, setActivityDeleteTarget] = useState(null);
+  const [activityDeleteBusy, setActivityDeleteBusy] = useState(false);
   const [metaBusy, setMetaBusy] = useState(false);
   const [calendarView, setCalendarView] = useState('month');
   const [calendarDate, setCalendarDate] = useState(() => new Date());
@@ -1341,6 +1343,11 @@ export function ClientDetailsPage() {
 
     return stages;
   }, [client.status, settings]);
+
+  const currentStageIndex = Math.max(clientPipelineStages.findIndex((item) => item.label === client.status), 0);
+  const stageProgress = clientPipelineStages.length > 1
+    ? Math.round(((currentStageIndex + 1) / clientPipelineStages.length) * 100)
+    : (client.status ? 100 : 0);
 
   const labels = parseListValue(client.labels);
   const ownerName = client.contactPerson || client.ownerName || '-';
@@ -2615,6 +2622,26 @@ export function ClientDetailsPage() {
         onConfirm={deleteClientContact}
       />
 
+      <ConfirmModal
+        open={Boolean(activityDeleteTarget)}
+        title="Delete event?"
+        description={`Remove ${activityDeleteTarget?.title ? `"${activityDeleteTarget.title}"` : 'this event'} from the client.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        type="danger"
+        isLoading={activityDeleteBusy}
+        onCancel={() => setActivityDeleteTarget(null)}
+        onConfirm={async () => {
+          setActivityDeleteBusy(true);
+          try {
+            await deleteClientActivity(activityDeleteTarget);
+          } finally {
+            setActivityDeleteBusy(false);
+            setActivityDeleteTarget(null);
+          }
+        }}
+      />
+
       <ActivityComposerModal
         open={Boolean(activityType)}
         mode={activityType || 'note'}
@@ -2638,7 +2665,7 @@ export function ClientDetailsPage() {
         uploadModule="clients"
         uploadEntityId={id}
         onSave={async () => {
-          await load();
+          setRefreshTick((current) => current + 1);
           setFilesModalOpen(false);
         }}
       />
