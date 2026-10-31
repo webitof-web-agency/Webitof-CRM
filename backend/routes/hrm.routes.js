@@ -94,5 +94,7 @@ router.post(
 );
 router.get("/documents/:id/download", c.downloadDocument);
 router.post("/documents/:id/verify", c.verifyDocument);
+router.post("/documents/:id/reject", c.rejectDocument);
+router.delete("/documents/:id", c.deleteDocument);
 router.get("/export/:kind", c.export);
 module.exports = router;

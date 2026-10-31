@@ -158,6 +158,12 @@ const controller = {
   verifyDocument: respond((req) =>
     lifecycle.document(req.user, req.params.id, { verify: true }),
   ),
+  rejectDocument: respond((req) =>
+    lifecycle.document(req.user, req.params.id, { reject: req.body || {} }),
+  ),
+  deleteDocument: respond((req) =>
+    lifecycle.document(req.user, req.params.id, { remove: true }),
+  ),
   downloadDocument: async (req, res, next) => {
     try {
       const r = await lifecycle.document(req.user, req.params.id);

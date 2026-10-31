@@ -67,3 +67,14 @@ Web employee workday: *HRM → My day* (`/app/hrm/my-day`, also on the overview 
 Web: HRM overview shows the live board, alert queue and home-location approvals (map); *Work locations* manages office geofences (`VITE_GOOGLE_MAPS_API_KEY`). Policy keys are editable under *Policies & organization*.
 
 Demo data: `npm run seed:hrm-demo` (refuses databases named `*prod*`). Tests: `node --test tests/hrm.workday.test.js`.
+
+## Employee form (v3)
+
+Employees are created and edited in a five-step form (`/app/hrm/employees/new`, `/app/hrm/employees/:id/edit`): Personal, Employment, Contact, Banking, Documents. The profile page shows Basic Info, Employment, Contact, Banking (with Hours & Rates), Certifications and Documents; the operational sections (attendance, leave, payroll, …) are under **More**.
+
+- **Fixed lists (in code):** gender, employee status, relationship, work mode.
+- **Company lists (HRM masters, Policies & organization):** branch (`location`), department (optional branch), designation (optional department), employment type, shift, attendance policy (hours/day, days/week), employee document type, letter/certificate template.
+- A password on the form creates the employee's login with the **Employee** role (`hrm.view_own`, `hrm.self_service`) only.
+- Bank details (IFSC, PAN, UAN) are optional. The base salary becomes the joining salary record; before the joining date edits correct it in place, afterwards a change is a revision dated today.
+- Documents: PDF/JPG/PNG; HR can approve, reject (with a reason the employee sees) or delete.
+- `hrm_v3.sql` (run by `npm run migrate:hrm`) adds `employee_code`, `attendance_policy_id`, `photo_document_id`, `hrm_documents.review_comment`, the default document types, attendance policy, Joining Letter / Experience Certificate / NOC templates and the Employee role. Additive only.

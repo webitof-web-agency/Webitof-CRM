@@ -347,7 +347,12 @@ async function uploadDocument(user, body, file, db = null) {
     return r;
   }, db);
 }
-async function document(user, id, { verify = false } = {}, db = null) {
+async function document(
+  user,
+  id,
+  { verify = false, reject = null, remove = false } = {},
+  db = null,
+) {
   return c.transaction(async (tx) => {
     const meta = (
       await tx.query("SELECT employee_id FROM hrm_documents WHERE id=$1", [id])
@@ -355,10 +360,41 @@ async function document(user, id, { verify = false } = {}, db = null) {
     if (!meta) c.fail("Document not found", 404);
     const e = await c.employee(tx, user, meta.employee_id);
     if (e.userId !== user.id) c.permit(user, "view_private");
+    if (reject) {
+      c.permit(user, "documents");
+      c.allow(reject, ["comment"]);
+      const r = await c.update(tx, "hrm_documents", id, {
+        status: "Rejected",
+        reviewComment: c.text(reject.comment, "Rejection reason", 500, true),
+        verifiedBy: user.id,
+      });
+      delete r.content;
+      await c.audit(tx, user, "documents", id, "rejected", null, { status: "Rejected", comment: r.reviewComment }, e.id, true);
+      return r;
+    }
+    if (remove) {
+      c.permit(user, "manage_employees", "documents");
+      const r = c.camel(
+        (
+          await tx.query(
+            "DELETE FROM hrm_documents WHERE id=$1 RETURNING id,title,category",
+            [id],
+          )
+        ).rows[0],
+      );
+      // A deleted photo must not stay linked as the employee's picture.
+      await tx.query(
+        "UPDATE hrm_employees SET photo_document_id=NULL WHERE photo_document_id=$1",
+        [id],
+      );
+      await c.audit(tx, user, "documents", id, "deleted", { title: r.title, category: r.category }, null, e.id, true);
+      return { deleted: true };
+    }
     if (verify) {
       c.permit(user, "documents");
       const r = await c.update(tx, "hrm_documents", id, {
         status: "Verified",
+        reviewComment: null,
         verifiedBy: user.id,
       });
       delete r.content;

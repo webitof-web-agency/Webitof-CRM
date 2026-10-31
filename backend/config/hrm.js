@@ -58,6 +58,8 @@ const MASTER_TYPES = [
   "salary_structure",
   "kpi_template",
   "letter_template",
+  "attendance_policy",
+  "document_type",
 ];
 const DEFAULT_POLICY = {
   timezone: "Asia/Kolkata",

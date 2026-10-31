@@ -5,9 +5,31 @@ import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, DetailValues } from "./HrmShared";
 import { hrm, label } from "./hrmApi";
+// Display names: "location" is the Branch used on the employee form.
+const masterTypeLabels = {
+  location: "Branch / office location",
+  attendance_policy: "Attendance policy",
+  document_type: "Employee document type",
+  letter_template: "Letter / certificate template",
+};
 const masterFields = {
-  department: [["shiftId", "Default shift", "shift"]],
-  designation: [],
+  department: [
+    ["branchId", "Branch (leave empty for all branches)", "location"],
+    ["shiftId", "Default shift", "shift"],
+  ],
+  designation: [
+    ["departmentId", "Department (leave empty for all departments)", "department"],
+  ],
+  attendance_policy: [
+    ["hoursPerDay", "Hours per day", "number"],
+    ["daysPerWeek", "Days per week", "number"],
+    ["geofenceRequired", "Clock-in only at approved work locations", "checkbox"],
+    ["description", "Description", "textarea"],
+  ],
+  document_type: [
+    ["defaultOnCreate", "Ask for this document on every new employee", "checkbox"],
+    ["hasExpiry", "Document has an expiry date", "checkbox"],
+  ],
   team: [
     ["departmentId", "Department", "department"],
     ["managerId", "Manager reference", "text"],
@@ -43,7 +65,11 @@ const masterFields = {
     ["carryForwardLimit", "Maximum carry forward (days)", "number"],
     ["encashmentAllowed", "Encashment allowed", "checkbox"],
   ],
-  letter_template: [["content", "Letter template", "textarea"]],
+  letter_template: [
+    ["certificate", "Show under employee Certifications", "checkbox"],
+    ["description", "Short description", "text"],
+    ["content", "Letter template", "textarea"],
+  ],
   kpi_template: [["factors", "KPI factors (one per line)", "lines"]],
   salary_structure: [],
 };
@@ -259,7 +285,7 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
               type="select"
               options={metadata.masterTypes.map((t) => ({
                 value: t,
-                label: label(t),
+                label: masterTypeLabels[t] || label(t),
               }))}
               value={masterType}
               onChange={(v) => {
@@ -308,7 +334,7 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
               }}
             >
               <h2 className="font-semibold">
-                {record.id ? "Edit" : "Create"} {label(masterType)}
+                {record.id ? "Edit" : "Create"} {masterTypeLabels[masterType] || label(masterType)}
               </h2>
               <Field
                 name="masterName"
@@ -345,7 +371,7 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
                     type={
                       type === "lines"
                         ? "textarea"
-                        : ["shift", "department", "accrual"].includes(type)
+                        : ["shift", "department", "location", "accrual"].includes(type)
                           ? "select"
                           : type
                     }
@@ -370,7 +396,9 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
                             type === "lines"
                               ? v.split("\n").filter(Boolean)
                               : type === "number"
-                                ? Number(v)
+                                ? v === ""
+                                  ? undefined
+                                  : Number(v)
                                 : v,
                         },
                       }))

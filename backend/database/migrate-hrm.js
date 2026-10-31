@@ -32,6 +32,11 @@ async function migrate(db) {
       "UPDATE hrm_settings SET value=$1::jsonb || value || $2::jsonb, updated_at=now() WHERE key='policy'",
       [JSON.stringify(DEFAULT_POLICY), JSON.stringify(V2_POLICY_OVERRIDES)],
     );
+  // v3: employee wizard fields, default document types, certificates and the Employee role.
+  await db.query(fs.readFileSync(path.join(__dirname, "hrm_v3.sql"), "utf8"));
+  await db.query(
+    "INSERT INTO hrm_schema_versions(version) VALUES(3) ON CONFLICT DO NOTHING",
+  );
 }
 if (require.main === module)
   withTransaction(migrate)
