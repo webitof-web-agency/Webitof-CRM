@@ -319,8 +319,22 @@ async function savePolicy(user, body, db = null) {
       if (typeof defaultValue === "number")
         c.number(v[k], k, 0, k.includes("Utilization") ? 500 : 1000);
     }
-    for (const k of ["shiftStart", "shiftEnd", "reportDeadline"])
+    for (const k of [
+      "shiftStart",
+      "shiftEnd",
+      "reportDeadline",
+      "lunchWindowStart",
+      "lunchWindowEnd",
+    ])
       if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v[k])) c.fail(`Invalid ${k}`);
+    if (v.lunchWindowStart >= v.lunchWindowEnd)
+      c.fail("Lunch window must end after it starts");
+    if (v.reportIntervalMinutes < 15 || v.reportIntervalMinutes > 240)
+      c.fail("Report interval must be between 15 and 240 minutes");
+    if (v.pingIntervalMinutes < 1 || v.offlineAfterMinutes <= v.pingIntervalMinutes)
+      c.fail("Offline threshold must be longer than the location ping interval");
+    if (v.defaultOfficeRadiusMeters < 20 || v.defaultHomeRadiusMeters < 20)
+      c.fail("Geofence radius must be at least 20 metres");
     if (
       v.standardDailyHours <= 0 ||
       v.standardDailyHours > 24 ||

@@ -142,6 +142,31 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
               ],
             ],
             [
+              "Location-verified attendance (employee app)",
+              [
+                "geofenceRequired",
+                "allowWebAttendance",
+                "maxGpsAccuracyMeters",
+                "gpsToleranceMeters",
+                "defaultOfficeRadiusMeters",
+                "defaultHomeRadiusMeters",
+                "pingIntervalMinutes",
+                "offlineAfterMinutes",
+              ],
+            ],
+            [
+              "Hourly work reports & lunch",
+              [
+                "reportIntervalMinutes",
+                "slotGraceMinutes",
+                "minSlotReportChars",
+                "lunchWindowStart",
+                "lunchWindowEnd",
+                "lunchMaxMinutes",
+                "absentIfNoReport",
+              ],
+            ],
+            [
               "Approval & capacity",
               [
                 "requireHrLeaveApproval",
@@ -188,7 +213,8 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
                               ? "number"
                               : k.toLowerCase().includes("deadline") ||
                                   k === "shiftStart" ||
-                                  k === "shiftEnd"
+                                  k === "shiftEnd" ||
+                                  k.startsWith("lunchWindow")
                                 ? "time"
                                 : "text"
                       }

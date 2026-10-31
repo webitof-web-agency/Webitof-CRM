@@ -11,12 +11,16 @@ import { hrm, label, localDay } from "./hrmApi";
 import { HrmCollection, exportPdf } from "./HrmCollection";
 import { HrmDashboard } from "./HrmDashboard";
 import { HrmSettings } from "./HrmSettings";
+import { HrmGeofences } from "./HrmGeofences";
+import { HrmMyDay } from "./HrmMyDay";
 import { HrmForm } from "./HrmForm";
 import { forms } from "./hrmForms";
 const sections = [
   ["overview", "Overview"],
+  ["my-day", "My day", "self_service"],
   ["employees", "Employees"],
   ["attendance", "Attendance"],
+  ["geofences", "Work locations", "approve"],
   ["leave", "Leave"],
   ["holidays", "Holidays"],
   ["work-reports", "Work reports"],
@@ -105,6 +109,21 @@ export function HrmPage() {
         <HrmDashboard {...props} analytics={kind === "analytics"} />
       ) : kind === "settings" ? (
         <HrmSettings {...props} onReload={reload} />
+      ) : kind === "my-day" && !metadata.ownEmployeeId ? (
+        <Card className="p-5">
+          No employee profile is linked to your login, so there is no workday to track.
+        </Card>
+      ) : kind === "my-day" && can("self_service") ? (
+        <div className="space-y-5">
+          <PageHeader
+            eyebrow="Attendance"
+            title="My day"
+            description="Clock in, report your work every hour, take lunch and close the day — the same workday as the Webitof Employee app."
+          />
+          <HrmMyDay token={token} />
+        </div>
+      ) : kind === "geofences" && (can("approve") || can("manage_settings")) ? (
+        <HrmGeofences {...props} />
       ) : available.some(([key]) => key === kind) ? (
         <HrmCollection key={kind} {...props} kind={kind} />
       ) : (

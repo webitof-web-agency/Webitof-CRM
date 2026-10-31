@@ -112,6 +112,9 @@ export const forms = {
           { value: 0.5, label: "Half day" },
         ],
       }),
+      f("details.fromTime", "Half day from (time, optional)", "time", {
+        help: "For leaving mid-shift today: on approval the session ends at this time and the day counts as Half Day.",
+      }),
       f("details.reason", "Reason", "textarea", { required: true }),
       f("details.documentId", "Attachment", "lookup", { lookup: "documents" }),
     ],

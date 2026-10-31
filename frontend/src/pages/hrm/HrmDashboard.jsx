@@ -14,6 +14,8 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { Field, Lookup, HrmTable, Status } from "./HrmShared";
 import { hrm, localDay, queryString } from "./hrmApi";
+import { HrmLive } from "./HrmLive";
+import { HrmMyDay } from "./HrmMyDay";
 export function HrmDashboard({
   token,
   metadata,
@@ -79,7 +81,7 @@ export function HrmDashboard({
             : "Workforce operations connected to projects and finance."
         }
       >
-        {!analytics && metadata.ownEmployeeId && can("self_service") && (
+        {!analytics && metadata.ownEmployeeId && can("self_service") && !metadata.policy.geofenceRequired && (
           <div className="flex flex-wrap gap-2">
             {[
               ["check-in", "Check in"],
@@ -99,6 +101,12 @@ export function HrmDashboard({
           </div>
         )}
       </PageHeader>
+      {!analytics && metadata.ownEmployeeId && can("self_service") && metadata.policy.geofenceRequired && (
+        <HrmMyDay token={token} />
+      )}
+      {!analytics && (can("approve") || can("hr_approve")) && (
+        <HrmLive token={token} metadata={metadata} can={can} />
+      )}
       <Card className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field
           name="analyticsStart"

@@ -174,7 +174,26 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
     });
     const taskRows = await work.tasks(staff, e.id, project.id, db);
     assert.equal(taskRows.length, 1);
-    await employees.savePolicy(admin, { maxBackdateDays: 366 }, db);
+    // Default policy: employees cannot back-date reports (admin-only).
+    await assert.rejects(
+      () =>
+        work.saveReport(
+          staff,
+          {
+            employeeId: e.id,
+            workDate: "2026-08-03",
+            entries: [{ description: "Late entry", minutes: 60 }],
+          },
+          null,
+          db,
+        ),
+      /Backdated reports/,
+    );
+    await employees.savePolicy(
+      admin,
+      { allowBackdatedReports: true, maxBackdateDays: 366 },
+      db,
+    );
     const report = await work.saveReport(
       staff,
       {

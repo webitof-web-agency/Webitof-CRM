@@ -41,3 +41,29 @@ The working tree was clean. The live PostgreSQL catalog was inspected in a read-
 7. Dashboard, calendar/tracking, exports, in-app automation, role/regression/integration verification.
 
 Implementation and validation evidence are recorded below as work completes.
+
+## v2 — location-verified workday (employee app), 30 October 2026
+
+Schema `database/hrm_v2.sql` (additive, applied by `migrate-hrm.js` as version 2; on first install it also sets `allowBackdatedReports=false`):
+`hrm_geofences` (office / employee home, Pending → Approved), `hrm_attendance_events` (clock, job, lunch, slot, exit/return, offline/online), `hrm_alerts` (admin decision queue), `hrm_devices` (FCM tokens); new attendance columns (work mode, job start/end, lunch, last ping, offline/outside/idle minutes, auto checkout, summary, override); work entries gain `source`, `slot_start/end`, `edit_count`; reports gain `edit_count`, `admin_edited_*`.
+
+Rules (all server-side, server clock):
+- Clock-in needs a GPS fix within `maxGpsAccuracyMeters`; mock locations are rejected. Office fence → WFO, approved home fence → WFH, otherwise blocked; *Client Visit* needs a reason and opens an alert. The web check-in button is disabled while `geofenceRequired` is on.
+- Work time = job start → job end minus lunch. A report slot is due every `reportIntervalMinutes` of working time; lunch pauses it. Minutes past `due + slotGraceMinutes` are idle. Duplicate (copy-pasted) text from the last 7 days and text shorter than `minSlotReportChars` are rejected.
+- Lunch: once per day inside `lunchWindowStart–End`; minutes over `lunchMaxMinutes` open a `lunch_overrun` alert.
+- Pings every `pingIntervalMinutes`; no ping for `offlineAfterMinutes` during a running job = offline (alert + offline minutes). Leaving the session's fence during shift hours (not on lunch) = `geofence_breach` alert; returning closes it and adds outside minutes.
+- Employees edit only today's draft entries (each edit increments counts + audit). Past days: admin only via `PUT /hrm/work-reports/admin`.
+- After `reportDeadline` (23:59): open sessions are closed, drafts with entries auto-submitted, days without a report marked **Absent** (`override.auto=true`) with critical notifications to employee and reviewers. Admin override: `POST /hrm/attendance/override` (payroll reads the final status: Absent = 0, Half Day = 0.5).
+- Half-day leave with `details.fromTime` for today: on approval the session closes at that time (or `auto_checkout_at` is set) and the day is Half Day.
+
+Endpoints: employee `GET /hrm/me/today`, `POST /hrm/me/{clock-in,job,lunch,slots,check-out,ping,home-geofence,devices}`, `PUT /hrm/me/entries/:id`, `POST /hrm/me/alerts/:id/explain`; admin `GET /hrm/live`, `GET /hrm/day`, `GET|POST|PUT /hrm/geofences`, `POST /hrm/geofences/:id/action`, `GET /hrm/alerts`, `POST /hrm/alerts/:id/action`.
+
+Automation: `HRM_AUTOMATION_ENABLED=true` runs `automation.realtime()` on `HRM_REALTIME_CRON` (default every 5 min, no user id needed) — slot/lunch reminders, missed slots, offline alerts, half-day auto clock-out, deadline processing (idempotent via `hrm_automation_runs`).
+
+Push: set `FIREBASE_SERVICE_ACCOUNT_PATH` to a Firebase service-account JSON; notifications created by HRM are then also sent via FCM HTTP v1 after the transaction commits. Without it only in-app notifications (and the app's local reminders) are used.
+
+Web employee workday: *HRM → My day* (`/app/hrm/my-day`, also on the overview for employees) runs the same flow as the app with browser location (`client: "web"`, stored as attendance `source=web`); pings run only while the tab is open, so a closed tab shows as offline. `allowWebAttendance=false` limits clock-in to the app. Employees without `dashboard.view` land on My day after login.
+
+Web: HRM overview shows the live board, alert queue and home-location approvals (map); *Work locations* manages office geofences (`VITE_GOOGLE_MAPS_API_KEY`). Policy keys are editable under *Policies & organization*.
+
+Demo data: `npm run seed:hrm-demo` (refuses databases named `*prod*`). Tests: `node --test tests/hrm.workday.test.js`.

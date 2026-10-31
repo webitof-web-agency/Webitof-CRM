@@ -73,7 +73,7 @@ const DEFAULT_POLICY = {
   reportMandatory: true,
   minimumReportHours: 8,
   reportDeadline: "23:59",
-  allowBackdatedReports: true,
+  allowBackdatedReports: false,
   maxBackdateDays: 31,
   requireReportApproval: true,
   requireProject: false,
@@ -111,11 +111,50 @@ const DEFAULT_POLICY = {
   ],
   automationEnabled: false,
   reminderDays: 30,
+  // Location-verified attendance (employee app)
+  geofenceRequired: true,
+  // Same workday from the web HRM "My day" page (browser location; less precise than phone GPS).
+  allowWebAttendance: true,
+  maxGpsAccuracyMeters: 100,
+  gpsToleranceMeters: 25,
+  defaultOfficeRadiusMeters: 150,
+  defaultHomeRadiusMeters: 100,
+  pingIntervalMinutes: 5,
+  offlineAfterMinutes: 12,
+  // Slot work reports and lunch
+  reportIntervalMinutes: 60,
+  slotGraceMinutes: 10,
+  minSlotReportChars: 20,
+  lunchWindowStart: "13:00",
+  lunchWindowEnd: "14:30",
+  lunchMaxMinutes: 45,
+  absentIfNoReport: true,
 };
+// Applied once when the v2 schema is installed on an existing database.
+const V2_POLICY_OVERRIDES = { allowBackdatedReports: false };
+const ALERT_KINDS = [
+  "geofence_breach",
+  "offline",
+  "mock_location",
+  "client_visit",
+  "lunch_overrun",
+  "absent",
+];
+const ALERT_ACTIONS = [
+  "ignore",
+  "explain",
+  "warn",
+  "half-day",
+  "absent",
+  "checkout",
+];
 module.exports = {
   PERMISSIONS,
   EMPLOYEE_STATUSES,
   WORK_MODES,
   MASTER_TYPES,
   DEFAULT_POLICY,
+  V2_POLICY_OVERRIDES,
+  ALERT_KINDS,
+  ALERT_ACTIONS,
 };

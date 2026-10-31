@@ -220,6 +220,12 @@ export function HrmCollection({
                 render: (r) => (Number(r.minutes) / 60).toFixed(2),
               },
               { key: "status", render: (r) => <Status value={r.status} /> },
+              {
+                key: "editCount",
+                title: "Edits",
+                render: (r) =>
+                  r.editCount ? `${r.editCount}×${r.adminEditedAt ? " (admin)" : ""}` : "—",
+              },
             ]
           : kind === "allocations"
             ? [

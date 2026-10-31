@@ -3,9 +3,11 @@ const { createId } = require("../../utils/format");
 const { hasPermission } = require("../../middlewares/auth");
 const { DEFAULT_POLICY } = require("../../config/hrm");
 const dbDefault = { query };
-function fail(message, statusCode = 400) {
+function fail(message, statusCode = 400, code = null) {
   const e = new Error(message);
   e.statusCode = statusCode;
+  // Machine-readable reason for the employee app (e.g. HOME_REQUIRED).
+  if (code) e.details = { code };
   throw e;
 }
 function permit(user, ...actions) {
@@ -189,24 +191,88 @@ async function audit(
     ip: ip || user.hrmRequestIp || null,
   });
 }
-async function notify(db, userId, title, entityId, actorId) {
+// Runs side effects (socket, push) only once the surrounding transaction has
+// committed, so a rolled-back action never alerts anyone.
+function afterCommit(db, hook) {
+  if (Array.isArray(db?.afterCommit)) db.afterCommit.push(hook);
+  else
+    Promise.resolve()
+      .then(hook)
+      .catch((e) => console.error("HRM side effect failed:", e.message));
+}
+async function notify(db, userId, title, entityId, actorId, options = {}) {
   if (!userId) return;
-  await insert(db, "notifications", {
+  const message = options.message || "Open HRM to view this update.";
+  const row = await insert(db, "notifications", {
     recipientType: "user",
     userId,
     moduleName: "hrm",
-    eventKey: "hr_update",
+    eventKey: options.eventKey || "hr_update",
     entityType: "hrm",
     entityId,
     title,
-    message: "Open HRM to view this update.",
+    message,
+    severity: options.severity || "info",
     actorUserId: actorId,
-    routePath: "/app/hrm",
-    channels: JSON.stringify(["inApp"]),
+    routePath: options.routePath || "/app/hrm",
+    channels: JSON.stringify(options.push === false ? ["inApp"] : ["inApp", "push"]),
+    payload: JSON.stringify(options.data || {}),
   });
+  afterCommit(db, async () => {
+    const { emitToUser } = require("../socketHub.service");
+    emitToUser(userId, "notification:created", row);
+    if (options.push !== false)
+      await require("./push").pushToUser(userId, {
+        title,
+        body: message,
+        tag: options.tag,
+        data: {
+          type: options.eventKey || "hr_update",
+          entityId,
+          ...(options.data || {}),
+        },
+      });
+  });
+  return row;
+}
+// Admins and HR approvers, plus the employee's manager when given.
+async function reviewers(db, employee = null) {
+  const r = await db.query(
+    `SELECT DISTINCT u.id FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN roles ro ON ro.id=ur.role_id
+     LEFT JOIN role_permissions rp ON rp.role_id=ro.id LEFT JOIN permissions pm ON pm.id=rp.permission_id
+     WHERE u.is_active=true AND (ro.code='admin' OR pm.code='hrm.hr_approve')`,
+  );
+  const ids = new Set(r.rows.map((x) => x.id));
+  if (employee?.managerId) {
+    const m = await db.query("SELECT user_id FROM hrm_employees WHERE id=$1", [
+      employee.managerId,
+    ]);
+    if (m.rows[0]?.user_id) ids.add(m.rows[0].user_id);
+  }
+  if (employee?.userId) ids.delete(employee.userId);
+  return [...ids];
+}
+async function notifyReviewers(db, employee, title, entityId, actorId, options = {}) {
+  for (const id of await reviewers(db, employee))
+    await notify(db, id, title, entityId, actorId, options);
 }
 async function transaction(work, db) {
-  return db ? work(db) : withTransaction(work);
+  if (db) return work(db);
+  const hooks = [];
+  const result = await withTransaction(async (tx) => {
+    tx.afterCommit = hooks;
+    try {
+      return await work(tx);
+    } finally {
+      // Pool clients are reused; never leak this transaction's hook list.
+      delete tx.afterCommit;
+    }
+  });
+  for (const hook of hooks)
+    Promise.resolve()
+      .then(hook)
+      .catch((e) => console.error("HRM side effect failed:", e.message));
+  return result;
 }
 function page(q) {
   return {
@@ -243,6 +309,9 @@ module.exports = {
   master,
   audit,
   notify,
+  notifyReviewers,
+  reviewers,
+  afterCommit,
   transaction,
   page,
   optimistic,
