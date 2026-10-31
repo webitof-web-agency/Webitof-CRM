@@ -233,6 +233,89 @@ async function idOf(db, type, name) {
   return (await db.query("SELECT id FROM master_items WHERE type=$1 AND name=$2", [`hrm_${type}`, name])).rows[0]?.id;
 }
 
+// Which employment types each leave applies to (empty = everyone). Interns and freelancers
+// get no earned or parental leave; freelancers get no paid leave at all.
+const LEAVE_ELIGIBILITY = {
+  "Casual Leave": ["Full-time", "Part-time", "Contract", "Intern"],
+  "Sick Leave": ["Full-time", "Part-time", "Contract", "Intern"],
+  "Earned / Privilege Leave": ["Full-time"],
+  "Maternity Leave": ["Full-time", "Contract"],
+  "Paternity Leave": ["Full-time", "Contract"],
+  "Bereavement Leave": ["Full-time", "Part-time", "Contract"],
+  "Compensatory Off": ["Full-time", "Part-time", "Contract"],
+  "Leave Without Pay": ["Full-time", "Part-time", "Contract", "Intern"],
+};
+
+// HRM access for staff roles: every CRM user can run their own workday (My day / Employee app);
+// HR and team managers get the approval rights the HR module needs besides the admin.
+const HRM_ROLES = [
+  {
+    code: "hr_manager",
+    name: "HR Manager",
+    description: "Runs HR: employees, attendance, leave, documents, payroll preparation",
+    permissions: ["view_own", "view_all", "self_service", "manage_employees", "manage_settings", "approve", "hr_approve",
+      "manage_allocations", "view_private", "manage_private", "view_salary", "manage_salary", "payroll",
+      "recruitment", "performance", "assets", "documents", "export"],
+  },
+  {
+    code: "team_manager",
+    name: "Team Manager",
+    description: "Leads a team: sees and approves their reports' work, leave and attendance",
+    permissions: ["view_own", "view_team", "view_projects", "self_service", "approve", "manage_allocations"],
+  },
+];
+const SELF_SERVICE_ROLES = ["sales", "accountant"];
+
+// Links between masters and role access. Only fills what is empty, so HR choices stay.
+async function applyMappings(db, counts) {
+  const shiftId = await idOf(db, "shift", shifts[0].name);
+  if (shiftId) {
+    const r = await db.query(
+      "UPDATE master_items SET payload = payload || jsonb_build_object('shiftId', $1::text), updated_at = now() WHERE type = 'hrm_department' AND coalesce(payload->>'shiftId', '') = ''",
+      [shiftId],
+    );
+    counts["Department → shift"] = `${r.rowCount} linked to ${shifts[0].name}`;
+  }
+  const typeIds = Object.fromEntries(
+    (await db.query("SELECT id, name FROM master_items WHERE type = 'hrm_employment_type'")).rows.map((r) => [r.name, r.id]),
+  );
+  let leaves = 0;
+  for (const [leave, types] of Object.entries(LEAVE_ELIGIBILITY)) {
+    const ids = types.map((t) => typeIds[t]).filter(Boolean);
+    if (!ids.length) continue;
+    const r = await db.query(
+      "UPDATE master_items SET payload = payload || jsonb_build_object('employmentTypeIds', $2::jsonb), updated_at = now() WHERE type = 'hrm_leave_type' AND name = $1 AND coalesce(payload->'employmentTypeIds', '[]'::jsonb) = '[]'::jsonb",
+      [leave, JSON.stringify(ids)],
+    );
+    leaves += r.rowCount;
+  }
+  counts["Leave → employment type"] = `${leaves} leave types linked`;
+
+  let roles = 0;
+  for (const role of HRM_ROLES) {
+    const created = await db.query(
+      `INSERT INTO roles (id, code, name, description, is_system, is_active, payload)
+       SELECT $1, $2, $3, $4, false, true, '{}'::jsonb
+       WHERE NOT EXISTS (SELECT 1 FROM roles WHERE code = $2 OR name = $3)`,
+      [`role-${role.code.replace(/_/g, "-")}`, role.code, role.name, role.description],
+    );
+    roles += created.rowCount;
+    await db.query(
+      `INSERT INTO role_permissions (role_id, permission_id)
+       SELECT r.id, p.id FROM roles r JOIN permissions p ON p.code = ANY($2::text[])
+       WHERE r.code = $1 ON CONFLICT DO NOTHING`,
+      [role.code, role.permissions.map((a) => `hrm.${a}`)],
+    );
+  }
+  const selfService = await db.query(
+    `INSERT INTO role_permissions (role_id, permission_id)
+     SELECT r.id, p.id FROM roles r JOIN permissions p ON p.code IN ('hrm.view_own', 'hrm.self_service')
+     WHERE r.code = ANY($1::text[]) ON CONFLICT DO NOTHING`,
+    [SELF_SERVICE_ROLES],
+  );
+  counts["Roles"] = `${roles} created (HR Manager, Team Manager); self service added to ${SELF_SERVICE_ROLES.join(", ")} (${selfService.rowCount} grants)`;
+}
+
 async function seed(db) {
   const counts = {};
   const run = async (label, rows) => {
@@ -282,6 +365,7 @@ async function seed(db) {
     [JSON.stringify(attendancePolicies[0].payload)],
   );
   if (aligned.rowCount) counts["Standard office"] = "8.25 h/day, 6 days/week";
+  await applyMappings(db, counts);
   return counts;
 }
 

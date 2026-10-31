@@ -66,6 +66,7 @@ const masterFields = {
     ["carryForward", "Carry forward", "checkbox"],
     ["carryForwardLimit", "Maximum carry forward (days)", "number"],
     ["encashmentAllowed", "Encashment allowed", "checkbox"],
+    ["employmentTypeIds", "Applies to employment types (none ticked = everyone)", "multi:employment_type"],
   ],
   letter_template: [
     ["certificate", "Show under employee Certifications", "checkbox"],
@@ -299,6 +300,43 @@ const masterTypeInfo = {
   letter_template: ["Letters & certificates", "Joining letter, experience certificate, NOC…"],
 };
 const masterOrder = Object.keys(masterTypeInfo);
+
+// One short line under each item showing how it is linked, so missing mappings are visible.
+function masterDetail(type, m, nameOf) {
+  const p = m.payload || {};
+  const names = (ids) => (ids || []).map(nameOf).filter(Boolean).join(", ");
+  switch (type) {
+    case "department":
+      return [nameOf(p.branchId) || "All branches", nameOf(p.shiftId)].filter(Boolean).join(" · ");
+    case "designation":
+      return nameOf(p.departmentId) || "All departments";
+    case "team":
+      return nameOf(p.departmentId) || "No department";
+    case "shift":
+      return p.start && p.end
+        ? `${p.start}–${p.end}${p.breakMinutes ? ` · ${p.breakMinutes}m break` : ""}`
+        : "";
+    case "attendance_policy":
+      return p.hoursPerDay ? `${p.hoursPerDay} h × ${p.daysPerWeek || "?"} days${p.geofenceRequired ? " · geofenced" : ""}` : "";
+    case "leave_type":
+      return [
+        p.annualDays != null ? `${p.annualDays} days${p.paid === false ? " unpaid" : ""}` : "",
+        names(p.employmentTypeIds) || "All employment types",
+      ].filter(Boolean).join(" · ");
+    case "document_type":
+      return [p.defaultOnCreate && "Asked on new employee", p.hasExpiry && "Has expiry", p.system && "System"].filter(Boolean).join(" · ");
+    case "location":
+      return p.address || "";
+    case "kpi_template":
+      return p.factors?.length ? `${p.factors.length} factors` : "";
+    case "salary_structure":
+      return p.components?.length ? `${p.components.length} components` : "";
+    case "letter_template":
+      return p.description || "";
+    default:
+      return "";
+  }
+}
 const blankRecord = { name: "", isActive: true, payload: {} };
 
 async function deleteMaster(token, type, master) {
@@ -369,11 +407,10 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                   + Add
                 </Button>
               </div>
-              <ul className="mt-3 max-h-48 space-y-0.5 overflow-y-auto">
+              <ul className="mt-3 max-h-64 space-y-0.5 overflow-y-auto">
                 {items.length ? (
                   items.map((m) => {
-                    const parent =
-                      nameOf(m.payload?.branchId) || nameOf(m.payload?.departmentId);
+                    const detail = masterDetail(type, m, nameOf);
                     return (
                       <li
                         key={m.id}
@@ -381,7 +418,7 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                       >
                         <button
                           type="button"
-                          className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2 py-1.5 text-left text-sm"
+                          className="flex min-w-0 flex-1 flex-col px-2 py-1.5 text-left"
                           onClick={() =>
                             setEditing({
                               type,
@@ -389,17 +426,21 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                             })
                           }
                         >
-                          <span className={`truncate ${m.isActive === false ? "text-[var(--text-muted)] line-through" : ""}`}>
-                            {m.name}
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-                            {parent && <span className="max-w-28 truncate">{parent}</span>}
+                          <span className="flex items-center gap-1.5 text-sm">
+                            <span className={`break-words ${m.isActive === false ? "text-[var(--text-muted)] line-through" : ""}`}>
+                              {m.name}
+                            </span>
                             {m.isActive === false && (
-                              <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-600">
+                              <span className="shrink-0 rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-600">
                                 Inactive
                               </span>
                             )}
                           </span>
+                          {detail && (
+                            <span className="truncate text-[11px] text-[var(--text-muted)]" title={detail}>
+                              {detail}
+                            </span>
+                          )}
                         </button>
                         <button
                           type="button"
@@ -526,6 +567,33 @@ function MasterEditor({ token, masters, type, initial, onClose, onSaved }) {
                   />
                 </div>
               );
+            if (fieldType.startsWith("multi:")) {
+              const options = masters.filter((m) => m.type === `hrm_${fieldType.slice(6)}`);
+              const selected = record.payload[key] || [];
+              return (
+                <fieldset key={key} className="sm:col-span-2">
+                  <legend className="mb-1.5 text-xs font-semibold">{fieldTitle}</legend>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
+                    {options.map((o) => (
+                      <label key={o.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-[var(--primary)]"
+                          checked={selected.includes(o.id)}
+                          onChange={(e) =>
+                            setPayload(
+                              key,
+                              e.target.checked ? [...selected, o.id] : selected.filter((x) => x !== o.id),
+                            )
+                          }
+                        />
+                        {o.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              );
+            }
             if (fieldType === "checkbox")
               return (
                 <label key={key} className="flex items-center gap-2 text-sm sm:col-span-2">

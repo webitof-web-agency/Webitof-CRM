@@ -80,7 +80,7 @@ export function HrmGeofences({ token, metadata, masters, can }) {
                 <Field name="officeLat" title="Latitude" type="number" value={form.latitude} onChange={(v) => set("latitude", v)} required />
                 <Field name="officeLng" title="Longitude" type="number" value={form.longitude} onChange={(v) => set("longitude", v)} required />
               </div>
-              <Field name="officeRadius" title="Radius (metres)" type="number" min={20} max={5000} value={form.radiusMeters} onChange={(v) => set("radiusMeters", v)} required help="Keep 100â€“200 m for a building; GPS tolerance is added automatically." />
+              <Field name="officeRadius" title="Radius (metres)" type="number" min={20} max={5000} value={form.radiusMeters} onChange={(v) => set("radiusMeters", v)} required help="Keep 100–200 m for a building; GPS tolerance is added automatically." />
               <Field
                 name="officeLocation"
                 title="Organization location (optional)"
@@ -123,9 +123,9 @@ export function HrmGeofences({ token, metadata, masters, can }) {
             <div key={o.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] p-3 text-sm">
               <div>
                 <p className="font-semibold">{o.label}</p>
-                <p className="text-xs text-[var(--text-muted)]">{o.address || "â€”"}</p>
+                <p className="text-xs text-[var(--text-muted)]">{o.address || "—"}</p>
                 <a className="text-xs text-[var(--primary)]" href={mapsLink(o)} target="_blank" rel="noreferrer">
-                  {o.latitude.toFixed(5)}, {o.longitude.toFixed(5)} Â· {o.radiusMeters} m â†—
+                  {o.latitude.toFixed(5)}, {o.longitude.toFixed(5)} · {o.radiusMeters} m ↗
                 </a>
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -152,11 +152,11 @@ export function HrmGeofences({ token, metadata, masters, can }) {
               {homes.map((h) => (
                 <tr key={h.id} className="border-t border-[var(--border)]">
                   <td className="px-3 py-2">{h.employeeName}<span className="block text-xs text-[var(--text-muted)]">{h.employeeNumber}</span></td>
-                  <td className="px-3 py-2"><a className="text-[var(--primary)]" href={mapsLink(h)} target="_blank" rel="noreferrer">{h.latitude.toFixed(5)}, {h.longitude.toFixed(5)} â†—</a></td>
+                  <td className="px-3 py-2"><a className="text-[var(--primary)]" href={mapsLink(h)} target="_blank" rel="noreferrer">{h.latitude.toFixed(5)}, {h.longitude.toFixed(5)} ↗</a></td>
                   <td className="px-3 py-2">{h.radiusMeters} m</td>
-                  <td className="px-3 py-2">Â±{h.requestAccuracy ?? "?"} m</td>
+                  <td className="px-3 py-2">±{h.requestAccuracy ?? "?"} m</td>
                   <td className="px-3 py-2"><Status value={h.status} /></td>
-                  <td className="px-3 py-2 text-xs">{h.reviewedAt ? new Date(h.reviewedAt).toLocaleDateString() : "â€”"}{h.comment ? ` Â· ${h.comment}` : ""}</td>
+                  <td className="px-3 py-2 text-xs">{h.reviewedAt ? new Date(h.reviewedAt).toLocaleDateString() : "—"}{h.comment ? ` · ${h.comment}` : ""}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       {h.status === "Pending" && can("approve") && (
