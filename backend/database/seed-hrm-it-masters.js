@@ -1,6 +1,8 @@
-// Seeds HRM organization masters for an Indian IT / web-services company: branches,
-// departments, designations, teams, employment types, shifts, attendance policies, document
-// types, leave types, work categories, salary structures, KPI templates and HR letters.
+// Seeds the HRM organization for Webitof (WEBITOF WEB AGENCY (OPC) PRIVATE LIMITED, Raipur):
+// branch, departments, designations and teams shaped on the services listed on webitof.com,
+// employment types, the 10:00–19:00 shift with lunch 14:00–14:45, attendance policies, document
+// types, leave types, work categories, salary structures, KPI templates and HR letters. It also
+// sets the office timing and lunch window in the HR policy.
 //
 // Additive and safe to re-run: a row is skipped when its id or (type, name) already exists, so
 // anything HR has edited stays as it is. Usage: node database/seed-hrm-it-masters.js --yes
@@ -9,37 +11,43 @@ const { withTransaction, closePool } = require("../config/db");
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const item = (type, name, payload = {}, id = `hrm-it-${type.replace(/_/g, "-")}-${slug(name)}`) => ({ type, name, payload, id });
 
+const OFFICE = { start: "10:00", end: "19:00", lunchStart: "14:00", lunchEnd: "14:45", lunchMinutes: 45 };
+const WEEKLY_OFFS = [0, 6]; // webitof.com: Monday – Friday
+
 const branches = [
-  item("location", "Head Office", { timezone: "Asia/Kolkata" }),
+  item("location", "Head Office – Raipur", {
+    address: "Unit No. 3033, 3rd Floor, Currency Tower, VIP Rd, Vishal Nagar, Raipur, Chhattisgarh 492001, India",
+    timezone: "Asia/Kolkata",
+  }),
   item("location", "Remote / Work from home", { timezone: "Asia/Kolkata" }),
 ];
 
 // department -> designations (department ids are resolved after insert)
 const departments = {
-  Management: ["Director", "Chief Executive Officer (CEO)", "Chief Technology Officer (CTO)", "Operations Head"],
+  Management: ["Founder & Managing Director", "Director", "Chief Technology Officer (CTO)", "Operations Head"],
   "Software Development": [
     "Trainee Developer",
     "Junior Software Developer",
     "Software Developer",
     "Senior Software Developer",
-    "Frontend Developer",
-    "Backend Developer",
-    "Full Stack Developer",
-    "Mobile App Developer",
+    "MERN Stack Developer",
+    "React / Next.js Developer",
+    "PHP / Laravel Developer",
     "WordPress Developer",
+    "Shopify Developer",
     "Team Lead",
     "Technical Architect",
   ],
-  "UI/UX Design": ["Graphic Designer", "UI/UX Designer", "Senior UI/UX Designer", "Design Lead"],
-  "Quality Assurance": ["QA Engineer", "Senior QA Engineer", "QA Lead"],
-  "DevOps & Cloud": ["DevOps Engineer", "System Administrator", "Cloud Engineer"],
-  "Digital Marketing": [
-    "SEO Executive",
-    "Social Media Executive",
-    "Content Writer",
-    "Performance Marketing (PPC) Executive",
-    "Digital Marketing Manager",
+  "Mobile App Development": [
+    "Flutter Developer",
+    "React Native Developer",
+    "Android Developer",
+    "iOS Developer",
+    "Mobile Team Lead",
   ],
+  "UI/UX Design": ["Graphic Designer", "UI/UX Designer (Figma)", "Senior UI/UX Designer", "Design Lead"],
+  "Quality Assurance": ["QA Engineer", "Senior QA Engineer", "QA Lead"],
+  "DevOps & Cloud": ["DevOps Engineer", "Cloud Engineer (AWS / Azure / GCP)", "System Administrator"],
   "Sales & Business Development": [
     "Business Development Executive",
     "Business Development Manager",
@@ -52,10 +60,18 @@ const departments = {
   "Finance & Accounts": ["Accounts Executive", "Accountant", "Finance Manager"],
   "Admin & Operations": ["Office Administrator", "Office Assistant", "IT Support Executive"],
 };
+// Teams follow the service lines on webitof.com.
 const teams = {
-  "Software Development": ["Web Development", "Mobile Apps", "WordPress & CMS", "API & Integrations"],
-  "Digital Marketing": ["SEO", "Social Media", "Paid Ads"],
-  "UI/UX Design": ["Product Design"],
+  "Software Development": [
+    "Web Development (MERN / Next.js)",
+    "Custom Software (CRM / ERP / HRM)",
+    "SaaS & Cloud Software",
+    "E-commerce",
+    "CMS (WordPress / Shopify / Elementor)",
+    "WhatsApp API & Automation",
+  ],
+  "Mobile App Development": ["Flutter Apps", "React Native Apps"],
+  "UI/UX Design": ["Figma & Product Design"],
 };
 
 const employmentTypes = ["Full-time", "Part-time", "Contract", "Intern", "Freelancer / Consultant"].map((n) =>
@@ -63,35 +79,25 @@ const employmentTypes = ["Full-time", "Part-time", "Contract", "Intern", "Freela
 );
 
 const shifts = [
-  item("shift", "General Shift (Mon–Sat)", {
-    start: "10:00",
-    end: "19:00",
+  item("shift", "General Shift (10:00 – 19:00)", {
+    start: OFFICE.start,
+    end: OFFICE.end,
     graceMinutes: 15,
-    minimumHours: 8,
+    minimumHours: 8.25,
     halfDayHours: 4,
-    breakMinutes: 60,
-    weeklyOffs: [0],
+    breakMinutes: OFFICE.lunchMinutes,
+    weeklyOffs: WEEKLY_OFFS,
     overtimeEnabled: false,
   }),
-  item("shift", "General Shift (Mon–Fri)", {
-    start: "09:30",
-    end: "18:30",
+  item("shift", "General Shift – Saturday working", {
+    start: OFFICE.start,
+    end: OFFICE.end,
     graceMinutes: 15,
-    minimumHours: 8,
+    minimumHours: 8.25,
     halfDayHours: 4,
-    breakMinutes: 60,
-    weeklyOffs: [0, 6],
-    overtimeEnabled: false,
-  }),
-  item("shift", "Early Shift", {
-    start: "07:00",
-    end: "16:00",
-    graceMinutes: 10,
-    minimumHours: 8,
-    halfDayHours: 4,
-    breakMinutes: 60,
+    breakMinutes: OFFICE.lunchMinutes,
     weeklyOffs: [0],
-    overtimeEnabled: true,
+    overtimeEnabled: false,
   }),
   item("shift", "US Overlap Shift", {
     start: "14:00",
@@ -100,38 +106,32 @@ const shifts = [
     minimumHours: 8,
     halfDayHours: 4,
     breakMinutes: 60,
-    weeklyOffs: [0, 6],
+    weeklyOffs: WEEKLY_OFFS,
     overtimeEnabled: true,
   }),
 ];
 
 const attendancePolicies = [
   item("attendance_policy", "Standard office", {
-    hoursPerDay: 8.5,
+    hoursPerDay: 8.25,
     daysPerWeek: 5,
     geofenceRequired: true,
-    description: "Clock in at an approved work location; hourly work reports.",
+    description: "Currency Tower office, 10:00 – 19:00, lunch 14:00 – 14:45; hourly work reports.",
   }, "hrm-policy-standard"),
-  item("attendance_policy", "Office – 6 days", {
-    hoursPerDay: 8,
-    daysPerWeek: 6,
-    geofenceRequired: true,
-    description: "Monday to Saturday at the office.",
-  }),
   item("attendance_policy", "Remote / WFH", {
-    hoursPerDay: 8,
+    hoursPerDay: 8.25,
     daysPerWeek: 5,
     geofenceRequired: false,
-    description: "Work from home; clock in from the approved home location and report hourly.",
+    description: "Work from the approved home location; same hours and hourly reports.",
   }),
   item("attendance_policy", "Hybrid", {
-    hoursPerDay: 8,
+    hoursPerDay: 8.25,
     daysPerWeek: 5,
     geofenceRequired: true,
     description: "Office and approved home location both allowed.",
   }),
   item("attendance_policy", "Field / Client visit", {
-    hoursPerDay: 8,
+    hoursPerDay: 8.25,
     daysPerWeek: 5,
     geofenceRequired: false,
     description: "Sales and client-site work; visits outside zones need a reason and admin review.",
@@ -170,15 +170,16 @@ const workCategories = [
   "Bug Fixing",
   "Code Review",
   "Testing / QA",
-  "UI/UX Design",
+  "UI/UX Design (Figma)",
   "Graphic Design",
   "Deployment / DevOps",
   "Requirement Analysis",
+  "CRM / ERP Customisation",
+  "WhatsApp API Integration",
+  "WordPress / Shopify Work",
   "Client Meeting",
   "Internal Meeting",
   "Documentation",
-  "SEO / Digital Marketing",
-  "Content Writing",
   "Sales / Pre-sales",
   "Support / Maintenance",
   "Learning & Training",
@@ -206,7 +207,7 @@ const kpiTemplates = [
   item("kpi_template", "Developer KPI", { factors: ["On-time delivery", "Code quality & reviews", "Bugs after release", "Estimation accuracy", "Communication & teamwork", "Learning & initiative"] }),
   item("kpi_template", "Designer KPI", { factors: ["On-time delivery", "Design quality", "Client revisions", "Consistency with design system", "Communication"] }),
   item("kpi_template", "QA KPI", { factors: ["Test coverage", "Defects found before release", "Defects leaked to production", "Test documentation", "Turnaround time"] }),
-  item("kpi_template", "Digital Marketing KPI", { factors: ["Traffic / leads growth", "Campaign ROI", "Content output", "Reporting accuracy", "Client satisfaction"] }),
+  item("kpi_template", "Mobile Developer KPI", { factors: ["On-time delivery", "App stability (crashes)", "Store release quality", "Code quality & reviews", "Communication"] }),
   item("kpi_template", "Sales KPI", { factors: ["Revenue vs target", "Leads converted", "Pipeline value", "Follow-up discipline", "Client relationships"] }),
   item("kpi_template", "Project Manager KPI", { factors: ["Projects delivered on time", "Budget adherence", "Client satisfaction", "Team utilisation", "Risk management"] }),
 ];
@@ -275,6 +276,30 @@ async function seed(db) {
   await run("Salary structures", salaryStructures);
   await run("KPI templates", kpiTemplates);
   await run("Letters & certificates", letters);
+
+  // Office timing, lunch window and default shift in the HR policy (merged over current values).
+  const generalShift = await idOf(db, "shift", shifts[0].name);
+  await db.query(
+    "UPDATE hrm_settings SET value = value || $1::jsonb, updated_at = now() WHERE key = 'policy'",
+    [JSON.stringify({
+      shiftStart: OFFICE.start,
+      shiftEnd: OFFICE.end,
+      standardDailyHours: 8.25,
+      weeklyOffs: WEEKLY_OFFS,
+      graceMinutes: 15,
+      lunchWindowStart: OFFICE.lunchStart,
+      lunchWindowEnd: OFFICE.lunchEnd,
+      lunchMaxMinutes: OFFICE.lunchMinutes,
+      ...(generalShift ? { defaultShiftId: generalShift } : {}),
+    })],
+  );
+  counts["HR policy"] = "office 10:00–19:00, lunch 14:00–14:45, Sat/Sun off";
+  // The migration created "Standard office" with 8.5 h; match Webitof's 8 h 15 m unless HR changed it.
+  const aligned = await db.query(
+    "UPDATE master_items SET payload = payload || $1::jsonb, updated_at = now() WHERE id = 'hrm-policy-standard' AND payload->>'hoursPerDay' = '8.5'",
+    [JSON.stringify(attendancePolicies[0].payload)],
+  );
+  if (aligned.rowCount) counts["Standard office"] = "hours set to 8.25 / day";
   return counts;
 }
 
