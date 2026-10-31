@@ -1,6 +1,6 @@
 // Seeds the HRM organization for Webitof (WEBITOF WEB AGENCY (OPC) PRIVATE LIMITED, Raipur):
 // branch, departments, designations and teams shaped on the services listed on webitof.com,
-// employment types, the 10:00–19:00 shift with lunch 14:00–14:45, attendance policies, document
+// employment types, the Morning Shift 10:00–19:00 (Mon–Sat, lunch 14:00–14:45), attendance policies, document
 // types, leave types, work categories, salary structures, KPI templates and HR letters. It also
 // sets the office timing and lunch window in the HR policy.
 //
@@ -12,7 +12,9 @@ const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g
 const item = (type, name, payload = {}, id = `hrm-it-${type.replace(/_/g, "-")}-${slug(name)}`) => ({ type, name, payload, id });
 
 const OFFICE = { start: "10:00", end: "19:00", lunchStart: "14:00", lunchEnd: "14:45", lunchMinutes: 45 };
-const WEEKLY_OFFS = [0, 6]; // webitof.com: Monday – Friday
+// Monday to Saturday working, Sunday off (confirmed by Webitof; the website's hours are out of date).
+const WEEKLY_OFFS = [0];
+const DAYS_PER_WEEK = 6;
 
 const branches = [
   item("location", "Head Office – Raipur", {
@@ -79,7 +81,7 @@ const employmentTypes = ["Full-time", "Part-time", "Contract", "Intern", "Freela
 );
 
 const shifts = [
-  item("shift", "General Shift (10:00 – 19:00)", {
+  item("shift", "Morning Shift (10:00 – 19:00)", {
     start: OFFICE.start,
     end: OFFICE.end,
     graceMinutes: 15,
@@ -88,51 +90,31 @@ const shifts = [
     breakMinutes: OFFICE.lunchMinutes,
     weeklyOffs: WEEKLY_OFFS,
     overtimeEnabled: false,
-  }),
-  item("shift", "General Shift – Saturday working", {
-    start: OFFICE.start,
-    end: OFFICE.end,
-    graceMinutes: 15,
-    minimumHours: 8.25,
-    halfDayHours: 4,
-    breakMinutes: OFFICE.lunchMinutes,
-    weeklyOffs: [0],
-    overtimeEnabled: false,
-  }),
-  item("shift", "US Overlap Shift", {
-    start: "14:00",
-    end: "23:00",
-    graceMinutes: 15,
-    minimumHours: 8,
-    halfDayHours: 4,
-    breakMinutes: 60,
-    weeklyOffs: WEEKLY_OFFS,
-    overtimeEnabled: true,
   }),
 ];
 
 const attendancePolicies = [
   item("attendance_policy", "Standard office", {
     hoursPerDay: 8.25,
-    daysPerWeek: 5,
+    daysPerWeek: DAYS_PER_WEEK,
     geofenceRequired: true,
-    description: "Currency Tower office, 10:00 – 19:00, lunch 14:00 – 14:45; hourly work reports.",
+    description: "Currency Tower office, Monday – Saturday 10:00 – 19:00, lunch 14:00 – 14:45; hourly work reports.",
   }, "hrm-policy-standard"),
   item("attendance_policy", "Remote / WFH", {
     hoursPerDay: 8.25,
-    daysPerWeek: 5,
+    daysPerWeek: DAYS_PER_WEEK,
     geofenceRequired: false,
     description: "Work from the approved home location; same hours and hourly reports.",
   }),
   item("attendance_policy", "Hybrid", {
     hoursPerDay: 8.25,
-    daysPerWeek: 5,
+    daysPerWeek: DAYS_PER_WEEK,
     geofenceRequired: true,
     description: "Office and approved home location both allowed.",
   }),
   item("attendance_policy", "Field / Client visit", {
     hoursPerDay: 8.25,
-    daysPerWeek: 5,
+    daysPerWeek: DAYS_PER_WEEK,
     geofenceRequired: false,
     description: "Sales and client-site work; visits outside zones need a reason and admin review.",
   }),
@@ -293,13 +275,13 @@ async function seed(db) {
       ...(generalShift ? { defaultShiftId: generalShift } : {}),
     })],
   );
-  counts["HR policy"] = "office 10:00–19:00, lunch 14:00–14:45, Sat/Sun off";
-  // The migration created "Standard office" with 8.5 h; match Webitof's 8 h 15 m unless HR changed it.
+  counts["HR policy"] = "Mon–Sat 10:00–19:00, lunch 14:00–14:45, Sunday off";
+  // The migration created "Standard office" with 8.5 h × 5 days; match Webitof's 8 h 15 m × 6 days unless HR changed it.
   const aligned = await db.query(
     "UPDATE master_items SET payload = payload || $1::jsonb, updated_at = now() WHERE id = 'hrm-policy-standard' AND payload->>'hoursPerDay' = '8.5'",
     [JSON.stringify(attendancePolicies[0].payload)],
   );
-  if (aligned.rowCount) counts["Standard office"] = "hours set to 8.25 / day";
+  if (aligned.rowCount) counts["Standard office"] = "8.25 h/day, 6 days/week";
   return counts;
 }
 
