@@ -9,6 +9,7 @@
     "migrate:hrm": "node database/migrate-hrm.js",
     "test:hrm": "node --test tests/hrm.test.js tests/hrm.workday.test.js tests/hrm.integration.js",
     "seed:hrm-demo": "node database/seed-hrm-demo.js --yes-seed-hrm",
+    "seed:hrm-it": "node database/seed-hrm-it-masters.js --yes",
     "start": "node server.js",
     "predev": "node scripts/ensure-dev-db.js",
     "dev": "node --watch server.js",
