@@ -10,6 +10,7 @@
     "test:hrm": "node --test tests/hrm.test.js tests/hrm.workday.test.js tests/hrm.integration.js",
     "seed:hrm-demo": "node database/seed-hrm-demo.js --yes-seed-hrm",
     "start": "node server.js",
+    "predev": "node scripts/ensure-dev-db.js",
     "dev": "node --watch server.js",
     "check": "node --check server.js",
     "seed:demo": "node database/seed-demo.js --yes-seed-demo",
