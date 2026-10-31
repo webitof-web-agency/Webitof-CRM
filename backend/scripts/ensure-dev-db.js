@@ -64,10 +64,22 @@ async function main() {
       '         Use the local dev line in backend/.env:\n' +
       '         DATABASE_URL="postgresql://webitof:<password>@localhost:55432/webitofcrm_dev"');
   }
-  if (/prod/i.test(database) && process.env.ALLOW_PROD_DEV !== 'true') {
-    fail(`DATABASE_URL uses the production database "${database}" (through a tunnel).\n` +
-      '         The dev server would run migrations, seeding and client-email automation on it.\n' +
-      '         Switch backend/.env back to the local dev DB, or set ALLOW_PROD_DEV=true if you really mean it.');
+  const isProd = /prod/i.test(database);
+  if (isProd) {
+    const flag = (name) => String(process.env[name] || '').toLowerCase() === 'true';
+    if (!flag('ALLOW_PROD_DEV')) {
+      fail(`DATABASE_URL uses the production database "${database}" (through a tunnel).\n` +
+        '         Set ALLOW_PROD_DEV=true (with SKIP_DB_SETUP=true and DISABLE_SCHEDULERS=true) to work on live data.');
+    }
+    if (!flag('SKIP_DB_SETUP') || !flag('DISABLE_SCHEDULERS')) {
+      fail('Working on the live database needs SKIP_DB_SETUP=true and DISABLE_SCHEDULERS=true in backend/.env,\n' +
+        '         otherwise this machine runs migrations/seeding on production and repeats client emails and crons.');
+    }
+    if (!(await acceptsQueries(raw))) {
+      fail(`Cannot reach the live database at ${host}:${port}. Start the SSH tunnel to the production server first.`);
+    }
+    console.log(`[dev-db] LIVE database ${database} via ${host}:${port} (schema setup and crons off). Changes you make here are real.`);
+    return;
   }
 
   if (await acceptsQueries(raw)) {

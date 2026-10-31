@@ -58,9 +58,18 @@ app.post(`${API_PREFIX}/admin/backup/run`, requireAuth, requirePermission('setti
 app.use(notFound);
 app.use(errorHandler);
 
+// A developer machine pointed at the live database sets both flags: SKIP_DB_SETUP leaves the
+// schema and seed data alone (the deployed server owns migrations), and DISABLE_SCHEDULERS
+// keeps local crons from mailing clients or marking attendance a second time.
+const skipDbSetup = String(process.env.SKIP_DB_SETUP || '').toLowerCase() === 'true';
+const disableSchedulers = String(process.env.DISABLE_SCHEDULERS || '').toLowerCase() === 'true';
+
 async function start() {
-  await ensureDatabase();
-  require('./services/hrm/automation').schedule();
+  if (skipDbSetup) {
+    console.log('SKIP_DB_SETUP=true: schema setup and seeding skipped');
+  } else {
+    await ensureDatabase();
+  }
   const server = http.createServer(app);
   registerSocketHub(server, {
     origin: process.env.CORS_ORIGIN || true
@@ -68,6 +77,22 @@ async function start() {
   server.listen(PORT, () => {
     console.log(`Webitof CRM API listening on port ${PORT}`);
   });
+
+  const shutdown = async () => {
+    server.close(async () => {
+      await closePool();
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  if (disableSchedulers) {
+    console.log('DISABLE_SCHEDULERS=true: backup, AMC, renewal, outsourcing, follow-up and HRM crons are off');
+    return;
+  }
+  require('./services/hrm/automation').schedule();
 
   // ─── Daily Backup Cron ──────────────────────────────────────────────────────
   // Runs every day at 11:55 PM IST — backs up entire DB to Google Drive
@@ -132,15 +157,6 @@ async function start() {
     console.error('Could not start follow-up automation cron:', automationErr.message);
   }
 
-  const shutdown = async () => {
-    server.close(async () => {
-      await closePool();
-      process.exit(0);
-    });
-  };
-
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
 }
 
 if (require.main === module) {
