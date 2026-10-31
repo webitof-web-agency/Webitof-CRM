@@ -63,6 +63,9 @@ const controller = {
   ),
   policy: respond((req) => employees.savePolicy(req.user, req.body)),
   list: respond((req) => queries.list(req.user, req.params.kind, req.query)),
+  deleteMaster: respond((req) =>
+    queries.deleteMaster(req.user, req.params.type, req.params.id),
+  ),
   master: respond((req) =>
     queries.masters(req.user, req.params.type, req.body, req.params.id || null),
   ),

@@ -37,6 +37,7 @@ router.put("/records/:kind/:id", c.record);
 router.post("/candidates/:id/convert", c.convert);
 router.post("/masters/:type", c.master);
 router.put("/masters/:type/:id", c.master);
+router.delete("/masters/:type/:id", c.deleteMaster);
 router.get("/holidays", c.holidays);
 router.post("/holidays", c.holidays);
 router.put("/holidays/:id", c.holidays);

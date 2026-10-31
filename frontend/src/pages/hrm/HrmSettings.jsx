@@ -4,6 +4,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Modal } from "../../components/ui/Modal";
+import { Pencil, Trash2 } from "lucide-react";
 import { Field, DetailValues } from "./HrmShared";
 import { hrm, label } from "./hrmApi";
 // Display names: "location" is the Branch used on the employee form.
@@ -300,6 +301,19 @@ const masterTypeInfo = {
 const masterOrder = Object.keys(masterTypeInfo);
 const blankRecord = { name: "", isActive: true, payload: {} };
 
+async function deleteMaster(token, type, master) {
+  if (!window.confirm(`Delete "${master.name}"? If it is already used, mark it inactive instead.`))
+    return false;
+  try {
+    await hrm(token, `/masters/${type}/${master.id}`, { method: "DELETE" });
+    toast.success(`"${master.name}" deleted`);
+    return true;
+  } catch (e) {
+    toast.error(e.message);
+    return false;
+  }
+}
+
 function MastersBoard({ token, masters, masterTypes, onReload }) {
   const [editing, setEditing] = useState(null),
     [search, setSearch] = useState("");
@@ -361,10 +375,13 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                     const parent =
                       nameOf(m.payload?.branchId) || nameOf(m.payload?.departmentId);
                     return (
-                      <li key={m.id}>
+                      <li
+                        key={m.id}
+                        className="group flex items-center gap-1 rounded-lg pr-1 hover:bg-[var(--surface-2)]"
+                      >
                         <button
                           type="button"
-                          className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left text-sm hover:bg-[var(--surface-2)]"
+                          className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2 py-1.5 text-left text-sm"
                           onClick={() =>
                             setEditing({
                               type,
@@ -372,9 +389,11 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                             })
                           }
                         >
-                          <span className="truncate">{m.name}</span>
+                          <span className={`truncate ${m.isActive === false ? "text-[var(--text-muted)] line-through" : ""}`}>
+                            {m.name}
+                          </span>
                           <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-                            {parent && <span className="truncate">{parent}</span>}
+                            {parent && <span className="max-w-28 truncate">{parent}</span>}
                             {m.isActive === false && (
                               <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-rose-600">
                                 Inactive
@@ -382,6 +401,33 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                             )}
                           </span>
                         </button>
+                        <button
+                          type="button"
+                          aria-label={`Edit ${m.name}`}
+                          title="Edit"
+                          className="rounded-md p-1 text-[var(--text-muted)] opacity-60 hover:bg-[var(--surface)] hover:text-[var(--text-main)] group-hover:opacity-100"
+                          onClick={() =>
+                            setEditing({
+                              type,
+                              record: { ...m, payload: m.payload || {} },
+                            })
+                          }
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        {!m.payload?.system && (
+                          <button
+                            type="button"
+                            aria-label={`Delete ${m.name}`}
+                            title="Delete"
+                            className="rounded-md p-1 text-[var(--text-muted)] opacity-60 hover:bg-rose-500/10 hover:text-rose-600 group-hover:opacity-100"
+                            onClick={async () => {
+                              if (await deleteMaster(token, type, m)) onReload();
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </li>
                     );
                   })
@@ -535,7 +581,21 @@ function MasterEditor({ token, masters, type, initial, onClose, onSaved }) {
             . Salary letters need compensation access.
           </p>
         )}
-        <div className="flex justify-end gap-2 border-t border-[var(--border)] pt-4">
+        <div className="flex items-center gap-2 border-t border-[var(--border)] pt-4">
+          {record.id && !record.payload?.system && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-rose-600"
+              disabled={busy}
+              onClick={async () => {
+                if (await deleteMaster(token, type, record)) onSaved();
+              }}
+            >
+              <Trash2 size={15} /> Delete
+            </Button>
+          )}
+          <span className="flex-1" />
           <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
             Cancel
           </Button>

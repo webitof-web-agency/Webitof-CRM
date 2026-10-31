@@ -315,6 +315,42 @@ async function masters(user, type, body, id = null, db = null) {
     return saved;
   }, db);
 }
+// Deleting a master is allowed only while nothing uses it; otherwise HR marks it inactive,
+// which hides it from new selections but keeps old records readable.
+async function deleteMaster(user, type, id, db = null) {
+  c.permit(user, "manage_settings");
+  c.choice(type, MASTER_TYPES, "Master type");
+  return c.transaction(async (tx) => {
+    const old = c.camel(
+      (
+        await tx.query("SELECT * FROM master_items WHERE id=$1 AND type=$2 FOR UPDATE", [id, `hrm_${type}`])
+      ).rows[0],
+    );
+    if (!old) c.fail("Master not found", 404);
+    if (old.payload?.system) c.fail(`"${old.name}" is used by the system and cannot be deleted`, 409);
+    const children = (
+      await tx.query(
+        `SELECT name FROM master_items WHERE type LIKE 'hrm_%' AND id<>$1
+           AND (payload->>'branchId'=$1 OR payload->>'departmentId'=$1 OR payload->>'shiftId'=$1) LIMIT 3`,
+        [id],
+      )
+    ).rows.map((r) => r.name);
+    if (children.length)
+      c.fail(`"${old.name}" is linked to ${children.join(", ")}. Change those first, or mark it inactive.`, 409);
+    const policy = await c.policy(tx);
+    if (policy.defaultShiftId === id) c.fail(`"${old.name}" is the default shift in HR policies`, 409);
+    await tx.query("SAVEPOINT delete_master");
+    try {
+      await tx.query("DELETE FROM master_items WHERE id=$1", [id]);
+    } catch (e) {
+      if (e.code !== "23503") throw e;
+      await tx.query("ROLLBACK TO SAVEPOINT delete_master");
+      c.fail(`"${old.name}" is used by employees or HR records. Mark it inactive instead of deleting.`, 409);
+    }
+    await c.audit(tx, user, "masters", id, "deleted", old, null);
+    return { deleted: true };
+  }, db);
+}
 async function holidays(user, body = null, id = null, db = c.dbDefault) {
   if (!body)
     return {
@@ -351,4 +387,4 @@ async function holidays(user, body = null, id = null, db = c.dbDefault) {
     db === c.dbDefault ? null : db,
   );
 }
-module.exports = { list, lookups, masters, holidays };
+module.exports = { list, lookups, masters, deleteMaster, holidays };
