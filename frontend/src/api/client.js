@@ -83,7 +83,11 @@ async function parseResponse(response) {
   }
 
   if (!response.ok || data.success === false) {
-    const error = new Error(data.message || `Request failed with status ${response.status}`);
+    // A 5xx without a JSON message means the API never answered (down, restarting, or the dev proxy failed).
+    const fallback = response.status >= 500
+      ? `The server is not responding (${response.status}). Make sure the backend is running and try again.`
+      : `Request failed with status ${response.status}`;
+    const error = new Error(data.message || fallback);
     error.status = response.status;
     error.payload = data;
     throw error;

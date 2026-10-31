@@ -23,7 +23,8 @@ const respond =
         e.statusCode = 400;
         e.message = "A referenced record or value is invalid.";
       }
-      if (e.code === "42P01") {
+      // 42P01 missing table, 42703 missing column: the HRM migration for this version has not run.
+      if (e.code === "42P01" || e.code === "42703") {
         e.statusCode = 503;
         e.message =
           "HRM database migration has not been applied. Run the HRM migration before using this module.";
