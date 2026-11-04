@@ -360,7 +360,15 @@ invoicesController.getPublic = async (req, res, next) => {
         company: settings?.company || {},
         logos: settings?.logos || {},
         branding: settings?.branding || {},
-        invoiceSettings: settings || {},
+        // Public link: only what the invoice template renders, never SMTP or role settings.
+        invoiceSettings: {
+          invoice: settings?.invoice || {},
+          invoiceTheme: settings?.invoiceTheme || settings?.invoice?.invoiceTheme || {},
+          terms: settings?.terms || settings?.invoice?.terms || '',
+          gst: settings?.gst || {},
+          tds: settings?.tds || {},
+          complianceNote: settings?.complianceNote || ''
+        },
         bank: settings?.bank || {},
         bankAccount,
         template: resolveInvoiceTemplate(settings || {}, invoice)

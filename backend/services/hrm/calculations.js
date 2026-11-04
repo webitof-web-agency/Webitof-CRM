@@ -125,9 +125,15 @@ function attendanceMetrics(row, shift, policy) {
       earlyMinutes: 0,
       overtimeMinutes: 0,
     };
+  // App sessions count work from "Start job" to "End job"; legacy web sessions
+  // (no work mode) keep counting from check-in to check-out.
+  const from = row.jobStartedAt || row.checkIn;
+  const to = row.jobEndedAt || row.checkOut;
   const worked =
-    Math.floor((Date.parse(row.checkOut) - Date.parse(row.checkIn)) / 60000) -
-    Number(row.breakMinutes || 0);
+    row.workMode && !row.jobStartedAt
+      ? 0
+      : Math.floor((Date.parse(to) - Date.parse(from)) / 60000) -
+        Number(row.breakMinutes || 0);
   if (worked < 0) c.fail("Break duration exceeds attendance duration");
   const start = localInstant(
     row.workDate,

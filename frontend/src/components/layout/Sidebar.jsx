@@ -4,6 +4,7 @@ import { ChevronRight, Menu, X } from 'lucide-react';
 import { navigationGroups } from '../../config/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/cn';
+import { fetchPublicSettings } from '../../api/client';
 
 function SidebarLink({ item, onNavigate, open, isChild = false }) {
   const location = useLocation();
@@ -242,8 +243,7 @@ export function Sidebar({ open = false, onClose }) {
     loadLogos();
 
     // Fetch live public settings so unauthenticated / fresh browsers get updated logos
-    fetch('/api/settings/public')
-      .then((res) => (res.ok ? res.json() : null))
+    fetchPublicSettings()
       .then((data) => {
         if (data?.data?.logos) {
           setLogos(data.data.logos);

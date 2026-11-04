@@ -1,9 +1,19 @@
 const { getSettings, updateSettings } = require('../models/settings.model');
+const { hasPermission } = require('../middlewares/auth');
+
+// SMTP credentials are only returned to users who can edit settings; everyone else reads settings for labels/statuses.
+function redactSecrets(settings, user) {
+  if (!settings || hasPermission(user, 'settings.write')) return settings;
+  const { smtp, ...rest } = settings;
+  if (!smtp) return rest;
+  const { password, ...publicSmtp } = smtp;
+  return { ...rest, smtp: publicSmtp };
+}
 
 async function fetchSettings(req, res, next) {
   try {
     const settings = await getSettings();
-    res.json({ success: true, data: settings });
+    res.json({ success: true, data: redactSecrets(settings, req.user) });
   } catch (error) {
     next(error);
   }

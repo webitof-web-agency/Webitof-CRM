@@ -82,10 +82,10 @@ async function list(user, kind, q = {}, db = c.dbDefault) {
         `r.${field} BETWEEN $${values.length - 1} AND $${values.length}`,
       );
   }
-  if (kind === "documents") {
+  // Push the parameter only with its clause: an unused bind value makes Postgres reject the query.
+  if (kind === "documents" && !c.can(user, "view_private")) {
     values.push(user.id);
-    if (!c.can(user, "view_private"))
-      clauses.push(`e.user_id=$${values.length}`);
+    clauses.push(`e.user_id=$${values.length}`);
   }
   if (
     kind === "audit" &&
@@ -106,7 +106,7 @@ async function list(user, kind, q = {}, db = c.dbDefault) {
   values.push(limit, (page - 1) * limit);
   const columns =
     kind === "documents"
-      ? "r.id,r.employee_id,r.title,r.category,r.file_name,r.mime_type,r.size_bytes,r.expires_on,r.status,r.created_at"
+      ? "r.id,r.employee_id,r.title,r.category,r.file_name,r.mime_type,r.size_bytes,r.expires_on,r.status,r.review_comment,r.created_at"
       : kind === "allocations" && !c.can(user, "view_salary")
         ? "r.id,r.employee_id,r.project_id,r.role,r.percent,r.start_date,r.end_date,r.planned_hours,r.billable,r.created_at"
         : "r.*";
@@ -197,8 +197,9 @@ async function masters(user, type, body, id = null, db = null) {
   return c.transaction(async (tx) => {
     const payload = body.payload || {};
     const keys = {
-      department: ["shiftId"],
-      designation: [],
+      // Branch (location) > department > designation drive the employee form's cascading selects.
+      department: ["shiftId", "branchId"],
+      designation: ["departmentId"],
       team: ["departmentId", "managerId"],
       location: ["address", "timezone"],
       employment_type: [],
@@ -227,7 +228,14 @@ async function masters(user, type, body, id = null, db = null) {
       ],
       salary_structure: ["components"],
       kpi_template: ["factors", "weights"],
-      letter_template: ["content"],
+      letter_template: ["content", "certificate", "description"],
+      attendance_policy: [
+        "hoursPerDay",
+        "daysPerWeek",
+        "geofenceRequired",
+        "description",
+      ],
+      document_type: ["defaultOnCreate", "hasExpiry", "required"],
     };
     c.allow(payload, keys[type]);
     for (const k of [
@@ -247,8 +255,17 @@ async function masters(user, type, body, id = null, db = null) {
       "carryForward",
       "encashmentAllowed",
       "overtimeEnabled",
+      "certificate",
+      "geofenceRequired",
+      "defaultOnCreate",
+      "hasExpiry",
+      "required",
     ])
       if (payload[k] != null) c.boolean(payload[k], k);
+    if (payload.hoursPerDay != null) c.number(payload.hoursPerDay, "Hours per day", 1, 24);
+    if (payload.daysPerWeek != null) c.number(payload.daysPerWeek, "Days per week", 1, 7);
+    if (payload.description != null) c.text(payload.description, "Description", 500);
+    if (payload.branchId) await c.master(tx, payload.branchId, "location");
     for (const k of ["start", "end"])
       if (payload[k] != null && !/^([01]\d|2[0-3]):[0-5]\d$/.test(payload[k]))
         c.fail(`Invalid ${k} time`);
@@ -298,6 +315,42 @@ async function masters(user, type, body, id = null, db = null) {
     return saved;
   }, db);
 }
+// Deleting a master is allowed only while nothing uses it; otherwise HR marks it inactive,
+// which hides it from new selections but keeps old records readable.
+async function deleteMaster(user, type, id, db = null) {
+  c.permit(user, "manage_settings");
+  c.choice(type, MASTER_TYPES, "Master type");
+  return c.transaction(async (tx) => {
+    const old = c.camel(
+      (
+        await tx.query("SELECT * FROM master_items WHERE id=$1 AND type=$2 FOR UPDATE", [id, `hrm_${type}`])
+      ).rows[0],
+    );
+    if (!old) c.fail("Master not found", 404);
+    if (old.payload?.system) c.fail(`"${old.name}" is used by the system and cannot be deleted`, 409);
+    const children = (
+      await tx.query(
+        `SELECT name FROM master_items WHERE type LIKE 'hrm_%' AND id<>$1
+           AND (payload->>'branchId'=$1 OR payload->>'departmentId'=$1 OR payload->>'shiftId'=$1) LIMIT 3`,
+        [id],
+      )
+    ).rows.map((r) => r.name);
+    if (children.length)
+      c.fail(`"${old.name}" is linked to ${children.join(", ")}. Change those first, or mark it inactive.`, 409);
+    const policy = await c.policy(tx);
+    if (policy.defaultShiftId === id) c.fail(`"${old.name}" is the default shift in HR policies`, 409);
+    await tx.query("SAVEPOINT delete_master");
+    try {
+      await tx.query("DELETE FROM master_items WHERE id=$1", [id]);
+    } catch (e) {
+      if (e.code !== "23503") throw e;
+      await tx.query("ROLLBACK TO SAVEPOINT delete_master");
+      c.fail(`"${old.name}" is used by employees or HR records. Mark it inactive instead of deleting.`, 409);
+    }
+    await c.audit(tx, user, "masters", id, "deleted", old, null);
+    return { deleted: true };
+  }, db);
+}
 async function holidays(user, body = null, id = null, db = c.dbDefault) {
   if (!body)
     return {
@@ -334,4 +387,4 @@ async function holidays(user, body = null, id = null, db = c.dbDefault) {
     db === c.dbDefault ? null : db,
   );
 }
-module.exports = { list, lookups, masters, holidays };
+module.exports = { list, lookups, masters, deleteMaster, holidays };

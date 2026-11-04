@@ -62,8 +62,10 @@ export function AuthProvider({ children }) {
         setUser(response.data);
         writeUser(response.data);
       })
-      .catch(() => {
+      .catch((error) => {
         if (!mounted) return;
+        // Server down or offline: keep the cached session instead of signing out.
+        if (error?.status !== 401) return;
         window.localStorage.removeItem(TOKEN_KEY);
         writeUser(null);
         setToken('');
@@ -77,6 +79,19 @@ export function AuthProvider({ children }) {
     return () => {
       mounted = false;
     };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    const onUnauthorized = () => {
+      window.localStorage.removeItem(TOKEN_KEY);
+      writeUser(null);
+      setToken('');
+      setUser(null);
+      toast.error('Session expired. Please login again.', { id: 'session-expired' });
+    };
+    window.addEventListener('auth:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
   }, [token]);
 
   const actions = useMemo(() => {

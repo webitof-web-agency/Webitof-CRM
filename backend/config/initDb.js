@@ -57,19 +57,32 @@ async function ensureDatabase() {
   await ensureAmcAutomationHistorySchema();
   await ensureWorkflowAutomationHistorySchema();
   await ensureNotificationsSchema();
+  await ensureAuthRateLimitSchema();
   await ensurePaymentStatusSchema();
   await ensureCallLogsSchema();
   await ensureInvoiceSourceIndexes();
   await withTransaction(migrateHrm);
   await ensureStorageSchema();
-  if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
+  const seedDefaults = String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true';
+  if (seedDefaults) {
     await seedDefaultData();
     await seedAutomationDemoData();
     await seedNotificationDemoData();
   }
-  if (String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true') {
-    await seedRbac();
-  }
+  // Permission/role catalog rows must always exist (e.g. new calls.* codes); only the
+  // destructive default-grant reset and bootstrap admin stay behind SEED_DEFAULT_DATA.
+  await seedRbac({ resetDefaultGrants: seedDefaults });
+}
+
+// Shared failed-login / OTP request counters (see middlewares/rateLimit.js).
+async function ensureAuthRateLimitSchema() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS auth_rate_limits (
+      key text PRIMARY KEY,
+      count integer NOT NULL DEFAULT 0,
+      reset_at timestamptz NOT NULL
+    );
+  `);
 }
 
 async function ensureLeadPipelineSchema() {
@@ -579,19 +592,22 @@ async function seedDefaultData() {
   ];
 
   for (const item of masters) {
+    const id = item.id || createId(item.type || 'master');
+    const payload = item.payload || {};
     await query(
       `insert into master_items (id, type, name, is_active, sort_order, payload)
        values ($1,$2,$3,$4,$5,$6)
-       on conflict (type, name)
-       do nothing`,
-      [
-        item.id || createId(item.type || 'master'),
-        item.type,
-        item.name,
-        item.is_active !== false,
-        item.sort_order || 0,
-        item.payload || {}
-      ]
+       on conflict do nothing`,
+      [id, item.type, item.name, item.is_active !== false, item.sort_order || 0, payload]
+    );
+    // Existing installs keep their edits, but gain payload keys added to the defaults later
+    // (e.g. a service's technologyStackIds / paymentPlan): existing keys win on the right of ||.
+    await query(
+      `update master_items
+       set payload = $4::jsonb || payload, updated_at = now()
+       where (id = $1 or (type = $2 and name = $3))
+         and ($4::jsonb || payload) is distinct from payload`,
+      [item.id || '', item.type, item.name, payload]
     );
   }
 }
@@ -1168,7 +1184,7 @@ async function seedNotificationDemoData() {
   }
 }
 
-async function seedRbac() {
+async function seedRbac({ resetDefaultGrants = true } = {}) {
   await withTransaction(async (client) => {
     await client.query(`SET LOCAL statement_timeout = '0'`);
     await client.query(`SET LOCAL lock_timeout = '0'`);
@@ -1233,6 +1249,8 @@ async function seedRbac() {
 
     const roleIdByCode = new Map(roleResult.rows.map((row) => [row.code, row.id]));
     const permissionIdByCode = new Map(permissionResult.rows.map((row) => [row.code, row.id]));
+
+    if (!resetDefaultGrants) return;
 
     for (const role of DEFAULT_ROLE_DEFINITIONS) {
       const roleId = roleIdByCode.get(role.code);

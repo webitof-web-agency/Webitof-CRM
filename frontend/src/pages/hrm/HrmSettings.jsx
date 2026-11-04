@@ -3,11 +3,35 @@ import { toast } from "sonner";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Modal } from "../../components/ui/Modal";
+import { Pencil, Trash2 } from "lucide-react";
 import { Field, DetailValues } from "./HrmShared";
 import { hrm, label } from "./hrmApi";
+// Display names: "location" is the Branch used on the employee form.
+const masterTypeLabels = {
+  location: "Branch / office location",
+  attendance_policy: "Attendance policy",
+  document_type: "Employee document type",
+  letter_template: "Letter / certificate template",
+};
 const masterFields = {
-  department: [["shiftId", "Default shift", "shift"]],
-  designation: [],
+  department: [
+    ["branchId", "Branch (leave empty for all branches)", "location"],
+    ["shiftId", "Default shift", "shift"],
+  ],
+  designation: [
+    ["departmentId", "Department (leave empty for all departments)", "department"],
+  ],
+  attendance_policy: [
+    ["hoursPerDay", "Hours per day", "number"],
+    ["daysPerWeek", "Days per week", "number"],
+    ["geofenceRequired", "Clock-in only at approved work locations", "checkbox"],
+    ["description", "Description", "textarea"],
+  ],
+  document_type: [
+    ["defaultOnCreate", "Ask for this document on every new employee", "checkbox"],
+    ["hasExpiry", "Document has an expiry date", "checkbox"],
+  ],
   team: [
     ["departmentId", "Department", "department"],
     ["managerId", "Manager reference", "text"],
@@ -42,16 +66,19 @@ const masterFields = {
     ["carryForward", "Carry forward", "checkbox"],
     ["carryForwardLimit", "Maximum carry forward (days)", "number"],
     ["encashmentAllowed", "Encashment allowed", "checkbox"],
+    ["employmentTypeIds", "Applies to employment types (none ticked = everyone)", "multi:employment_type"],
   ],
-  letter_template: [["content", "Letter template", "textarea"]],
+  letter_template: [
+    ["certificate", "Show under employee Certifications", "checkbox"],
+    ["description", "Short description", "text"],
+    ["content", "Letter template", "textarea"],
+  ],
   kpi_template: [["factors", "KPI factors (one per line)", "lines"]],
   salary_structure: [],
 };
 export function HrmSettings({ token, metadata, masters, can, onReload }) {
   const [tab, setTab] = useState("policy"),
     [policy, setPolicy] = useState(metadata.policy),
-    [masterType, setMasterType] = useState("department"),
-    [record, setRecord] = useState({ name: "", isActive: true, payload: {} }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const allowed = can("manage_settings");
@@ -59,14 +86,9 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
     setBusy(true);
     setError("");
     try {
-      await hrm(token, path, {
-        method: path === "/policy" || record.id ? "PUT" : "POST",
-        body,
-      });
+      await hrm(token, path, { method: "PUT", body });
       toast.success("HR configuration saved");
       onReload();
-      if (path !== "/policy")
-        setRecord({ name: "", isActive: true, payload: {} });
     } catch (e) {
       setError(e.message);
     } finally {
@@ -142,6 +164,31 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
               ],
             ],
             [
+              "Location-verified attendance (employee app)",
+              [
+                "geofenceRequired",
+                "allowWebAttendance",
+                "maxGpsAccuracyMeters",
+                "gpsToleranceMeters",
+                "defaultOfficeRadiusMeters",
+                "defaultHomeRadiusMeters",
+                "pingIntervalMinutes",
+                "offlineAfterMinutes",
+              ],
+            ],
+            [
+              "Hourly work reports & lunch",
+              [
+                "reportIntervalMinutes",
+                "slotGraceMinutes",
+                "minSlotReportChars",
+                "lunchWindowStart",
+                "lunchWindowEnd",
+                "lunchMaxMinutes",
+                "absentIfNoReport",
+              ],
+            ],
+            [
               "Approval & capacity",
               [
                 "requireHrLeaveApproval",
@@ -188,7 +235,8 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
                               ? "number"
                               : k.toLowerCase().includes("deadline") ||
                                   k === "shiftStart" ||
-                                  k === "shiftEnd"
+                                  k === "shiftEnd" ||
+                                  k.startsWith("lunchWindow")
                                 ? "time"
                                 : "text"
                       }
@@ -225,152 +273,409 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
           </Button>
         </form>
       ) : (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Card className="space-y-4 p-5">
-            <Field
-              name="masterType"
-              title="Master type"
-              type="select"
-              options={metadata.masterTypes.map((t) => ({
-                value: t,
-                label: label(t),
-              }))}
-              value={masterType}
-              onChange={(v) => {
-                setMasterType(v);
-                setRecord({ name: "", isActive: true, payload: {} });
-              }}
-            />
-            <div className="space-y-2">
-              {masters
-                .filter((m) => m.type === `hrm_${masterType}`)
-                .map((m) => (
-                  <button
-                    key={m.id}
-                    className="flex w-full items-center justify-between rounded-lg border border-[var(--border)] p-3 text-left text-sm hover:bg-[var(--hover-bg)]"
-                    onClick={() => setRecord(m)}
-                  >
-                    <span>{m.name}</span>
-                    <span className="text-xs text-[var(--text-muted)]">
-                      {m.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </button>
-                ))}
-            </div>
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setRecord({ name: "", isActive: true, payload: {} })
-              }
-            >
-              New {label(masterType)}
-            </Button>
-          </Card>
-          <Card className="p-5">
-            <form
-              className="space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                save(
-                  `/masters/${masterType}${record.id ? `/${record.id}` : ""}`,
-                  {
-                    name: record.name,
-                    isActive: record.isActive,
-                    payload: record.payload,
-                  },
-                );
-              }}
-            >
-              <h2 className="font-semibold">
-                {record.id ? "Edit" : "Create"} {label(masterType)}
-              </h2>
-              <Field
-                name="masterName"
-                title="Name"
-                value={record.name}
-                required
-                onChange={(v) => setRecord((r) => ({ ...r, name: v }))}
-              />
-              <Field
-                name="masterActive"
-                title="Active"
-                type="checkbox"
-                value={record.isActive}
-                onChange={(v) => setRecord((r) => ({ ...r, isActive: v }))}
-              />
-              {(masterFields[masterType] || []).map(([key, title, type]) =>
-                type === "days" ? (
-                  <DayPicker
-                    key={key}
-                    name={key}
-                    value={record.payload[key] || []}
-                    onChange={(v) =>
-                      setRecord((r) => ({
-                        ...r,
-                        payload: { ...r.payload, [key]: v },
-                      }))
-                    }
-                  />
-                ) : (
-                  <Field
-                    key={key}
-                    name={`master${key}`}
-                    title={title}
-                    type={
-                      type === "lines"
-                        ? "textarea"
-                        : ["shift", "department", "accrual"].includes(type)
-                          ? "select"
-                          : type
-                    }
-                    options={
-                      type === "accrual"
-                        ? ["yearly", "monthly"]
-                        : masters
-                            .filter((m) => m.type === `hrm_${type}`)
-                            .map((m) => ({ value: m.id, label: m.name }))
-                    }
-                    value={
-                      type === "lines"
-                        ? (record.payload[key] || []).join("\n")
-                        : record.payload[key]
-                    }
-                    onChange={(v) =>
-                      setRecord((r) => ({
-                        ...r,
-                        payload: {
-                          ...r.payload,
-                          [key]:
-                            type === "lines"
-                              ? v.split("\n").filter(Boolean)
-                              : type === "number"
-                                ? Number(v)
-                                : v,
-                        },
-                      }))
-                    }
-                  />
-                ),
-              )}
-              {masterType === "letter_template" && (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Placeholders:{" "}
-                  {
-                    "{{employee_name}}, {{employee_id}}, {{designation}}, {{department}}, {{joining_date}}, {{company_name}}, {{last_working_date}}, {{salary}}"
-                  }
-                  . Salary letters require compensation access.
-                </p>
-              )}
-              <Button type="submit" loading={busy}>
-                Save master
-              </Button>
-            </form>
-          </Card>
-        </div>
+        <MastersBoard
+          token={token}
+          masters={masters}
+          masterTypes={metadata.masterTypes}
+          onReload={onReload}
+        />
       )}
     </div>
   );
 }
+// What each master is for, in the order HR usually sets them up.
+const masterTypeInfo = {
+  location: ["Branches", "Offices / branches for the employee form and work locations"],
+  department: ["Departments", "Optionally tied to a branch"],
+  designation: ["Designations", "Optionally tied to a department"],
+  team: ["Teams", "Groups inside a department"],
+  employment_type: ["Employment types", "Full-time, part-time, contract, intern…"],
+  shift: ["Shifts", "Timings, grace period and weekly offs"],
+  attendance_policy: ["Attendance policies", "Hours per day and days per week"],
+  document_type: ["Document types", "Asked for on the employee form"],
+  leave_type: ["Leave types", "Allocation, carry forward and rules"],
+  work_category: ["Work categories", "Used in work reports"],
+  salary_structure: ["Salary structures", "Compensation components"],
+  kpi_template: ["KPI templates", "Performance review factors"],
+  letter_template: ["Letters & certificates", "Joining letter, experience certificate, NOC…"],
+};
+const masterOrder = Object.keys(masterTypeInfo);
+
+// One short line under each item showing how it is linked, so missing mappings are visible.
+function masterDetail(type, m, nameOf) {
+  const p = m.payload || {};
+  const names = (ids) => (ids || []).map(nameOf).filter(Boolean).join(", ");
+  switch (type) {
+    case "department":
+      return [nameOf(p.branchId) || "All branches", nameOf(p.shiftId)].filter(Boolean).join(" · ");
+    case "designation":
+      return nameOf(p.departmentId) || "All departments";
+    case "team":
+      return nameOf(p.departmentId) || "No department";
+    case "shift":
+      return p.start && p.end
+        ? `${p.start}–${p.end}${p.breakMinutes ? ` · ${p.breakMinutes}m break` : ""}`
+        : "";
+    case "attendance_policy":
+      return p.hoursPerDay ? `${p.hoursPerDay} h × ${p.daysPerWeek || "?"} days${p.geofenceRequired ? " · geofenced" : ""}` : "";
+    case "leave_type":
+      return [
+        p.annualDays != null ? `${p.annualDays} days${p.paid === false ? " unpaid" : ""}` : "",
+        names(p.employmentTypeIds) || "All employment types",
+      ].filter(Boolean).join(" · ");
+    case "document_type":
+      return [p.defaultOnCreate && "Asked on new employee", p.hasExpiry && "Has expiry", p.system && "System"].filter(Boolean).join(" · ");
+    case "location":
+      return p.address || "";
+    case "kpi_template":
+      return p.factors?.length ? `${p.factors.length} factors` : "";
+    case "salary_structure":
+      return p.components?.length ? `${p.components.length} components` : "";
+    case "letter_template":
+      return p.description || "";
+    default:
+      return "";
+  }
+}
+const blankRecord = { name: "", isActive: true, payload: {} };
+
+async function deleteMaster(token, type, master) {
+  if (!window.confirm(`Delete "${master.name}"? If it is already used, mark it inactive instead.`))
+    return false;
+  try {
+    await hrm(token, `/masters/${type}/${master.id}`, { method: "DELETE" });
+    toast.success(`"${master.name}" deleted`);
+    return true;
+  } catch (e) {
+    toast.error(e.message);
+    return false;
+  }
+}
+
+function MastersBoard({ token, masters, masterTypes, onReload }) {
+  const [editing, setEditing] = useState(null),
+    [search, setSearch] = useState("");
+  const types = [
+    ...masterOrder.filter((t) => masterTypes.includes(t)),
+    ...masterTypes.filter((t) => !masterOrder.includes(t)),
+  ];
+  const needle = search.trim().toLowerCase();
+  const nameOf = (id) => masters.find((m) => m.id === id)?.name;
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-[var(--text-muted)]">
+          {types.length} lists · click an item to edit, or + to add.
+        </p>
+        <div className="w-full sm:w-72">
+          <Field
+            name="masterSearch"
+            title="Search masters"
+            value={search}
+            onChange={setSearch}
+          />
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {types.map((type) => {
+          const all = masters.filter((m) => m.type === `hrm_${type}`);
+          const items = needle
+            ? all.filter((m) => m.name.toLowerCase().includes(needle))
+            : all;
+          if (needle && !items.length) return null;
+          const [title, hint] = masterTypeInfo[type] || [masterTypeLabels[type] || label(type), ""];
+          return (
+            <Card key={type} className="flex flex-col p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold">
+                    {title}
+                    <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)]">
+                      {all.length}
+                    </span>
+                  </h3>
+                  {hint && (
+                    <p className="mt-0.5 text-xs text-[var(--text-muted)]">{hint}</p>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label={`Add ${title}`}
+                  onClick={() => setEditing({ type, record: blankRecord })}
+                >
+                  + Add
+                </Button>
+              </div>
+              <ul className="mt-3 max-h-64 space-y-0.5 overflow-y-auto">
+                {items.length ? (
+                  items.map((m) => {
+                    const detail = masterDetail(type, m, nameOf);
+                    return (
+                      <li
+                        key={m.id}
+                        className="group flex items-center gap-1 rounded-lg pr-1 hover:bg-[var(--surface-2)]"
+                      >
+                        <button
+                          type="button"
+                          className="flex min-w-0 flex-1 flex-col px-2 py-1.5 text-left"
+                          onClick={() =>
+                            setEditing({
+                              type,
+                              record: { ...m, payload: m.payload || {} },
+                            })
+                          }
+                        >
+                          <span className="flex items-center gap-1.5 text-sm">
+                            <span className={`break-words ${m.isActive === false ? "text-[var(--text-muted)] line-through" : ""}`}>
+                              {m.name}
+                            </span>
+                            {m.isActive === false && (
+                              <span className="shrink-0 rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] text-rose-600">
+                                Inactive
+                              </span>
+                            )}
+                          </span>
+                          {detail && (
+                            <span className="truncate text-[11px] text-[var(--text-muted)]" title={detail}>
+                              {detail}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Edit ${m.name}`}
+                          title="Edit"
+                          className="rounded-md p-1 text-[var(--text-muted)] opacity-60 hover:bg-[var(--surface)] hover:text-[var(--text-main)] group-hover:opacity-100"
+                          onClick={() =>
+                            setEditing({
+                              type,
+                              record: { ...m, payload: m.payload || {} },
+                            })
+                          }
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        {!m.payload?.system && (
+                          <button
+                            type="button"
+                            aria-label={`Delete ${m.name}`}
+                            title="Delete"
+                            className="rounded-md p-1 text-[var(--text-muted)] opacity-60 hover:bg-rose-500/10 hover:text-rose-600 group-hover:opacity-100"
+                            onClick={async () => {
+                              if (await deleteMaster(token, type, m)) onReload();
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })
+                ) : (
+                  <li className="px-2 py-1.5 text-xs text-[var(--text-muted)]">None yet</li>
+                )}
+              </ul>
+            </Card>
+          );
+        })}
+      </div>
+      {editing && (
+        <MasterEditor
+          token={token}
+          masters={masters}
+          type={editing.type}
+          initial={editing.record}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            onReload();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function MasterEditor({ token, masters, type, initial, onClose, onSaved }) {
+  const [record, setRecord] = useState(initial),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState("");
+  const title = masterTypeInfo[type]?.[0] || masterTypeLabels[type] || label(type);
+  const setPayload = (key, value) =>
+    setRecord((r) => ({ ...r, payload: { ...r.payload, [key]: value } }));
+  return (
+    <Modal
+      open
+      title={`${record.id ? "Edit" : "New"} — ${title}`}
+      onClose={busy ? () => {} : onClose}
+      width="min(620px,95vw)"
+    >
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setError("");
+          try {
+            await hrm(token, `/masters/${type}${record.id ? `/${record.id}` : ""}`, {
+              method: record.id ? "PUT" : "POST",
+              body: { name: record.name, isActive: record.isActive, payload: record.payload },
+            });
+            toast.success(`${title} saved`);
+            onSaved();
+          } catch (e2) {
+            setError(e2.message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {error && (
+          <p role="alert" className="rounded-lg bg-rose-500/10 px-3 py-2 text-sm text-rose-600">
+            {error}
+          </p>
+        )}
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <Field
+            name="masterName"
+            title="Name"
+            value={record.name}
+            required
+            onChange={(v) => setRecord((r) => ({ ...r, name: v }))}
+          />
+          <label className="flex h-10 items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-[var(--primary)]"
+              checked={record.isActive !== false}
+              onChange={(e) => setRecord((r) => ({ ...r, isActive: e.target.checked }))}
+            />
+            Active
+          </label>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {(masterFields[type] || []).map(([key, fieldTitle, fieldType]) => {
+            const wide = ["textarea", "lines", "days"].includes(fieldType);
+            if (fieldType === "days")
+              return (
+                <div key={key} className="sm:col-span-2">
+                  <DayPicker
+                    name={key}
+                    value={record.payload[key] || []}
+                    onChange={(v) => setPayload(key, v)}
+                  />
+                </div>
+              );
+            if (fieldType.startsWith("multi:")) {
+              const options = masters.filter((m) => m.type === `hrm_${fieldType.slice(6)}`);
+              const selected = record.payload[key] || [];
+              return (
+                <fieldset key={key} className="sm:col-span-2">
+                  <legend className="mb-1.5 text-xs font-semibold">{fieldTitle}</legend>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2">
+                    {options.map((o) => (
+                      <label key={o.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-[var(--primary)]"
+                          checked={selected.includes(o.id)}
+                          onChange={(e) =>
+                            setPayload(
+                              key,
+                              e.target.checked ? [...selected, o.id] : selected.filter((x) => x !== o.id),
+                            )
+                          }
+                        />
+                        {o.name}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              );
+            }
+            if (fieldType === "checkbox")
+              return (
+                <label key={key} className="flex items-center gap-2 text-sm sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--primary)]"
+                    checked={Boolean(record.payload[key])}
+                    onChange={(e) => setPayload(key, e.target.checked)}
+                  />
+                  {fieldTitle}
+                </label>
+              );
+            const isSelect = ["shift", "department", "location", "accrual"].includes(fieldType);
+            return (
+              <div key={key} className={wide ? "sm:col-span-2" : ""}>
+                <Field
+                  name={`master${key}`}
+                  title={fieldTitle}
+                  type={fieldType === "lines" ? "textarea" : isSelect ? "select" : fieldType}
+                  options={
+                    fieldType === "accrual"
+                      ? ["yearly", "monthly"]
+                      : masters
+                          .filter((m) => m.type === `hrm_${fieldType}` && m.id !== record.id)
+                          .map((m) => ({ value: m.id, label: m.name }))
+                  }
+                  value={
+                    fieldType === "lines"
+                      ? (record.payload[key] || []).join("\n")
+                      : record.payload[key]
+                  }
+                  onChange={(v) =>
+                    setPayload(
+                      key,
+                      fieldType === "lines"
+                        ? v.split("\n").filter(Boolean)
+                        : fieldType === "number"
+                          ? v === ""
+                            ? undefined
+                            : Number(v)
+                          : v,
+                    )
+                  }
+                />
+              </div>
+            );
+          })}
+        </div>
+        {type === "letter_template" && (
+          <p className="text-xs text-[var(--text-muted)]">
+            Placeholders:{" "}
+            {"{{employee_name}}, {{employee_id}}, {{designation}}, {{department}}, {{joining_date}}, {{company_name}}, {{last_working_date}}, {{salary}}"}
+            . Salary letters need compensation access.
+          </p>
+        )}
+        <div className="flex items-center gap-2 border-t border-[var(--border)] pt-4">
+          {record.id && !record.payload?.system && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="text-rose-600"
+              disabled={busy}
+              onClick={async () => {
+                if (await deleteMaster(token, type, record)) onSaved();
+              }}
+            >
+              <Trash2 size={15} /> Delete
+            </Button>
+          )}
+          <span className="flex-1" />
+          <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function DayPicker({ name, value, onChange }) {
   return (
     <fieldset>

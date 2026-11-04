@@ -55,6 +55,13 @@ async function clock(user, body, db = null) {
     );
     const before = r;
     const now = new Date();
+    // Location-verified sessions are run from the employee app only.
+    if (p.geofenceRequired && (action === "check-in" || r?.workMode))
+      c.fail(
+        "Use HRM → My day or the Webitof Employee app — attendance needs location verification.",
+        409,
+        "APP_REQUIRED",
+      );
     if (action === "check-in") {
       if (r) c.fail("An attendance session is already open", 409);
       const locked = await tx.query(
@@ -219,7 +226,7 @@ async function request(user, body, id = null, db = null) {
     const d = body.details || {};
     const p = await c.policy(tx);
     if (kind === "leave") {
-      c.allow(d, ["leaveTypeId", "fraction", "reason", "documentId"]);
+      c.allow(d, ["leaveTypeId", "fraction", "reason", "documentId", "fromTime"]);
       const m = await c.master(tx, d.leaveTypeId, "leave_type", true);
       d.fraction = c.number(d.fraction ?? 1, "Day fraction", 0.5, 1);
       if (
@@ -227,6 +234,13 @@ async function request(user, body, id = null, db = null) {
         (d.fraction === 0.5 && start !== end)
       )
         c.fail("Half-day leave must be for one date");
+      // "Leaving from 13:00 today": half day that ends the running session.
+      if (d.fromTime === "" || d.fromTime === null) delete d.fromTime;
+      if (d.fromTime != null) {
+        if (d.fraction !== 0.5) c.fail("A leave start time applies to half-day leave only");
+        if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(d.fromTime)) c.fail("Invalid leave start time");
+        if (start < c.today(p)) c.fail("Half-day leave from a time cannot be in the past");
+      }
       if (d.fraction === 0.5 && m.payload.halfDayAllowed === false)
         c.fail("This leave type does not allow half days");
       if (
@@ -445,7 +459,8 @@ async function approveRequest(user, id, body, db = null) {
           "SELECT id FROM hrm_attendance WHERE employee_id=$1 AND work_date BETWEEN $2 AND $3 AND (check_in IS NOT NULL OR locked_at IS NOT NULL)",
           [e.id, r.startDate, r.endDate],
         );
-        if (attendance.rowCount)
+        // A half day taken mid-shift keeps the morning's clocked attendance.
+        if (attendance.rowCount && r.details.fraction !== 0.5)
           c.fail(
             "Existing attendance must be resolved before leave approval",
             409,
@@ -484,6 +499,17 @@ async function approveRequest(user, id, body, db = null) {
               r.details.fraction === 0.5 ? "Half Day" : "Leave",
             ],
           );
+        }
+        if (r.details.fromTime && r.startDate === c.today(p)) {
+          const wd = require("./workday");
+          const at = new Date(calc.localInstant(r.startDate, r.details.fromTime, p.timezone));
+          const session = await wd.openSession(tx, e.id);
+          if (session?.workDate === r.startDate) {
+            if (at <= new Date())
+              await wd.closeSession(tx, { ...session, status: "Half Day" }, p, new Date(), "Half-day leave approved", user.id);
+            else
+              await c.update(tx, "hrm_attendance", session.id, { autoCheckoutAt: at, updatedAt: new Date() });
+          }
         }
       }
       if (r.kind === "regularization") {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -55,6 +55,7 @@ export function HrmCollection({
   employeeId = "",
   onChange,
 }) {
+  const navigate = useNavigate();
   const [page, setPage] = useState(1),
     [search, setSearch] = useState(""),
     [status, setStatus] = useState(""),
@@ -220,6 +221,12 @@ export function HrmCollection({
                 render: (r) => (Number(r.minutes) / 60).toFixed(2),
               },
               { key: "status", render: (r) => <Status value={r.status} /> },
+              {
+                key: "editCount",
+                title: "Edits",
+                render: (r) =>
+                  r.editCount ? `${r.editCount}×${r.adminEditedAt ? " (admin)" : ""}` : "—",
+              },
             ]
           : kind === "allocations"
             ? [
@@ -353,7 +360,12 @@ export function HrmCollection({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setEditor({ config, initial: row })}
+              onClick={() =>
+                // Employees are created and edited in the step-by-step employee form.
+                kind === "employees"
+                  ? navigate(`/app/hrm/employees/${row.id}/edit`)
+                  : setEditor({ config, initial: row })
+              }
             >
               Edit
             </Button>
@@ -628,7 +640,9 @@ export function HrmCollection({
           {canCreate && (
             <Button
               onClick={() =>
-                setEditor(kind === "work-reports" ? { work: true } : { config })
+                kind === "employees"
+                  ? navigate("/app/hrm/employees/new")
+                  : setEditor(kind === "work-reports" ? { work: true } : { config })
               }
             >
               New {config?.title || "report"}

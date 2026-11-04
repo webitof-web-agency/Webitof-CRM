@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { themes } from '../config/themes';
 import { applyTheme, applyThemeMode, applyUiSettings } from '../config/theme';
+import { fetchPublicSettings } from '../api/client';
 
 const STORAGE_KEY = 'webitof-theme-preference';
 
@@ -24,6 +25,8 @@ function readStoredTheme() {
 export function ThemeProvider({ children }) {
   const [theme, setThemeState] = useState(() => readStoredTheme().theme);
   const [mode, setModeState] = useState(() => readStoredTheme().mode);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   // Sync mode changes with DOM & Storage
   useEffect(() => {
@@ -32,6 +35,26 @@ export function ThemeProvider({ children }) {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ theme, mode }));
     } catch (e) {}
   }, [mode, theme]);
+
+  // Other tabs only see a change through the storage event; without this each tab keeps the
+  // mode it loaded with, so one tab can stay dark while another is light.
+  useEffect(() => {
+    const onStorage = (event) => {
+      if (event.key !== STORAGE_KEY) return;
+      const next = readStoredTheme();
+      applyThemeMode(next.mode);
+      setModeState(next.mode);
+      // Re-colour only when the other tab picked a different theme, so a mode toggle keeps
+      // the brand colour this tab already applied.
+      if (next.theme !== themeRef.current) {
+        const targetTheme = themes.find((item) => item.key === next.theme);
+        if (targetTheme?.accent) applyTheme(targetTheme.accent);
+      }
+      setThemeState(next.theme);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   // Listen to OS system color scheme changes if mode is 'system'
   useEffect(() => {
@@ -80,8 +103,7 @@ export function ThemeProvider({ children }) {
       applyTheme(primaryColor);
 
       // Fetch live public settings so unauthenticated / fresh browsers get updated branding
-      fetch('/api/settings/public')
-        .then((res) => (res.ok ? res.json() : null))
+      fetchPublicSettings()
         .then((data) => {
           if (data?.data?.branding?.primaryColor) {
             applyTheme(data.data.branding.primaryColor);

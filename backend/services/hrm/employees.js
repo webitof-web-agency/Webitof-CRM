@@ -1,4 +1,6 @@
 const c = require("./core");
+const bcrypt = require("bcryptjs");
+const { createId } = require("../../utils/format");
 const {
   EMPLOYEE_STATUSES,
   WORK_MODES,
@@ -26,6 +28,9 @@ const fields = [
   "exitDate",
   "probationEnd",
   "contractEnd",
+  "employeeCode",
+  "attendancePolicyId",
+  "photoDocumentId",
 ];
 const personalFields = [
   "personalEmail",
@@ -40,14 +45,188 @@ const personalFields = [
   "noticePeriodDays",
   "probationStart",
   "confirmationDate",
+  // Structured contact details from the employee wizard.
+  "addressLine1",
+  "addressLine2",
+  "city",
+  "state",
+  "country",
+  "postalCode",
+  "emergencyName",
+  "emergencyRelationship",
+  "emergencyPhone",
 ];
+const financialFields = [
+  "bankName",
+  "accountHolderName",
+  "accountNumber",
+  "ifsc",
+  "bankBranch",
+  "pan",
+  "uan",
+  "pfApplicable",
+  "esiApplicable",
+  "statutory",
+  "hoursPerDay",
+  "daysPerWeek",
+];
+const GENDERS = ["Male", "Female", "Other"];
+
+// Login for an employee created from the wizard gets the Employee role only, so HR staff
+// without user-management rights cannot hand out anything beyond self service.
+async function createEmployeeLogin(tx, user, login, employee) {
+  c.allow(login, ["email", "password"]);
+  const email = c.text(login.email, "Login email", 254, true).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) c.fail("Invalid login email");
+  const password = String(login.password || "");
+  if (password.length < 8)
+    c.fail("Login password must be at least 8 characters");
+  const taken = await tx.query(
+    "SELECT 1 FROM users WHERE lower(email)=$1 OR lower(username)=$1",
+    [email],
+  );
+  if (taken.rowCount)
+    c.fail(
+      "A login with this email already exists. Pick it as the existing ERP login instead.",
+      409,
+    );
+  const role = (
+    await tx.query(
+      "SELECT id FROM roles WHERE code='employee' AND is_active=true",
+    )
+  ).rows[0];
+  if (!role)
+    c.fail(
+      "The Employee role is missing. Run the HRM migration (npm run migrate:hrm).",
+      503,
+    );
+  const id = createId("user");
+  await tx.query(
+    "INSERT INTO users(id,full_name,username,email,phone,gender,password_hash,is_active,payload) VALUES($1,$2,$3,$3,$4,$5,$6,true,'{}'::jsonb)",
+    [
+      id,
+      employee.fullName,
+      email,
+      employee.phone || null,
+      employee.gender || null,
+      await bcrypt.hash(password, 10),
+    ],
+  );
+  await tx.query(
+    "INSERT INTO user_roles(user_id,role_id,assigned_by) VALUES($1,$2,$3)",
+    [id, role.id, user.id],
+  );
+  return id;
+}
+
+// Base salary from the wizard. The first record starts on the joining date and is corrected
+// in place until the employee joins; after that a change is a revision dated today (or
+// corrects today's revision in place).
+async function saveSalary(tx, user, employee, salary, p, onboarding) {
+  c.permit(user, "manage_salary");
+  c.allow(salary, ["monthlyCost", "currency"]);
+  const monthlyCost = c.number(salary.monthlyCost, "Base salary", 0, 1e9);
+  const currency = c.text(salary.currency || "INR", "Currency", 3, true);
+  const latest = (
+    await tx.query(
+      "SELECT id,effective_date::text AS date,monthly_cost FROM hrm_salary_history WHERE employee_id=$1 ORDER BY effective_date DESC LIMIT 1",
+      [employee.id],
+    )
+  ).rows[0];
+  if (latest && Number(latest.monthly_cost) === monthlyCost) return;
+  const effectiveDate = onboarding || !latest ? employee.joiningDate : c.today(p);
+  if (latest && (onboarding || latest.date === effectiveDate)) {
+    await tx.query(
+      "UPDATE hrm_salary_history SET monthly_cost=$2,currency=$3,effective_date=$4 WHERE id=$1",
+      [latest.id, monthlyCost, currency, effectiveDate],
+    );
+  } else if (latest && latest.date > effectiveDate) {
+    c.fail("A later salary revision exists; change it from Compensation");
+  } else {
+    await c.insert(tx, "hrm_salary_history", {
+      employeeId: employee.id,
+      effectiveDate,
+      monthlyCost,
+      currency,
+      components: "[]",
+      reason: onboarding ? "Joining salary" : "Updated from employee profile",
+      createdBy: user.id,
+    });
+  }
+  await c.audit(
+    tx,
+    user,
+    "salary-history",
+    employee.id,
+    "updated",
+    latest ? { monthlyCost: latest.monthly_cost } : null,
+    { monthlyCost, currency },
+    employee.id,
+    true,
+  );
+}
+
+// Personal (profile) and bank details sent with the employee form; same rules as /private.
+async function savePrivate(tx, user, employee, profile, financial) {
+  if (profile) {
+    c.permit(user, "manage_private");
+    c.allow(profile, personalFields);
+    if (profile.gender) c.choice(profile.gender, GENDERS, "Gender");
+    if (profile.dob) c.date(profile.dob, "Date of birth");
+    await c.update(tx, "hrm_employees", employee.id, {
+      profile: JSON.stringify(profile),
+      updatedAt: new Date(),
+    });
+  }
+  if (financial) {
+    c.permit(user, "manage_salary");
+    c.allow(financial, financialFields);
+    if (financial.ifsc && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(financial.ifsc))
+      c.fail("IFSC must look like HDFC0001234");
+    if (financial.pan && !/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/.test(financial.pan))
+      c.fail("PAN must look like ABCDE1234F");
+    for (const [k, title, min, max] of [
+      ["hoursPerDay", "Hours per day", 1, 24],
+      ["daysPerWeek", "Days per week", 1, 7],
+    ])
+      if (financial[k] !== "" && financial[k] != null)
+        c.number(financial[k], title, min, max);
+    await tx.query(
+      "INSERT INTO hrm_private_profiles(employee_id,details) VALUES($1,$2) ON CONFLICT(employee_id) DO UPDATE SET details=excluded.details,updated_at=now()",
+      [employee.id, JSON.stringify(financial)],
+    );
+  }
+  if (profile || financial)
+    await c.audit(
+      tx,
+      user,
+      "private",
+      employee.id,
+      "updated",
+      null,
+      { profile: Boolean(profile), financial: Boolean(financial) },
+      employee.id,
+      true,
+    );
+}
 function publicEmployee(e) {
   const { profile, ...r } = e;
   return r;
 }
 async function save(user, body, id = null, db = null) {
   c.permit(user, "manage_employees");
-  c.allow(body, [...fields, "effectiveDate", "reason", "version"]);
+  c.allow(body, [
+    ...fields,
+    "effectiveDate",
+    "reason",
+    "version",
+    "profile",
+    "financial",
+    "salary",
+    "login",
+  ]);
+  const { profile, financial, salary, login, ...core } = body;
+  body = core;
   return c.transaction(async (tx) => {
     const old = id ? await c.employee(tx, user, id, { lock: true }) : null;
     if (old) c.optimistic(old, body);
@@ -70,7 +249,28 @@ async function save(user, body, id = null, db = null) {
     if (old && old.userId !== (v.userId || null))
       c.fail("An existing employee login mapping cannot be reassigned");
     result.userId = v.userId || null;
+    if (login && result.userId) c.fail("This employee already has a login");
     result.fullName = c.text(v.fullName, "Full name", 160, true);
+    result.employeeCode = c.text(v.employeeCode, "Employee code", 40);
+    if (result.employeeCode) {
+      const dup = await tx.query(
+        "SELECT 1 FROM hrm_employees WHERE lower(employee_code)=lower($1) AND archived_at IS NULL AND id<>$2",
+        [result.employeeCode, id || ""],
+      );
+      if (dup.rowCount)
+        c.fail("Another employee already uses this employee code", 409);
+    }
+    await c.master(tx, v.attendancePolicyId, "attendance_policy");
+    result.attendancePolicyId = v.attendancePolicyId || null;
+    if (old && v.photoDocumentId) {
+      const doc = await tx.query(
+        "SELECT 1 FROM hrm_documents WHERE id=$1 AND employee_id=$2 AND mime_type LIKE 'image/%'",
+        [v.photoDocumentId, id],
+      );
+      if (!doc.rowCount)
+        c.fail("Profile photo must be an image uploaded for this employee");
+    }
+    result.photoDocumentId = (old && v.photoDocumentId) || null;
     result.companyEmail = c.text(v.companyEmail, "Company email", 254);
     result.phone = c.text(v.phone, "Phone", 40);
     if (
@@ -98,15 +298,17 @@ async function save(user, body, id = null, db = null) {
       );
       if (r.rowCount) c.fail("Reporting hierarchy cannot contain a cycle");
     }
-    const effectiveDate = c.date(
-      body.effectiveDate || result.joiningDate,
-      "Effective date",
-    );
-    if (old && effectiveDate > c.today(p))
+    // Before the joining date an edit is a correction of the onboarding record, not an
+    // employment change, so it rewrites the joining history entry instead of appending one.
+    const preJoining = Boolean(old) && old.joiningDate > c.today(p);
+    const effectiveDate = preJoining
+      ? result.joiningDate
+      : c.date(body.effectiveDate || result.joiningDate, "Effective date");
+    if (old && !preJoining && effectiveDate > c.today(p))
       c.fail(
         "Future employment changes must be applied on their effective date",
       );
-    if (old) {
+    if (old && !preJoining) {
       const latest = await tx.query(
         "SELECT max(effective_date)::text AS date FROM hrm_employment_history WHERE employee_id=$1",
         [id],
@@ -125,13 +327,44 @@ async function save(user, body, id = null, db = null) {
           employeeNumber: `${p.employeePrefix}-${(await tx.query("SELECT nextval('hrm_employee_number') AS n")).rows[0].n}`,
           createdBy: user.id,
         });
-    await c.insert(tx, "hrm_employment_history", {
-      employeeId: saved.id,
-      effectiveDate,
-      snapshot: JSON.stringify(publicEmployee(saved)),
-      reason: c.text(body.reason || "Employee created", "Reason", 1000, true),
-      createdBy: user.id,
-    });
+    if (login) {
+      const userId = await createEmployeeLogin(tx, user, login, {
+        ...saved,
+        gender: profile?.gender,
+      });
+      Object.assign(
+        saved,
+        await c.update(tx, "hrm_employees", saved.id, { userId }),
+      );
+    }
+    await savePrivate(tx, user, saved, profile, financial);
+    // A moved joining date carries the joining salary with it, so payroll never finds a gap.
+    if (preJoining && old.joiningDate !== saved.joiningDate)
+      await tx.query(
+        "UPDATE hrm_salary_history SET effective_date=$3 WHERE employee_id=$1 AND effective_date=$2",
+        [saved.id, old.joiningDate, saved.joiningDate],
+      );
+    if (salary && salary.monthlyCost !== "" && salary.monthlyCost != null)
+      await saveSalary(tx, user, saved, salary, p, !old || preJoining);
+    const historyReason = c.text(
+      body.reason || (old ? "Onboarding details corrected" : "Employee created"),
+      "Reason",
+      1000,
+      true,
+    );
+    if (preJoining)
+      await tx.query(
+        "UPDATE hrm_employment_history SET effective_date=$2,snapshot=$3,reason=$4 WHERE employee_id=$1",
+        [saved.id, effectiveDate, JSON.stringify(publicEmployee(saved)), historyReason],
+      );
+    else
+      await c.insert(tx, "hrm_employment_history", {
+        employeeId: saved.id,
+        effectiveDate,
+        snapshot: JSON.stringify(publicEmployee(saved)),
+        reason: historyReason,
+        createdBy: user.id,
+      });
     if (!old)
       for (const title of p.onboardingChecklist)
         await c.insert(tx, "hrm_records", {
@@ -319,8 +552,22 @@ async function savePolicy(user, body, db = null) {
       if (typeof defaultValue === "number")
         c.number(v[k], k, 0, k.includes("Utilization") ? 500 : 1000);
     }
-    for (const k of ["shiftStart", "shiftEnd", "reportDeadline"])
+    for (const k of [
+      "shiftStart",
+      "shiftEnd",
+      "reportDeadline",
+      "lunchWindowStart",
+      "lunchWindowEnd",
+    ])
       if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(v[k])) c.fail(`Invalid ${k}`);
+    if (v.lunchWindowStart >= v.lunchWindowEnd)
+      c.fail("Lunch window must end after it starts");
+    if (v.reportIntervalMinutes < 15 || v.reportIntervalMinutes > 240)
+      c.fail("Report interval must be between 15 and 240 minutes");
+    if (v.pingIntervalMinutes < 1 || v.offlineAfterMinutes <= v.pingIntervalMinutes)
+      c.fail("Offline threshold must be longer than the location ping interval");
+    if (v.defaultOfficeRadiusMeters < 20 || v.defaultHomeRadiusMeters < 20)
+      c.fail("Geofence radius must be at least 20 metres");
     if (
       v.standardDailyHours <= 0 ||
       v.standardDailyHours > 24 ||

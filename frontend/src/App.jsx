@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ProtectedRoute } from './components/guards/ProtectedRoute';
 import { PermissionRoute } from './components/guards/PermissionRoute';
+import { HomeRedirect } from './components/guards/HomeRedirect';
 import { AppLayout } from './components/layout/AppLayout';
 import { schemaRegistry } from './config/resourceSchemas';
 
@@ -68,7 +69,7 @@ const HrmPage = lazyNamed(() => import('./pages/hrm/HrmPage'), 'HrmPage');
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+      <Route path="/" element={<HomeRedirect />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -81,7 +82,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route index element={<HomeRedirect />} />
         <Route path="hrm/*" element={<PermissionRoute permissions={['hrm.view_own','hrm.view_team','hrm.view_projects','hrm.view_all']}><Suspense fallback={<div className="p-6" role="status">Loading HRM…</div>}><HrmPage /></Suspense></PermissionRoute>} />
         <Route
           path="dashboard"
@@ -258,7 +259,7 @@ function AppRoutes() {
         <Route
           path="call-history"
           element={
-            <PermissionRoute permissions={['calls.read', 'leads.read', 'dashboard.view']}>
+            <PermissionRoute permissions={['calls.read']}>
               <CallHistoryPage />
             </PermissionRoute>
           }

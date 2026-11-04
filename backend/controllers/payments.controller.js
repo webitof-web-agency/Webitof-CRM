@@ -138,17 +138,16 @@ paymentsController.update = async (req, res, next) => {
 
 paymentsController.remove = async (req, res, next) => {
   try {
-    const ok = await withTransaction(async (db) => {
-      const current = await paymentModel.findById(req.params.id, db);
-      if (!current) return false;
+    const current = await withTransaction(async (db) => {
+      const existing = await paymentModel.findById(req.params.id, db);
+      if (!existing) return null;
       const removed = await paymentModel.remove(req.params.id, db);
-      if (removed) {
-        await syncInvoicesForPaymentChange(db, current, null);
-      }
-      return removed;
+      if (!removed) return null;
+      await syncInvoicesForPaymentChange(db, existing, null);
+      return existing;
     });
 
-    if (!ok) {
+    if (!current) {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
 

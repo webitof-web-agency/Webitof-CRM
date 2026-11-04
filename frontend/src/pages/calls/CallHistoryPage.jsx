@@ -271,6 +271,7 @@ export function CallHistoryPage() {
 
   // Filters & Pagination
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedStaff, setSelectedStaff] = useState('');
   const [callType, setCallType] = useState('all');
   const [dateRange, setDateRange] = useState('all');
@@ -295,13 +296,16 @@ export function CallHistoryPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch calls data
+  // Fetch calls data. Only the latest request may write state, so a slow response for an
+  // older search/page cannot overwrite newer results.
+  const fetchRequestRef = useRef(0);
   const fetchCalls = async (showSpinner = true) => {
     if (!token) return;
+    const requestId = ++fetchRequestRef.current;
     if (showSpinner) setLoading(true);
     try {
       const queryParams = {
-        search,
+        search: debouncedSearch,
         userId: selectedStaff,
         callType: callType === 'all' ? '' : callType,
         dateRange: dateRange === 'all' ? '' : dateRange,
@@ -314,6 +318,7 @@ export function CallHistoryPage() {
         api.callLogs.list(token, queryParams),
         api.callLogs.stats(token)
       ]);
+      if (requestId !== fetchRequestRef.current) return;
 
       if (res?.success) {
         setCalls(res.data || []);
@@ -325,23 +330,26 @@ export function CallHistoryPage() {
         setStaffStats(statsRes.data.staff || []);
       }
     } catch (err) {
+      if (requestId !== fetchRequestRef.current) return;
       console.error('Failed to load call history:', err);
       toast.error('Failed to load call history');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === fetchRequestRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
   useEffect(() => {
     fetchCalls();
-  }, [token, selectedStaff, callType, dateRange, recordingOnly, page, pageSize]);
+  }, [token, debouncedSearch, selectedStaff, callType, dateRange, recordingOnly, page, pageSize]);
 
-  // Debounced search
+  // Debounced search: committing the term and resetting the page together triggers a single fetch.
   useEffect(() => {
     const timer = setTimeout(() => {
+      setDebouncedSearch(search);
       setPage(1);
-      fetchCalls();
     }, 350);
     return () => clearTimeout(timer);
   }, [search]);
@@ -419,28 +427,37 @@ export function CallHistoryPage() {
       'Notes',
       'Has Recording'
     ];
+    // Quote every cell (escaping embedded quotes) and neutralise spreadsheet formulas.
+    const csvCell = (value) => {
+      let text = String(value ?? '');
+      if (/^[=+\-@\t\r]/.test(text) && !/^\+?\d[\d\s-]*$/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
     const rows = calls.map((c) => [
-      `"${c.id}"`,
-      `"${c.staffName || ''}"`,
-      `"${c.staffPhone || ''}"`,
-      `"${c.customerName || ''}"`,
-      `"${c.customerPhone || ''}"`,
-      `"${c.callType || ''}"`,
+      c.id,
+      c.staffName || '',
+      c.staffPhone || '',
+      c.customerName || '',
+      c.customerPhone || '',
+      c.callType || '',
       c.durationSeconds || 0,
-      `"${formatDuration(c.durationSeconds)}"`,
-      `"${c.startedAt || ''}"`,
-      `"${c.outcome || ''}"`,
-      `"${(c.notes || '').replace(/"/g, '""')}"`,
+      formatDuration(c.durationSeconds),
+      c.startedAt || '',
+      c.outcome || '',
+      c.notes || '',
       c.recordingUrl ? 'Yes' : 'No'
-    ]);
+    ].map(csvCell));
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    // Blob instead of an encodeURI'd data: URL, which truncates the file at the first '#'.
+    const csvContent = [headers.map(csvCell).join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const blobUrl = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
-    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('href', blobUrl);
     link.setAttribute('download', `Webitof_Call_Logs_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
     toast.success('Exported to CSV');
   };
 

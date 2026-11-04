@@ -10,6 +10,7 @@ import {
   RemoveFormatting
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { safeRichHtml } from '../../utils/safeHtml';
 
 const COMMANDS = [
   { command: 'bold', label: 'Bold (Ctrl+B)', Icon: Bold },
@@ -24,7 +25,8 @@ const COMMANDS = [
 function normalizeContentToHtml(raw) {
   if (!raw) return '';
   const text = String(raw);
-  if (/<[a-z][\s\S]*>/i.test(text)) return text;
+  // Stored content is assigned to innerHTML of a live element, where <img onerror> etc. would run.
+  if (/<[a-z][\s\S]*>/i.test(text)) return safeRichHtml(text);
   // Convert plain text line breaks and bullets into clean HTML paragraphs
   return text
     .split(/\r?\n/)

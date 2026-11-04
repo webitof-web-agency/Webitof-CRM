@@ -27,6 +27,8 @@ import {
   LayoutList,
   UsersRound,
   CalendarCheck,
+  MapPinned,
+  Timer,
   CalendarOff,
   CalendarHeart,
   ClipboardList,
@@ -83,7 +85,7 @@ export const navigationGroups = [
         label: 'Call History',
         path: '/app/call-history',
         icon: PhoneCall,
-        permissions: ['calls.read', 'leads.read', 'dashboard.view']
+        permissions: ['calls.read']
       },
       { label: 'Leads', path: '/app/leads', icon: Target, permission: 'leads.read' },
       { label: 'Clients', path: '/app/clients', icon: Building2, permission: 'clients.read' },
@@ -106,8 +108,10 @@ export const navigationGroups = [
         permissions: ['hrm.view_own', 'hrm.view_team', 'hrm.view_projects', 'hrm.view_all'],
         children: [
           { label: 'Overview', path: '/app/hrm/overview', icon: LayoutDashboard },
+          { label: 'My day', path: '/app/hrm/my-day', icon: Timer, permission: 'hrm.self_service' },
           { label: 'Employees', path: '/app/hrm/employees', icon: Users },
           { label: 'Attendance', path: '/app/hrm/attendance', icon: CalendarCheck },
+          { label: 'Work locations', path: '/app/hrm/geofences', icon: MapPinned, permissions: ['hrm.approve', 'hrm.manage_settings'] },
           { label: 'Leave', path: '/app/hrm/leave', icon: CalendarOff },
           { label: 'Holidays', path: '/app/hrm/holidays', icon: CalendarHeart },
           { label: 'Work reports', path: '/app/hrm/work-reports', icon: ClipboardList },

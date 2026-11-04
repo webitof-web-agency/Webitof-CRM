@@ -80,3 +80,12 @@ test('all standard milestone presets validate to 100%', () => {
     assert.equal(val.isValid, true, `Preset ${preset.name} failed 100% validation`);
   }
 });
+
+test('an incomplete schedule does not dump the unallocated share on the last milestone', () => {
+  const result = calculateMilestoneAmounts([
+    { name: 'Advance', percentage: 40 },
+    { name: 'Final', percentage: 30 }
+  ], 100000);
+  assert.equal(result[0].amount, 40000);
+  assert.equal(result[1].amount, 30000);
+});

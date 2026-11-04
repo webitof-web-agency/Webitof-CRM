@@ -11,12 +11,18 @@ const {
   getPlaceOfSupplyForClient
 } = require('../utils/finance');
 const { generateInvoiceNumber, getFinancialYear } = require('../utils/invoice');
-const { createId, round2, toNumber } = require('../utils/format');
+const { businessDate, createId, round2, toNumber } = require('../utils/format');
 const { resolveSmtpConfig, sendMail } = require('./mailer.service');
 const { syncInvoiceFinancialState } = require('./finance.service');
 
+// Items overdue by more than this many days are not emailed or invoiced automatically, so a
+// long-stale record (or a first run after downtime) cannot mail clients or bill old periods
+// in bulk. They are logged as warnings for someone to handle by hand.
+const OVERDUE_GRACE_DAYS = toNumber(process.env.AUTOMATION_OVERDUE_GRACE_DAYS ?? 30, 30);
+
 function normalizeDate(value) {
   if (!value) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : businessDate(value);
   const text = String(value).trim();
   return text ? text.slice(0, 10) : null;
 }
@@ -209,7 +215,7 @@ async function sendAmcReminder({ amc, client, dueDate }) {
 }
 
 async function createAmcInvoice({ amc, client, project, settings, dueDate, nextSequence }) {
-  const invoiceDate = normalizeDate(new Date()) || dueDate || new Date().toISOString().slice(0, 10);
+  const invoiceDate = businessDate();
   const defaultInvoiceType = getDefaultInvoiceTypeForClient(client || {}, settings || {});
   const invoiceType = amc.gstType && String(amc.gstType).trim().toLowerCase() === 'non-gst'
     ? 'Regular'
@@ -257,7 +263,7 @@ async function createAmcInvoice({ amc, client, project, settings, dueDate, nextS
 
 async function runAmcAutomation({ dryRun = false, runSource = 'manual' } = {}) {
   const { settings, clientMap, projectMap, invoices, amcs, amcTypes, billingCycles } = await loadContext();
-  const today = normalizeDate(new Date()) || new Date().toISOString().slice(0, 10);
+  const today = businessDate();
   const runId = createId('amcrun');
   const existingByAmc = new Map();
 
@@ -286,8 +292,9 @@ async function runAmcAutomation({ dryRun = false, runSource = 'manual' } = {}) {
     const hasInvoiceForPeriod = existingInvoices.some((invoice) => normalizeDate(invoice.sourceAmcDueDate || invoice.invoiceDate) === dueDate);
     const amcTypeMaster = resolveMasterByIdOrName(amcTypes, amc.amcType);
     const billingMonths = resolveBillingCycleMonths(amc, amcTypeMaster, billingCycles);
-    const canRemind = daysRemaining != null && daysRemaining <= reminderDays;
-    const canInvoice = status === 'Active' && Boolean(amc.autoInvoice) && daysRemaining != null && daysRemaining <= 0;
+    const tooOld = daysRemaining != null && daysRemaining < -OVERDUE_GRACE_DAYS;
+    const canRemind = daysRemaining != null && daysRemaining <= reminderDays && !tooOld;
+    const canInvoice = status === 'Active' && Boolean(amc.autoInvoice) && daysRemaining != null && daysRemaining <= 0 && !tooOld;
     const reminderAlreadySent = normalizeDate(amc.lastReminderSentForDate) === dueDate;
     const invoiceAlreadyGenerated = normalizeDate(amc.lastInvoiceGeneratedForDate) === dueDate || hasInvoiceForPeriod;
 
@@ -318,6 +325,22 @@ async function runAmcAutomation({ dryRun = false, runSource = 'manual' } = {}) {
       invoiceCreated: false,
       warnings: []
     };
+
+    if (tooOld && status === 'Active') {
+      result.warnings.push(`Overdue by ${-daysRemaining} days: reminder/invoice not automated, update the AMC manually`);
+      if (!dryRun) {
+        await recordAutomationLog({
+          amcId: amc.id,
+          runId,
+          runSource,
+          action: 'skipped',
+          status: 'Warning',
+          dueDate,
+          message: `Overdue by ${-daysRemaining} days (limit ${OVERDUE_GRACE_DAYS}); no automatic reminder or invoice`,
+          payload: { reason: 'overdue_beyond_grace', daysRemaining }
+        });
+      }
+    }
 
     if (canRemind && !reminderAlreadySent) {
       try {

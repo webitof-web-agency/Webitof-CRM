@@ -5,7 +5,7 @@ import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../data/indiaLocations';
 import { Modal } from '../components/ui/Modal';
 import { toast } from 'sonner';
-import { api, API_BASE_URL } from '../api/client';
+import { api, API_BASE_URL, request } from '../api/client';
 import { getFileViewUrl } from '../lib/fileUpload';
 import { StorageSettingsPanel } from '../components/settings/StorageSettingsPanel';
 import { Card } from '../components/ui/Card';
@@ -164,6 +164,16 @@ export function SettingsPage() {
   const [webhookTestLoading, setWebhookTestLoading] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState(null);
   const [snippetTab, setSnippetTab] = useState('curl');
+  const [webhookKey, setWebhookKey] = useState('');
+  const webhookEndpoint = `${/^https?:/i.test(API_BASE_URL) ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`}/leads/webhook`;
+
+  useEffect(() => {
+    let mounted = true;
+    request('/leads/webhook/config', { token, skipCache: true })
+      .then((res) => { if (mounted) setWebhookKey(res?.data?.key || ''); })
+      .catch(() => { if (mounted) setWebhookKey(''); });
+    return () => { mounted = false; };
+  }, [token]);
 
   useEffect(() => {
     let mounted = true;
@@ -2516,13 +2526,13 @@ export function SettingsPage() {
                     <div className="flex gap-2">
                       <Input
                         readOnly
-                        value={`${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret`}
+                        value={`${webhookEndpoint}?key=${webhookKey}`}
                         className="font-mono text-xs bg-slate-50 dark:bg-slate-900/60 select-all"
                       />
                       <Button
                         type="button"
                         variant="secondary"
-                        onClick={() => copyToClipboard(`${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret`, 'Webhook URL')}
+                        onClick={() => copyToClipboard(`${webhookEndpoint}?key=${webhookKey}`, 'Webhook URL')}
                         className="shrink-0 cursor-pointer"
                       >
                         <Copy size={15} className="mr-1.5" /> Copy URL
@@ -2538,13 +2548,13 @@ export function SettingsPage() {
                     <div className="flex gap-2">
                       <Input
                         readOnly
-                        value="webitof-crm-webhook-secret"
+                        value={webhookKey}
                         className="font-mono text-xs bg-slate-50 dark:bg-slate-900/60 select-all"
                       />
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => copyToClipboard('webitof-crm-webhook-secret', 'API Key')}
+                        onClick={() => copyToClipboard(webhookKey, 'API Key')}
                         className="shrink-0 cursor-pointer"
                       >
                         <Copy size={15} />
@@ -2556,7 +2566,7 @@ export function SettingsPage() {
                     <label className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Authentication Headers</label>
                     <Input
                       readOnly
-                      value="x-crm-webhook-key: webitof-crm-webhook-secret"
+                      value={`x-crm-webhook-key: ${webhookKey}`}
                       className="font-mono text-xs bg-slate-50 dark:bg-slate-900/60"
                     />
                   </div>
@@ -2654,7 +2664,7 @@ export function SettingsPage() {
                       setWebhookTestLoading(true);
                       setWebhookTestResult(null);
                       try {
-                        const res = await fetch('/api/leads/webhook?key=webitof-crm-webhook-secret', {
+                        const res = await fetch(`${API_BASE_URL}/leads/webhook?key=${encodeURIComponent(webhookKey)}`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify(webhookTestDraft)
@@ -2728,11 +2738,11 @@ export function SettingsPage() {
                     onClick={() => {
                       let code = '';
                       if (snippetTab === 'curl') {
-                        code = `curl -X POST "${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "name": "Jane Smith",\n    "phone": "+91 98765 43210",\n    "email": "jane@example.com",\n    "companyName": "Acme Corp",\n    "service": "Web Development",\n    "source": "Website Contact Form",\n    "message": "Interested in redesigning our website.",\n    "budget": 50000\n  }'`;
+                        code = `curl -X POST "${webhookEndpoint}?key=${webhookKey}" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "name": "Jane Smith",\n    "phone": "+91 98765 43210",\n    "email": "jane@example.com",\n    "companyName": "Acme Corp",\n    "service": "Web Development",\n    "source": "Website Contact Form",\n    "message": "Interested in redesigning our website.",\n    "budget": 50000\n  }'`;
                       } else if (snippetTab === 'javascript') {
-                        code = `fetch('${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\n    name: formData.name,\n    phone: formData.phone,\n    email: formData.email,\n    companyName: formData.company,\n    service: formData.service,\n    source: 'Website Form',\n    message: formData.message\n  })\n})\n.then(res => res.json())\n.then(data => console.log('Lead captured in CRM:', data));`;
+                        code = `fetch('${webhookEndpoint}?key=${webhookKey}', {\n  method: 'POST',\n  headers: {\n    'Content-Type': 'application/json'\n  },\n  body: JSON.stringify({\n    name: formData.name,\n    phone: formData.phone,\n    email: formData.email,\n    companyName: formData.company,\n    service: formData.service,\n    source: 'Website Form',\n    message: formData.message\n  })\n})\n.then(res => res.json())\n.then(data => console.log('Lead captured in CRM:', data));`;
                       } else {
-                        code = `<?php\n$url = '${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret';\n$payload = json_encode([\n    'name'        => $_POST['name'],\n    'phone'       => $_POST['phone'],\n    'email'       => $_POST['email'],\n    'companyName' => $_POST['company'],\n    'service'     => $_POST['service'],\n    'source'      => 'WordPress Contact Form',\n    'message'     => $_POST['message']\n]);\n$ch = curl_init($url);\ncurl_setopt($ch, CURLOPT_POSTFIELDS, $payload);\ncurl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);\ncurl_setopt($ch, CURLOPT_RETURNTRANSFER, true);\n$result = curl_exec($ch);\ncurl_close($ch);\n?>`;
+                        code = `<?php\n$url = '${webhookEndpoint}?key=${webhookKey}';\n$payload = json_encode([\n    'name'        => $_POST['name'],\n    'phone'       => $_POST['phone'],\n    'email'       => $_POST['email'],\n    'companyName' => $_POST['company'],\n    'service'     => $_POST['service'],\n    'source'      => 'WordPress Contact Form',\n    'message'     => $_POST['message']\n]);\n$ch = curl_init($url);\ncurl_setopt($ch, CURLOPT_POSTFIELDS, $payload);\ncurl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);\ncurl_setopt($ch, CURLOPT_RETURNTRANSFER, true);\n$result = curl_exec($ch);\ncurl_close($ch);\n?>`;
                       }
                       copyToClipboard(code, `${snippetTab.toUpperCase()} Snippet`);
                     }}
@@ -2742,7 +2752,7 @@ export function SettingsPage() {
                     <Copy size={13} /> Copy
                   </button>
                   <pre className="p-4 bg-slate-900 dark:bg-slate-950 text-slate-100 rounded-xl overflow-x-auto text-xs font-mono leading-relaxed border border-slate-800">
-                    {snippetTab === 'curl' && `curl -X POST "${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret" \\
+                    {snippetTab === 'curl' && `curl -X POST "${webhookEndpoint}?key=${webhookKey}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "name": "Jane Smith",
@@ -2755,7 +2765,7 @@ export function SettingsPage() {
     "budget": 50000
   }'`}
 
-                    {snippetTab === 'javascript' && `fetch('${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret', {
+                    {snippetTab === 'javascript' && `fetch('${webhookEndpoint}?key=${webhookKey}', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json'
@@ -2775,7 +2785,7 @@ export function SettingsPage() {
 
                     {snippetTab === 'php' && `<?php
 // WordPress / PHP Contact Form Integration
-$url = '${window.location.origin}/api/leads/webhook?key=webitof-crm-webhook-secret';
+$url = '${webhookEndpoint}?key=${webhookKey}';
 $payload = json_encode([
     'name'        => $_POST['name'],
     'phone'       => $_POST['phone'],

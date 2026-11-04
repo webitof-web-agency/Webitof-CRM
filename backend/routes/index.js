@@ -60,7 +60,10 @@ invoicesPublicRouter.get('/public/:id', invoicesController.getPublic);
 router.use('/invoices', invoicesPublicRouter);
 const settingsController = require('../controllers/settings.controller');
 router.get('/settings/public', settingsController.fetchPublicSettings);
-// Public audio playback routes so HTML5 <audio> players and downloads load seamlessly
+// Website forms post leads here with the webhook key instead of a user token.
+router.post('/leads/webhook', require('../controllers/leads.controller').captureWebhookLead);
+// <audio> players and download links cannot send the Bearer header, so these routes sit before
+// requireAuth and instead require the short-lived signature that call-log responses embed in recordingUrl.
 router.get('/call-logs/recordings/:filename', callLogsController.streamRecording);
 router.get('/call-logs/recordings/:filename/download', callLogsController.downloadRecording);
 router.get('/calls/recordings/:filename', callLogsController.streamRecording);

@@ -46,7 +46,14 @@ function toCamelCase(value) {
   return String(value).replace(/_([a-z0-9])/g, (_, char) => char.toUpperCase());
 }
 
+// Calendar date (YYYY-MM-DD) in the business timezone. String(new Date()).slice(0, 10) gives
+// "Sat Oct 31" and toISOString() gives the UTC date, so neither is safe for "today".
+function businessDate(date = new Date(), timeZone = 'Asia/Kolkata') {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+}
+
 module.exports = {
+  businessDate,
   createId,
   deepClone,
   isTruthy,

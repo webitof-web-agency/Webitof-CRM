@@ -103,3 +103,24 @@ test('commercial totals calculate accurate intra-state CGST + SGST split', () =>
   assert.equal(totals.gstAmount, 9000);
   assert.equal(totals.totalAmount, 59000);
 });
+
+test('Delhi has a legislature, so an intra-state Delhi supply is CGST + SGST, not UTGST', () => {
+  const delhi = resolveTaxTreatment({ supplierState: 'Delhi', clientState: 'Delhi', gstApplicable: true, gstRate: 18 });
+  assert.equal(delhi.taxType, 'CGST_SGST');
+  const chandigarh = resolveTaxTreatment({ supplierState: 'Chandigarh', clientState: 'Chandigarh', gstApplicable: true, gstRate: 18 });
+  assert.equal(chandigarh.taxType, 'CGST_UTGST');
+});
+
+test('quotation GST is rounded to paise like the invoice engine', () => {
+  const totals = calculateQuotationTotals({
+    amount: 1001,
+    gstApplicable: true,
+    gstRate: 18,
+    supplierState: 'Chhattisgarh',
+    clientState: 'Chhattisgarh'
+  });
+  assert.equal(totals.gstAmount, 180.18);
+  assert.equal(totals.cgstAmount, 90.09);
+  assert.equal(totals.sgstAmount, 90.09);
+  assert.equal(totals.totalAmount, 1181.18);
+});

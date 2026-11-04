@@ -3,7 +3,8 @@ const path = require('path');
 const fileAssetModel = require('../models/fileAsset.model');
 const leadModel = require('../models/lead.model');
 const fileService = require('../services/file.service');
-const { DEFAULT_PIPELINE_ID, canAccessPipeline } = require('../services/leadPipelineAccess.service');
+const { DEFAULT_PIPELINE_ID, canAccessPipeline, userHasAllPipelineAccess } = require('../services/leadPipelineAccess.service');
+const { query } = require('../config/db');
 
 const LEAD_ATTACHMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.zip']);
 const EARLIER_UPLOADS_FOLDER = 'earlier-uploads';
@@ -16,6 +17,23 @@ async function assertLeadFileAccess(moduleName, entityId, req) {
     error.statusCode = 403;
     throw error;
   }
+}
+
+// An unfiltered listing spans every module, so lead attachments are dropped for leads in
+// pipelines the user cannot open (assertLeadFileAccess only covers a single-lead request).
+async function filterLeadFilesByPipeline(rows, req) {
+  if (userHasAllPipelineAccess(req?.user)) return rows;
+  const leadIds = [...new Set(rows
+    .filter((row) => String(row.moduleName || '').toLowerCase() === 'leads' && row.entityId && !String(row.entityId).startsWith('lead-draft-'))
+    .map((row) => String(row.entityId)))];
+  if (!leadIds.length) return rows;
+  const result = await query('SELECT id, pipeline_id FROM leads WHERE id = ANY($1::text[])', [leadIds]);
+  const pipelineByLead = new Map(result.rows.map((row) => [String(row.id), row.pipeline_id || DEFAULT_PIPELINE_ID]));
+  return rows.filter((row) => {
+    if (String(row.moduleName || '').toLowerCase() !== 'leads' || !leadIds.includes(String(row.entityId))) return true;
+    const pipelineId = pipelineByLead.get(String(row.entityId));
+    return Boolean(pipelineId) && canAccessPipeline(req.user, pipelineId);
+  });
 }
 
 function validateLeadAttachments(files = [], moduleName = '') {
@@ -48,7 +66,10 @@ async function list(req, res, next) {
     if (req.query.entityId) filters.entityId = req.query.entityId;
     if (req.query.folderKey) filters.folderKey = req.query.folderKey;
     await assertLeadFileAccess(filters.moduleName, filters.entityId, req);
-    const rows = await fileAssetModel.list({ where: filters, search: req.query.search || '', orderBy: 'created_at DESC' });
+    const rows = await filterLeadFilesByPipeline(
+      await fileAssetModel.list({ where: filters, search: req.query.search || '', orderBy: 'created_at DESC' }),
+      req
+    );
     res.json({ success: true, data: rows.map(fileService.toPublicFile) });
   } catch (error) {
     next(error);
@@ -69,7 +90,10 @@ async function browse(req, res, next) {
   try {
     const current = String(req.query.path || '').replace(/^\/+|\/+$/g, '');
     const search = String(req.query.search || '').trim();
-    const rows = (await fileAssetModel.list({ search, orderBy: 'created_at DESC' })).filter((row) => !row.isArchived);
+    const rows = await filterLeadFilesByPipeline(
+      (await fileAssetModel.list({ search, orderBy: 'created_at DESC' })).filter((row) => !row.isArchived),
+      req
+    );
 
     if (search) {
       return res.json({ success: true, data: { path: current, folders: [], files: rows.map(fileService.toPublicFile) } });

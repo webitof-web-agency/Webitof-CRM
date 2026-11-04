@@ -84,7 +84,11 @@ async function parseResponse(response) {
   }
 
   if (!response.ok || data.success === false) {
-    const error = new Error(data.message || `Request failed with status ${response.status}`);
+    // A 5xx without a JSON message means the API never answered (down, restarting, or the dev proxy failed).
+    const fallback = response.status >= 500
+      ? `The server is not responding (${response.status}). Make sure the backend is running and try again.`
+      : `Request failed with status ${response.status}`;
+    const error = new Error(data.message || fallback);
     error.status = response.status;
     error.payload = data;
     throw error;
@@ -116,6 +120,10 @@ export async function request(path, { method = 'GET', body, token, headers = {},
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, init);
+  if (response.status === 401 && token) {
+    // Expired or revoked session: AuthContext signs the user out once.
+    window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  }
   const data = await parseResponse(response);
 
   if (method === 'GET' && !skipCache) {
@@ -334,5 +342,21 @@ export const api = {
     clear: () => invalidateStoredCache('')
   }
 };
+
+let publicSettingsRequest = null;
+
+// Unauthenticated branding/logo settings. The layout, sidebar and theme all ask for it on load,
+// so concurrent callers share one in-flight request; resolves to null on failure.
+export function fetchPublicSettings() {
+  if (!publicSettingsRequest) {
+    publicSettingsRequest = fetch(`${API_BASE_URL}/settings/public`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null)
+      .finally(() => {
+        publicSettingsRequest = null;
+      });
+  }
+  return publicSettingsRequest;
+}
 
 export { API_BASE_URL };

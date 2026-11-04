@@ -82,10 +82,15 @@ export function calculateMilestoneAmounts(milestones = [], baseAmount = 0) {
     return (milestones || []).map((ms) => ({ ...ms, amount: 0 }));
   }
 
+  // Only a complete (100%) schedule lets the last milestone absorb the rounding remainder;
+  // otherwise it would silently pick up the unallocated share.
+  const totalPercentage = milestones.reduce((sum, ms) => sum + Math.max(0, Number(ms.percentage || 0)), 0);
+  const absorbRemainder = Math.abs(totalPercentage - 100) < 0.01;
+
   let accumulatedAmount = 0;
   const result = milestones.map((ms, index) => {
     const pct = Math.max(0, Number(ms.percentage || 0));
-    const isLast = index === milestones.length - 1;
+    const isLast = absorbRemainder && index === milestones.length - 1;
 
     let msAmount;
     if (isLast) {

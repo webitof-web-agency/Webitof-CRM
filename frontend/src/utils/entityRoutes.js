@@ -143,8 +143,12 @@ export function matchesRouteIdentifier(routeValue, record = {}, publicKeys = [])
     short = m ? m[1] : '';
   }
 
-  if (String(record.id || '') === decoded || String(record.id || '') === token) return true;
-  if (short && String(record.id || '').toLowerCase().startsWith(short.toLowerCase())) return true;
+  const recordId = String(record.id || '');
+  if (recordId === decoded || recordId === token) return true;
+  if (short && recordId.toLowerCase().startsWith(short.toLowerCase())) return true;
+  // Legacy event segments were `${slug}-${id}`; ids such as 'lead-event_<hex>' contain a hyphen,
+  // so the regexes above cannot split them reliably.
+  if (recordId && decoded.toLowerCase().endsWith(`-${recordId.toLowerCase()}`)) return true;
   return publicKeys.some((key) => {
     const value = record?.[key];
     return value && (String(value) === decoded || String(value) === token);
@@ -154,5 +158,6 @@ export function matchesRouteIdentifier(routeValue, record = {}, publicKeys = [])
 export function eventRouteSegment(event = {}) {
   const label = event.title || event.eventType || 'event';
   const id = shortId(event.id);
-  return encodeURIComponent(id ? `${slugify(label, 'event')}-${id}` : slugify(label, 'event'));
+  // '--' never appears in a slug, so matchesRouteIdentifier can split the id back out even when it contains '-'.
+  return encodeURIComponent(id ? `${slugify(label, 'event')}--${id}` : slugify(label, 'event'));
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { ShieldCheck, Lock } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { fetchPublicSettings } from '../../api/client';
 
 export function AuthLayout({
   title,
@@ -43,8 +44,7 @@ export function AuthLayout({
     loadLogos();
 
     // Fetch live public settings so unauthenticated / fresh browsers get updated logos
-    fetch('/api/settings/public')
-      .then((res) => (res.ok ? res.json() : null))
+    fetchPublicSettings()
       .then((data) => {
         if (data?.data?.logos) {
           const l = data.data.logos;

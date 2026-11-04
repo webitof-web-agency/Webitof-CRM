@@ -93,6 +93,16 @@ async function saveReport(user, body, id = null, db = null) {
         c.fail("Only drafts and revision requests can be edited", 409);
       if (old.workDate !== workDate)
         c.fail("The report date cannot be changed");
+      const slots = await tx.query(
+        "SELECT 1 FROM hrm_work_entries WHERE report_id=$1 AND source='slot' LIMIT 1",
+        [id],
+      );
+      if (slots.rowCount)
+        c.fail(
+          "This report is built from timed app slots. Edit its entries in the employee app (each edit is tracked).",
+          409,
+          "SLOT_REPORT",
+        );
     }
     if (!Array.isArray(body.entries) || body.entries.length > 100)
       c.fail("Provide up to 100 work entries");
@@ -227,6 +237,7 @@ async function saveReport(user, body, id = null, db = null) {
       ? await c.update(tx, "hrm_work_reports", id, {
           summary: c.text(body.summary, "Summary", 4000) || "",
           status: "Draft",
+          editCount: Number(old.editCount || 0) + 1,
           version: old.version + 1,
           updatedAt: new Date(),
         })

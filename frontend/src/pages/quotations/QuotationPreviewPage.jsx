@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Printer, RefreshCw, Copy, Check, X, Shield, Clock, ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../../api/client';
@@ -8,6 +8,7 @@ import frontCoverImg from '../../../assets/images/quotation-cover-front.png';
 import backCoverImg from '../../../assets/images/quotation-cover-back.png';
 import { calculateQuotationTotals as calculateCommercialTotals } from '../../utils/taxCalculationEngine';
 import { calculateMilestoneAmounts, parseMilestonesFromText } from '../../utils/paymentMilestoneEngine';
+import { safeRichHtml } from '../../utils/safeHtml';
 
 const BUILT_IN_QUOTATION_BACKGROUND = 'builtin:invoice_watermark.png';
 
@@ -26,6 +27,9 @@ export function QuotationPreviewPage() {
   const { token, user } = useAuth();
 
   const key = searchParams.get('key') || searchParams.get('id') || searchParams.get('leadId') || '';
+  // Older links carry only the lead number in `key`; newer ones name the lead and quotation explicitly.
+  const leadKey = searchParams.get('lead') || key;
+  const quotationId = searchParams.get('quotation') || '';
   const shouldPrint = searchParams.get('print') === '1' || searchParams.get('print') === 'true';
 
   const [data, setData] = useState(null);
@@ -46,8 +50,9 @@ export function QuotationPreviewPage() {
       // 1. Try reading key-specific data from localStorage
       let raw = key ? localStorage.getItem(`crm_quotation_preview_${key}`) : null;
 
-      // 2. Try latest data in localStorage if key not found
-      if (!raw) {
+      // 2. Fall back to the latest preview only when no key was requested; for an unknown
+      //    key this would silently show a different client's proposal.
+      if (!raw && !key) {
         raw = localStorage.getItem('crm_quotation_preview_latest');
       }
 
@@ -62,40 +67,41 @@ export function QuotationPreviewPage() {
       }
 
       // 3. Fallback: try loading lead from API if key looks like an ID/number
-      if (token && key && (key.startsWith('L-') || key.length >= 8)) {
+      if (token && leadKey && (leadKey.startsWith('L-') || leadKey.length >= 8)) {
         try {
           const [leadRes, settingsRes, quotationMasterRes] = await Promise.all([
-            api.resources.get('/leads', `${key}/summary`, token).catch(() => null),
+            api.resources.get('/leads', `${leadKey}/summary`, token).catch(() => null),
             api.settings.get(token).catch(() => null),
             api.resources.list('/masters/quotation_master', token).catch(() => null)
           ]);
 
           const lead = leadRes?.data?.lead;
-          if (lead) {
-            const events = leadRes.data.events || [];
-            const quotationEvent = events.find((e) => e.eventType === 'quotation') || null;
+          const quotations = (leadRes?.data?.events || []).filter((e) => e.eventType === 'quotation');
+          // A named quotation must be that quotation; never substitute another one of the lead's.
+          const quotationEvent = quotationId
+            ? quotations.find((e) => String(e.id) === quotationId) || null
+            : [...quotations].sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')))[0] || null;
+          if (lead && (quotationEvent || !quotationId)) {
             const settings = settingsRes?.data || null;
+            const quotedAmount = Number(quotationEvent?.payload?.amount ?? quotationEvent?.amount ?? 0);
 
             const fallbackData = {
-              formData: quotationEvent?.payload || {
-                title: quotationEvent?.title || lead.requirements || 'Digital Solutions Proposal',
-                amount: quotationEvent?.amount || lead.estimatedBudget || lead.value || 0,
-                timeline: '4 - 6 Weeks',
-                status: 'Draft'
-              },
+              // Totals are recomputed from these fields (GST flag/rate included) by the tax engine below.
+              formData: quotationEvent
+                ? { ...(quotationEvent.payload || {}), title: quotationEvent.title || quotationEvent.payload?.title || '' }
+                : {
+                    title: lead.requirements || 'Digital Solutions Proposal',
+                    amount: lead.estimatedBudget || lead.value || 0,
+                    timeline: '4 - 6 Weeks',
+                    status: 'Draft'
+                  },
               lead,
               settings,
               quotationMaster: quotationMasterRes?.data?.[0] || null,
               proposalTitle: quotationEvent?.title || lead.companyName || 'Quotation Proposal',
               serviceSummary: (lead.requiredServices || []).join(', ') || 'Software Engineering',
               currency: 'INR',
-              quotationTotals: {
-                subtotal: quotationEvent?.amount || 0,
-                discountAmount: 0,
-                taxableAmount: quotationEvent?.amount || 0,
-                gstAmount: Math.round((quotationEvent?.amount || 0) * 0.18),
-                totalAmount: Math.round((quotationEvent?.amount || 0) * 1.18)
-              },
+              quotationTotals: { subtotal: quotedAmount },
               refNumber: lead.leadNumber ? `WBT-${lead.leadNumber}` : `WBT-PROP-${new Date().getFullYear()}-001`,
               savedAt: new Date().toISOString()
             };
@@ -117,7 +123,7 @@ export function QuotationPreviewPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [key, token]);
+  }, [key, leadKey, quotationId, token]);
 
   useEffect(() => {
     loadData();
@@ -243,7 +249,8 @@ export function QuotationPreviewPage() {
   const preparedByPhone = formData.preparedByPhone || user?.phone || companyPhone;
   const confidentialityClassification = 'RESTRICTED & CONFIDENTIAL // ENTERPRISE COMMERCIAL PROPOSAL';
 
-  const clientState = lead?.state || lead?.city || '';
+  const clientState = lead?.state || '';
+  const clientCountry = lead?.country || 'India';
   const clientGstin = lead?.gstin || lead?.taxId || '';
   const supplierState = company?.state || 'Chhattisgarh';
 
@@ -256,6 +263,7 @@ export function QuotationPreviewPage() {
     gstRate: formData.gstRate,
     supplierState,
     clientState,
+    clientCountry,
     clientGstin
   });
 
@@ -271,8 +279,10 @@ export function QuotationPreviewPage() {
   const cgstAmount = commercialTotals.cgstAmount;
   const sgstAmount = commercialTotals.sgstAmount;
 
-  // Centralized payment milestone engine
-  const activeMilestones = useMemo(() => {
+  // Centralized payment milestone engine.
+  // Plain computations (not hooks): this code runs after the loading/error early returns,
+  // and hooks there would change the hook count between renders and crash the page.
+  const activeMilestones = (() => {
     if (Array.isArray(formData.milestones) && formData.milestones.length > 0) {
       return calculateMilestoneAmounts(formData.milestones, totalAmount);
     }
@@ -286,7 +296,7 @@ export function QuotationPreviewPage() {
       { id: 'ms-3', name: 'Omnichannel Integrations & Beta UAT Sign-off', percentage: 20, dueEvent: 'Upon Beta testing & integration' },
       { id: 'ms-4', name: 'Production Cloud Cutover, Codebase Handover & Sign-off', percentage: 10, dueEvent: 'Prior to final go-live & handover' }
     ], totalAmount);
-  }, [formData.milestones, formData.paymentInfo, formData.milestoneTemplate, totalAmount]);
+  })();
 
   // Enabled legal agreements
   const enabledAgreements = (formData.legalAgreements || []).filter((a) => a.enabled && String(a.content || '').trim());
@@ -306,7 +316,7 @@ export function QuotationPreviewPage() {
   const amcExcList = formData.amcPlan ? (formData.amcPlan.excludedItems || '').split('\n').map((l) => l.trim()).filter(Boolean) : [];
 
   // Service-wise grouped capabilities
-  const groupedPreviewFeatures = useMemo(() => {
+  const groupedPreviewFeatures = (() => {
     const rawList = formData.features || [];
     if (!rawList.length) return [];
     const groups = new Map();
@@ -324,7 +334,7 @@ export function QuotationPreviewPage() {
     });
 
     return Array.from(groups.entries()).filter(([_, feats]) => feats.length > 0);
-  }, [formData.features, formData.serviceNames]);
+  })();
 
   return (
     <div className="quotation-preview-container min-h-screen bg-[#f1f5f9] text-[#0f172a] font-['Plus_Jakarta_Sans',sans-serif]">
@@ -1471,7 +1481,7 @@ export function QuotationPreviewPage() {
               {/<[a-z][\s\S]*>/i.test(formData.scopeOfWork) ? (
                 <div
                   className="bg-[#f8fafc] border border-slate-200 border-l-4 border-l-blue-600 rounded p-4 text-xs leading-relaxed text-slate-700 [&_a]:text-blue-600 [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:mb-2.5 last:[&_p]:mb-0 [&_h3]:font-bold [&_h3]:text-slate-900 [&_h3]:mt-2 [&_h3]:mb-1"
-                  dangerouslySetInnerHTML={{ __html: formData.scopeOfWork }}
+                  dangerouslySetInnerHTML={{ __html: safeRichHtml(formData.scopeOfWork) }}
                 />
               ) : (
                 <div className="bg-[#f8fafc] border border-slate-200 border-l-4 border-l-blue-600 rounded p-4 text-xs leading-relaxed text-slate-700 whitespace-pre-line">
@@ -1489,7 +1499,7 @@ export function QuotationPreviewPage() {
               </div>
               <div
                 className="bg-[#f8fafc] border border-slate-200 border-l-4 border-l-blue-600 rounded p-4 text-xs leading-relaxed text-slate-700"
-                dangerouslySetInnerHTML={{ __html: formData.customContent }}
+                dangerouslySetInnerHTML={{ __html: safeRichHtml(formData.customContent) }}
               />
             </div>
           )}

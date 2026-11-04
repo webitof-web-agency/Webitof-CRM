@@ -19,6 +19,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { useAuth } from '../../context/AuthContext';
+import { homePath } from '../../components/guards/HomeRedirect';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -72,10 +73,10 @@ export function LoginPage() {
     }
     setLoginStatus('authenticating');
     try {
-      await login(form.identifier, form.password);
+      const signedIn = await login(form.identifier, form.password);
       setLoginStatus('success');
       setTimeout(() => {
-        navigate('/app/dashboard', { replace: true });
+        navigate(homePath(signedIn), { replace: true });
       }, 450);
     } catch (error) {
       setLoginStatus('idle');

@@ -6,6 +6,7 @@ const operations = require("../services/hrm/operations");
 const finance = require("../services/hrm/payroll");
 const lifecycle = require("../services/hrm/lifecycle");
 const analytics = require("../services/hrm/analytics");
+const workday = require("../services/hrm/workday");
 const respond =
   (work, status = 200) =>
   async (req, res, next) => {
@@ -22,7 +23,8 @@ const respond =
         e.statusCode = 400;
         e.message = "A referenced record or value is invalid.";
       }
-      if (e.code === "42P01") {
+      // 42P01 missing table, 42703 missing column: the HRM migration for this version has not run.
+      if (e.code === "42P01" || e.code === "42703") {
         e.statusCode = 503;
         e.message =
           "HRM database migration has not been applied. Run the HRM migration before using this module.";
@@ -61,6 +63,9 @@ const controller = {
   ),
   policy: respond((req) => employees.savePolicy(req.user, req.body)),
   list: respond((req) => queries.list(req.user, req.params.kind, req.query)),
+  deleteMaster: respond((req) =>
+    queries.deleteMaster(req.user, req.params.type, req.params.id),
+  ),
   master: respond((req) =>
     queries.masters(req.user, req.params.type, req.body, req.params.id || null),
   ),
@@ -157,6 +162,12 @@ const controller = {
   verifyDocument: respond((req) =>
     lifecycle.document(req.user, req.params.id, { verify: true }),
   ),
+  rejectDocument: respond((req) =>
+    lifecycle.document(req.user, req.params.id, { reject: req.body || {} }),
+  ),
+  deleteDocument: respond((req) =>
+    lifecycle.document(req.user, req.params.id, { remove: true }),
+  ),
   downloadDocument: async (req, res, next) => {
     try {
       const r = await lifecycle.document(req.user, req.params.id);
@@ -178,6 +189,40 @@ const controller = {
   automation: respond((req) =>
     require("../services/hrm/automation").run(req.user),
   ),
+  // Employee app workday
+  myToday: respond((req) => workday.today(req.user)),
+  myClockIn: respond((req) => workday.clockIn(req.user, req.body)),
+  myJob: respond((req) => workday.job(req.user, req.body)),
+  myLunch: respond((req) => workday.lunch(req.user, req.body)),
+  mySlot: respond((req) => workday.submitSlot(req.user, req.body)),
+  myEntry: respond((req) => workday.editEntry(req.user, req.params.id, req.body)),
+  myCheckOut: respond((req) => workday.checkOut(req.user, req.body)),
+  myPing: respond((req) => workday.ping(req.user, req.body)),
+  myHome: respond((req) => workday.requestHome(req.user, req.body)),
+  myExplain: respond((req) =>
+    workday.explainAlert(req.user, req.params.id, req.body),
+  ),
+  myDevice: respond((req) =>
+    req.method === "DELETE"
+      ? workday.removeDevice(req.user, req.body || {})
+      : workday.registerDevice(req.user, req.body),
+  ),
+  // Admin workday tools
+  geofences: respond((req) => workday.listGeofences(req.user, req.query)),
+  saveOffice: respond((req) =>
+    workday.saveOffice(req.user, req.body, req.params.id || null),
+  ),
+  geofenceAction: respond((req) =>
+    workday.geofenceAction(req.user, req.params.id, req.body),
+  ),
+  alerts: respond((req) => workday.listAlerts(req.user, req.query)),
+  alertAction: respond((req) =>
+    workday.alertAction(req.user, req.params.id, req.body),
+  ),
+  override: respond((req) => workday.override(req.user, req.body)),
+  adminReport: respond((req) => workday.adminReport(req.user, req.body)),
+  day: respond((req) => workday.day(req.user, req.query)),
+  live: respond((req) => workday.live(req.user)),
   export: async (req, res, next) => {
     try {
       c.permit(req.user, "export");
