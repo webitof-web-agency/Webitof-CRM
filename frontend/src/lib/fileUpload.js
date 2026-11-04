@@ -47,19 +47,40 @@ export async function uploadFilesToDrive(token, files, {
   return Array.isArray(response.data) ? response.data : [];
 }
 
+const FILE_ID_PATTERN = /^file_[a-z0-9]+$/i;
+const LEGACY_VIEW_PATH = /^\/files\/drive\//;
+
+// The file_assets id, when this reference has one (older attachments may only carry a Drive id).
+function fileIdOf(file) {
+  return [file.id, file.fileId, file.driveFileId]
+    .map((value) => String(value || '').trim())
+    .find((value) => FILE_ID_PATTERN.test(value)) || '';
+}
+
 // URL that streams a stored file through the API (works for local and Google Drive storage).
-// Usable directly in <img>, <audio> and links; older uploads are found by their Drive id.
+// Usable directly in <img>, <audio> and links. A file known only by its Drive id is served this
+// way only when it is a public asset (logos, avatars); use getFileOpenUrl for links.
 export function getFileViewUrl(file) {
   if (!file) return '';
-  if (file.viewUrl) return `${API_BASE_URL}${file.viewUrl}`;
-  const id = String(file.id || file.fileId || '').trim();
-  if (/^file_[a-z0-9]+$/i.test(id)) return `${API_BASE_URL}/files/${id}/view`;
+  const fileId = fileIdOf(file);
+  if (fileId) return `${API_BASE_URL}/files/${fileId}/view`;
+  if (file.viewUrl && !LEGACY_VIEW_PATH.test(file.viewUrl)) return `${API_BASE_URL}${file.viewUrl}`;
   if (file.driveFileId) return `${API_BASE_URL}/files/drive/${file.driveFileId}/view`;
   return file.url || '';
 }
 
-// Link to open a file in a new tab. Older uploads keep their Drive page link.
+// In-app page that looks up a file by id or Drive id for the signed-in user and opens it.
+export function getFileOpenPageUrl(ref) {
+  return `${window.location.origin}${window.location.pathname}#/files/open/${encodeURIComponent(ref)}`;
+}
+
+// Link to open a file in a new tab. Older uploads keep their Drive page link; ones known only
+// by their Drive id go through the signed-in open page.
 export function getFileOpenUrl(file) {
   if (!file) return '';
-  return file.driveWebViewLink || file.webViewLink || getFileViewUrl(file);
+  if (file.driveWebViewLink || file.webViewLink) return file.driveWebViewLink || file.webViewLink;
+  if (fileIdOf(file) || (file.viewUrl && !LEGACY_VIEW_PATH.test(file.viewUrl))) return getFileViewUrl(file);
+  const driveFileId = String(file.driveFileId || '').trim();
+  if (driveFileId) return getFileOpenPageUrl(driveFileId);
+  return file.url || '';
 }

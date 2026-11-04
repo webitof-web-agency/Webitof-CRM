@@ -3,8 +3,14 @@ const path = require('path');
 const fileAssetModel = require('../models/fileAsset.model');
 const leadModel = require('../models/lead.model');
 const fileService = require('../services/file.service');
+const settingsModel = require('../models/settings.model');
+const { hasPermission } = require('../middlewares/auth');
 const { DEFAULT_PIPELINE_ID, canAccessPipeline, userHasAllPipelineAccess } = require('../services/leadPipelineAccess.service');
 const { query } = require('../config/db');
+
+const FILE_ID_PATTERN = /^file_[a-z0-9]+$/i;
+// Avatars, branding and quotation images are embedded in pages without a session (login, public invoice).
+const PUBLIC_ASSET_MODULES = new Set(['users', 'settings', 'quotation-master']);
 
 const LEAD_ATTACHMENT_EXTENSIONS = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.jpg', '.jpeg', '.png', '.zip']);
 const EARLIER_UPLOADS_FOLDER = 'earlier-uploads';
@@ -225,10 +231,25 @@ async function streamRecord(record, req, res) {
   opened.stream.pipe(res);
 }
 
-async function viewFile(req, res) {
+async function isPublicAsset(record) {
+  if (record.isPublic) return true;
+  if (PUBLIC_ASSET_MODULES.has(String(record.moduleName || '').toLowerCase())) return true;
+  // Logos and watermarks can be picked from any stored file; once referenced in settings they are public.
+  if (!record.driveFileId) return false;
+  const settings = await settingsModel.getSettings();
+  return Boolean(settings && JSON.stringify(settings).includes(record.driveFileId));
+}
+
+// The view routes run without a session. A random file id is only known to someone the API
+// handed it to, but Drive ids also appear in Drive share links, so a request by Drive id
+// only opens public assets. Other older attachments are opened through GET /files/:id/link.
+async function viewByRef(ref, req, res) {
   try {
-    const record = await fileService.findByRef(req.params.id);
+    const record = await fileService.findByRef(ref);
     if (!record) return notFound(res);
+    if (!FILE_ID_PATTERN.test(String(ref)) && !(await isPublicAsset(record))) {
+      return res.status(403).type('text/plain').send('This link cannot open the file directly. Open it from the CRM.');
+    }
     await streamRecord(record, req, res);
   } catch (error) {
     console.error('File view failed:', error.message);
@@ -236,15 +257,31 @@ async function viewFile(req, res) {
   }
 }
 
+function viewFile(req, res) {
+  return viewByRef(req.params.id, req, res);
+}
+
 // Links saved before storage providers point at /files/drive/<drive id>/view.
-async function viewLegacyDriveFile(req, res) {
+function viewLegacyDriveFile(req, res) {
+  return viewByRef(req.params.driveFileId, req, res);
+}
+
+// Signed-in lookup that turns a file id or an older Drive id into a working view link.
+// Open to files.read holders and to anyone who can read the file's module (e.g. leads.read
+// for lead attachments), matching who could open these attachments before.
+async function getLink(req, res, next) {
   try {
-    const record = await fileService.findByRef(req.params.driveFileId);
+    const record = await fileService.findByRef(req.params.id);
     if (!record) return notFound(res);
-    await streamRecord(record, req, res);
+    const moduleRead = `${String(record.moduleName || '').toLowerCase()}.read`;
+    if (!hasPermission(req.user, 'files.read') && !hasPermission(req.user, moduleRead)) {
+      return res.status(403).json({ success: false, message: 'You do not have access to this file' });
+    }
+    await assertLeadFileAccess(record.moduleName, record.entityId, req);
+    const { id, originalName, mimeType, viewUrl } = fileService.toPublicFile(record);
+    res.json({ success: true, data: { id, originalName, mimeType, viewUrl } });
   } catch (error) {
-    console.error('File view failed:', error.message);
-    if (!res.headersSent) notFound(res);
+    next(error);
   }
 }
 
@@ -289,6 +326,7 @@ module.exports = {
   archive,
   browse,
   getById,
+  getLink,
   getUsage,
   list,
   remove,

@@ -65,6 +65,7 @@ const NotificationsPage = lazyNamed(() => import('./pages/NotificationsPage'), '
 const FollowUpsPage = lazyNamed(() => import('./pages/followups/FollowUpsPage'), 'FollowUpsPage');
 const CallHistoryPage = lazyNamed(() => import('./pages/calls/CallHistoryPage'), 'CallHistoryPage');
 const HrmPage = lazyNamed(() => import('./pages/hrm/HrmPage'), 'HrmPage');
+const FileOpenPage = lazyNamed(() => import('./pages/FileOpenPage'), 'FileOpenPage');
 
 function AppRoutes() {
   return (
@@ -73,6 +74,14 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route
+        path="/files/open/:ref"
+        element={
+          <ProtectedRoute>
+            <FileOpenPage />
+          </ProtectedRoute>
+        }
+      />
 
       <Route
         path="/app"

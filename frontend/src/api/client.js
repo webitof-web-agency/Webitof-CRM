@@ -266,6 +266,8 @@ export const api = {
     browse: (token, path = '', search = '') =>
       request(`/files/browse?path=${encodeURIComponent(path)}&search=${encodeURIComponent(search)}`, { token, skipCache: true }),
     get: (token, id) => request(`/files/${id}`, { token, skipCache: true }),
+    // id is a file id or an older Drive id; returns the file's view link for the signed-in user.
+    link: (token, id) => request(`/files/${encodeURIComponent(id)}/link`, { token, skipCache: true }),
     upload: (token, formData) => request('/files/upload', { method: 'POST', token, formData }),
     archive: (token, id) => request(`/files/${id}/archive`, { method: 'PATCH', token }),
     // id is a file id, or the Drive id of an older upload.

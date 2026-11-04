@@ -12,6 +12,8 @@ router.post('/upload', requirePermission('files.write'), controller.upload.any()
 router.get('/drive/usage', requirePermission('files.read'), controller.getUsage);
 router.put('/drive/:id/rename', requirePermission('files.write'), controller.rename);
 router.delete('/drive/:id', requirePermission('files.write'), controller.remove);
+// Permission is checked per file (files.read or the file's module read permission).
+router.get('/:id/link', controller.getLink);
 router.get('/:id', requirePermission('files.read'), controller.getById);
 router.put('/:id/rename', requirePermission('files.write'), controller.rename);
 router.patch('/:id/archive', requirePermission('files.write'), controller.archive);
