@@ -1,6 +1,16 @@
 const c = require("./core");
 const calc = require("./calculations");
 const { calendarData } = require("./operations");
+// Scheduled runs have no logged-in person. This built-in identity carries only the two HRM
+// permissions the daily job needs; its null id leaves created_by/actor columns empty.
+const SYSTEM_USER = Object.freeze({
+  id: null,
+  fullName: "HRM Automation",
+  isActive: true,
+  isSystem: true,
+  permissions: Object.freeze(["hrm.automation", "hrm.view_all"]),
+});
+
 async function run(user, db = null) {
   c.permit(user, "automation");
   return c.transaction(async (tx) => {
@@ -370,15 +380,7 @@ function schedule() {
       try {
         const p = await c.policy();
         if (!p.automationEnabled) return;
-        const id = process.env.HRM_AUTOMATION_USER_ID;
-        if (!id) {
-          console.warn(
-            "HRM daily automation skipped: set HRM_AUTOMATION_USER_ID to the id of an active user with HRM access.",
-          );
-          return;
-        }
-        const user = await require("../auth.service").getUserAccessProfile(id);
-        if (user?.isActive) await run(user);
+        await run(SYSTEM_USER);
       } catch (error) {
         console.error("HRM automation failed:", error.message);
       }
@@ -386,4 +388,4 @@ function schedule() {
     { timezone: process.env.HRM_TIMEZONE || "Asia/Kolkata" },
   );
 }
-module.exports = { run, schedule, realtime, closeDay, sessionTick };
+module.exports = { run, schedule, SYSTEM_USER, realtime, closeDay, sessionTick };
