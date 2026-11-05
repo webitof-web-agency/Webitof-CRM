@@ -1302,7 +1302,7 @@ async function executeAutomationRules(triggerKey, context = {}, actor = null, op
               await db.query(
                 `insert into notifications (id,recipient_type,user_id,module_name,event_key,entity_type,entity_id,title,message,severity,is_read,email_status,route_path,channels,idempotency_key,payload)
                  values ($1,'user',$2,'followups','automation_rule',$3,$4,$5,$6,$7,false,'pending',$8,'["inApp"]'::jsonb,$9,$10::jsonb)
-                 on conflict (idempotency_key) do nothing`,
+                 on conflict (idempotency_key) where idempotency_key is not null do nothing`,
                 [createId('notification'), recipientUserId, entityType.toLowerCase(), entityId, action.title || rule.name,
                   action.message || `${rule.name} requires attention`, action.severity || 'info', '/app/follow-ups', `${idempotencyKey}:notify:${outputs.length}`, JSON.stringify({ ruleId: rule.id, triggerKey })]
               );
@@ -1447,7 +1447,7 @@ async function processDueReminders(db) {
     await db.query(
       `insert into notifications (id,recipient_type,user_id,module_name,event_key,entity_type,entity_id,title,message,severity,is_read,email_status,route_path,channels,idempotency_key,payload)
        values ($1,'user',$2,'followups','reminder_due','followup',$3,$4,$5,$6,false,'pending',$7,'["inApp"]'::jsonb,$8,$9::jsonb)
-       on conflict (idempotency_key) do nothing`,
+       on conflict (idempotency_key) where idempotency_key is not null do nothing`,
       [notificationId, reminder.recipient_user_id, reminder.follow_up_id, reminder.title, `${reminder.related_entity_label || 'Record'} · ${reminder.follow_up_number} is due`, reminder.priority === 'Critical' ? 'danger' : reminder.priority === 'High' ? 'warning' : 'info', `/app/follow-ups?focus=${reminder.follow_up_id}`, notificationKey, JSON.stringify({ followUpId: reminder.follow_up_id, reminderId: reminder.id })]
     );
     await db.query(`update follow_up_reminders set status='sent', sent_at=now(), updated_at=now() where id=$1`, [reminder.id]);
