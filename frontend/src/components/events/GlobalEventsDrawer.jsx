@@ -150,7 +150,7 @@ export function GlobalEventsDrawer({ open, onClose, token, user, sharedLabels = 
     { value: 'project', label: 'Project' }
   ];
 
-  const monthTitle = calendarDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const monthTitle = calendarDate.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 
   async function load() {
     setLoading(true);
@@ -278,7 +278,7 @@ export function GlobalEventsDrawer({ open, onClose, token, user, sharedLabels = 
         onClick={onClose}
       />
       <aside
-        className={`fixed right-0 top-0 z-50 h-full w-full max-w-[1040px] bg-[var(--surface)] text-[var(--text-main)] shadow-[var(--shadow-modal)] border-l border-[var(--border-glass)] transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed right-0 top-0 z-50 h-full w-full max-w-[1040px] bg-[var(--surface-elevated)] backdrop-blur-xl text-[var(--text-main)] shadow-[var(--shadow-modal)] border-l border-[var(--border-glass)] transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`}
         aria-hidden={!open}
       >
         <div className="flex h-full flex-col overflow-hidden bg-[var(--surface)]">

@@ -177,7 +177,7 @@ export function LeadManagementFields({
       <SectionCard title="Quick Lead Details" icon={Sparkles} {...sectionProps('quick')}>
         {formData.leadNumber ? (
           <Field label="Lead ID">
-            <Input value={formData.leadNumber} readOnly className="bg-slate-50 text-slate-500 rounded-xl" />
+            <Input value={formData.leadNumber} readOnly className="bg-[var(--surface-2)] text-[var(--text-muted)] rounded-xl" />
           </Field>
         ) : null}
 
@@ -186,7 +186,7 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Lead Type">
-          <div className="flex h-9 items-center rounded-xl bg-slate-100 p-1 border border-slate-200/80">
+          <div className="flex h-9 items-center rounded-xl bg-[var(--surface-2)] p-1 border border-slate-200/80">
             {['Organization', 'Person'].map((type) => (
               <button
                 key={type}
@@ -195,8 +195,8 @@ export function LeadManagementFields({
                 className={cn(
                   'flex-1 h-full rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5',
                   formData.type === type
-                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-[var(--surface-elevated)] text-[var(--text-main)] shadow-2xs font-semibold'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                 )}
               >
                 {type === 'Organization' ? '🏢 Business' : '👤 Person'}
@@ -341,11 +341,11 @@ export function LeadManagementFields({
 
         <Field label="WhatsApp Number">
           <PhoneInput name="whatsappNumber" value={formData.whatsappNumber} onChange={(event) => set('whatsappNumber', event.target.value)} compact />
-          <label className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer">
+          <label className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-[var(--text-muted)] cursor-pointer">
             <input type="checkbox" checked={Boolean(formData.whatsappSameAsPhone)} onChange={(event) => {
               set('whatsappSameAsPhone', event.target.checked);
               if (event.target.checked) set('whatsappNumber', formData.phone);
-            }} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+            }} className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500" />
             Same as primary mobile
           </label>
         </Field>
@@ -494,8 +494,8 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Contact is Decision Maker">
-          <label className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700 cursor-pointer">
-            <input type="checkbox" checked={Boolean(formData.contactIsDecisionMaker)} onChange={(event) => set('contactIsDecisionMaker', event.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+          <label className="flex h-9 items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-sm text-[var(--text-main)] cursor-pointer">
+            <input type="checkbox" checked={Boolean(formData.contactIsDecisionMaker)} onChange={(event) => set('contactIsDecisionMaker', event.target.checked)} className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500" />
             Confirmed
           </label>
         </Field>
@@ -512,7 +512,7 @@ export function LeadManagementFields({
         ))}
 
         <Field label="Calculated Lead Score">
-          <Input value={score} readOnly className="bg-slate-50 font-semibold text-blue-700 rounded-xl" />
+          <Input value={score} readOnly className="bg-[var(--surface-2)] font-semibold text-blue-700 rounded-xl" />
         </Field>
 
         <Field label="Conversion Probability (%)" error={errors.conversionProbability}>
@@ -543,8 +543,8 @@ export function LeadManagementFields({
           </Field>
 
           <Field label="Commission Applicable">
-            <label className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={Boolean(formData.commissionApplicable)} onChange={(event) => set('commissionApplicable', event.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+            <label className="flex h-9 items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-sm text-[var(--text-main)] cursor-pointer">
+              <input type="checkbox" checked={Boolean(formData.commissionApplicable)} onChange={(event) => set('commissionApplicable', event.target.checked)} className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500" />
               Yes
             </label>
           </Field>
@@ -611,8 +611,8 @@ export function LeadManagementFields({
           </Field>
 
           <Field label="Reconnect in Future">
-            <label className="flex h-9 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm text-slate-700 cursor-pointer">
-              <input type="checkbox" checked={Boolean(formData.reconnectInFuture)} onChange={(event) => set('reconnectInFuture', event.target.checked)} className="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+            <label className="flex h-9 items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-sm text-[var(--text-main)] cursor-pointer">
+              <input type="checkbox" checked={Boolean(formData.reconnectInFuture)} onChange={(event) => set('reconnectInFuture', event.target.checked)} className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500" />
               Yes
             </label>
           </Field>

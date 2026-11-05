@@ -72,7 +72,7 @@ function InfoTooltip({ text }) {
     >
       <button 
         type="button"
-        className="text-slate-400 hover:text-slate-600 focus:outline-none cursor-help"
+        className="text-[var(--text-muted)] hover:text-[var(--text-muted)] focus:outline-none cursor-help"
       >
         <HelpCircle size={14} />
       </button>
@@ -206,7 +206,7 @@ function parseAttachments(value) {
 function SectionRow({ label, children }) {
   return (
     <div className="flex flex-col gap-1 py-2 md:flex-row md:items-start md:gap-4">
-      <div className="shrink-0 pt-2 text-sm font-medium text-slate-500 md:w-32 lg:w-40">
+      <div className="shrink-0 pt-2 text-sm font-medium text-[var(--text-muted)] md:w-32 lg:w-40">
         {label}
       </div>
       <div className="min-w-0 flex-1">{children}</div>
@@ -287,7 +287,7 @@ function ContactModal({ open, onClose, onSave, clientId, initialValue = null, bu
                   onChange={(e) => setFormData((cur) => ({ ...cur, gender: e.target.value }))}
                   className="text-[var(--primary)] focus:ring-[var(--primary)]"
                 />
-                <span className="text-sm text-slate-700">{option}</span>
+                <span className="text-sm text-[var(--text-main)]">{option}</span>
               </label>
             ))}
           </div>
@@ -507,7 +507,7 @@ function ActivityCard({ item, onEdit, onDelete }) {
   const accent = getActivityAccent(item);
   const isSynthetic = Boolean(item?.isSynthetic);
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -518,7 +518,7 @@ function ActivityCard({ item, onEdit, onDelete }) {
               {getActivityKindLabel(item.type)}
             </span>
             {item.priority ? (
-            <span className="rounded-full bg-slate-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
               {item.priority}
             </span>
           ) : null}
@@ -528,9 +528,9 @@ function ActivityCard({ item, onEdit, onDelete }) {
             </span>
           ) : null}
           </div>
-          <div className="mt-2 text-sm font-semibold text-slate-900">{item.title || 'Untitled activity'}</div>
-          {item.description ? <div className="mt-1 text-sm text-slate-600">{item.description}</div> : null}
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          <div className="mt-2 text-sm font-semibold text-[var(--text-main)]">{item.title || 'Untitled activity'}</div>
+          {item.description ? <div className="mt-1 text-sm text-[var(--text-muted)]">{item.description}</div> : null}
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--text-muted)]">
             <span>{formatDateTime(getActivityDate(item))}</span>
             {item.assignedTo ? <span>Assigned to {item.assignedTo}</span> : null}
             {item.location ? <span>{item.location}</span> : null}
@@ -572,7 +572,7 @@ function ActivityCard({ item, onEdit, onDelete }) {
               href={getFileOpenUrl(file) || `#${file.driveFileId || file.id}`}
               target={getFileOpenUrl(file) ? '_blank' : undefined}
               rel={getFileOpenUrl(file) ? 'noreferrer' : undefined}
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:border-slate-300"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-semibold text-[var(--text-muted)] hover:border-[var(--border)]"
             >
               <Paperclip size={12} />
               {file.name || file.originalName || 'File'}
@@ -587,10 +587,10 @@ function ActivityCard({ item, onEdit, onDelete }) {
 function ActivitySection({ title, description, items, accent, emptyText, onAdd, onEdit, onDelete, actionLabel }) {
   return (
     <Card className="p-5">
-      <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-3 border-b border-[var(--border)] pb-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-          <p className="text-sm text-slate-500">{description}</p>
+          <h2 className="text-lg font-semibold text-[var(--text-main)]">{title}</h2>
+          <p className="text-sm text-[var(--text-muted)]">{description}</p>
         </div>
         <Button variant="secondary" onClick={onAdd}>
           <CalendarPlus size={16} className="mr-2" />
@@ -599,7 +599,7 @@ function ActivitySection({ title, description, items, accent, emptyText, onAdd, 
       </div>
       <div className="mt-4 space-y-3">
         {items.length ? items.map((item) => <ActivityCard key={item.id} item={item} onEdit={onEdit} onDelete={onDelete} accent={accent} />) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
             {emptyText}
           </div>
         )}
@@ -837,7 +837,7 @@ function ActivityComposerModal({
                   <SearchableSelect value={formData.priority} onChange={(val) => set('priority', val)} options={taskPriorityOptions} placeholder="Priority" allowClear={false} />
                   <Input type="date" value={formData.startDate} onChange={(e) => set('startDate', e.target.value)} placeholder="Start date" />
                   <Input type="date" value={formData.deadline} onChange={(e) => set('deadline', e.target.value)} placeholder="Deadline" />
-                  <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                  <label className="flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-[var(--text-muted)]">
                     <input type="checkbox" checked={Boolean(formData.recurring)} onChange={(e) => set('recurring', e.target.checked)} />
                     Recurring
                   </label>
@@ -848,14 +848,14 @@ function ActivityComposerModal({
                 <>
                   <SearchableSelect value={formData.category} onChange={(val) => set('category', val)} options={noteCategoryOptions} placeholder="Category" allowClear={false} />
                   <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Color</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Color</div>
                     <div className="flex flex-wrap gap-2">
                       {ACTIVITY_COLORS.map((color) => (
                         <button
                           key={color}
                           type="button"
                           onClick={() => set('color', color)}
-                          className={cn('h-6 w-6 rounded-full border-2 transition', formData.color === color ? 'border-slate-300 ring-2 ring-offset-2' : 'border-white/70')}
+                          className={cn('h-6 w-6 rounded-full border-2 transition', formData.color === color ? 'border-[var(--border)] ring-2 ring-offset-2' : 'border-white/70')}
                           style={{ backgroundColor: color }}
                           aria-label={`Note color ${color}`}
                         />
@@ -870,7 +870,7 @@ function ActivityComposerModal({
                   <Input type="date" value={formData.date} onChange={(e) => set('date', e.target.value)} placeholder="Date" />
                   <Input type="time" value={formData.time} onChange={(e) => set('time', e.target.value)} placeholder="Time" />
                   <SearchableSelect value={formData.repeatType} onChange={(val) => set('repeatType', val)} options={reminderRepeatOptions} placeholder="Repeat" allowClear={false} />
-                  <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                  <label className="flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-[var(--text-muted)]">
                     <input type="checkbox" checked={Boolean(formData.repeat)} onChange={(e) => set('repeat', e.target.checked)} />
                     Repeat
                   </label>
@@ -884,8 +884,8 @@ function ActivityComposerModal({
                   <Input type="date" value={formData.endDate} onChange={(e) => set('endDate', e.target.value)} placeholder="End date" />
                   <Input type="time" value={formData.endTime} onChange={(e) => set('endTime', e.target.value)} placeholder="End time" />
                   <Input value={formData.location} onChange={(e) => set('location', e.target.value)} placeholder="Location" />
-                  <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Share with</div>
+                  <div className="space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Share with</div>
                     <div className="flex flex-wrap items-center gap-6 pt-1">
                       {eventVisibilityOptions.map((option) => (
                         <label key={option.value} className="flex cursor-pointer items-center gap-2">
@@ -898,15 +898,15 @@ function ActivityComposerModal({
                             className="!appearance-auto"
                             style={{ accentColor: 'var(--primary)' }}
                           />
-                          <span className="text-sm text-slate-700">{option.label}</span>
+                          <span className="text-sm text-[var(--text-main)]">{option.label}</span>
                         </label>
                       ))}
                     </div>
                   </div>
 
                   {formData.visibility === 'specific' ? (
-                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Specific members</div>
+                    <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Specific members</div>
                       <SearchableSelect
                         value={formData.allowedUserIds}
                         onChange={(val) => set('allowedUserIds', val)}
@@ -915,7 +915,7 @@ function ActivityComposerModal({
                         searchPlaceholder="Search members..."
                         multiple
                       />
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-[var(--text-muted)]">
                         Team groups are not modeled in this workspace, so member selection is enabled here.
                       </div>
                     </div>
@@ -925,7 +925,7 @@ function ActivityComposerModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+          <div className="flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
             <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Close</Button>
             <Button type="submit" disabled={busy}>{busy ? 'Saving...' : 'Save'}</Button>
           </div>
@@ -998,13 +998,13 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
 
   return (
     <Card className="p-5">
-      <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-[var(--border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2">
-          <CalendarDays size={18} className="text-slate-800" />
-          <h3 className="text-lg font-semibold text-slate-900">Events</h3>
+          <CalendarDays size={18} className="text-[var(--text-main)]" />
+          <h3 className="text-lg font-semibold text-[var(--text-main)]">Events</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-slate-200 bg-white p-1">
+          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-[var(--border)] bg-[var(--surface-elevated)] p-1">
             <Button variant="ghost" size="icon" onClick={() => shiftDate(-1)} className="h-9 w-9">
               <ChevronLeft size={16} />
             </Button>
@@ -1015,8 +1015,8 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
               <ChevronRight size={16} />
             </Button>
           </div>
-          <div className="text-base font-semibold text-slate-900">{getCalendarTitle(currentDate, view)}</div>
-          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-slate-200 bg-white p-1">
+          <div className="text-base font-semibold text-[var(--text-main)]">{getCalendarTitle(currentDate, view)}</div>
+          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-[var(--border)] bg-[var(--surface-elevated)] p-1">
             {['month', 'week', 'day'].map((item) => (
               <button
                 key={item}
@@ -1024,7 +1024,7 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                 onClick={() => onViewChange(item)}
                 className={cn(
                   'rounded-[var(--radius-button,1rem)] px-3 py-1.5 text-sm font-medium capitalize transition',
-                  view === item ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  view === item ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text-main)]'
                 )}
               >
                 {item}
@@ -1032,7 +1032,7 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
             ))}
           </div>
           {onAddEvent && (
-            <Button variant="outline" onClick={onAddEvent} className="ml-1 shrink-0 bg-white shadow-sm hover:bg-slate-50">
+            <Button variant="outline" onClick={onAddEvent} className="ml-1 shrink-0 bg-[var(--surface-elevated)] shadow-sm hover:bg-[var(--surface-2)]">
               + Add event
             </Button>
           )}
@@ -1040,8 +1040,8 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
       </div>
 
       {view === 'month' ? (
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)]">
+          <div className="grid grid-cols-7 border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
               <div key={day} className="px-3 py-2">{day}</div>
             ))}
@@ -1056,8 +1056,8 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                 <div
                   key={day.toISOString()}
                   className={cn(
-                    'min-h-32 border-r border-b border-slate-100 p-3 text-left transition hover:bg-slate-50',
-                    !isCurrentMonth && 'bg-slate-50/70 text-slate-400',
+                    'min-h-32 border-r border-b border-[var(--border)] p-3 text-left transition hover:bg-[var(--surface-2)]',
+                    !isCurrentMonth && 'bg-slate-50/70 text-[var(--text-muted)]',
                     isSelected && 'bg-[color-mix(in_srgb,var(--primary)_7%,white)]',
                     isToday && 'ring-1 ring-inset ring-[var(--primary)]'
                   )}
@@ -1066,7 +1066,7 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                     <button
                       type="button"
                       onClick={() => onDateChange(day)}
-                      className={cn('text-sm font-semibold', isToday ? 'text-[var(--primary)]' : 'text-slate-800')}
+                      className={cn('text-sm font-semibold', isToday ? 'text-[var(--primary)]' : 'text-[var(--text-main)]')}
                     >
                       {day.getDate()}
                     </button>
@@ -1076,7 +1076,7 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                     {items.map((item) => {
                       const accent = getActivityAccent(item);
                       return (
-                        <div key={`${item.id}-${day.toISOString()}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 shadow-sm">
+                        <div key={`${item.id}-${day.toISOString()}`} className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1095,7 +1095,7 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                                 e.stopPropagation();
                                 onDeleteEvent(item);
                               }}
-                              className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
                               aria-label="Delete event"
                             >
                               <Trash2 size={10} />
@@ -1115,18 +1115,18 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
           {weekDays.map((day) => {
             const dayItems = visibleEvents.filter((event) => sameDay(getActivityDate(event), day));
             return (
-              <div key={day.toISOString()} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div key={day.toISOString()} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-slate-900">
+                  <div className="text-sm font-semibold text-[var(--text-main)]">
                     {day.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short' })}
                   </div>
-                  <div className="text-xs text-slate-500">{dayItems.length} item(s)</div>
+                  <div className="text-xs text-[var(--text-muted)]">{dayItems.length} item(s)</div>
                 </div>
                 <div className="mt-3 space-y-2">
                   {dayItems.length ? dayItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left hover:border-slate-300"
+                      className="flex w-full items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3 text-left hover:border-[var(--border)]"
                     >
                       <button
                         type="button"
@@ -1135,15 +1135,15 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                       >
                         <span className="mt-1 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getActivityAccent(item) }} />
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                          <div className="text-xs text-slate-500">{item.description || 'No description'}</div>
+                          <div className="text-sm font-semibold text-[var(--text-main)]">{item.title}</div>
+                          <div className="text-xs text-[var(--text-muted)]">{item.description || 'No description'}</div>
                         </div>
                       </button>
                       {onDeleteEvent ? (
                         <button
                           type="button"
                           onClick={() => onDeleteEvent(item)}
-                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
                           aria-label="Delete event"
                         >
                           <Trash2 size={14} />
@@ -1151,7 +1151,7 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                       ) : null}
                     </div>
                   )) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-5 text-sm text-[var(--text-muted)]">
                       No events on this day.
                     </div>
                   )}
@@ -1165,7 +1165,7 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
       {view === 'list' ? (
         <div className="mt-4 space-y-3">
           {visibleEvents.length ? visibleEvents.map((item) => <ActivityCard key={item.id} item={item} onEdit={onEditEvent} onDelete={onDeleteEvent} />) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
               No events in the selected range.
             </div>
           )}
@@ -1655,7 +1655,7 @@ export function ClientDetailsPage() {
             <button
               type="button"
               onClick={() => navigate('/app/clients')}
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"
+              className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)]"
             >
               <ArrowLeft size={16} />
               Back to Clients
@@ -1668,7 +1668,7 @@ export function ClientDetailsPage() {
           <div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
               {renderStatusPill(client.status)}
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
                 {client.clientType || client.type || 'Organization'}
               </span>
               {labels.slice(0, 3).map((label) => {
@@ -1691,7 +1691,7 @@ export function ClientDetailsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
+      <div className="flex items-center gap-6 border-b border-[var(--border)] px-2 overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1703,10 +1703,10 @@ export function ClientDetailsPage() {
                 'group flex items-center gap-2 whitespace-nowrap border-b-2 py-4 text-sm font-medium transition-colors',
                 isActive
                   ? 'border-[var(--primary)] text-[var(--primary)]'
-                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                  : 'border-transparent text-[var(--text-muted)] hover:border-[var(--border)] hover:text-[var(--text-main)]'
               )}
             >
-              <Icon size={16} className={isActive ? 'text-[var(--primary)]' : 'text-slate-400 group-hover:text-slate-500'} />
+              <Icon size={16} className={isActive ? 'text-[var(--primary)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-muted)]'} />
               {tab.label}
             </button>
           );
@@ -1718,44 +1718,44 @@ export function ClientDetailsPage() {
           {activeTab === 'overview' && (
             <>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
                     <Briefcase size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Projects</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{summary.totalProjects || 0}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Total active projects</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Projects</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{summary.totalProjects || 0}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total active projects</p>
                   </div>
                 </Card>
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
                     <Receipt size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Invoiced</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(summary.totalInvoiceAmount || 0, currency, currencySymbol)}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Total billed amount</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Invoiced</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{formatMoney(summary.totalInvoiceAmount || 0, currency, currencySymbol)}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total billed amount</p>
                   </div>
                 </Card>
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
                     <Wallet size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Received</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(summary.totalReceived || 0, currency, currencySymbol)}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Total payments received</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Received</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{formatMoney(summary.totalReceived || 0, currency, currencySymbol)}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total payments received</p>
                   </div>
                 </Card>
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
                     <Clock3 size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Outstanding</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(summary.totalDue || 0, currency, currencySymbol)}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Total pending amount</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Outstanding</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{formatMoney(summary.totalDue || 0, currency, currencySymbol)}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total pending amount</p>
                   </div>
                 </Card>
               </div>
@@ -1767,26 +1767,26 @@ export function ClientDetailsPage() {
                     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Quick details</span>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Primary contact</p>
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Primary contact</p>
                       <p className="mt-2 text-sm font-semibold text-[var(--text-main)]">{ownerName}</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Email</p>
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Email</p>
                       <p className="mt-2 break-all text-sm font-semibold text-[var(--text-main)]">{client.email || '-'}</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Phone</p>
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Phone</p>
                       <p className="mt-2 text-sm font-semibold text-[var(--text-main)]">{formatPhoneDisplay(client.mobile)}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Address</p>
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Address</p>
                       <p className="mt-2 whitespace-pre-line text-sm font-semibold text-[var(--text-main)]">{addressLine || '-'}</p>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Labels</p>
+                    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Labels</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {labels.length ? labels.map((label) => {
                           const color = labelOptions.find((item) => item.label === label)?.color || '#2563eb';
@@ -1800,25 +1800,25 @@ export function ClientDetailsPage() {
                 <Card className="space-y-4 p-5">
                   <h3 className="text-lg font-bold text-[var(--text-main)]">Financial snapshot</h3>
                   <div className="space-y-3 text-sm">
-                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
                       <span className="text-[var(--text-muted)]">Total projects</span>
                       <span className="font-semibold text-[var(--text-main)]">{summary.totalProjects || 0}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
                       <span className="text-[var(--text-muted)]">AMC active</span>
                       <span className="font-semibold text-[var(--text-main)]">{summary.amcActive || 0}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
                       <span className="text-[var(--text-muted)]">Pending renewals</span>
                       <span className="font-semibold text-[var(--text-main)]">{summary.pendingRenewals || 0}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
                       <span className="text-[var(--text-muted)]">Profit / loss</span>
                       <span className={cn('font-semibold', (summary.totalProfitLoss || 0) >= 0 ? 'text-emerald-600' : 'text-red-500')}>
                         {formatMoney(summary.totalProfitLoss || 0, currency, currencySymbol)}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
                       <span className="text-[var(--text-muted)]">Activities</span>
                       <span className="font-semibold text-[var(--text-main)]">{summary.activitiesCount || activityItems.length}</span>
                     </div>
@@ -1829,17 +1829,17 @@ export function ClientDetailsPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h3 className="text-lg font-bold text-[var(--text-main)]">Pipeline stage</h3>
-                      <p className="text-sm text-slate-500">Current stage and recent milestones</p>
+                      <p className="text-sm text-[var(--text-muted)]">Current stage and recent milestones</p>
                     </div>
                     {renderStatusPill(client.status)}
                   </div>
 
-                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="text-[var(--text-muted)]">Progress</span>
                       <span className="font-semibold text-[var(--text-main)]">{stageProgress}%</span>
                     </div>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface-3)]">
                       <div
                         className="h-full rounded-full bg-[var(--primary)]"
                         style={{ width: `${stageProgress}%` }}
@@ -1876,23 +1876,23 @@ export function ClientDetailsPage() {
                           const accent = item.color || getActivityAccent(item);
                           return (
                             <div key={`${item.date}-${item.title}-${index}`} className="relative group">
-                              <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-slate-200 group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }} />
-                              <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm hover:shadow-md transition-shadow">
+                              <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-[var(--surface-3)] group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }} />
+                              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3.5 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm" style={{ color: accent, backgroundColor: `${accent}15` }}>
                                     {item.kind || 'activity'}
                                   </span>
-                                  <span className="text-xs font-semibold tracking-wider text-slate-400">{formatDate(item.date)}</span>
+                                  <span className="text-xs font-semibold tracking-wider text-[var(--text-muted)]">{formatDate(item.date)}</span>
                                 </div>
-                                <h4 className="text-sm font-bold text-slate-800">{item.title}</h4>
-                                {item.detail && <p className="mt-1 text-xs text-slate-600 line-clamp-2 leading-relaxed">{item.detail}</p>}
+                                <h4 className="text-sm font-bold text-[var(--text-main)]">{item.title}</h4>
+                                {item.detail && <p className="mt-1 text-xs text-[var(--text-muted)] line-clamp-2 leading-relaxed">{item.detail}</p>}
                               </div>
                             </div>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-6 text-center text-sm text-[var(--text-muted)]">
                         No recent stage activity yet.
                       </div>
                     )}
@@ -1921,10 +1921,10 @@ export function ClientDetailsPage() {
             <div className="w-full space-y-6 mt-2">
               <div className="flex items-center justify-between px-1">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Timeline</h2>
-                  <p className="text-sm text-slate-500 mt-1">Follow-ups, changes, and activity history</p>
+                  <h2 className="text-xl font-bold text-[var(--text-main)]">Timeline</h2>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Follow-ups, changes, and activity history</p>
                 </div>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                <div className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--text-muted)]">
                   {mergedTimeline.length} Events
                 </div>
               </div>
@@ -1935,20 +1935,20 @@ export function ClientDetailsPage() {
                     const accent = item.color || getActivityAccent(item);
                     return (
                       <div key={`${item.date}-${item.title}-${index}`} className="relative group">
-                        <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-slate-200 group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }}></div>
+                        <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-[var(--surface-3)] group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }}></div>
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-3">
                             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm" style={{ color: accent, backgroundColor: `${accent}15` }}>
                               {item.kind || 'activity'}
                             </span>
-                            <span className="text-xs font-semibold tracking-wider text-slate-400">{formatDate(item.date)}</span>
+                            <span className="text-xs font-semibold tracking-wider text-[var(--text-muted)]">{formatDate(item.date)}</span>
                             {item.actorName ? (
-                              <span className="text-xs font-medium text-slate-500">by {item.actorName}</span>
+                              <span className="text-xs font-medium text-[var(--text-muted)]">by {item.actorName}</span>
                             ) : null}
                           </div>
-                          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                            <h4 className="text-sm font-bold text-slate-800">{item.title}</h4>
-                            {item.detail && <p className="mt-1 text-sm text-slate-600 leading-relaxed">{item.detail}</p>}
+                          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <h4 className="text-sm font-bold text-[var(--text-main)]">{item.title}</h4>
+                            {item.detail && <p className="mt-1 text-sm text-[var(--text-muted)] leading-relaxed">{item.detail}</p>}
                           </div>
                         </div>
                       </div>
@@ -1956,7 +1956,7 @@ export function ClientDetailsPage() {
                   })}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-[var(--text-muted)]">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)]">
                   No timeline items yet.
                 </div>
               )}
@@ -1965,10 +1965,10 @@ export function ClientDetailsPage() {
 
           {activeTab === 'contacts' && (
             <Card className="space-y-4 p-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)]">Contacts</h3>
-                  <p className="text-sm text-slate-500">{contacts.length} contact(s)</p>
+                  <p className="text-sm text-[var(--text-muted)]">{contacts.length} contact(s)</p>
                 </div>
                 <Button variant="secondary" onClick={() => { setContactEdit(null); setContactOpen(true); }}>
                   <UserPlus size={16} />
@@ -1978,19 +1978,19 @@ export function ClientDetailsPage() {
 
               {primaryContact ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Primary contact</p>
+                  <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Primary contact</p>
                     <p className="mt-2 text-sm font-semibold text-[var(--text-main)]">
                       {`${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() || '-'}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">{primaryContact.jobTitle || 'Contact'}</p>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">{primaryContact.jobTitle || 'Contact'}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Email</p>
+                  <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Email</p>
                     <p className="mt-2 text-sm font-semibold text-[var(--text-main)]">{primaryContact.email || '-'}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Phone</p>
+                  <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Phone</p>
                     <p className="mt-2 text-sm font-semibold text-[var(--text-main)]">{formatPhoneDisplay(primaryContact.phone)}</p>
                   </div>
                 </div>
@@ -2002,7 +2002,7 @@ export function ClientDetailsPage() {
                   const initials = [contact.firstName?.[0], contact.lastName?.[0]].filter(Boolean).join('').toUpperCase() || 'C';
                   const isPrimary = Boolean(contact.isPrimary) || (!primaryContact && index === 0);
                   return (
-                    <div key={contact.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[color-mix(in_srgb,var(--primary)_30%,#dbeafe)] hover:shadow-md">
+                    <div key={contact.id} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 shadow-sm transition hover:border-[color-mix(in_srgb,var(--primary)_30%,#dbeafe)] hover:shadow-md">
                       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div className="flex min-w-0 flex-1 items-start gap-4">
                           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-sm font-bold text-[var(--primary)]">
@@ -2017,8 +2017,8 @@ export function ClientDetailsPage() {
                                 </span>
                               ) : null}
                             </div>
-                            <div className="text-sm text-slate-500">{contact.jobTitle || 'Contact'}</div>
-                            <div className="mt-2 space-y-1 text-sm text-slate-600">
+                            <div className="text-sm text-[var(--text-muted)]">{contact.jobTitle || 'Contact'}</div>
+                            <div className="mt-2 space-y-1 text-sm text-[var(--text-muted)]">
                               {contact.email ? (
                                 <div className="flex items-center gap-2">
                                   <Mail size={14} />
@@ -2031,7 +2031,7 @@ export function ClientDetailsPage() {
                                   <span>{formatPhoneDisplay(contact.phone)}</span>
                                 </div>
                               ) : null}
-                              {contact.notes ? <div className="text-xs text-slate-500">{contact.notes}</div> : null}
+                              {contact.notes ? <div className="text-xs text-[var(--text-muted)]">{contact.notes}</div> : null}
                             </div>
                           </div>
                         </div>
@@ -2061,7 +2061,7 @@ export function ClientDetailsPage() {
                     </div>
                   );
                 }) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                  <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-10 text-center text-sm text-[var(--text-muted)]">
                     No contacts added yet.
                   </div>
                 )}
@@ -2191,13 +2191,13 @@ export function ClientDetailsPage() {
 
           {activeTab === 'statement' && (
             <Card className="p-5 space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)] flex items-center gap-2">
                     <BookOpen size={18} className="text-blue-600" />
                     Customer Statement of Accounts (Ledger)
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
                     Consolidated account ledger showing debits, credits, and running balance for {client.companyName || client.name}
                   </p>
                 </div>
@@ -2244,9 +2244,9 @@ export function ClientDetailsPage() {
 
               {/* KPI Summary */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Opening Balance</span>
-                  <p className="text-base sm:text-lg font-bold text-slate-800 mt-1 font-mono">
+                <div className="p-3.5 bg-[var(--surface-2)] rounded-xl border border-[var(--border)]">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Opening Balance</span>
+                  <p className="text-base sm:text-lg font-bold text-[var(--text-main)] mt-1 font-mono">
                     {formatMoney(totalOpeningBalance, currency, currencySymbol)}
                   </p>
                 </div>
@@ -2271,9 +2271,9 @@ export function ClientDetailsPage() {
               </div>
 
               {/* Ledger Table */}
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
                 <table className="w-full text-left text-xs sm:text-sm">
-                  <thead className="bg-slate-50 text-[11px] uppercase font-bold tracking-wider text-slate-500 border-b border-slate-200">
+                  <thead className="bg-[var(--surface-2)] text-[11px] uppercase font-bold tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]">
                     <tr>
                       <th className="py-2.5 px-3">Date</th>
                       <th className="py-2.5 px-3">Type</th>
@@ -2284,21 +2284,21 @@ export function ClientDetailsPage() {
                       <th className="py-2.5 px-3 text-right font-bold">Balance</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white font-medium">
+                  <tbody className="divide-y divide-[var(--border)] bg-[var(--surface-elevated)] font-medium">
                     {totalOpeningBalance > 0 && (
-                      <tr className="bg-slate-50/50 text-slate-500 italic">
+                      <tr className="bg-slate-50/50 text-[var(--text-muted)] italic">
                         <td className="py-2.5 px-3">-</td>
-                        <td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Balance</span></td>
+                        <td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface-2)] text-[var(--text-muted)]">Balance</span></td>
                         <td className="py-2.5 px-3">-</td>
                         <td className="py-2.5 px-3 font-semibold">Opening Balance</td>
                         <td className="py-2.5 px-3 text-right font-mono">{formatMoney(totalOpeningBalance, currency, currencySymbol)}</td>
                         <td className="py-2.5 px-3 text-right font-mono">-</td>
-                        <td className="py-2.5 px-3 text-right font-bold text-slate-900 font-mono">{formatMoney(totalOpeningBalance, currency, currencySymbol)}</td>
+                        <td className="py-2.5 px-3 text-right font-bold text-[var(--text-main)] font-mono">{formatMoney(totalOpeningBalance, currency, currencySymbol)}</td>
                       </tr>
                     )}
                     {statementLedger.length ? statementLedger.map((row) => (
                       <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">{formatDate(row.date)}</td>
+                        <td className="py-2.5 px-3 text-[var(--text-muted)] whitespace-nowrap">{formatDate(row.date)}</td>
                         <td className="py-2.5 px-3 whitespace-nowrap">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${row.type === 'Invoice' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
                             {row.type}
@@ -2313,29 +2313,29 @@ export function ClientDetailsPage() {
                             #{row.docNumber}
                           </button>
                         </td>
-                        <td className="py-2.5 px-3 text-slate-700">{row.description}</td>
+                        <td className="py-2.5 px-3 text-[var(--text-main)]">{row.description}</td>
                         <td className="py-2.5 px-3 text-right font-mono font-semibold text-blue-700">
                           {row.debit > 0 ? formatMoney(row.debit, currency, currencySymbol) : '-'}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-600">
                           {row.credit > 0 ? formatMoney(row.credit, currency, currencySymbol) : '-'}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-main)]">
                           {formatMoney(row.runningBalance, currency, currencySymbol)}
                         </td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-slate-400">
+                        <td colSpan={7} className="py-8 text-center text-[var(--text-muted)]">
                           No invoice or payment transactions recorded for this client yet.
                         </td>
                       </tr>
                     )}
                   </tbody>
                   {statementLedger.length > 0 && (
-                    <tfoot className="bg-slate-50 font-bold text-xs sm:text-sm border-t-2 border-slate-300">
+                    <tfoot className="bg-[var(--surface-2)] font-bold text-xs sm:text-sm border-t-2 border-[var(--border)]">
                       <tr>
-                        <td colSpan={4} className="py-3 px-3 text-slate-700 uppercase tracking-wider">Total / Closing Balance</td>
+                        <td colSpan={4} className="py-3 px-3 text-[var(--text-main)] uppercase tracking-wider">Total / Closing Balance</td>
                         <td className="py-3 px-3 text-right font-mono text-blue-700">{formatMoney(totalInvoicedAmount, currency, currencySymbol)}</td>
                         <td className="py-3 px-3 text-right font-mono text-emerald-700">{formatMoney(totalPaidAmount, currency, currencySymbol)}</td>
                         <td className="py-3 px-3 text-right font-mono text-amber-800 text-base">{formatMoney(netOutstandingBalance, currency, currencySymbol)}</td>
@@ -2421,10 +2421,10 @@ export function ClientDetailsPage() {
 
           {activeTab === 'files' && (
             <Card className="space-y-4 p-5">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)]">Files</h3>
-                  <p className="text-sm text-slate-500">{files.length} file(s)</p>
+                  <p className="text-sm text-[var(--text-muted)]">{files.length} file(s)</p>
                 </div>
                 <Button variant="secondary" onClick={() => setFilesModalOpen(true)}>
                   <Paperclip size={16} className="mr-2" />
@@ -2438,10 +2438,10 @@ export function ClientDetailsPage() {
                     href={getFileOpenUrl(file) || `#${file.id}`}
                     target={getFileOpenUrl(file) ? '_blank' : undefined}
                     rel={getFileOpenUrl(file) ? 'noreferrer' : undefined}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-[var(--primary)] hover:shadow-sm"
+                    className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 transition hover:border-[var(--primary)] hover:shadow-sm"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--surface-2)] text-[var(--text-muted)]">
                         <Paperclip size={18} />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -2449,13 +2449,13 @@ export function ClientDetailsPage() {
                         <p className="mt-1 text-xs text-[var(--text-muted)]">
                           {file.moduleName || 'clients'} {file.entityId ? `#${file.entityId}` : ''}
                         </p>
-                        {file.description ? <p className="mt-1 line-clamp-2 text-xs text-slate-500">{file.description}</p> : null}
+                        {file.description ? <p className="mt-1 line-clamp-2 text-xs text-[var(--text-muted)]">{file.description}</p> : null}
                         <p className="mt-2 text-xs text-[var(--text-muted)]">{formatDate(file.createdAt)}</p>
                       </div>
                     </div>
                   </a>
                 )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-[var(--text-muted)]">
+                  <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)]">
                     No files uploaded for this client yet.
                   </div>
                 )}
@@ -2465,33 +2465,33 @@ export function ClientDetailsPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="p-0 border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <Card className="p-0 border-[var(--border)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
               <div className="flex items-center gap-2">
-                <Layers size={18} className="text-slate-800" />
-                <h2 className="text-lg font-semibold text-slate-900">Client info</h2>
+                <Layers size={18} className="text-[var(--text-main)]" />
+                <h2 className="text-lg font-semibold text-[var(--text-main)]">Client info</h2>
               </div>
-              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 text-slate-500">
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[var(--surface-2)] text-[var(--text-muted)]">
                 <MoreHorizontal size={18} />
               </button>
             </div>
             <div className="flex flex-col">
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Hexagon size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{client.clientType || client.type || 'Organization'}</span>
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <Hexagon size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-sm text-[var(--text-main)]">{client.clientType || client.type || 'Organization'}</span>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <CheckCircle size={16} className="text-slate-500 shrink-0" />
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <CheckCircle size={16} className="text-[var(--text-muted)] shrink-0" />
                 {renderStatusPill(client.status)}
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Search size={16} className="text-slate-500 shrink-0" />
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <Search size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span className="inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-0.5 text-xs text-[var(--text-muted)]">
                   {client.source || 'Site'}
                 </span>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Tag size={16} className="text-slate-500 shrink-0" />
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <Tag size={16} className="text-[var(--text-muted)] shrink-0" />
                 <div className="flex flex-wrap gap-1.5 items-center">
                   {labels.length ? labels.map((label) => {
                     const color = labelOptions.find((item) => item.label === label)?.color || '#2563eb';
@@ -2499,20 +2499,20 @@ export function ClientDetailsPage() {
                   }) : <span className="text-sm text-[var(--text-muted)]">-</span>}
                 </div>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <User size={16} className="text-slate-500 shrink-0" />
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <User size={16} className="text-[var(--text-muted)] shrink-0" />
                 <div className="flex items-center gap-2">
                   <UserAvatar name={ownerName} className="h-6 w-6" fallbackSize={24} />
                   <span className="text-sm text-[var(--primary)] font-medium">{ownerName}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Users size={16} className="text-slate-500 shrink-0" />
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <Users size={16} className="text-[var(--text-muted)] shrink-0" />
                 <button type="button" className="text-sm text-[var(--primary)] font-medium hover:underline">Add Managers</button>
               </div>
-              <div className="flex items-start gap-4 border-b border-slate-100 px-5 py-3.5">
-                <MapPin size={16} className="text-slate-500 shrink-0 mt-0.5" />
-                <div className="text-sm text-slate-700">
+              <div className="flex items-start gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <MapPin size={16} className="text-[var(--text-muted)] shrink-0 mt-0.5" />
+                <div className="text-sm text-[var(--text-main)]">
                   {client.billingAddress && <div>{client.billingAddress}</div>}
                   {(client.city || client.state) && <div>{[client.city, client.state].filter(Boolean).join(', ')}</div>}
                   {client.country && <div>{client.country}</div>}
@@ -2520,30 +2520,30 @@ export function ClientDetailsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-4 px-5 py-3.5">
-                <Phone size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{formatPhoneDisplay(client.mobile) || '-'}</span>
+                <Phone size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-sm text-[var(--text-main)]">{formatPhoneDisplay(client.mobile) || '-'}</span>
               </div>
             </div>
           </Card>
           
-          <Card className="p-0 border-slate-200">
-            <div className="border-b border-slate-100 px-5 py-3">
-              <h3 className="text-sm font-semibold text-slate-800">Additional Details</h3>
+          <Card className="p-0 border-[var(--border)]">
+            <div className="border-b border-[var(--border)] px-5 py-3">
+              <h3 className="text-sm font-semibold text-[var(--text-main)]">Additional Details</h3>
             </div>
             <div className="flex flex-col px-5 py-2">
-              <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0">
-                <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Email</span>
-                <span className="text-sm text-slate-700">{client.email || '-'}</span>
+              <div className="flex flex-col gap-1 border-b border-[var(--border)] py-3 last:border-0">
+                <span className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--text-muted)]">Email</span>
+                <span className="text-sm text-[var(--text-main)]">{client.email || '-'}</span>
               </div>
-              <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0">
-                <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Value</span>
-                <span className="text-sm text-slate-700">
+              <div className="flex flex-col gap-1 border-b border-[var(--border)] py-3 last:border-0">
+                <span className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--text-muted)]">Value</span>
+                <span className="text-sm text-[var(--text-main)]">
                   {formatMoney(client.openingBalance || 0, currency, currencySymbol)}
                 </span>
               </div>
               {client.website ? (
-                <div className="flex flex-col gap-1 border-b border-slate-100 py-3 last:border-0">
-                  <span className="text-xs font-medium uppercase tracking-[0.1em] text-slate-400">Website</span>
+                <div className="flex flex-col gap-1 border-b border-[var(--border)] py-3 last:border-0">
+                  <span className="text-xs font-medium uppercase tracking-[0.1em] text-[var(--text-muted)]">Website</span>
                   <a href={client.website.startsWith('http') ? client.website : `https://${client.website}`} target="_blank" rel="noreferrer" className="text-sm text-[var(--primary)] hover:underline">
                     {client.website}
                   </a>
@@ -2553,37 +2553,37 @@ export function ClientDetailsPage() {
           </Card>
 
           <Card className="p-5">
-            <div className="flex items-center gap-2 border-b border-slate-100 pb-4">
-              <Globe size={18} className="text-slate-800" />
-              <h2 className="text-lg font-semibold text-slate-900">Contact card</h2>
+            <div className="flex items-center gap-2 border-b border-[var(--border)] pb-4">
+              <Globe size={18} className="text-[var(--text-main)]" />
+              <h2 className="text-lg font-semibold text-[var(--text-main)]">Contact card</h2>
             </div>
             <div className="mt-4 space-y-3">
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <User size={16} className="text-slate-500" />
+              <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <User size={16} className="text-[var(--text-muted)]" />
                 <div>
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Owner</div>
-                  <div className="text-sm font-semibold text-slate-900">{ownerName}</div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">Owner</div>
+                  <div className="text-sm font-semibold text-[var(--text-main)]">{ownerName}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <Phone size={16} className="text-slate-500" />
+              <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <Phone size={16} className="text-[var(--text-muted)]" />
                 <div>
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Phone</div>
-                  <div className="text-sm font-semibold text-slate-900">{formatPhoneDisplay(client.mobile)}</div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">Phone</div>
+                  <div className="text-sm font-semibold text-[var(--text-main)]">{formatPhoneDisplay(client.mobile)}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <Mail size={16} className="text-slate-500" />
+              <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <Mail size={16} className="text-[var(--text-muted)]" />
                 <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Email</div>
-                  <div className="truncate text-sm font-semibold text-slate-900">{client.email || '-'}</div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">Email</div>
+                  <div className="truncate text-sm font-semibold text-[var(--text-main)]">{client.email || '-'}</div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <MapPin size={16} className="text-slate-500" />
+              <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                <MapPin size={16} className="text-[var(--text-muted)]" />
                 <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-[0.24em] text-slate-400">Address</div>
-                  <div className="text-sm font-semibold text-slate-900">{addressLine || '-'}</div>
+                  <div className="text-xs uppercase tracking-[0.24em] text-[var(--text-muted)]">Address</div>
+                  <div className="text-sm font-semibold text-[var(--text-main)]">{addressLine || '-'}</div>
                 </div>
               </div>
             </div>

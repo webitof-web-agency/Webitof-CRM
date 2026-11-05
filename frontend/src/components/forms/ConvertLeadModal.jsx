@@ -113,7 +113,7 @@ export function ConvertLeadModal({ open, onClose, lead, targetStatus, onSuccess 
         </div>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm font-medium text-slate-700">Client</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Client</span>
           <SearchableSelect value={clientChoice} onChange={setClientChoice} options={clientOptions} placeholder={previewLoading ? 'Checking clients...' : 'Select existing or create new'} allowClear={false} disabled={previewLoading} />
         </label>
 

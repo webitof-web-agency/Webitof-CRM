@@ -4,6 +4,7 @@ import { Input } from './Input';
 import { cn } from '../../lib/cn';
 import { api } from '../../api/client';
 import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
+import { formatDate } from '../../lib/format';
 import imageCompression from 'browser-image-compression';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
@@ -456,7 +457,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-[var(--text-muted)]">{formatSize(file.sizeBytes)}</td>
-                              <td className="px-4 py-3 text-[var(--text-muted)]">{new Date(file.updatedAt).toLocaleDateString()}</td>
+                              <td className="px-4 py-3 text-[var(--text-muted)]">{formatDate(file.updatedAt)}</td>
                             </tr>
                           );
                         })}

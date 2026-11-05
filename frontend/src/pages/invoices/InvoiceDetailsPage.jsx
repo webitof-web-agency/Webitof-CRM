@@ -193,7 +193,7 @@ export function InvoiceDetailsPage() {
     <>
       <div className="pb-12 min-h-[calc(100vh-4rem)]">
         {/* Full-width Action Bar */}
-        <div className="print:hidden px-4 sm:px-8 py-4 mb-6 bg-white/50 border-b border-slate-200">
+        <div className="print:hidden px-4 sm:px-8 py-4 mb-6 bg-[var(--surface)] border-b border-slate-200">
           <div className="w-full flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <button type="button" onClick={() => navigate('/app/invoices')} className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors" title="Back to Invoices">

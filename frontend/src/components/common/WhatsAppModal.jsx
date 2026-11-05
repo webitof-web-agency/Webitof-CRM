@@ -158,24 +158,24 @@ export function WhatsAppModal({ open, onClose, recipient, onSent }) {
     >
       <div className="space-y-4">
         {/* Recipient Badge */}
-        <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs">
+        <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 text-xs">
           <div className="flex items-center gap-2">
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 font-bold">
               <Phone size={14} />
             </span>
             <div>
-              <span className="font-semibold text-slate-800">{name}</span>
-              {recipient?.companyName && <span className="text-slate-500 ml-1">({recipient.companyName})</span>}
+              <span className="font-semibold text-[var(--text-main)]">{name}</span>
+              {recipient?.companyName && <span className="text-[var(--text-muted)] ml-1">({recipient.companyName})</span>}
             </div>
           </div>
-          <span className="font-mono font-bold text-slate-700 bg-white px-2 py-1 rounded-md border border-slate-200">
+          <span className="font-mono font-bold text-[var(--text-main)] bg-[var(--surface-elevated)] px-2 py-1 rounded-md border border-[var(--border)]">
             {rawPhone || 'No Phone Number'}
           </span>
         </div>
 
         {/* Template Selector Pills */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1.5">Select Message Template</label>
+          <label className="block text-xs font-bold text-[var(--text-main)] mb-1.5">Select Message Template</label>
           <div className="flex flex-wrap gap-1.5">
             {templates.map((tpl) => {
               const active = selectedTemplate === tpl.id;
@@ -187,7 +187,7 @@ export function WhatsAppModal({ open, onClose, recipient, onSent }) {
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
                     active
                       ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      : 'bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--text-main)]'
                   }`}
                 >
                   {tpl.label}
@@ -200,8 +200,8 @@ export function WhatsAppModal({ open, onClose, recipient, onSent }) {
         {/* Message Editor */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-bold text-slate-700">Message Preview & Customization</label>
-            <span className="text-[11px] text-slate-400 font-mono">{customMessage.length} characters</span>
+            <label className="text-xs font-bold text-[var(--text-main)]">Message Preview & Customization</label>
+            <span className="text-[11px] text-[var(--text-muted)] font-mono">{customMessage.length} characters</span>
           </div>
           <Textarea
             rows={7}
@@ -212,7 +212,7 @@ export function WhatsAppModal({ open, onClose, recipient, onSent }) {
           />
         </div>
 
-        <p className="text-[11px] text-slate-500 flex items-center gap-1.5">
+        <p className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
           <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
           Clicking "Open in WhatsApp" will open WhatsApp Web / App with this pre-filled message and log the outreach.
         </p>

@@ -209,7 +209,7 @@ function LineItemRow({
       onDragStart={(e) => onDragStart(e, index)}
       onDragOver={(e) => { e.preventDefault(); onDragOver(index); }}
       onDrop={(e) => onDrop(e, index)}
-      className={`group transition-all border-b border-slate-100 hover:bg-white/30 ${isDragOver ? 'border-t-2 border-[var(--primary)] bg-white/50' : ''} ${item.hidden ? 'opacity-60 grayscale-[30%]' : ''}`}
+      className={`group transition-all border-b border-slate-100 hover:bg-white/30 ${isDragOver ? 'border-t-2 border-[var(--primary)] bg-[var(--surface)]' : ''} ${item.hidden ? 'opacity-60 grayscale-[30%]' : ''}`}
     >
       {/* Drag Handle */}
       <td className="py-3 pl-2 pr-1 w-8 align-top">
@@ -300,7 +300,7 @@ function LineItemRow({
       </td>
       {/* Amount */}
       <td className="py-3 px-2 w-28 text-right align-top">
-        <div className="font-semibold text-slate-800 text-[13px] bg-white/50 border border-transparent rounded-[var(--radius-input,0.75rem)] px-2 py-1.5">
+        <div className="font-semibold text-slate-800 text-[13px] bg-[var(--surface)] border border-transparent rounded-[var(--radius-input,0.75rem)] px-2 py-1.5">
           ₹{fmt(netAmount)}
         </div>
       </td>
@@ -881,7 +881,7 @@ export function InvoiceBuilderPage() {
       </div>
 
       {/* Split Pane */}
-      <div className="flex-1 flex overflow-hidden min-h-0 px-4 py-4 gap-4 bg-white/50">
+      <div className="flex-1 flex overflow-hidden min-h-0 px-4 py-4 gap-4 bg-[var(--surface)]">
         {/* ── Left: Form ──────────────────────────────────────────── */}
         <div className="w-[55%] shrink-0 overflow-y-auto bg-white rounded-2xl border border-slate-200 shadow-sm p-8 space-y-8 custom-scrollbar">
 

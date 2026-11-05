@@ -1357,12 +1357,12 @@ function formatCalendarTitle(date, view) {
   if (view === 'week') {
     const start = startOfWeek(date);
     const end = endOfWeek(date);
-    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    return `${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }
   if (view === 'day') {
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+    return date.toLocaleDateString('en-IN', { month: 'long', day: 'numeric', year: 'numeric' });
   }
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return date.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
 }
 
 function formatEventTime(event) {
@@ -1623,7 +1623,7 @@ function LeadEventsCalendar({
                   onClick={() => onDateChange(day)}
                   className={cn('px-3 py-3 text-left cursor-pointer', isSameDay(day, currentDate) && 'bg-[var(--primary-subtle)]')}
                 >
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">{day.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
                   <div className={cn('mt-1 text-base font-semibold text-[var(--text-main)]', isSameDay(day, today) && 'text-[var(--primary)]')}>{day.getDate()}</div>
                 </button>
               ))}
@@ -1699,7 +1699,7 @@ function LeadEventsCalendar({
             {getGroupedEvents(visibleRangeEvents).length ? getGroupedEvents(visibleRangeEvents).map((group) => (
               <div key={group.date} className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4">
                 <div className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
-                  {group.date ? parseDateOnly(group.date)?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Activities'}
+                  {group.date ? parseDateOnly(group.date)?.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Activities'}
                 </div>
                 <div className="space-y-2">
                   {group.items.map((event) => (
@@ -4732,7 +4732,7 @@ export function LeadDetailsPage() {
       }
 
       // 2. Update Lead metadata, status, cadence attempts
-      const updatedNotes = `${lead.notes || ''}\n[Follow-Up ${new Date().toLocaleDateString()}]: ${remark.trim()}`.trim();
+      const updatedNotes = `${lead.notes || ''}\n[Follow-Up ${formatDate(new Date())}]: ${remark.trim()}`.trim();
 
       let nextLeadStatus = lead.status;
       if (isCold || (outcome === 'no_response' && nextAttempts >= 3)) {

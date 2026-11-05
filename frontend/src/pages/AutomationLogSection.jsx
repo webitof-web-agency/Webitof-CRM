@@ -36,7 +36,7 @@ function logTone(status = '') {
   return 'neutral';
 }
 
-function LogEntry({ entry, index, accent = 'text-slate-600' }) {
+function LogEntry({ entry, index, accent = 'text-[var(--text-muted)]' }) {
   const actionText = String(entry?.action || '-').replaceAll('_', ' ');
   const meta = [
     entry?.referenceName || entry?.invoiceNumber || entry?.referenceId || entry?.invoiceId || '',
@@ -45,7 +45,7 @@ function LogEntry({ entry, index, accent = 'text-slate-600' }) {
   ].filter(Boolean);
 
   return (
-    <div className="rounded-[16px] border border-slate-100 bg-white px-4 py-3">
+    <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -55,23 +55,23 @@ function LogEntry({ entry, index, accent = 'text-slate-600' }) {
             <Badge tone={logTone(entry?.status)} className="border-transparent">
               {entry?.status || 'Success'}
             </Badge>
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
               {formatDateTime(entry?.createdAt)}
             </span>
           </div>
-          <div className="mt-1 text-sm font-semibold text-slate-900">{actionText}</div>
-          <div className="mt-1 text-xs text-slate-500">{entry?.message || 'No message recorded'}</div>
+          <div className="mt-1 text-sm font-semibold text-[var(--text-main)]">{actionText}</div>
+          <div className="mt-1 text-xs text-[var(--text-muted)]">{entry?.message || 'No message recorded'}</div>
           {meta.length ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {meta.map((value) => (
-                <span key={value} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <span key={value} className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
                   {value}
                 </span>
               ))}
             </div>
           ) : null}
         </div>
-        <div className="rounded-full bg-slate-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <div className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
           {entry?.runId || '-'}
         </div>
       </div>
@@ -79,14 +79,14 @@ function LogEntry({ entry, index, accent = 'text-slate-600' }) {
   );
 }
 
-export function AutomationLogSection({ title, feed, accent = 'text-slate-600', icon: Icon = Bot, iconBg = 'bg-slate-100', iconColor = 'text-slate-500', bgSoft = 'bg-slate-50' }) {
+export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-muted)]', icon: Icon = Bot, iconBg = 'bg-[var(--surface-2)]', iconColor = 'text-[var(--text-muted)]', bgSoft = 'bg-[var(--surface-2)]' }) {
   const latestRun = feed?.latestRun || null;
   const entries = latestRun?.entries || [];
   const recentRuns = feed?.recentRuns || [];
   const affected = latestRun?.affectedAmcs ?? latestRun?.affectedRecords ?? 0;
 
   return (
-    <Card className="shadow-sm border border-slate-100" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+    <Card className="shadow-sm border border-[var(--border)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
@@ -94,45 +94,45 @@ export function AutomationLogSection({ title, feed, accent = 'text-slate-600', i
             <Icon size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-slate-900">{title}</h2>
-            <p className="mt-0.5 text-xs font-medium text-slate-500">Latest run entries, shown line by line</p>
+            <h2 className="text-base font-bold text-[var(--text-main)]">{title}</h2>
+            <p className="mt-0.5 text-xs font-medium text-[var(--text-muted)]">Latest run entries, shown line by line</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Badge tone="neutral" className="border-transparent bg-slate-100 text-slate-500 font-bold uppercase tracking-wider text-[10px] px-3 py-1">
+          <Badge tone="neutral" className="border-transparent bg-[var(--surface-2)] text-[var(--text-muted)] font-bold uppercase tracking-wider text-[10px] px-3 py-1">
             {latestRun?.runId || 'No run'}
           </Badge>
-          <Badge tone="neutral" className="border-transparent bg-slate-100 text-slate-500 font-bold uppercase tracking-wider text-[10px] px-3 py-1">
+          <Badge tone="neutral" className="border-transparent bg-[var(--surface-2)] text-[var(--text-muted)] font-bold uppercase tracking-wider text-[10px] px-3 py-1">
             Events: {latestRun?.events ?? 0}
           </Badge>
-          <Badge tone="neutral" className="border-transparent bg-slate-100 text-slate-500 font-bold uppercase tracking-wider text-[10px] px-3 py-1">
+          <Badge tone="neutral" className="border-transparent bg-[var(--surface-2)] text-[var(--text-muted)] font-bold uppercase tracking-wider text-[10px] px-3 py-1">
             Affected: {affected}
           </Badge>
         </div>
       </div>
 
-      <div className="mt-2 rounded-[20px] border border-slate-100 px-6 py-6 bg-white">
+      <div className="mt-2 rounded-[20px] border border-[var(--border)] px-6 py-6 bg-[var(--surface-elevated)]">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-white">
+            <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)]">
               <div className="absolute inset-0 opacity-10 bg-slate-500"></div>
-              <Clock3 size={18} strokeWidth={2.5} className="text-slate-500 relative z-10" />
+              <Clock3 size={18} strokeWidth={2.5} className="text-[var(--text-muted)] relative z-10" />
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-widest text-indigo-600 mb-1">Latest run</div>
-              <div className="text-sm font-bold text-slate-900">
+              <div className="text-sm font-bold text-[var(--text-main)]">
                 {latestRun?.runSource || 'Manual'} - {formatAgo(latestRun?.startedAt)}
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-end gap-6 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <div className="flex flex-wrap items-end gap-6 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-indigo-500 pb-2 min-w-[60px]">
               <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
                 <div className="absolute inset-0 opacity-10 bg-indigo-500"></div>
                 <Bell size={18} strokeWidth={2.5} className="text-indigo-500 relative z-10" />
               </div>
               <span>Reminders</span>
-              <span className="text-2xl font-bold text-slate-900 leading-none">{latestRun?.remindersSent ?? 0}</span>
+              <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{latestRun?.remindersSent ?? 0}</span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-blue-500 pb-2 min-w-[60px]">
               <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
@@ -140,7 +140,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-slate-600', i
                 <AlertCircle size={18} strokeWidth={2.5} className="text-blue-500 relative z-10" />
               </div>
               <span>Alerts</span>
-              <span className="text-2xl font-bold text-slate-900 leading-none">{latestRun?.alertsSent ?? 0}</span>
+              <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{latestRun?.alertsSent ?? 0}</span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-orange-400 pb-2 min-w-[60px]">
               <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
@@ -148,7 +148,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-slate-600', i
                 <Clock3 size={18} strokeWidth={2.5} className="text-orange-400 relative z-10" />
               </div>
               <span>Skipped</span>
-              <span className="text-2xl font-bold text-slate-900 leading-none">{latestRun?.skipped ?? 0}</span>
+              <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{latestRun?.skipped ?? 0}</span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-rose-500 pb-2 min-w-[60px]">
               <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
@@ -156,7 +156,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-slate-600', i
                 <XCircle size={18} strokeWidth={2.5} className="text-rose-500 relative z-10" />
               </div>
               <span>Failures</span>
-              <span className="text-2xl font-bold text-slate-900 leading-none">{latestRun?.failures ?? 0}</span>
+              <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{latestRun?.failures ?? 0}</span>
             </div>
           </div>
         </div>
@@ -174,7 +174,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-slate-600', i
               ))}
             </div>
           ) : (
-            <div className="rounded-[20px] border border-dashed border-indigo-200/60 bg-white/50 px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-slate-500 font-medium">
+            <div className="rounded-[20px] border border-dashed border-indigo-200/60 bg-[var(--surface)] px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-[var(--text-muted)] font-medium">
               <div className="relative">
                 <div className="w-10 h-12 bg-indigo-50/50 border border-indigo-100 rounded flex flex-col items-start p-1.5 gap-1 shadow-sm">
                   <div className="w-3/4 h-1 bg-indigo-100 rounded-full" />
@@ -182,7 +182,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-slate-600', i
                   <div className="w-full h-1 bg-indigo-100 rounded-full" />
                   <div className="w-5/6 h-1 bg-indigo-100 rounded-full" />
                 </div>
-                <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-100">
+                <div className="absolute -bottom-2 -right-2 bg-[var(--surface-elevated)] rounded-full p-0.5 shadow-sm border border-[var(--border)]">
                   <Search size={18} className="text-indigo-500" strokeWidth={2.5} />
                 </div>
               </div>
@@ -194,7 +194,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-slate-600', i
         {recentRuns.length ? (
           <div className="mt-6 flex flex-wrap gap-2">
             {recentRuns.slice(0, 3).map((run) => (
-              <span key={run.runId || `${title}-run`} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+              <span key={run.runId || `${title}-run`} className="rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
                 {run.runId || 'Run'} - {formatAgo(run.startedAt)}
               </span>
             ))}

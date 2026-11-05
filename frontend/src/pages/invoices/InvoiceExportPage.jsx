@@ -135,7 +135,7 @@ export function InvoiceExportPage() {
 
   return (
     <div className="invoice-export-root min-h-screen bg-white print:bg-white print:!bg-white">
-      <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <div className="print:hidden sticky top-0 z-10 border-b border-slate-200 bg-[var(--surface)] backdrop-blur">
         <div className="w-full flex items-center justify-between gap-4 px-4 py-4 sm:px-8">
           <div className="flex items-center gap-3">
             <Button variant="ghost" onClick={() => navigate('/app/invoices')} className="gap-2">

@@ -612,7 +612,7 @@ function TechBadge({ tech, onRemove = null }) {
   const iconColor = iconInfo.color || '#64748b';
 
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-800 shadow-2xs hover:border-slate-300 transition-all group">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--text-main)] shadow-2xs hover:border-[var(--border)] transition-all group">
       <IconComponent size={13} style={{ color: iconColor }} className="shrink-0" />
       <span className="truncate max-w-[220px]">{tech}</span>
       {onRemove && (
@@ -622,7 +622,7 @@ function TechBadge({ tech, onRemove = null }) {
             e.stopPropagation();
             onRemove(tech);
           }}
-          className="ml-0.5 text-slate-400 hover:text-red-500 rounded p-0.5 transition-colors cursor-pointer"
+          className="ml-0.5 text-[var(--text-muted)] hover:text-red-500 rounded p-0.5 transition-colors cursor-pointer"
           title={`Remove ${tech}`}
         >
           <X size={11} />
@@ -1861,9 +1861,9 @@ export function QuotationBuilderModal({
   }, [formData.legalAgreements]);
 
   const builderContent = (
-    <div className={`flex flex-col w-full bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden text-slate-900 font-sans ${isModal ? 'max-w-6xl max-h-[94vh]' : ''}`}>
+    <div className={`flex flex-col w-full bg-[var(--surface-elevated)] rounded-2xl shadow-sm border border-[var(--border)] overflow-hidden text-[var(--text-main)] font-sans ${isModal ? 'max-w-6xl max-h-[94vh]' : ''}`}>
       {/* Header Bar */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/80 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)] bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[var(--primary)] flex items-center justify-center text-white shadow-md shadow-[var(--primary)]/20">
               <FileText size={20} />
@@ -1875,26 +1875,26 @@ export function QuotationBuilderModal({
                       to={targetRoute}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-white border border-slate-200 text-slate-800 hover:text-[var(--primary)] hover:border-[var(--primary)]/50 hover:bg-slate-50 transition-all shadow-xs group cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--text-main)] hover:text-[var(--primary)] hover:border-[var(--primary)]/50 hover:bg-[var(--surface-2)] transition-all shadow-xs group cursor-pointer"
                     >
                       {isClient ? (
                         <Building size={14} className="text-emerald-600 shrink-0" />
                       ) : (
                         <User size={14} className="text-[var(--primary)] shrink-0" />
                       )}
-                      <span className="font-bold text-slate-900 group-hover:text-[var(--primary)]">{displayName}</span>
+                      <span className="font-bold text-[var(--text-main)] group-hover:text-[var(--primary)]">{displayName}</span>
                       {lead?.leadNumber && (
-                        <span className="text-xs text-slate-400 group-hover:text-slate-500 font-mono">
+                        <span className="text-xs text-[var(--text-muted)] group-hover:text-[var(--text-muted)] font-mono">
                           ({lead.leadNumber})
                         </span>
                       )}
-                      <ExternalLink size={12} className="text-slate-400 group-hover:text-[var(--primary)] shrink-0" />
+                      <ExternalLink size={12} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] shrink-0" />
                     </Link>
 
                     {/* Rich Hover Details Tooltip */}
-                    <div className="absolute left-0 top-full mt-2 z-50 w-80 sm:w-96 p-4 bg-white border border-slate-200/90 rounded-2xl shadow-2xl opacity-0 invisible group-hover/lead-tooltip:opacity-100 group-hover/lead-tooltip:visible transition-all duration-200 pointer-events-none group-hover/lead-tooltip:pointer-events-auto divide-y divide-slate-100 text-left">
+                    <div className="absolute left-0 top-full mt-2 z-50 w-80 sm:w-96 p-4 bg-[var(--surface-elevated)] border border-slate-200/90 rounded-2xl shadow-2xl opacity-0 invisible group-hover/lead-tooltip:opacity-100 group-hover/lead-tooltip:visible transition-all duration-200 pointer-events-none group-hover/lead-tooltip:pointer-events-auto divide-y divide-[var(--border)] text-left">
                       {/* Little Pointer Arrow */}
-                      <div className="absolute -top-1.5 left-6 w-3 h-3 bg-white border-t border-l border-slate-200 rotate-45" />
+                      <div className="absolute -top-1.5 left-6 w-3 h-3 bg-[var(--surface-elevated)] border-t border-l border-[var(--border)] rotate-45" />
 
                       {/* Header */}
                       <div className="pb-3 flex items-start justify-between gap-2">
@@ -1903,12 +1903,12 @@ export function QuotationBuilderModal({
                             {isClient ? <Building size={18} /> : <User size={18} />}
                           </div>
                           <div className="min-w-0">
-                            <h4 className="text-xs font-bold text-slate-900 truncate">
+                            <h4 className="text-xs font-bold text-[var(--text-main)] truncate">
                               {lead?.companyName || lead?.name || displayName}
                             </h4>
                             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                               {lead?.leadNumber && (
-                                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-[var(--surface-2)] text-[var(--text-muted)] border border-[var(--border)]">
                                   {lead.leadNumber}
                                 </span>
                               )}
@@ -1926,11 +1926,11 @@ export function QuotationBuilderModal({
                       <div className="py-2.5 space-y-2 text-xs">
                         {/* Contact Person */}
                         {(lead?.contactPerson || lead?.name) && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <User size={12} className="text-blue-500" /> Contact Person:
                             </span>
-                            <span className="font-semibold text-slate-800 truncate max-w-[190px]">
+                            <span className="font-semibold text-[var(--text-main)] truncate max-w-[190px]">
                               {lead.contactPerson || lead.name}
                             </span>
                           </div>
@@ -1938,11 +1938,11 @@ export function QuotationBuilderModal({
 
                         {/* Mobile / Phone */}
                         {(lead?.phone || lead?.mobile) && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <Phone size={12} className="text-emerald-500" /> Mobile:
                             </span>
-                            <span className="font-semibold font-mono text-slate-800">
+                            <span className="font-semibold font-mono text-[var(--text-main)]">
                               {lead.phone || lead.mobile}
                             </span>
                           </div>
@@ -1950,11 +1950,11 @@ export function QuotationBuilderModal({
 
                         {/* Email */}
                         {lead?.email && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <Mail size={12} className="text-indigo-500" /> Email:
                             </span>
-                            <span className="font-medium text-slate-800 truncate max-w-[190px]">
+                            <span className="font-medium text-[var(--text-main)] truncate max-w-[190px]">
                               {lead.email}
                             </span>
                           </div>
@@ -1962,8 +1962,8 @@ export function QuotationBuilderModal({
 
                         {/* Estimated Budget */}
                         {(lead?.estimatedBudget || lead?.budget) && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <DollarSign size={12} className="text-amber-500" /> Estimated Budget:
                             </span>
                             <span className="font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded text-[11px]">
@@ -1974,11 +1974,11 @@ export function QuotationBuilderModal({
 
                         {/* Created Date */}
                         {lead?.createdAt && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <Calendar size={12} className="text-purple-500" /> Created Date:
                             </span>
-                            <span className="font-medium text-slate-700 text-[11px]">
+                            <span className="font-medium text-[var(--text-main)] text-[11px]">
                               {formatRelativeDate(lead.createdAt)}
                             </span>
                           </div>
@@ -1986,11 +1986,11 @@ export function QuotationBuilderModal({
 
                         {/* Requirement / Services */}
                         {(lead?.serviceName || lead?.requirements) && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <Layers size={12} className="text-blue-500" /> Requirement:
                             </span>
-                            <span className="font-medium text-slate-800 truncate max-w-[190px]">
+                            <span className="font-medium text-[var(--text-main)] truncate max-w-[190px]">
                               {lead.serviceName || lead.requirements}
                             </span>
                           </div>
@@ -1998,11 +1998,11 @@ export function QuotationBuilderModal({
 
                         {/* Source */}
                         {lead?.source && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <Globe2 size={12} className="text-sky-500" /> Source:
                             </span>
-                            <span className="font-medium text-slate-700 text-[11px]">
+                            <span className="font-medium text-[var(--text-main)] text-[11px]">
                               {lead.source}
                             </span>
                           </div>
@@ -2010,11 +2010,11 @@ export function QuotationBuilderModal({
 
                         {/* Location */}
                         {(lead?.city || lead?.state) && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
                               <MapPin size={12} className="text-rose-500" /> Location:
                             </span>
-                            <span className="font-medium text-slate-700 text-[11px]">
+                            <span className="font-medium text-[var(--text-main)] text-[11px]">
                               {[lead.city, lead.state].filter(Boolean).join(', ')}
                             </span>
                           </div>
@@ -2022,11 +2022,11 @@ export function QuotationBuilderModal({
 
                         {/* Assigned To */}
                         {(lead?.assignedTo?.name || lead?.assignedToName) && (
-                          <div className="flex items-center justify-between text-slate-700">
-                            <span className="text-slate-400 flex items-center gap-1.5 text-[11px]">
-                              <Briefcase size={12} className="text-slate-500" /> Assigned Rep:
+                          <div className="flex items-center justify-between text-[var(--text-main)]">
+                            <span className="text-[var(--text-muted)] flex items-center gap-1.5 text-[11px]">
+                              <Briefcase size={12} className="text-[var(--text-muted)]" /> Assigned Rep:
                             </span>
-                            <span className="font-medium text-slate-700 text-[11px]">
+                            <span className="font-medium text-[var(--text-main)] text-[11px]">
                               {lead.assignedTo?.name || lead.assignedToName}
                             </span>
                           </div>
@@ -2034,14 +2034,14 @@ export function QuotationBuilderModal({
                       </div>
 
                       {/* Footer Link Hint */}
-                      <div className="pt-2 text-[10.5px] text-slate-400 flex items-center justify-between">
+                      <div className="pt-2 text-[10.5px] text-[var(--text-muted)] flex items-center justify-between">
                         <span>Click pill to open full lead profile</span>
-                        <ExternalLink size={10} className="text-slate-400" />
+                        <ExternalLink size={10} className="text-[var(--text-muted)]" />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <h2 className="text-base font-extrabold text-slate-900 tracking-tight shrink-0">
+                  <h2 className="text-base font-extrabold text-[var(--text-main)] tracking-tight shrink-0">
                     {initialValue?.id ? 'Edit Quotation' : 'Quotation'}
                   </h2>
                 )}
@@ -2079,7 +2079,7 @@ export function QuotationBuilderModal({
                   <button
                     type="button"
                     onClick={handleDiscardDraft}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[var(--text-muted)] hover:text-red-600 hover:bg-red-50 border border-[var(--border)] hover:border-red-200 transition-colors cursor-pointer"
                     title="Discard auto-saved draft and reload lead template defaults"
                   >
                     <RotateCcw size={11} />
@@ -2095,7 +2095,7 @@ export function QuotationBuilderModal({
               variant="outline"
               size="sm"
               onClick={() => openPreview({ print: false })}
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50"
+              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-main)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-2)]"
             >
               <Eye size={14} className="text-blue-600" /> Live Preview
             </Button>
@@ -2103,7 +2103,7 @@ export function QuotationBuilderModal({
               type="button"
               onClick={onClose}
               disabled={busy}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:text-red-600 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:text-red-600 bg-[var(--surface-elevated)] hover:bg-red-50 border border-[var(--border)] hover:border-red-200 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
               title="Close"
               aria-label="Close"
             >
@@ -2113,7 +2113,7 @@ export function QuotationBuilderModal({
         </div>
 
         {/* 6-Step Navigation Tabs */}
-        <div className="px-6 py-2.5 bg-white border-b border-slate-200 shrink-0 overflow-x-auto">
+        <div className="px-6 py-2.5 bg-[var(--surface-elevated)] border-b border-[var(--border)] shrink-0 overflow-x-auto">
           <div className="flex items-center justify-between min-w-[700px]">
             {STEPS.map((step, idx) => {
               const Icon = step.icon;
@@ -2128,8 +2128,8 @@ export function QuotationBuilderModal({
                     isActive
                       ? 'bg-blue-50/90 text-blue-800 font-bold border border-blue-200 shadow-xs'
                       : isPast
-                      ? 'text-slate-700 hover:bg-slate-100 font-medium'
-                      : 'text-slate-400 hover:bg-slate-50 font-normal'
+                      ? 'text-[var(--text-main)] hover:bg-[var(--surface-2)] font-medium'
+                      : 'text-[var(--text-muted)] hover:bg-[var(--surface-2)] font-normal'
                   }`}
                 >
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${
@@ -2137,13 +2137,13 @@ export function QuotationBuilderModal({
                       ? 'bg-[var(--primary)] text-white'
                       : isPast
                       ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-slate-100 text-slate-500'
+                      : 'bg-[var(--surface-2)] text-[var(--text-muted)]'
                   }`}>
                     {isPast ? <Check size={14} /> : step.id}
                   </div>
                   <div>
                     <div className="text-xs font-bold leading-none">{step.title}</div>
-                    <div className="text-[10px] text-slate-400 mt-0.5 leading-none">{step.desc}</div>
+                    <div className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-none">{step.desc}</div>
                   </div>
                   {idx < STEPS.length - 1 && (
                     <ChevronRight size={14} className="text-slate-300 ml-1 shrink-0" />
@@ -2165,24 +2165,24 @@ export function QuotationBuilderModal({
             {/* ========================================================================= */}
             {currentStep === 1 && (
               <div className="space-y-5">
-                <Card className="p-5 bg-white border-slate-200 shadow-2xs space-y-4">
-                  <div className="border-b border-slate-100 pb-3">
-                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <Card className="p-5 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-4">
+                  <div className="border-b border-[var(--border)] pb-3">
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                       <FileText size={16} className="text-blue-600" />
                       Proposal Charter &amp; Identification
                     </h3>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+                    <label className="text-xs font-bold text-[var(--text-main)] flex items-center justify-between">
                       <span>Proposal Title *</span>
-                      <span className="text-[11px] font-normal text-slate-400">
+                      <span className="text-[11px] font-normal text-[var(--text-muted)]">
                         Ends with &ldquo;Proposal for {lead?.companyName || lead?.name || 'Client'}&rdquo;
                       </span>
                     </label>
                     <textarea
                       rows={2}
-                      className="w-full px-3 py-2 text-sm font-semibold text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none shadow-2xs leading-relaxed"
+                      className="w-full px-3 py-2 text-sm font-semibold text-[var(--text-main)] bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20 focus:border-[var(--primary)] transition-all resize-none shadow-2xs leading-relaxed"
                       placeholder={`e.g. Services - Proposal for ${lead?.companyName || lead?.name || 'Client'}`}
                       value={formData.title}
                       onChange={(e) => setField('title', e.target.value)}
@@ -2193,11 +2193,11 @@ export function QuotationBuilderModal({
                   <div className="space-y-2.5 pt-1">
                     <div className="flex items-center justify-between">
                       <div>
-                        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <label className="text-xs font-bold text-[var(--text-main)] flex items-center gap-1.5">
                           <Layers size={14} className="text-blue-600" />
                           Selected Services ({(formData.serviceNames || []).length})
                         </label>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
+                        <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                           Add or remove services from Service Master with their commercial rates
                         </p>
                       </div>
@@ -2209,11 +2209,11 @@ export function QuotationBuilderModal({
 
                     {/* Search & Add Service Row */}
                     <div className="relative" ref={serviceDropdownRef}>
-                      <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                      <div className="flex items-center gap-2 bg-[var(--surface-2)] p-2 rounded-xl border border-slate-200/80">
                         <div className="relative flex-1">
-                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
                           <Input
-                            className="h-8.5 text-xs pl-8.5 pr-3 rounded-lg border-slate-300 bg-white w-full"
+                            className="h-8.5 text-xs pl-8.5 pr-3 rounded-lg border-[var(--border)] bg-[var(--surface-elevated)] w-full"
                             placeholder="Search and add service from Master (e.g. Website, Mobile App, SEO, AMC)..."
                             value={serviceSearchQuery}
                             onChange={(e) => {
@@ -2230,7 +2230,7 @@ export function QuotationBuilderModal({
                               setServiceSearchQuery('');
                               setIsServiceDropdownOpen(false);
                             }}
-                            className="text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
+                            className="text-[var(--text-muted)] hover:text-[var(--text-muted)] p-1 rounded-md cursor-pointer"
                             title="Clear search"
                           >
                             <X size={14} />
@@ -2241,7 +2241,7 @@ export function QuotationBuilderModal({
                           variant="outline"
                           size="xs"
                           onClick={() => setIsServiceDropdownOpen((prev) => !prev)}
-                          className="h-8.5 px-3 rounded-lg text-xs font-semibold text-slate-800 bg-white hover:bg-slate-100 border-slate-300 shrink-0 inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                          className="h-8.5 px-3 rounded-lg text-xs font-semibold text-[var(--text-main)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-2)] border-[var(--border)] shrink-0 inline-flex items-center gap-1.5 shadow-2xs cursor-pointer"
                         >
                           <PlusCircle size={14} className="text-blue-600" />
                           <span>Browse Services</span>
@@ -2250,7 +2250,7 @@ export function QuotationBuilderModal({
 
                       {/* Search Suggestions Dropdown */}
                       {isServiceDropdownOpen && (
-                        <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
+                        <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-60 overflow-y-auto bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-xl divide-y divide-[var(--border)]">
                           {filteredMasterServices.length > 0 ? (
                             filteredMasterServices.map((svc) => {
                               const sPrice = Number(svc.defaultPrice ?? svc.payload?.defaultPrice ?? 0);
@@ -2268,11 +2268,11 @@ export function QuotationBuilderModal({
                                   <div className="flex items-center gap-2.5 min-w-0 pr-2">
                                     <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0" />
                                     <div className="min-w-0">
-                                      <div className="font-bold text-slate-900 group-hover:text-blue-700 truncate">
+                                      <div className="font-bold text-[var(--text-main)] group-hover:text-blue-700 truncate">
                                         {svc.name}
                                       </div>
                                       {(svc.category || svc.timeline) && (
-                                        <div className="text-[10px] text-slate-400 flex items-center gap-2 mt-0.5">
+                                        <div className="text-[10px] text-[var(--text-muted)] flex items-center gap-2 mt-0.5">
                                           {svc.category && <span>{svc.category}</span>}
                                           {svc.category && svc.timeline && <span>•</span>}
                                           {svc.timeline && <span>{svc.timeline}</span>}
@@ -2294,7 +2294,7 @@ export function QuotationBuilderModal({
                               );
                             })
                           ) : (
-                            <div className="p-4 text-center text-xs text-slate-400">
+                            <div className="p-4 text-center text-xs text-[var(--text-muted)]">
                               {serviceCatalog.length === 0
                                 ? 'No services found in Service Master catalog'
                                 : 'All matching services are already added'}
@@ -2316,20 +2316,20 @@ export function QuotationBuilderModal({
                             >
                               <div className="flex items-center gap-2.5 min-w-0 pr-2">
                                 <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
-                                <span className="text-xs font-bold text-slate-900 truncate" title={svcName}>
+                                <span className="text-xs font-bold text-[var(--text-main)] truncate" title={svcName}>
                                   {svcName}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 {price > 0 && (
-                                  <span className="font-mono font-bold text-xs text-emerald-700 bg-white border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
+                                  <span className="font-mono font-bold text-xs text-emerald-700 bg-[var(--surface-elevated)] border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
                                     {formatLeadAmount(price, currency)}
                                   </span>
                                 )}
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveService(svcName)}
-                                  className="text-slate-400 hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
+                                  className="text-[var(--text-muted)] hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
                                   title={`Remove ${svcName}`}
                                 >
                                   <X size={13} />
@@ -2340,15 +2340,15 @@ export function QuotationBuilderModal({
                         })}
                       </div>
                     ) : (
-                      <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/40">
-                        <p className="text-xs text-slate-400">No services selected. Search and add services from Service Master above.</p>
+                      <div className="text-center py-6 border-2 border-dashed border-[var(--border)] rounded-xl bg-slate-50/40">
+                        <p className="text-xs text-[var(--text-muted)]">No services selected. Search and add services from Service Master above.</p>
                       </div>
                     )}
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Proposal Issue Date</label>
+                      <label className="text-xs font-bold text-[var(--text-main)]">Proposal Issue Date</label>
                       <Input
                         type="date"
                         className="h-10 text-xs"
@@ -2357,7 +2357,7 @@ export function QuotationBuilderModal({
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Quotation Validity Until</label>
+                      <label className="text-xs font-bold text-[var(--text-main)]">Quotation Validity Until</label>
                       <Input
                         type="date"
                         className="h-10 text-xs"
@@ -2369,9 +2369,9 @@ export function QuotationBuilderModal({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Quotation Status</label>
+                      <label className="text-xs font-bold text-[var(--text-main)]">Quotation Status</label>
                       <select
-                        className="w-full h-10 px-3 py-2 text-xs font-semibold bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full h-10 px-3 py-2 text-xs font-semibold bg-[var(--surface-elevated)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={formData.status}
                         onChange={(e) => setField('status', e.target.value)}
                       >
@@ -2385,7 +2385,7 @@ export function QuotationBuilderModal({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Target Delivery Timeline</label>
+                      <label className="text-xs font-bold text-[var(--text-main)]">Target Delivery Timeline</label>
                       <Input
                         className="h-10 text-xs"
                         placeholder="e.g. 4 - 6 Weeks (Standard Sprints)"
@@ -2396,10 +2396,10 @@ export function QuotationBuilderModal({
                   </div>
 
                   <div className="space-y-1.5 pt-2">
-                    <label className="text-xs font-bold text-slate-700">Client Requirements &amp; Project Background</label>
+                    <label className="text-xs font-bold text-[var(--text-main)]">Client Requirements &amp; Project Background</label>
                     <textarea
                       rows={3}
-                      className="w-full p-3 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full p-3 text-xs border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Outline client objectives, pain points, or specific technical criteria..."
                       value={formData.comments}
                       onChange={(e) => setField('comments', e.target.value)}
@@ -2415,13 +2415,13 @@ export function QuotationBuilderModal({
             {currentStep === 2 && (
               <div className="space-y-5">
                 {/* 1-Click Agency Packages */}
-                <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-3">
+                <Card className="p-4 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-1.5">
                       <Sparkles size={14} className="text-amber-500" />
                       1-Click Industry Solution Packages
                     </span>
-                    <span className="text-[11px] text-slate-400">Replaces scope &amp; schedule automatically</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">Replaces scope &amp; schedule automatically</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                     {QUOTATION_PACKAGE_PRESETS.map((pkg) => (
@@ -2429,17 +2429,17 @@ export function QuotationBuilderModal({
                         key={pkg.id}
                         type="button"
                         onClick={() => handleApplyPackagePreset(pkg)}
-                        className="p-3 text-left border border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer group"
+                        className="p-3 text-left border border-[var(--border)] rounded-xl hover:border-blue-500 hover:bg-blue-50/50 transition-all cursor-pointer group"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-bold text-blue-700 bg-blue-100/70 px-1.5 py-0.5 rounded">
                             {pkg.badge}
                           </span>
-                          <span className="text-xs font-extrabold text-slate-900 font-mono">
+                          <span className="text-xs font-extrabold text-[var(--text-main)] font-mono">
                             {formatLeadAmount(pkg.amount, currency)}
                           </span>
                         </div>
-                        <div className="text-xs font-bold text-slate-900 group-hover:text-blue-700 truncate">
+                        <div className="text-xs font-bold text-[var(--text-main)] group-hover:text-blue-700 truncate">
                           {pkg.name}
                         </div>
                       </button>
@@ -2448,14 +2448,14 @@ export function QuotationBuilderModal({
                 </Card>
 
                 {/* Deliverables Line Items Table */}
-                <Card className="p-5 bg-white border-slate-200 shadow-2xs space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <Card className="p-5 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
                     <div>
-                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                         <Layers size={16} className="text-blue-600" />
                         Commercial Deliverables &amp; Work Breakdown
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Itemized modules contributing to the project investment</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Itemized modules contributing to the project investment</p>
                     </div>
                     <Button
                       type="button"
@@ -2470,9 +2470,9 @@ export function QuotationBuilderModal({
                   {formData.items?.length > 0 ? (
                     <div className="space-y-3">
                       {formData.items.map((item, idx) => (
-                        <div key={item.id || idx} className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2.5">
+                        <div key={item.id || idx} className="p-3.5 bg-slate-50/80 border border-[var(--border)] rounded-xl space-y-2.5">
                           <div className="flex items-start gap-2.5">
-                            <span className="w-6 h-6 rounded-md bg-slate-200 text-slate-700 font-mono font-bold text-xs flex items-center justify-center shrink-0 mt-1">
+                            <span className="w-6 h-6 rounded-md bg-[var(--surface-3)] text-[var(--text-main)] font-mono font-bold text-xs flex items-center justify-center shrink-0 mt-1">
                               {idx + 1}
                             </span>
                             <div className="flex-1 grid grid-cols-1 sm:grid-cols-12 gap-2.5">
@@ -2503,7 +2503,7 @@ export function QuotationBuilderModal({
                                 />
                               </div>
                               <div className="sm:col-span-2 flex items-center justify-between">
-                                <span className="font-mono font-bold text-xs text-slate-900">
+                                <span className="font-mono font-bold text-xs text-[var(--text-main)]">
                                   {formatLeadAmount(item.amount || (item.qty * item.rate), currency)}
                                 </span>
                                 <button
@@ -2517,7 +2517,7 @@ export function QuotationBuilderModal({
                             </div>
                           </div>
                           <Input
-                            className="h-8 text-[11px] text-slate-600 bg-white"
+                            className="h-8 text-[11px] text-[var(--text-muted)] bg-[var(--surface-elevated)]"
                             placeholder="Detailed deliverable specification, inclusions, and handoff criteria..."
                             value={item.description}
                             onChange={(e) => updateDeliverableItem(idx, 'description', e.target.value)}
@@ -2526,8 +2526,8 @@ export function QuotationBuilderModal({
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
-                      <p className="text-xs text-slate-500 mb-2">No line-item deliverables added yet.</p>
+                    <div className="text-center py-6 border-2 border-dashed border-[var(--border)] rounded-xl">
+                      <p className="text-xs text-[var(--text-muted)] mb-2">No line-item deliverables added yet.</p>
                       <Button type="button" size="xs" variant="outline" onClick={addDeliverableItem}>
                         <Plus size={13} className="mr-1" /> Add First Deliverable
                       </Button>
@@ -2537,15 +2537,15 @@ export function QuotationBuilderModal({
                 </Card>
 
                 {/* Complete Feature List Card (Service-wise & Compact) */}
-                <Card className="p-5 bg-white border-slate-200 shadow-2xs space-y-3.5 rounded-2xl">
+                <Card className="p-5 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-3.5 rounded-2xl">
                   {/* Header */}
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
                     <div>
-                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                         <Layers size={16} className="text-blue-600" />
                         Complete Feature List
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
                         Grouped service-wise from Service Master. Add or remove features for this quotation.
                       </p>
                     </div>
@@ -2555,12 +2555,12 @@ export function QuotationBuilderModal({
                   </div>
 
                   {/* Compact Add Feature Input Row */}
-                  <div className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center gap-2 bg-[var(--surface-2)] p-2 rounded-xl border border-slate-200/80">
                     {availableFeatureServices.length > 1 && (
                       <select
                         value={selectedFeatureService || availableFeatureServices[0] || ''}
                         onChange={(e) => setSelectedFeatureService(e.target.value)}
-                        className="h-8 px-2.5 text-xs font-semibold bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 shrink-0 max-w-[200px] truncate"
+                        className="h-8 px-2.5 text-xs font-semibold bg-[var(--surface-elevated)] border border-[var(--border)] rounded-lg text-[var(--text-main)] focus:outline-none focus:ring-1 focus:ring-blue-500 shrink-0 max-w-[200px] truncate"
                       >
                         {availableFeatureServices.map((svc) => (
                           <option key={svc} value={svc}>{svc}</option>
@@ -2568,7 +2568,7 @@ export function QuotationBuilderModal({
                       </select>
                     )}
                     <Input
-                      className="h-8 text-xs px-3 rounded-lg border-slate-300 bg-white flex-1"
+                      className="h-8 text-xs px-3 rounded-lg border-[var(--border)] bg-[var(--surface-elevated)] flex-1"
                       placeholder={`Add extra feature to ${selectedFeatureService || availableFeatureServices[0] || 'service'}...`}
                       value={featureDraft}
                       onChange={(e) => setFeatureDraft(e.target.value)}
@@ -2584,9 +2584,9 @@ export function QuotationBuilderModal({
                       variant="outline"
                       size="xs"
                       onClick={addFeature}
-                      className="h-8 px-3 rounded-lg text-xs font-semibold text-slate-800 bg-white hover:bg-slate-100 border-slate-300 shrink-0 inline-flex items-center gap-1 shadow-2xs cursor-pointer"
+                      className="h-8 px-3 rounded-lg text-xs font-semibold text-[var(--text-main)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-2)] border-[var(--border)] shrink-0 inline-flex items-center gap-1 shadow-2xs cursor-pointer"
                     >
-                      <PlusCircle size={14} className="text-slate-600" />
+                      <PlusCircle size={14} className="text-[var(--text-muted)]" />
                       <span>Add feature</span>
                     </Button>
                   </div>
@@ -2603,11 +2603,11 @@ export function QuotationBuilderModal({
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0">
                               <span className="w-2 h-2 rounded-full bg-[var(--primary)] shrink-0" />
-                              <h4 className="text-xs font-extrabold text-slate-900 tracking-tight truncate">
+                              <h4 className="text-xs font-extrabold text-[var(--text-main)] tracking-tight truncate">
                                 {serviceName}
                               </h4>
                             </div>
-                            <span className="text-[10px] font-bold text-slate-500 bg-white border border-slate-200/80 px-2 py-0.5 rounded-full shrink-0">
+                            <span className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-elevated)] border border-slate-200/80 px-2 py-0.5 rounded-full shrink-0">
                               {feats.length} {feats.length === 1 ? 'feature' : 'features'}
                             </span>
                           </div>
@@ -2617,18 +2617,18 @@ export function QuotationBuilderModal({
                             {feats.map((feat) => (
                               <div
                                 key={feat.globalIndex}
-                                className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white hover:bg-blue-50/40 border border-slate-200/70 transition-colors group"
+                                className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[var(--surface-elevated)] hover:bg-blue-50/40 border border-slate-200/70 transition-colors group"
                               >
                                 <div className="flex items-center gap-2 min-w-0 pr-1.5">
                                   <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
-                                  <span className="text-xs font-medium text-slate-800 truncate" title={feat.text}>
+                                  <span className="text-xs font-medium text-[var(--text-main)] truncate" title={feat.text}>
                                     {feat.text}
                                   </span>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => removeFeature(feat.globalIndex)}
-                                  className="text-slate-400 hover:text-red-500 p-0.5 rounded transition-colors shrink-0 cursor-pointer"
+                                  className="text-[var(--text-muted)] hover:text-red-500 p-0.5 rounded transition-colors shrink-0 cursor-pointer"
                                   title="Remove feature"
                                 >
                                   <X size={12} />
@@ -2640,8 +2640,8 @@ export function QuotationBuilderModal({
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-xl">
-                      <p className="text-xs text-slate-400">No features added yet. Type a feature above or select services.</p>
+                    <div className="text-center py-6 border-2 border-dashed border-[var(--border)] rounded-xl">
+                      <p className="text-xs text-[var(--text-muted)]">No features added yet. Type a feature above or select services.</p>
                     </div>
                   )}
                 </Card>
@@ -2654,13 +2654,13 @@ export function QuotationBuilderModal({
             {currentStep === 3 && (
               <div className="space-y-3.5 sm:space-y-4">
                 {/* 1. Scope of Work & Solution Architecture Narrative (FIRST) */}
-                <Card className="p-3.5 sm:p-4 bg-white border-slate-200 shadow-2xs space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <Card className="p-3.5 sm:p-4 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                       <FileText size={16} className="text-blue-600" />
                       Scope of Work &amp; Solution Architecture Narrative
                     </h3>
-                    <span className="text-[11px] text-slate-400">Technical boundaries &amp; core delivery scope</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">Technical boundaries &amp; core delivery scope</span>
                   </div>
                   <div>
                     <RichTextEditor
@@ -2674,18 +2674,18 @@ export function QuotationBuilderModal({
                 </Card>
 
                 {/* 2. Post-Launch Warranty & Operational Handover (SECOND) */}
-                <Card className="p-3.5 sm:p-4 bg-white border-slate-200 shadow-2xs space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <Card className="p-3.5 sm:p-4 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-2.5">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-2">
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                       <ShieldCheck size={16} className="text-emerald-600" />
                       Post-Launch Warranty &amp; Operational Handover
                     </h3>
-                    <span className="text-[11px] text-slate-400">Complimentary warranty, admin training &amp; handover commitments</span>
+                    <span className="text-[11px] text-[var(--text-muted)]">Complimentary warranty, admin training &amp; handover commitments</span>
                   </div>
                   <div className="space-y-1.5">
                     <textarea
                       style={{ minHeight: '300px', height: '300px' }}
-                      className="w-full p-3.5 text-xs font-medium text-slate-800 leading-relaxed border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs resize-y"
+                      className="w-full p-3.5 text-xs font-medium text-[var(--text-main)] leading-relaxed border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs resize-y"
                       placeholder="Complimentary bug-fix warranty terms, training sessions, and transition commitments..."
                       value={formData.afterCompletion}
                       onChange={(e) => setField('afterCompletion', e.target.value)}
@@ -2694,28 +2694,28 @@ export function QuotationBuilderModal({
                 </Card>
 
                 {/* 3. Technology Stack & Infrastructure (THIRD - with Icons, Tier Categories & Service-wise Views) */}
-                <Card className="p-3.5 sm:p-4 bg-white border-slate-200 shadow-2xs space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <Card className="p-3.5 sm:p-4 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
                     <div>
-                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                         <Cpu size={16} className="text-blue-600" />
                         Technology Stack &amp; Infrastructure
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
                         {parsedTechItems.length} active technologies across {formData.serviceNames?.length || 0} selected services
                       </p>
                     </div>
 
                     {/* View Mode Toggle: Architecture Tiers vs Service-Wise vs Raw Editor + Search/Add Tech Icon */}
                     <div className="flex items-center gap-1.5 self-start sm:self-auto">
-                      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200/60">
+                      <div className="flex items-center gap-1 bg-[var(--surface-2)] p-1 rounded-xl border border-slate-200/60">
                         <button
                           type="button"
                           onClick={() => setTechViewTab('tiers')}
                           className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                             techViewTab === 'tiers'
-                              ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                              : 'text-slate-600 hover:text-slate-900'
+                              ? 'bg-[var(--surface-elevated)] text-[var(--text-main)] shadow-2xs font-bold'
+                              : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                           }`}
                         >
                           Architecture Tiers
@@ -2725,8 +2725,8 @@ export function QuotationBuilderModal({
                           onClick={() => setTechViewTab('services')}
                           className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                             techViewTab === 'services'
-                              ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                              : 'text-slate-600 hover:text-slate-900'
+                              ? 'bg-[var(--surface-elevated)] text-[var(--text-main)] shadow-2xs font-bold'
+                              : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                           }`}
                         >
                           Service-Wise
@@ -2736,8 +2736,8 @@ export function QuotationBuilderModal({
                           onClick={() => setTechViewTab('text')}
                           className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                             techViewTab === 'text'
-                              ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                              : 'text-slate-600 hover:text-slate-900'
+                              ? 'bg-[var(--surface-elevated)] text-[var(--text-main)] shadow-2xs font-bold'
+                              : 'text-[var(--text-muted)] hover:text-[var(--text-main)]'
                           }`}
                         >
                           Raw Editor
@@ -2749,7 +2749,7 @@ export function QuotationBuilderModal({
                             setNewTechInput('');
                             setIsTechModalOpen(true);
                           }}
-                          className="w-7 h-7 flex items-center justify-center text-blue-600 hover:text-blue-700 hover:bg-white rounded-lg transition-all shadow-2xs border border-transparent hover:border-slate-200/80 cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center text-blue-600 hover:text-blue-700 hover:bg-[var(--surface-elevated)] rounded-lg transition-all shadow-2xs border border-transparent hover:border-slate-200/80 cursor-pointer"
                           title="Search & Add Technologies (150+ CRM Catalog)"
                           aria-label="Search and Add Technologies"
                         >
@@ -2771,7 +2771,7 @@ export function QuotationBuilderModal({
                             className={`p-3.5 rounded-xl border ${
                               tier.id === 'others'
                                 ? 'bg-indigo-50/40 border-indigo-200/80'
-                                : items.length ? 'bg-slate-50/70 border-slate-200' : 'bg-slate-50/30 border-dashed border-slate-200'
+                                : items.length ? 'bg-slate-50/70 border-[var(--border)]' : 'bg-slate-50/30 border-dashed border-[var(--border)]'
                             } space-y-2.5 transition-all`}
                           >
                             <div className="flex items-center justify-between">
@@ -2782,12 +2782,12 @@ export function QuotationBuilderModal({
                                 >
                                   <TierIcon size={14} />
                                 </span>
-                                <span className="text-xs font-bold text-slate-800">{tier.shortTitle}</span>
+                                <span className="text-xs font-bold text-[var(--text-main)]">{tier.shortTitle}</span>
                               </div>
                               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
                                 tier.id === 'others'
                                   ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
-                                  : 'bg-white border-slate-200 text-slate-600'
+                                  : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--text-muted)]'
                               }`}>
                                 {items.length}
                               </span>
@@ -2800,7 +2800,7 @@ export function QuotationBuilderModal({
                                 ))}
                               </div>
                             ) : (
-                              <p className="text-[11px] text-slate-400 italic">No {tier.shortTitle.toLowerCase()} tech specified</p>
+                              <p className="text-[11px] text-[var(--text-muted)] italic">No {tier.shortTitle.toLowerCase()} tech specified</p>
                             )}
                           </div>
                         );
@@ -2817,13 +2817,13 @@ export function QuotationBuilderModal({
                             <div
                               key={svc.serviceName}
                               className={`p-3.5 border rounded-xl space-y-2.5 ${
-                                svc.isCustom ? 'bg-indigo-50/40 border-indigo-200/80' : 'bg-slate-50/80 border-slate-200'
+                                svc.isCustom ? 'bg-indigo-50/40 border-indigo-200/80' : 'bg-slate-50/80 border-[var(--border)]'
                               }`}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                   <span className={`w-2 h-2 rounded-full ${svc.isCustom ? 'bg-indigo-600' : 'bg-blue-600'}`} />
-                                  <h4 className="text-xs font-bold text-slate-900 truncate max-w-[220px]" title={svc.serviceName}>
+                                  <h4 className="text-xs font-bold text-[var(--text-main)] truncate max-w-[220px]" title={svc.serviceName}>
                                     {svc.serviceName}
                                   </h4>
                                 </div>
@@ -2842,13 +2842,13 @@ export function QuotationBuilderModal({
                                   ))}
                                 </div>
                               ) : (
-                                <p className="text-[11px] text-slate-400 italic">No specific technologies linked to this service</p>
+                                <p className="text-[11px] text-[var(--text-muted)] italic">No specific technologies linked to this service</p>
                               )}
                             </div>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-slate-400 italic py-4 text-center">No services selected in Step 1</p>
+                        <p className="text-xs text-[var(--text-muted)] italic py-4 text-center">No services selected in Step 1</p>
                       )}
                     </div>
                   )}
@@ -2858,21 +2858,21 @@ export function QuotationBuilderModal({
                     <div className="space-y-2">
                       <textarea
                         rows={4}
-                        className="w-full p-3.5 text-xs font-mono text-slate-800 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs leading-relaxed"
+                        className="w-full p-3.5 text-xs font-mono text-[var(--text-main)] border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs leading-relaxed"
                         placeholder="Comma or line-separated list of technologies..."
                         value={formData.technologyStack}
                         onChange={(e) => setField('technologyStack', e.target.value)}
                       />
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-[var(--text-muted)]">
                         Edit comma or line-separated technologies directly. All tier cards, service badges, and icons will update in real time.
                       </p>
                     </div>
                   )}
 
                   {/* QUICK ADD & CATALOG BROWSE FOOTER */}
-                  <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <div className="pt-3 border-t border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[11px] font-bold text-slate-500 flex items-center gap-1">
+                      <span className="text-[11px] font-bold text-[var(--text-muted)] flex items-center gap-1">
                         <Sparkles size={11} className="text-amber-500" /> Quick Add:
                       </span>
                       {POPULAR_TECH_SUGGESTIONS.slice(0, 6).map((suggestion) => {
@@ -2883,7 +2883,7 @@ export function QuotationBuilderModal({
                             key={suggestion}
                             type="button"
                             onClick={() => handleAddTech(suggestion)}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-600 border border-slate-200/80 transition-colors cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[var(--surface-2)] hover:bg-blue-50 hover:text-blue-700 text-[var(--text-muted)] border border-slate-200/80 transition-colors cursor-pointer"
                           >
                             <Plus size={10} />
                             {suggestion}
@@ -2914,25 +2914,25 @@ export function QuotationBuilderModal({
                     }}
                   >
                     <div
-                      className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+                      className="bg-[var(--surface-elevated)] rounded-2xl shadow-2xl border border-[var(--border)] w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {/* Modal Header */}
-                      <div className="px-5 py-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                      <div className="px-5 py-3.5 border-b border-[var(--border)] flex items-center justify-between bg-slate-50/70">
                         <div className="flex items-center gap-2.5">
                           <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shadow-2xs shrink-0">
                             <Search size={17} strokeWidth={2.2} />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm md:text-base font-bold text-slate-900">
+                              <h3 className="text-sm md:text-base font-bold text-[var(--text-main)]">
                                 Search &amp; Add Technologies
                               </h3>
                               <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                                 150+ CRM Catalog
                               </span>
                             </div>
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-[var(--text-muted)]">
                               Browse enterprise technology stacks or type a custom technology
                             </p>
                           </div>
@@ -2940,7 +2940,7 @@ export function QuotationBuilderModal({
                         <button
                           type="button"
                           onClick={() => setIsTechModalOpen(false)}
-                          className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:text-red-600 bg-white hover:bg-red-50 border border-slate-200 hover:border-red-200 transition-all shadow-2xs cursor-pointer shrink-0"
+                          className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:text-red-600 bg-[var(--surface-elevated)] hover:bg-red-50 border border-[var(--border)] hover:border-red-200 transition-all shadow-2xs cursor-pointer shrink-0"
                           title="Close"
                           aria-label="Close"
                         >
@@ -2949,9 +2949,9 @@ export function QuotationBuilderModal({
                       </div>
 
                       {/* Search Bar & Category Filters */}
-                      <div className="p-4 border-b border-slate-100 space-y-3 bg-white">
+                      <div className="p-4 border-b border-[var(--border)] space-y-3 bg-[var(--surface-elevated)]">
                         <div className="relative flex items-center">
-                          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
                           <input
                             type="text"
                             autoFocus
@@ -2972,13 +2972,13 @@ export function QuotationBuilderModal({
                                 setIsTechModalOpen(false);
                               }
                             }}
-                            className="w-full pl-10 pr-9 py-2 text-xs md:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all shadow-2xs font-medium placeholder:text-slate-400"
+                            className="w-full pl-10 pr-9 py-2 text-xs md:text-sm bg-[var(--surface-2)] border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-[var(--surface-elevated)] transition-all shadow-2xs font-medium placeholder:text-[var(--text-muted)]"
                           />
                           {newTechInput && (
                             <button
                               type="button"
                               onClick={() => setNewTechInput('')}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md cursor-pointer"
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-muted)] p-1 rounded-md cursor-pointer"
                               title="Clear"
                             >
                               <X size={13} />
@@ -3005,7 +3005,7 @@ export function QuotationBuilderModal({
                                 Add <span className="font-bold underline decoration-blue-500">"{newTechInput.trim()}"</span> as custom tech (Others)
                               </span>
                             </div>
-                            <span className="text-[10px] font-bold text-blue-700 bg-white px-2 py-0.5 rounded-md border border-blue-200 shadow-2xs shrink-0">
+                            <span className="text-[10px] font-bold text-blue-700 bg-[var(--surface-elevated)] px-2 py-0.5 rounded-md border border-blue-200 shadow-2xs shrink-0">
                               Press Enter ↵
                             </span>
                           </button>
@@ -3021,7 +3021,7 @@ export function QuotationBuilderModal({
                               className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all cursor-pointer ${
                                 techCategoryFilter === cat.id
                                   ? 'bg-blue-600 text-white shadow-xs'
-                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 border border-slate-200/60'
+                                  : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-slate-200/80 border border-slate-200/60'
                               }`}
                             >
                               {cat.label}
@@ -3044,21 +3044,21 @@ export function QuotationBuilderModal({
                                   className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
                                     isAdded
                                       ? 'bg-emerald-50/60 border-emerald-200/80'
-                                      : 'bg-white hover:bg-slate-50/80 border-slate-200/80'
+                                      : 'bg-[var(--surface-elevated)] hover:bg-slate-50/80 border-slate-200/80'
                                   }`}
                                 >
                                   <div className="flex items-center gap-2.5 min-w-0 pr-2">
                                     <span
-                                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-slate-200/80 bg-white shadow-2xs"
+                                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-slate-200/80 bg-[var(--surface-elevated)] shadow-2xs"
                                       style={{ color: iconData.color || '#475569' }}
                                     >
                                       <IconComp size={15} />
                                     </span>
                                     <div className="min-w-0">
-                                      <div className="font-bold text-xs truncate text-slate-800">
+                                      <div className="font-bold text-xs truncate text-[var(--text-main)]">
                                         {t.name}
                                       </div>
-                                      <div className="text-[10px] text-slate-400 capitalize truncate">
+                                      <div className="text-[10px] text-[var(--text-muted)] capitalize truncate">
                                         {t.category}
                                       </div>
                                     </div>
@@ -3091,11 +3091,11 @@ export function QuotationBuilderModal({
                           </div>
                         ) : (
                           <div className="py-12 text-center space-y-2">
-                            <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                            <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] text-[var(--text-muted)] flex items-center justify-center mx-auto">
                               <Search size={18} />
                             </div>
-                            <p className="text-xs font-bold text-slate-700">No matching technologies in CRM catalog</p>
-                            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                            <p className="text-xs font-bold text-[var(--text-main)]">No matching technologies in CRM catalog</p>
+                            <p className="text-[11px] text-[var(--text-muted)] max-w-sm mx-auto">
                               Type above to add "{newTechInput.trim()}" as a custom technology to this quotation.
                             </p>
                           </div>
@@ -3103,8 +3103,8 @@ export function QuotationBuilderModal({
                       </div>
 
                       {/* Footer */}
-                      <div className="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                      <div className="px-5 py-3 border-t border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-[var(--text-muted)]">
                           <span className="w-2 h-2 rounded-full bg-blue-600" />
                           <span>
                             <strong>{parsedTechItems.length}</strong> technologies active in quotation
@@ -3130,9 +3130,9 @@ export function QuotationBuilderModal({
             {currentStep === 4 && (
               <div className="space-y-5">
                 {/* Costing & Tax Configuration Card */}
-                <Card className="p-5 bg-white border-slate-200 shadow-2xs space-y-4">
-                  <div className="border-b border-slate-100 pb-3">
-                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                <Card className="p-5 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-4">
+                  <div className="border-b border-[var(--border)] pb-3">
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                       <Calculator size={16} className="text-blue-600" />
                       Commercial Valuation, Discounts &amp; Statutory GST
                     </h3>
@@ -3140,7 +3140,7 @@ export function QuotationBuilderModal({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-slate-700">Base Quotation Amount (₹) *</label>
+                      <label className="text-xs font-bold text-[var(--text-main)]">Base Quotation Amount (₹) *</label>
                       <Input
                         type="number"
                         className="h-10 text-sm font-bold font-mono"
@@ -3152,7 +3152,7 @@ export function QuotationBuilderModal({
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700">Special Discount</label>
+                        <label className="text-xs font-bold text-[var(--text-main)]">Special Discount</label>
                         <input
                           type="checkbox"
                           checked={formData.discountEnabled}
@@ -3163,7 +3163,7 @@ export function QuotationBuilderModal({
                       <div className="flex gap-2">
                         <select
                           disabled={!formData.discountEnabled}
-                          className="w-24 h-10 px-2 text-xs bg-slate-50 border border-slate-300 rounded-lg disabled:opacity-50"
+                          className="w-24 h-10 px-2 text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg disabled:opacity-50"
                           value={formData.discountType}
                           onChange={(e) => setField('discountType', e.target.value)}
                         >
@@ -3183,7 +3183,7 @@ export function QuotationBuilderModal({
 
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-slate-700">Statutory GST</label>
+                        <label className="text-xs font-bold text-[var(--text-main)]">Statutory GST</label>
                         <input
                           type="checkbox"
                           checked={formData.gstApplicable}
@@ -3193,7 +3193,7 @@ export function QuotationBuilderModal({
                       </div>
                       <select
                         disabled={!formData.gstApplicable}
-                        className="w-full h-10 px-3 text-xs bg-slate-50 border border-slate-300 rounded-lg disabled:opacity-50 font-semibold"
+                        className="w-full h-10 px-3 text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg disabled:opacity-50 font-semibold"
                         value={formData.gstRate}
                         onChange={(e) => setField('gstRate', e.target.value)}
                       >
@@ -3206,27 +3206,27 @@ export function QuotationBuilderModal({
                   </div>
 
                   {/* Statutory Tax Resolution Pill */}
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between text-xs">
+                  <div className="p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl flex items-center justify-between text-xs">
                     <div>
-                      <span className="font-bold text-slate-700">Tax Regime Applied:</span>{' '}
+                      <span className="font-bold text-[var(--text-main)]">Tax Regime Applied:</span>{' '}
                       <span className="font-semibold text-blue-700">{commercialTotals.taxLabel}</span>{' '}
-                      <span className="text-slate-400">({commercialTotals.taxSummary})</span>
+                      <span className="text-[var(--text-muted)]">({commercialTotals.taxSummary})</span>
                     </div>
-                    <div className="font-mono font-bold text-slate-900">
+                    <div className="font-mono font-bold text-[var(--text-main)]">
                       GST: {formatLeadAmount(commercialTotals.gstAmount, currency)}
                     </div>
                   </div>
                 </Card>
 
                 {/* Centralized Payment Milestone Engine */}
-                <Card className="p-5 bg-white border-slate-200 shadow-2xs space-y-4">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <Card className="p-5 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
                     <div>
-                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                         <DollarSign size={16} className="text-blue-600" />
                         Disbursement Milestones Engine (Must = 100%)
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Stage-gate commercial disbursement schedule</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Stage-gate commercial disbursement schedule</p>
                     </div>
                     <Badge
                       className={`text-xs font-bold ${
@@ -3241,14 +3241,14 @@ export function QuotationBuilderModal({
 
                   {/* Milestone Presets */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-700">Quick Milestone Presets (Replaces Schedule Cleanly):</label>
+                    <label className="text-xs font-bold text-[var(--text-main)]">Quick Milestone Presets (Replaces Schedule Cleanly):</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {MILESTONE_PRESETS.map((preset) => (
                         <button
                           key={preset.id}
                           type="button"
                           onClick={() => applyMilestonePreset(preset)}
-                          className="px-3 py-2 text-left text-xs font-semibold border border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="px-3 py-2 text-left text-xs font-semibold border border-[var(--border)] rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors cursor-pointer"
                         >
                           {preset.name}
                         </button>
@@ -3259,15 +3259,15 @@ export function QuotationBuilderModal({
                   {/* Active Milestones Table */}
                   <div className="space-y-2 pt-2">
                     {formData.milestones?.map((ms, idx) => (
-                      <div key={ms.id || idx} className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                      <div key={ms.id || idx} className="flex items-center justify-between p-3 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl text-xs">
                         <div className="flex items-center gap-3">
                           <span className="font-mono font-bold bg-[#0f172a] text-white px-2 py-0.5 rounded text-[11px]">
                             MS-{String(idx + 1).padStart(2, '0')}
                           </span>
                           <div>
-                            <div className="font-bold text-slate-900">{ms.name}</div>
+                            <div className="font-bold text-[var(--text-main)]">{ms.name}</div>
                             {ms.dueEvent && ms.dueEvent !== ms.name && (
-                              <div className="text-[10.5px] text-slate-500">Condition: {ms.dueEvent}</div>
+                              <div className="text-[10.5px] text-[var(--text-muted)]">Condition: {ms.dueEvent}</div>
                             )}
                           </div>
                         </div>
@@ -3278,7 +3278,7 @@ export function QuotationBuilderModal({
                           <button
                             type="button"
                             onClick={() => removeMilestone(idx)}
-                            className="text-slate-400 hover:text-red-500 cursor-pointer p-1"
+                            className="text-[var(--text-muted)] hover:text-red-500 cursor-pointer p-1"
                           >
                             <Trash2 size={13} />
                           </button>
@@ -3293,7 +3293,7 @@ export function QuotationBuilderModal({
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                       <div className="sm:col-span-5">
                         <Input
-                          className="h-8 text-xs bg-white"
+                          className="h-8 text-xs bg-[var(--surface-elevated)]"
                           placeholder="Milestone title (e.g. Beta Demonstration)"
                           value={customMilestone.name}
                           onChange={(e) => setCustomMilestone((m) => ({ ...m, name: e.target.value }))}
@@ -3302,7 +3302,7 @@ export function QuotationBuilderModal({
                       <div className="sm:col-span-2">
                         <Input
                           type="number"
-                          className="h-8 text-xs bg-white font-mono"
+                          className="h-8 text-xs bg-[var(--surface-elevated)] font-mono"
                           placeholder="Percentage %"
                           value={customMilestone.percentage}
                           onChange={(e) => setCustomMilestone((m) => ({ ...m, percentage: e.target.value }))}
@@ -3310,7 +3310,7 @@ export function QuotationBuilderModal({
                       </div>
                       <div className="sm:col-span-4">
                         <Input
-                          className="h-8 text-xs bg-white"
+                          className="h-8 text-xs bg-[var(--surface-elevated)]"
                           placeholder="Trigger event / Due condition"
                           value={customMilestone.dueEvent}
                           onChange={(e) => setCustomMilestone((m) => ({ ...m, dueEvent: e.target.value }))}
@@ -3337,18 +3337,18 @@ export function QuotationBuilderModal({
                   const enabledCount = list.filter((a) => a.enabled).length;
 
                   return (
-                    <div className="rounded-2xl border border-blue-200 bg-white p-5 space-y-4 shadow-2xs">
+                    <div className="rounded-2xl border border-blue-200 bg-[var(--surface-elevated)] p-5 space-y-4 shadow-2xs">
                       {/* Top Header */}
                       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                         <div>
-                          <div className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                          <div className="flex items-center gap-2 text-sm font-bold text-[var(--text-main)]">
                             <Scale size={18} className="text-blue-600 shrink-0" />
                             <span>Legal Agreements &amp; Compliance Clauses</span>
-                            <span className="text-xs font-normal text-slate-400">
+                            <span className="text-xs font-normal text-[var(--text-muted)]">
                               (Rendered at End of Quotation)
                             </span>
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-xs text-[var(--text-muted)] mt-1">
                             Select which IT company agreements to attach to this quotation. Toggle ON or OFF for each agreement.
                           </p>
                         </div>
@@ -3359,7 +3359,7 @@ export function QuotationBuilderModal({
                               className={`text-xs font-semibold px-3 py-1 rounded-full border ${
                                 enabledCount > 0
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                  : "bg-slate-100 text-slate-600 border-slate-200"
+                                  : "bg-[var(--surface-2)] text-[var(--text-muted)] border-[var(--border)]"
                               }`}
                             >
                               {enabledCount} of {list.length} Included
@@ -3368,7 +3368,7 @@ export function QuotationBuilderModal({
                             <button
                               type="button"
                               onClick={() => toggleAllAgreements(true)}
-                              className="px-3.5 py-1 text-xs font-medium rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                              className="px-3.5 py-1 text-xs font-medium rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-2)] text-[var(--text-main)] shadow-2xs transition-colors cursor-pointer"
                               title="Include all agreements in quotation"
                             >
                               Include All
@@ -3377,7 +3377,7 @@ export function QuotationBuilderModal({
                             <button
                               type="button"
                               onClick={() => toggleAllAgreements(false)}
-                              className="px-3.5 py-1 text-xs font-medium rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                              className="px-3.5 py-1 text-xs font-medium rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-2)] text-[var(--text-main)] shadow-2xs transition-colors cursor-pointer"
                               title="Exclude all agreements from quotation"
                             >
                               Exclude All
@@ -3387,17 +3387,17 @@ export function QuotationBuilderModal({
                           <button
                             type="button"
                             onClick={resetAllAgreementsFromMaster}
-                            className="px-3.5 py-1 text-xs font-medium rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                            className="px-3.5 py-1 text-xs font-medium rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-2)] text-[var(--text-main)] shadow-2xs transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                             title="Reset all agreements to master templates"
                           >
-                            <RotateCcw size={12} className="text-slate-500" />
+                            <RotateCcw size={12} className="text-[var(--text-muted)]" />
                             <span>Reset Defaults</span>
                           </button>
                         </div>
                       </div>
 
                       {/* Filter and Search Bar */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--border)]">
                         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
                           {legalCategories.map((cat) => {
                             const isActive = legalCategoryFilter === cat;
@@ -3409,7 +3409,7 @@ export function QuotationBuilderModal({
                                 className={`px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors cursor-pointer ${
                                   isActive
                                     ? "bg-blue-600 text-white shadow-2xs"
-                                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                                    : "bg-[var(--surface-elevated)] text-[var(--text-muted)] border border-[var(--border)] hover:bg-[var(--surface-2)]"
                                 }`}
                               >
                                 {cat}
@@ -3419,19 +3419,19 @@ export function QuotationBuilderModal({
                         </div>
 
                         <div className="relative w-64 shrink-0">
-                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                           <input
                             type="text"
                             value={legalSearch}
                             onChange={(e) => setLegalSearch(e.target.value)}
                             placeholder="Search agreements (NDA, SOW, IP...)"
-                            className="w-full pl-8.5 pr-8 py-1.5 text-xs rounded-full border border-slate-200 bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all"
+                            className="w-full pl-8.5 pr-8 py-1.5 text-xs rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--text-main)] placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-all"
                           />
                           {legalSearch && (
                             <button
                               type="button"
                               onClick={() => setLegalSearch('')}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-muted)] cursor-pointer"
                             >
                               <X size={12} />
                             </button>
@@ -3441,19 +3441,19 @@ export function QuotationBuilderModal({
 
                       {/* Agreements Cards Grid / List */}
                       {list.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center bg-white">
-                          <Scale size={28} className="mx-auto text-slate-400 mb-2" />
-                          <p className="text-xs text-slate-600 font-medium">No legal templates loaded yet.</p>
+                        <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center bg-[var(--surface-elevated)]">
+                          <Scale size={28} className="mx-auto text-[var(--text-muted)] mb-2" />
+                          <p className="text-xs text-[var(--text-muted)] font-medium">No legal templates loaded yet.</p>
                           <button
                             type="button"
                             onClick={resetAllAgreementsFromMaster}
-                            className="mt-3 px-3 py-1.5 text-xs rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 shadow-2xs cursor-pointer"
+                            className="mt-3 px-3 py-1.5 text-xs rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] hover:bg-[var(--surface-2)] text-[var(--text-main)] shadow-2xs cursor-pointer"
                           >
                             Initialize 13 IT Agreements from Legal Master
                           </button>
                         </div>
                       ) : filteredAgreements.length === 0 ? (
-                        <div className="rounded-2xl border border-dashed border-slate-200 p-6 text-center bg-slate-50/50 text-xs text-slate-500">
+                        <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center bg-slate-50/50 text-xs text-[var(--text-muted)]">
                           No agreements match &quot;{legalSearch || legalCategoryFilter}&quot;.
                         </div>
                       ) : (
@@ -3469,10 +3469,10 @@ export function QuotationBuilderModal({
                             return (
                               <div
                                 key={keyId}
-                                className={`rounded-2xl border transition-all duration-200 p-3.5 bg-white ${
+                                className={`rounded-2xl border transition-all duration-200 p-3.5 bg-[var(--surface-elevated)] ${
                                   agreement.enabled
-                                    ? "border-slate-200 shadow-2xs"
-                                    : "border-slate-200/90 bg-white opacity-85 hover:opacity-100"
+                                    ? "border-[var(--border)] shadow-2xs"
+                                    : "border-slate-200/90 bg-[var(--surface-elevated)] opacity-85 hover:opacity-100"
                                 }`}
                               >
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3485,7 +3485,7 @@ export function QuotationBuilderModal({
                                       aria-checked={Boolean(agreement.enabled)}
                                       onClick={() => toggleAgreement(originalIndex)}
                                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                        agreement.enabled ? 'bg-emerald-500' : 'bg-slate-200'
+                                        agreement.enabled ? 'bg-emerald-500' : 'bg-[var(--surface-3)]'
                                       }`}
                                       title={agreement.enabled ? "Toggle OFF to exclude from proposal" : "Toggle ON to include in proposal"}
                                     >
@@ -3500,7 +3500,7 @@ export function QuotationBuilderModal({
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <span
                                           className={`text-sm truncate ${
-                                            agreement.enabled ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'
+                                            agreement.enabled ? 'font-semibold text-[var(--text-main)]' : 'font-medium text-[var(--text-main)]'
                                           }`}
                                         >
                                           {agreement.name}
@@ -3518,13 +3518,13 @@ export function QuotationBuilderModal({
                                             Included in Proposal
                                           </span>
                                         ) : (
-                                          <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-0.5 rounded-full">
+                                          <span className="text-[11px] font-medium text-[var(--text-muted)] bg-[var(--surface-2)] border border-[var(--border)] px-2.5 py-0.5 rounded-full">
                                             Excluded
                                           </span>
                                         )}
                                       </div>
 
-                                      <p className="text-xs text-slate-500 truncate mt-1 max-w-2xl">
+                                      <p className="text-xs text-[var(--text-muted)] truncate mt-1 max-w-2xl">
                                         {previewSnippet}
                                       </p>
                                     </div>
@@ -3535,7 +3535,7 @@ export function QuotationBuilderModal({
                                     <button
                                       type="button"
                                       onClick={() => setExpandedAgreements((prev) => ({ ...prev, [keyId]: !isExpanded }))}
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] px-2.5 py-1 rounded-lg hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
                                     >
                                       <span>{isExpanded ? 'Collapse Clauses' : 'Edit Clauses'}</span>
                                       {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
@@ -3544,7 +3544,7 @@ export function QuotationBuilderModal({
                                     <button
                                       type="button"
                                       onClick={() => resetAgreementToDefault(originalIndex)}
-                                      className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                                      className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)] rounded-lg transition-colors cursor-pointer"
                                       title="Reset clauses to template default"
                                     >
                                       <RotateCcw size={13} />
@@ -3554,9 +3554,9 @@ export function QuotationBuilderModal({
 
                                 {/* Expandable Drawer */}
                                 {isExpanded && (
-                                  <div className="mt-3 pt-3 border-t border-slate-100 space-y-2">
-                                    <div className="flex items-center justify-between text-xs text-slate-500">
-                                      <span className="font-medium text-slate-600">Agreement Clauses for Proposal</span>
+                                  <div className="mt-3 pt-3 border-t border-[var(--border)] space-y-2">
+                                    <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+                                      <span className="font-medium text-[var(--text-muted)]">Agreement Clauses for Proposal</span>
                                       <button
                                         type="button"
                                         onClick={() => resetAgreementToDefault(originalIndex)}
@@ -3569,7 +3569,7 @@ export function QuotationBuilderModal({
                                       rows={6}
                                       value={agreement.content || ''}
                                       onChange={(e) => updateAgreementContent(originalIndex, e.target.value)}
-                                      className="w-full p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:border-blue-500 leading-relaxed text-slate-800"
+                                      className="w-full p-3 text-xs font-mono bg-[var(--surface-2)] border border-[var(--border)] rounded-xl focus:bg-[var(--surface-elevated)] focus:outline-none focus:border-blue-500 leading-relaxed text-[var(--text-main)]"
                                       placeholder="Enter agreement clauses..."
                                     />
                                   </div>
@@ -3590,14 +3590,14 @@ export function QuotationBuilderModal({
             {/* ========================================================================= */}
             {currentStep === 6 && (
               <div className="space-y-5">
-                <Card className="p-6 bg-white border-slate-200 shadow-2xs space-y-5">
-                  <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                <Card className="p-6 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-5">
+                  <div className="border-b border-[var(--border)] pb-3 flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                      <h3 className="text-sm font-extrabold uppercase tracking-wider text-[var(--text-main)] flex items-center gap-2">
                         <CheckCircle2 size={16} className="text-emerald-600" />
                         Executive Document Review &amp; Issuance Gate
                       </h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Verify all proposal criteria before dispatching to client</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">Verify all proposal criteria before dispatching to client</p>
                     </div>
                     <Badge variant="outline" className="text-xs font-bold bg-emerald-50 text-emerald-800 border-emerald-300">
                       Ready for Issuance
@@ -3606,28 +3606,28 @@ export function QuotationBuilderModal({
 
                   {/* Summary Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                      <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">CLIENT &amp; CHARTER</div>
-                      <div className="text-sm font-bold text-slate-900">{lead?.companyName || lead?.name || 'Client'}</div>
-                      <div className="text-xs text-slate-600">Proposal: <strong>{formData.title}</strong></div>
-                      <div className="text-xs text-slate-600">Validity: <strong>{formData.validUntil}</strong></div>
+                    <div className="p-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl space-y-2">
+                      <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">CLIENT &amp; CHARTER</div>
+                      <div className="text-sm font-bold text-[var(--text-main)]">{lead?.companyName || lead?.name || 'Client'}</div>
+                      <div className="text-xs text-[var(--text-muted)]">Proposal: <strong>{formData.title}</strong></div>
+                      <div className="text-xs text-[var(--text-muted)]">Validity: <strong>{formData.validUntil}</strong></div>
                     </div>
 
-                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                      <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">COMMERCIAL SUMMARY</div>
+                    <div className="p-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl space-y-2">
+                      <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">COMMERCIAL SUMMARY</div>
                       <div className="text-xl font-extrabold font-mono text-blue-700">{formatLeadAmount(commercialTotals.totalAmount, currency)}</div>
-                      <div className="text-xs text-slate-600">Tax Breakdown: <strong>{commercialTotals.taxLabel}</strong> ({formatLeadAmount(commercialTotals.gstAmount, currency)})</div>
-                      <div className="text-xs text-slate-600">Milestones: <strong>{formData.milestones?.length || 0} Stage-Gate disbursements (100%)</strong></div>
+                      <div className="text-xs text-[var(--text-muted)]">Tax Breakdown: <strong>{commercialTotals.taxLabel}</strong> ({formatLeadAmount(commercialTotals.gstAmount, currency)})</div>
+                      <div className="text-xs text-[var(--text-muted)]">Milestones: <strong>{formData.milestones?.length || 0} Stage-Gate disbursements (100%)</strong></div>
                     </div>
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-3">
+                  <div className="pt-3 border-t border-[var(--border)] flex flex-wrap gap-3">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => openPreview({ print: false })}
-                      className="flex items-center gap-2 text-xs font-bold bg-white text-slate-800 hover:bg-slate-50"
+                      className="flex items-center gap-2 text-xs font-bold bg-[var(--surface-elevated)] text-[var(--text-main)] hover:bg-[var(--surface-2)]"
                     >
                       <Eye size={15} className="text-blue-600" /> View Live Proposal Document
                     </Button>
@@ -3636,7 +3636,7 @@ export function QuotationBuilderModal({
                       type="button"
                       variant="outline"
                       onClick={() => openPreview({ print: true })}
-                      className="flex items-center gap-2 text-xs font-bold bg-white text-slate-800 hover:bg-slate-50"
+                      className="flex items-center gap-2 text-xs font-bold bg-[var(--surface-elevated)] text-[var(--text-main)] hover:bg-[var(--surface-2)]"
                     >
                       <Printer size={15} className="text-indigo-600" /> Print / Save PDF
                     </Button>
@@ -3658,24 +3658,24 @@ export function QuotationBuilderModal({
 
           {/* Persistent Summary Panel (Cols 9-12) */}
           <div className="lg:col-span-4 space-y-4">
-            <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-4 sticky top-4">
-              <div className="border-b border-slate-100 pb-2.5">
-                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-500">
+            <Card className="p-4 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-4 sticky top-4">
+              <div className="border-b border-[var(--border)] pb-2.5">
+                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
                   LIVE INVESTMENT SUMMARY
                 </span>
-                <div className="text-2xl font-black text-slate-900 font-mono mt-1">
+                <div className="text-2xl font-black text-[var(--text-main)] font-mono mt-1">
                   {formatLeadAmount(commercialTotals.totalAmount, currency)}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-0.5">
+                <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                   {formData.gstApplicable ? `Inclusive of ${commercialTotals.taxLabel}` : 'Exclusive of taxes'}
                 </div>
               </div>
 
               {/* Financial Snapshot */}
-              <div className="space-y-1.5 text-xs text-slate-600 border-b border-slate-100 pb-3">
+              <div className="space-y-1.5 text-xs text-[var(--text-muted)] border-b border-[var(--border)] pb-3">
                 <div className="flex justify-between">
                   <span>Base Cost:</span>
-                  <strong className="font-mono text-slate-900">{formatLeadAmount(commercialTotals.subtotal, currency)}</strong>
+                  <strong className="font-mono text-[var(--text-main)]">{formatLeadAmount(commercialTotals.subtotal, currency)}</strong>
                 </div>
                 {formData.discountEnabled && commercialTotals.discountAmount > 0 && (
                   <div className="flex justify-between text-red-600">
@@ -3685,11 +3685,11 @@ export function QuotationBuilderModal({
                 )}
                 <div className="flex justify-between">
                   <span>Net Taxable:</span>
-                  <strong className="font-mono text-slate-900">{formatLeadAmount(commercialTotals.taxableAmount, currency)}</strong>
+                  <strong className="font-mono text-[var(--text-main)]">{formatLeadAmount(commercialTotals.taxableAmount, currency)}</strong>
                 </div>
                 <div className="flex justify-between">
                   <span>{commercialTotals.isInterState ? 'IGST (Inter-State):' : 'CGST + SGST:'}</span>
-                  <strong className="font-mono text-slate-900">+{formatLeadAmount(commercialTotals.gstAmount, currency)}</strong>
+                  <strong className="font-mono text-[var(--text-main)]">+{formatLeadAmount(commercialTotals.gstAmount, currency)}</strong>
                 </div>
               </div>
 
@@ -3706,9 +3706,9 @@ export function QuotationBuilderModal({
               )}
 
               {/* Milestone Check Indicator */}
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+              <div className="p-2.5 bg-[var(--surface-2)] border border-[var(--border)] rounded-lg text-xs space-y-1">
                 <div className="flex justify-between items-center">
-                  <span className="font-bold text-slate-700">Milestone Balance:</span>
+                  <span className="font-bold text-[var(--text-main)]">Milestone Balance:</span>
                   <span className={`font-mono font-bold ${milestoneValidation.isValid ? 'text-emerald-700' : 'text-amber-700'}`}>
                     {milestoneValidation.totalPercentage}% / 100%
                   </span>

@@ -3,6 +3,7 @@ import { Modal } from './Modal';
 import { Eye, Download, Copy, Check, FileText, Image as ImageIcon, Video, FileArchive, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
+import { formatDate } from '../../lib/format';
 
 function getFileIcon(mimeType = '') {
   if (mimeType.startsWith('image/')) return ImageIcon;
@@ -93,7 +94,7 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
 
             <div>
               <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Upload Date</label>
-              <p className="text-xs font-semibold text-[var(--text-main)]">{new Date(file.createdAt || Date.now()).toLocaleDateString()}</p>
+              <p className="text-xs font-semibold text-[var(--text-main)]">{formatDate(file.createdAt || Date.now())}</p>
             </div>
 
             <div>

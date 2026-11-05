@@ -300,7 +300,7 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
                 variant="ghost"
                 size="sm"
                 onClick={resetState}
-                className="text-xs text-slate-500 hover:text-rose-600"
+                className="text-xs text-[var(--text-muted)] hover:text-rose-600"
               >
                 <X size={14} className="mr-1" /> Change file
               </Button>
@@ -309,7 +309,7 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
             {/* Default assignment controls */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 p-3.5">
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Default Pipeline</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Default Pipeline</label>
                 <SearchableSelect
                   value={defaultPipeline}
                   onChange={setDefaultPipeline}
@@ -318,7 +318,7 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Assign To Employee</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Assign To Employee</label>
                 <SearchableSelect
                   value={defaultAssigned}
                   onChange={setDefaultAssigned}
@@ -330,7 +330,7 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Default Source</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Default Source</label>
                 <SearchableSelect
                   value={defaultSource}
                   onChange={setDefaultSource}
@@ -349,7 +349,7 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Default Status</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Default Status</label>
                 <SearchableSelect
                   value={defaultStatus}
                   onChange={setDefaultStatus}
@@ -386,8 +386,8 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-600 dark:text-slate-400">
                     {validLeads.slice(0, 5).map((l, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="p-2 font-mono text-[10px] text-slate-400">{idx + 1}</td>
+                      <tr key={idx} className="hover:bg-[var(--surface-2)] dark:hover:bg-slate-800/40">
+                        <td className="p-2 font-mono text-[10px] text-[var(--text-muted)]">{idx + 1}</td>
                         <td className="p-2 font-medium text-slate-800 dark:text-slate-200">{l.name}</td>
                         <td className="p-2">{l.companyName || '-'}</td>
                         <td className="p-2 font-mono">{l.phone || <span className="text-rose-500 font-semibold">Missing</span>}</td>
@@ -430,7 +430,7 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
             </div>
             <div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Import Completed</h3>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-[var(--text-muted)] mt-1">
                 Successfully added <b>{importResults.successCount}</b> of <b>{importResults.total}</b> leads to your CRM.
               </p>
             </div>

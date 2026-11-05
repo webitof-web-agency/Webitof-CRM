@@ -39,17 +39,17 @@ export function TagsInput({ value = [], onChange, placeholder, className }) {
   };
 
   return (
-    <div className={cn("flex flex-wrap items-center gap-2 p-1.5 border border-slate-300 rounded-md bg-white focus-within:ring-1 focus-within:ring-[var(--primary)] focus-within:border-[var(--primary)] transition-shadow", className)}>
+    <div className={cn("flex flex-wrap items-center gap-2 p-1.5 border border-[var(--border)] rounded-md bg-[var(--surface-elevated)] focus-within:ring-1 focus-within:ring-[var(--primary)] focus-within:border-[var(--primary)] transition-shadow", className)}>
       {tags.map((tag, index) => (
         <span 
           key={index} 
-          className="flex items-center gap-1.5 px-2.5 py-1 text-sm bg-slate-100 text-slate-700 rounded-md border border-slate-200"
+          className="flex items-center gap-1.5 px-2.5 py-1 text-sm bg-[var(--surface-2)] text-[var(--text-main)] rounded-md border border-[var(--border)]"
         >
           {tag}
           <button
             type="button"
             onClick={() => removeTag(index)}
-            className="text-slate-400 hover:text-slate-600 focus:outline-none"
+            className="text-[var(--text-muted)] hover:text-[var(--text-muted)] focus:outline-none"
           >
             <X size={14} />
           </button>
@@ -62,7 +62,7 @@ export function TagsInput({ value = [], onChange, placeholder, className }) {
         onKeyDown={handleKeyDown}
         onBlur={addTag}
         placeholder={tags.length === 0 ? placeholder : ''}
-        className="flex-1 min-w-[120px] px-1 py-0.5 text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-[var(--text-main)] placeholder:text-slate-400"
+        className="flex-1 min-w-[120px] px-1 py-0.5 text-sm bg-transparent border-none focus:outline-none focus:ring-0 text-[var(--text-main)] placeholder:text-[var(--text-muted)]"
       />
     </div>
   );

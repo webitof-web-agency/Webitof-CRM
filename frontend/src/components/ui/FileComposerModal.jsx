@@ -141,17 +141,17 @@ export function FileComposerModal({
     >
       <form onSubmit={handleSubmit} className="space-y-4 px-1">
         <div className="space-y-1">
-          <label className="block text-sm font-medium text-slate-600">Title *</label>
+          <label className="block text-sm font-medium text-[var(--text-muted)]">Title *</label>
           <Input value={formData.title} onChange={(e) => set('title', e.target.value)} placeholder="File title" autoFocus />
         </div>
 
         <div className="space-y-1">
-          <label className="block text-sm font-medium text-slate-600">Description</label>
+          <label className="block text-sm font-medium text-[var(--text-muted)]">Description</label>
           <Textarea value={formData.description} onChange={(e) => set('description', e.target.value)} placeholder="Short note about this file" rows={3} />
         </div>
 
         <div className="space-y-1">
-          <label className="block text-sm font-medium text-slate-600">Labels</label>
+          <label className="block text-sm font-medium text-[var(--text-muted)]">Labels</label>
           <SearchableSelect
             value={formData.labels}
             onChange={(val) => set('labels', val)}

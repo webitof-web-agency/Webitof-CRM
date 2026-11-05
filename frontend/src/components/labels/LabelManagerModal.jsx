@@ -130,10 +130,10 @@ export function LabelManagerModal({ open, onClose, onSaved }) {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <div className="rounded-2xl border border-[var(--border)] bg-slate-50/70 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-end">
               <div className="flex-1">
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Label</label>
+                <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Label</label>
                 <Input
                   value={draft.label}
                   onChange={(e) => setDraft((current) => ({ ...current, label: e.target.value }))}
@@ -165,8 +165,8 @@ export function LabelManagerModal({ open, onClose, onSaved }) {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">Created labels</h4>
-              <span className="text-sm text-slate-500">{normalizedLabels.length} total</span>
+              <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Created labels</h4>
+              <span className="text-sm text-[var(--text-muted)]">{normalizedLabels.length} total</span>
             </div>
 
             {normalizedLabels.length ? (
@@ -184,7 +184,7 @@ export function LabelManagerModal({ open, onClose, onSaved }) {
                     <span>{item.label}</span>
                     <button
                       type="button"
-                      className="rounded-full p-0.5 hover:bg-white/70"
+                      className="rounded-full p-0.5 hover:bg-[var(--surface)]"
                       onClick={() => {
                         setEditingIndex(index);
                         setDraft({ label: item.label, color: item.color });
@@ -195,7 +195,7 @@ export function LabelManagerModal({ open, onClose, onSaved }) {
                     </button>
                     <button
                       type="button"
-                      className="rounded-full p-0.5 hover:bg-white/70"
+                      className="rounded-full p-0.5 hover:bg-[var(--surface)]"
                       onClick={() => setLabels((current) => current.filter((_, i) => i !== index))}
                       aria-label={`Delete ${item.label}`}
                     >
@@ -205,7 +205,7 @@ export function LabelManagerModal({ open, onClose, onSaved }) {
                 ))}
               </div>
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-6 text-center text-sm text-[var(--text-muted)]">
                 No labels created yet.
               </div>
             )}

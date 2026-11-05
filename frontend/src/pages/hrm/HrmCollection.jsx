@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Modal } from "../../components/ui/Modal";
+import { formatDateTime } from "../../lib/format";
 import {
   Field,
   HrmTable,
@@ -295,7 +296,7 @@ export function HrmCollection({
                             {
                               key: "createdAt",
                               render: (r) =>
-                                new Date(r.createdAt).toLocaleString(),
+                                formatDateTime(r.createdAt),
                             },
                           ]
                         : [

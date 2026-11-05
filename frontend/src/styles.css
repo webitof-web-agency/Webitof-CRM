@@ -489,6 +489,18 @@ a {
 
 /* Print styling */
 @media print {
+  /* Paper is always light: keep token-based colors readable when printing from dark mode. */
+  :root, .dark, [data-theme="dark"] {
+    --surface: #ffffff !important;
+    --surface-2: #f1f5f9 !important;
+    --surface-3: #e2e8f0 !important;
+    --surface-elevated: #ffffff !important;
+    --text-main: #0f172a !important;
+    --text-secondary: #334155 !important;
+    --text-muted: #64748b !important;
+    --border: rgba(15, 23, 42, 0.15) !important;
+    --border-muted: rgba(15, 23, 42, 0.08) !important;
+  }
   body {
     background: #ffffff !important;
     color: #000000 !important;

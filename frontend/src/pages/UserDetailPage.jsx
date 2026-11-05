@@ -9,6 +9,7 @@ import {
 import imageCompression from 'browser-image-compression';
 import { api } from '../api/client';
 import { getFileViewUrl } from '../lib/fileUpload';
+import { formatDateTime } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { Input } from '../components/ui/Input';
@@ -219,7 +220,7 @@ export function UserDetailPage() {
         </FieldRow>
         <FieldRow label="Last Login">
           <span className="text-sm text-slate-600">
-            {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : '—'}
+            {formatDateTime(user.lastLoginAt)}
           </span>
         </FieldRow>
       </div>

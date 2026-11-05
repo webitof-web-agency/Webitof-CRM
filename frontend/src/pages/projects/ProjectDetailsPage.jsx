@@ -160,11 +160,11 @@ function ProgressTrendChart({ series = [] }) {
     : '';
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-white to-slate-50">
-      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+    <div className="overflow-hidden rounded-3xl border border-[var(--border)] bg-gradient-to-br from-white to-slate-50">
+      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
         <div>
           <h4 className="text-lg font-bold text-[var(--text-main)]">Progress trend</h4>
-          <p className="text-sm text-slate-500">Cumulative project activity score over recent months.</p>
+          <p className="text-sm text-[var(--text-muted)]">Cumulative project activity score over recent months.</p>
         </div>
         <TrendingUp size={18} className="text-[var(--primary)]" />
       </div>
@@ -204,16 +204,16 @@ function ProgressTrendChart({ series = [] }) {
             ))}
           </svg>
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-elevated)] p-8 text-center text-sm text-[var(--text-muted)]">
             Not enough project activity yet to build a trend chart.
           </div>
         )}
       </div>
       {series.length ? (
-        <div className="grid gap-3 border-t border-slate-100 px-5 py-4 sm:grid-cols-3">
+        <div className="grid gap-3 border-t border-[var(--border)] px-5 py-4 sm:grid-cols-3">
           {series.slice(-3).map((item) => (
-            <div key={item.key} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">{item.detail}</div>
+            <div key={item.key} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">{item.detail}</div>
               <div className="mt-2 text-2xl font-bold text-[var(--text-main)]">{item.value}%</div>
             </div>
           ))}
@@ -520,7 +520,7 @@ function ActivityCard({ item, onEdit, onDelete }) {
   const accent = normalizeActivityColor(item);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -530,17 +530,17 @@ function ActivityCard({ item, onEdit, onDelete }) {
             >
               {item.kind || 'activity'}
             </span>
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{formatDate(getActivityDate(item))}</div>
+            <div className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">{formatDate(getActivityDate(item))}</div>
           </div>
-          <div className="mt-2 text-sm font-semibold text-slate-900">{item.title || 'Untitled'}</div>
-          <div className="text-sm text-slate-600">{item.detail || 'No description'}</div>
+          <div className="mt-2 text-sm font-semibold text-[var(--text-main)]">{item.title || 'Untitled'}</div>
+          <div className="text-sm text-[var(--text-muted)]">{item.detail || 'No description'}</div>
         </div>
         <div className="flex items-center gap-2">
           {onEdit ? (
             <button
               type="button"
               onClick={() => onEdit(item)}
-              className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900"
+              className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text-main)]"
               aria-label="Edit activity"
             >
               <Pencil size={16} />
@@ -550,7 +550,7 @@ function ActivityCard({ item, onEdit, onDelete }) {
             <button
               type="button"
               onClick={() => onDelete(item)}
-              className="rounded-full p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+              className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
               aria-label="Delete activity"
             >
               <Trash2 size={16} />
@@ -565,10 +565,10 @@ function ActivityCard({ item, onEdit, onDelete }) {
 function ActivitySection({ title, description, items, emptyText, onAdd, onEdit, onDelete, actionLabel }) {
   return (
     <Card className="space-y-4 p-5">
-      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+      <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
         <div>
           <h3 className="text-lg font-bold text-[var(--text-main)]">{title}</h3>
-          <p className="text-sm text-slate-500">{description}</p>
+          <p className="text-sm text-[var(--text-muted)]">{description}</p>
         </div>
         <Button variant="secondary" onClick={onAdd}>
           <CalendarPlus size={16} className="mr-2" />
@@ -587,7 +587,7 @@ function ActivitySection({ title, description, items, emptyText, onAdd, onEdit, 
             />
           ))
         ) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+          <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)]">
             {emptyText}
           </div>
         )}
@@ -812,7 +812,7 @@ function ActivityComposerModal({
                   <SearchableSelect value={formData.priority} onChange={(val) => set('priority', val)} options={taskPriorityOptions} placeholder="Priority" />
                   <Input type="date" value={formData.startDate} onChange={(e) => set('startDate', e.target.value)} />
                   <Input type="date" value={formData.deadline} onChange={(e) => set('deadline', e.target.value)} />
-                  <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                  <label className="flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-[var(--text-muted)]">
                     <input type="checkbox" checked={Boolean(formData.recurring)} onChange={(e) => set('recurring', e.target.checked)} />
                     Recurring
                   </label>
@@ -823,14 +823,14 @@ function ActivityComposerModal({
                 <>
                   <SearchableSelect value={formData.category} onChange={(val) => set('category', val)} options={noteCategoryOptions} placeholder="Category" />
                   <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Color</div>
+                    <div className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Color</div>
                     <div className="flex flex-wrap gap-2">
                       {ACTIVITY_COLORS.map((color) => (
                         <button
                           key={color}
                           type="button"
                           onClick={() => set('color', color)}
-                          className={cn('h-6 w-6 rounded-full border-2 transition', formData.color === color ? 'border-slate-300 ring-2 ring-offset-2' : 'border-white/70')}
+                          className={cn('h-6 w-6 rounded-full border-2 transition', formData.color === color ? 'border-[var(--border)] ring-2 ring-offset-2' : 'border-white/70')}
                           style={{ backgroundColor: color }}
                           aria-label={`Note color ${color}`}
                         />
@@ -844,7 +844,7 @@ function ActivityComposerModal({
                 <>
                   <Input type="date" value={formData.date} onChange={(e) => set('date', e.target.value)} placeholder="Date" />
                   <Input type="time" value={formData.time} onChange={(e) => set('time', e.target.value)} placeholder="Time" />
-                  <label className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+                  <label className="flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-[var(--text-muted)]">
                     <input type="checkbox" checked={Boolean(formData.repeat)} onChange={(e) => set('repeat', e.target.checked)} />
                     Repeat
                   </label>
@@ -858,8 +858,8 @@ function ActivityComposerModal({
                   <Input type="date" value={formData.endDate} onChange={(e) => set('endDate', e.target.value)} />
                   <Input type="time" value={formData.endTime} onChange={(e) => set('endTime', e.target.value)} />
                   <Input value={formData.location} onChange={(e) => set('location', e.target.value)} placeholder="Location" />
-                  <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Share with</div>
+                  <div className="space-y-2 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Share with</div>
                     <div className="flex flex-wrap items-center gap-6 pt-1">
                       {eventVisibilityOptions.map((option) => (
                         <label key={option.value} className="flex cursor-pointer items-center gap-2">
@@ -872,15 +872,15 @@ function ActivityComposerModal({
                             className="!appearance-auto"
                             style={{ accentColor: 'var(--primary)' }}
                           />
-                          <span className="text-sm text-slate-700">{option.label}</span>
+                          <span className="text-sm text-[var(--text-main)]">{option.label}</span>
                         </label>
                       ))}
                     </div>
                   </div>
 
                   {formData.visibility === 'specific' ? (
-                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Specific members</div>
+                    <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Specific members</div>
                       <SearchableSelect
                         value={formData.allowedUserIds}
                         onChange={(val) => set('allowedUserIds', val)}
@@ -889,7 +889,7 @@ function ActivityComposerModal({
                         searchPlaceholder="Search members..."
                         multiple
                       />
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-[var(--text-muted)]">
                         Team groups are not modeled in this workspace, so member selection is enabled here.
                       </div>
                     </div>
@@ -899,7 +899,7 @@ function ActivityComposerModal({
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+          <div className="flex items-center justify-end gap-3 border-t border-[var(--border)] pt-4">
             <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>Close</Button>
             <Button type="submit" disabled={busy}>{busy ? 'Saving...' : 'Save'}</Button>
           </div>
@@ -929,13 +929,13 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
 
   return (
     <Card className="p-5">
-      <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 border-b border-[var(--border)] pb-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-2">
-          <CalendarDays size={18} className="text-slate-800" />
-          <h3 className="text-lg font-semibold text-slate-900">Events</h3>
+          <CalendarDays size={18} className="text-[var(--text-main)]" />
+          <h3 className="text-lg font-semibold text-[var(--text-main)]">Events</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-slate-200 bg-white p-1">
+          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-[var(--border)] bg-[var(--surface-elevated)] p-1">
             <Button variant="ghost" size="icon" onClick={() => shiftDate(-1)} className="h-9 w-9">
               <ChevronLeft size={16} />
             </Button>
@@ -946,8 +946,8 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
               <ChevronRight size={16} />
             </Button>
           </div>
-          <div className="text-base font-semibold text-slate-900">{formatCalendarTitle(currentDate, view)}</div>
-          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-slate-200 bg-white p-1">
+          <div className="text-base font-semibold text-[var(--text-main)]">{formatCalendarTitle(currentDate, view)}</div>
+          <div className="flex items-center rounded-[var(--radius-button,1rem)] border border-[var(--border)] bg-[var(--surface-elevated)] p-1">
             {['month', 'week', 'day'].map((item) => (
               <button
                 key={item}
@@ -955,7 +955,7 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                 onClick={() => onViewChange(item)}
                 className={cn(
                   'rounded-[var(--radius-button,1rem)] px-3 py-1.5 text-sm font-medium capitalize transition',
-                  view === item ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  view === item ? 'bg-[var(--primary)] text-white shadow-sm' : 'text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text-main)]'
                 )}
               >
                 {item}
@@ -963,7 +963,7 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
             ))}
           </div>
           {onAddEvent && (
-            <Button variant="outline" onClick={onAddEvent} className="ml-1 shrink-0 bg-white shadow-sm hover:bg-slate-50">
+            <Button variant="outline" onClick={onAddEvent} className="ml-1 shrink-0 bg-[var(--surface-elevated)] shadow-sm hover:bg-[var(--surface-2)]">
               + Add event
             </Button>
           )}
@@ -971,8 +971,8 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
       </div>
 
       {view === 'month' ? (
-        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+        <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)]">
+          <div className="grid grid-cols-7 border-b border-[var(--border)] bg-[var(--surface-2)] text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
               <div key={day} className="px-3 py-2">{day}</div>
             ))}
@@ -987,8 +987,8 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                 <div
                   key={day.toISOString()}
                   className={cn(
-                    'min-h-32 border-r border-b border-slate-100 p-3 text-left transition hover:bg-slate-50',
-                    !isCurrentMonth && 'bg-slate-50/70 text-slate-400',
+                    'min-h-32 border-r border-b border-[var(--border)] p-3 text-left transition hover:bg-[var(--surface-2)]',
+                    !isCurrentMonth && 'bg-slate-50/70 text-[var(--text-muted)]',
                     isSelected && 'bg-[color-mix(in_srgb,var(--primary)_7%,white)]',
                     isToday && 'ring-1 ring-inset ring-[var(--primary)]'
                   )}
@@ -997,7 +997,7 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                     <button
                       type="button"
                       onClick={() => onDateChange(day)}
-                      className={cn('text-sm font-semibold', isToday ? 'text-[var(--primary)]' : 'text-slate-800')}
+                      className={cn('text-sm font-semibold', isToday ? 'text-[var(--primary)]' : 'text-[var(--text-main)]')}
                     >
                       {day.getDate()}
                     </button>
@@ -1007,7 +1007,7 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                     {dayItems.map((item) => {
                       const accent = normalizeActivityColor(item);
                       return (
-                        <div key={`${item.id}-${day.toISOString()}`} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 shadow-sm">
+                        <div key={`${item.id}-${day.toISOString()}`} className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)] shadow-sm">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1026,7 +1026,7 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                                 e.stopPropagation();
                                 onDeleteEvent(item);
                               }}
-                              className="inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
                               aria-label="Delete event"
                             >
                               <Trash2 size={10} />
@@ -1046,18 +1046,18 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
           {weekDays.map((day) => {
             const dayItems = getActivitiesForDate(events, day);
             return (
-              <div key={day.toISOString()} className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div key={day.toISOString()} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-slate-900">
+                  <div className="text-sm font-semibold text-[var(--text-main)]">
                     {day.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short' })}
                   </div>
-                  <div className="text-xs text-slate-500">{dayItems.length} item(s)</div>
+                  <div className="text-xs text-[var(--text-muted)]">{dayItems.length} item(s)</div>
                 </div>
                 <div className="mt-3 space-y-2">
                   {dayItems.length ? dayItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex w-full items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left hover:border-slate-300"
+                      className="flex w-full items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-3 text-left hover:border-[var(--border)]"
                     >
                       <button
                         type="button"
@@ -1066,15 +1066,15 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                       >
                         <span className="mt-1 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: normalizeActivityColor(item) }} />
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-slate-900">{item.title}</div>
-                          <div className="text-xs text-slate-500">{item.description || 'No description'}</div>
+                          <div className="text-sm font-semibold text-[var(--text-main)]">{item.title}</div>
+                          <div className="text-xs text-[var(--text-muted)]">{item.description || 'No description'}</div>
                         </div>
                       </button>
                       {onDeleteEvent ? (
                         <button
                           type="button"
                           onClick={() => onDeleteEvent(item)}
-                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition hover:bg-rose-50 hover:text-rose-600"
+                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
                           aria-label="Delete event"
                         >
                           <Trash2 size={14} />
@@ -1082,7 +1082,7 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                       ) : null}
                     </div>
                   )) : (
-                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
+                    <div className="rounded-2xl border border-dashed border-[var(--border)] px-4 py-5 text-sm text-[var(--text-muted)]">
                       No events on this day.
                     </div>
                   )}
@@ -1098,7 +1098,7 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
           {visibleEvents.length ? visibleEvents.map((item) => (
             <ActivityCard key={item.id} item={item} onEdit={onEditEvent} onDelete={onDeleteEvent} />
           )) : (
-            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+            <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
               No events in the selected range.
             </div>
           )}
@@ -1409,7 +1409,7 @@ export function ProjectDetailsPage() {
             <button
               type="button"
               onClick={() => navigate('/app/projects')}
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"
+              className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)]"
             >
               <ArrowLeft size={16} />
               Back to Projects
@@ -1421,7 +1421,7 @@ export function ProjectDetailsPage() {
           </div>
           <div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
                 {project.projectType || 'Project'}
               </span>
               {renderStatusPill(project.status)}
@@ -1434,7 +1434,7 @@ export function ProjectDetailsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button variant="outline" className="shadow-sm bg-white" onClick={() => {
+          <Button variant="outline" className="shadow-sm bg-[var(--surface-elevated)]" onClick={() => {
             setProjectFormInitialData(project);
             setProjectFormOpen(true);
           }}>
@@ -1444,7 +1444,7 @@ export function ProjectDetailsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
+      <div className="flex items-center gap-6 border-b border-[var(--border)] px-2 overflow-x-auto">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1457,10 +1457,10 @@ export function ProjectDetailsPage() {
                 'inline-flex items-center gap-2 px-1 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap',
                 isActive
                   ? 'border-[var(--primary)] text-[var(--primary)]'
-                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                  : 'border-transparent text-[var(--text-muted)] hover:border-[var(--border)] hover:text-[var(--text-main)]'
               )}
             >
-              {Icon && <Icon size={16} className={isActive ? 'text-[var(--primary)]' : 'text-slate-400'} />}
+              {Icon && <Icon size={16} className={isActive ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />}
               {tab.label}
             </button>
           );
@@ -1472,78 +1472,78 @@ export function ProjectDetailsPage() {
           {activeTab === 'overview' ? (
             <>
               <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
                     <Activity size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Activities</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{mergedTimeline.length}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Logged events & calls</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Total Activities</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{mergedTimeline.length}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Logged events & calls</p>
                   </div>
                 </Card>
 
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
                     <CheckCircle2 size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Tasks</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{taskItems.length}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Action items</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Total Tasks</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{taskItems.length}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Action items</p>
                   </div>
                 </Card>
 
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
                     <Tag size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Notes</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{noteItems.length}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Important remarks</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Total Notes</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{noteItems.length}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Important remarks</p>
                   </div>
                 </Card>
 
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
                     <Clock3 size={24} strokeWidth={2} />
                   </div>
                   <div className="overflow-hidden">
-                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Reminders</p>
-                    <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{reminderItems.length}</h3>
-                    <p className="mt-1 text-xs text-slate-400 truncate">Upcoming alerts</p>
+                    <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Total Reminders</p>
+                    <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{reminderItems.length}</h3>
+                    <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Upcoming alerts</p>
                   </div>
                 </Card>
               </div>
               <div className="grid gap-6 lg:grid-cols-2">
-                <Card className="p-0 border-slate-200">
-                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <Card className="p-0 border-[var(--border)]">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
                     <div className="flex items-center gap-2">
-                      <Building size={18} className="text-slate-800" />
+                      <Building size={18} className="text-[var(--text-main)]" />
                       <h3 className="text-lg font-bold text-[var(--text-main)]">Linked client</h3>
                     </div>
                     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">CRM links</span>
                   </div>
                   <div className="flex flex-col">
-                    <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                      <Building size={16} className="text-slate-500 shrink-0" />
+                    <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                      <Building size={16} className="text-[var(--text-muted)] shrink-0" />
                       <div className="flex flex-col">
                         <span className="text-sm font-semibold text-[var(--text-main)]">{clientDisplayName}</span>
-                        <span className="text-xs text-slate-500">{client?.clientType || client?.type || 'Client'}</span>
+                        <span className="text-xs text-[var(--text-muted)]">{client?.clientType || client?.type || 'Client'}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                      <User size={16} className="text-slate-500 shrink-0" />
+                    <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                      <User size={16} className="text-[var(--text-muted)] shrink-0" />
                       <div className="flex flex-col">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Owner</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Owner</span>
                         <span className="text-sm font-medium text-[var(--text-main)]">{ownerDisplayName || ownerName}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-4 px-5 py-3.5">
-                      <Tag size={16} className="text-slate-500 shrink-0" />
+                      <Tag size={16} className="text-[var(--text-muted)] shrink-0" />
                       <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Labels</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Labels</span>
                         <div className="flex flex-wrap gap-1.5 items-center">
                           {labels.length ? labels.map((label) => {
                             const match = labelOptions.find((item) => item.label === label.label);
@@ -1555,48 +1555,48 @@ export function ProjectDetailsPage() {
                   </div>
                 </Card>
 
-                <Card className="p-0 border-slate-200">
-                  <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                <Card className="p-0 border-[var(--border)]">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
                     <div className="flex items-center gap-2">
-                      <Activity size={18} className="text-slate-800" />
+                      <Activity size={18} className="text-[var(--text-main)]" />
                       <h3 className="text-lg font-bold text-[var(--text-main)]">Activity snapshot</h3>
                     </div>
                   </div>
                   <div className="flex flex-col">
-                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3.5">
+                    <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <CheckCircle2 size={16} className="text-slate-500 shrink-0" />
-                        <span className="text-sm font-medium text-slate-700">Tasks</span>
+                        <CheckCircle2 size={16} className="text-[var(--text-muted)] shrink-0" />
+                        <span className="text-sm font-medium text-[var(--text-main)]">Tasks</span>
                       </div>
-                      <span className="font-semibold text-slate-900">{summary.tasksCount ?? taskItems.length}</span>
+                      <span className="font-semibold text-[var(--text-main)]">{summary.tasksCount ?? taskItems.length}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3.5">
+                    <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <Tag size={16} className="text-slate-500 shrink-0" />
-                        <span className="text-sm font-medium text-slate-700">Notes</span>
+                        <Tag size={16} className="text-[var(--text-muted)] shrink-0" />
+                        <span className="text-sm font-medium text-[var(--text-main)]">Notes</span>
                       </div>
-                      <span className="font-semibold text-slate-900">{summary.notesCount ?? noteItems.length}</span>
+                      <span className="font-semibold text-[var(--text-main)]">{summary.notesCount ?? noteItems.length}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3.5">
+                    <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <Clock3 size={16} className="text-slate-500 shrink-0" />
-                        <span className="text-sm font-medium text-slate-700">Reminders</span>
+                        <Clock3 size={16} className="text-[var(--text-muted)] shrink-0" />
+                        <span className="text-sm font-medium text-[var(--text-main)]">Reminders</span>
                       </div>
-                      <span className="font-semibold text-slate-900">{summary.remindersCount ?? reminderItems.length}</span>
+                      <span className="font-semibold text-[var(--text-main)]">{summary.remindersCount ?? reminderItems.length}</span>
                     </div>
-                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3.5">
+                    <div className="flex items-center justify-between gap-4 border-b border-[var(--border)] px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <Calendar size={16} className="text-slate-500 shrink-0" />
-                        <span className="text-sm font-medium text-slate-700">Events</span>
+                        <Calendar size={16} className="text-[var(--text-muted)] shrink-0" />
+                        <span className="text-sm font-medium text-[var(--text-main)]">Events</span>
                       </div>
-                      <span className="font-semibold text-slate-900">{summary.eventsCount ?? eventItems.length}</span>
+                      <span className="font-semibold text-[var(--text-main)]">{summary.eventsCount ?? eventItems.length}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        <UserPlus size={16} className="text-slate-500 shrink-0" />
-                        <span className="text-sm font-medium text-slate-700">Created by</span>
+                        <UserPlus size={16} className="text-[var(--text-muted)] shrink-0" />
+                        <span className="text-sm font-medium text-[var(--text-main)]">Created by</span>
                       </div>
-                      <span className="font-semibold text-slate-900">{project.createdByName || 'System'}</span>
+                      <span className="font-semibold text-[var(--text-main)]">{project.createdByName || 'System'}</span>
                     </div>
                   </div>
                 </Card>
@@ -1619,20 +1619,20 @@ export function ProjectDetailsPage() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="border border-slate-200 bg-slate-50 p-4 shadow-none">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Progress</div>
+                <Card className="border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-none">
+                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Progress</div>
                   <div className="mt-2 text-2xl font-bold text-[var(--text-main)]">{progressValue}%</div>
                 </Card>
-                <Card className="border border-slate-200 bg-slate-50 p-4 shadow-none">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Activities</div>
+                <Card className="border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-none">
+                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Activities</div>
                   <div className="mt-2 text-2xl font-bold text-[var(--text-main)]">{mergedTimeline.length}</div>
                 </Card>
-                <Card className="border border-slate-200 bg-slate-50 p-4 shadow-none">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Invoiced</div>
+                <Card className="border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-none">
+                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Invoiced</div>
                   <div className="mt-2 text-2xl font-bold text-[var(--text-main)]">{formatMoney(summary.invoiceTotal || 0)}</div>
                 </Card>
-                <Card className="border border-slate-200 bg-slate-50 p-4 shadow-none">
-                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Expenses</div>
+                <Card className="border border-[var(--border)] bg-[var(--surface-2)] p-4 shadow-none">
+                  <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Expenses</div>
                   <div className="mt-2 text-2xl font-bold text-[var(--text-main)]">{formatMoney(summary.expenseAmount || 0)}</div>
                 </Card>
               </div>
@@ -1646,22 +1646,22 @@ export function ProjectDetailsPage() {
                     <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">Project data</span>
                   </div>
                   <div className="space-y-3 text-sm">
-                    <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <span className="text-slate-500">Client</span>
+                    <div className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+                      <span className="text-[var(--text-muted)]">Client</span>
                       <span className="font-semibold text-[var(--text-main)]">{clientDisplayName}</span>
                     </div>
-                    <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <span className="text-slate-500">Owner</span>
+                    <div className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+                      <span className="text-[var(--text-muted)]">Owner</span>
                       <span className="font-semibold text-[var(--text-main)]">{ownerDisplayName || ownerName}</span>
                     </div>
-                    <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <span className="text-slate-500">Primary contact</span>
+                    <div className="flex items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+                      <span className="text-[var(--text-muted)]">Primary contact</span>
                       <span className="font-semibold text-[var(--text-main)]">
                         {primaryContact ? `${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() || '-' : '-'}
                       </span>
                     </div>
-                    <div className="flex items-start justify-between rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-                      <span className="text-slate-500">Labels</span>
+                    <div className="flex items-start justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">
+                      <span className="text-[var(--text-muted)]">Labels</span>
                       <div className="flex max-w-[220px] flex-wrap justify-end gap-1.5">
                         {labels.length ? labels.map((label) => {
                           const match = labelOptions.find((item) => item.label === label.label);
@@ -1684,23 +1684,23 @@ export function ProjectDetailsPage() {
                           const accent = item.color || normalizeActivityColor(item.meta || item);
                           return (
                             <div key={`${item.date}-${item.title}-${index}`} className="relative group">
-                              <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-slate-200 group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }} />
-                              <div className="rounded-xl border border-slate-100 bg-white p-3.5 shadow-sm hover:shadow-md transition-shadow">
+                              <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-[var(--surface-3)] group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }} />
+                              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3.5 shadow-sm hover:shadow-md transition-shadow">
                                 <div className="flex items-center gap-2 mb-1.5">
                                   <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm" style={{ color: accent, backgroundColor: `${accent}15` }}>
                                     {item.kind || 'activity'}
                                   </span>
-                                  <span className="text-xs font-semibold tracking-wider text-slate-400">{formatDate(item.date)}</span>
+                                  <span className="text-xs font-semibold tracking-wider text-[var(--text-muted)]">{formatDate(item.date)}</span>
                                 </div>
-                                <h4 className="text-sm font-bold text-slate-800">{item.title}</h4>
-                                {item.detail && <p className="mt-1 text-xs text-slate-600 line-clamp-2 leading-relaxed">{item.detail}</p>}
+                                <h4 className="text-sm font-bold text-[var(--text-main)]">{item.title}</h4>
+                                {item.detail && <p className="mt-1 text-xs text-[var(--text-muted)] line-clamp-2 leading-relaxed">{item.detail}</p>}
                               </div>
                             </div>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-[var(--text-muted)]">
+                      <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)]">
                         No report data yet.
                       </div>
                     )}
@@ -1714,10 +1714,10 @@ export function ProjectDetailsPage() {
             <div className="w-full space-y-6 mt-2">
               <div className="flex items-center justify-between px-1">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Timeline</h2>
-                  <p className="text-sm text-slate-500 mt-1">Follow-ups, changes, and activity history</p>
+                  <h2 className="text-xl font-bold text-[var(--text-main)]">Timeline</h2>
+                  <p className="text-sm text-[var(--text-muted)] mt-1">Follow-ups, changes, and activity history</p>
                 </div>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                <div className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--text-muted)]">
                   {mergedTimeline.length} Events
                 </div>
               </div>
@@ -1728,20 +1728,20 @@ export function ProjectDetailsPage() {
                     const accent = item.color || normalizeActivityColor(item.meta || item);
                     return (
                       <div key={`${item.date}-${item.title}-${index}`} className="relative group">
-                        <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-slate-200 group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }}></div>
+                        <div className="absolute -left-[30px] top-1.5 flex h-[14px] w-[14px] items-center justify-center rounded-full border-2 border-white bg-[var(--surface-3)] group-hover:scale-125 transition-transform" style={{ backgroundColor: accent }}></div>
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-3">
                             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-sm" style={{ color: accent, backgroundColor: `${accent}15` }}>
                               {item.kind || 'activity'}
                             </span>
-                            <span className="text-xs font-semibold tracking-wider text-slate-400">{formatDate(item.date)}</span>
+                            <span className="text-xs font-semibold tracking-wider text-[var(--text-muted)]">{formatDate(item.date)}</span>
                             {item.actorName ? (
-                              <span className="text-xs font-medium text-slate-500">by {item.actorName}</span>
+                              <span className="text-xs font-medium text-[var(--text-muted)]">by {item.actorName}</span>
                             ) : null}
                           </div>
-                          <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm hover:shadow-md transition-shadow">
-                            <h4 className="text-sm font-bold text-slate-800">{item.title}</h4>
-                            {item.detail && <p className="mt-1 text-sm text-slate-600 leading-relaxed">{item.detail}</p>}
+                          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <h4 className="text-sm font-bold text-[var(--text-main)]">{item.title}</h4>
+                            {item.detail && <p className="mt-1 text-sm text-[var(--text-muted)] leading-relaxed">{item.detail}</p>}
                           </div>
                         </div>
                       </div>
@@ -1749,7 +1749,7 @@ export function ProjectDetailsPage() {
                   })}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-[var(--text-muted)]">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)]">
                   No timeline items yet.
                 </div>
               )}
@@ -1758,10 +1758,10 @@ export function ProjectDetailsPage() {
 
           {activeTab === 'contacts' ? (
             <Card className="space-y-4 p-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)]">Contacts</h3>
-                  <p className="text-sm text-slate-500">{contacts.length} contact(s)</p>
+                  <p className="text-sm text-[var(--text-muted)]">{contacts.length} contact(s)</p>
                 </div>
                 <Button variant="secondary" onClick={() => navigate(client?.id ? clientRoute(client) : '/app/projects')}>
                   <UserPlus size={16} className="mr-2" />
@@ -1770,19 +1770,19 @@ export function ProjectDetailsPage() {
               </div>
               {primaryContact ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Primary contact</p>
+                  <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Primary contact</p>
                     <p className="mt-2 text-sm font-semibold text-[var(--text-main)]">
                       {`${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() || '-'}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">{primaryContact.jobTitle || 'Contact'}</p>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">{primaryContact.jobTitle || 'Contact'}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Email</p>
+                  <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Email</p>
                     <p className="mt-2 break-all text-sm font-semibold text-[var(--text-main)]">{primaryContact.email || '-'}</p>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Phone</p>
+                  <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[var(--text-muted)]">Phone</p>
                     <p className="mt-2 text-sm font-semibold text-[var(--text-main)]">{formatPhoneDisplay(primaryContact.phone)}</p>
                   </div>
                 </div>
@@ -1794,7 +1794,7 @@ export function ProjectDetailsPage() {
                   const initials = [contact.firstName?.[0], contact.lastName?.[0]].filter(Boolean).join('').toUpperCase() || 'C';
                   const isPrimary = Boolean(contact.isPrimary) || (!primaryContact && index === 0);
                   return (
-                    <div key={contact.id || `${fullName}-${index}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div key={contact.id || `${fullName}-${index}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 shadow-sm">
                       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div className="flex min-w-0 flex-1 items-start gap-4">
                           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-sm font-bold text-[var(--primary)]">
@@ -1809,8 +1809,8 @@ export function ProjectDetailsPage() {
                                 </span>
                               ) : null}
                             </div>
-                            <div className="text-sm text-slate-500">{contact.jobTitle || 'Contact'}</div>
-                            <div className="mt-2 space-y-1 text-sm text-slate-600">
+                            <div className="text-sm text-[var(--text-muted)]">{contact.jobTitle || 'Contact'}</div>
+                            <div className="mt-2 space-y-1 text-sm text-[var(--text-muted)]">
                               {contact.email ? (
                                 <div className="flex items-center gap-2">
                                   <Mail size={14} />
@@ -1823,7 +1823,7 @@ export function ProjectDetailsPage() {
                                   <span>{formatPhoneDisplay(contact.phone)}</span>
                                 </div>
                               ) : null}
-                              {contact.source ? <div className="text-xs text-slate-500">{contact.source}</div> : null}
+                              {contact.source ? <div className="text-xs text-[var(--text-muted)]">{contact.source}</div> : null}
                             </div>
                           </div>
                         </div>
@@ -1831,7 +1831,7 @@ export function ProjectDetailsPage() {
                     </div>
                   );
                 }) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                  <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)]">
                     No related contacts found.
                   </div>
                 )}
@@ -1923,10 +1923,10 @@ export function ProjectDetailsPage() {
 
           {activeTab === 'files' ? (
             <Card className="space-y-4 p-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)]">Files</h3>
-                  <p className="text-sm text-slate-500">{fileItems.length} file(s)</p>
+                  <p className="text-sm text-[var(--text-muted)]">{fileItems.length} file(s)</p>
                 </div>
                 <Button variant="secondary" onClick={() => setProjectFileOpen(true)}>
                   <Paperclip size={16} className="mr-2" />
@@ -1936,11 +1936,11 @@ export function ProjectDetailsPage() {
               {fileItems.length ? (
                 <div className="grid gap-3 md:grid-cols-2">
                   {fileItems.map((file, index) => (
-                    <div key={`${file.driveFileId || file.id || index}`} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div key={`${file.driveFileId || file.id || index}`} className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="font-semibold text-slate-900">{file.name}</div>
-                          <div className="mt-1 text-xs text-slate-500">{file.activityTitle || 'Attachment'}</div>
+                          <div className="font-semibold text-[var(--text-main)]">{file.name}</div>
+                          <div className="mt-1 text-xs text-[var(--text-muted)]">{file.activityTitle || 'Attachment'}</div>
                         </div>
                         {getFileOpenUrl(file) ? (
                           <a href={getFileOpenUrl(file)} target="_blank" rel="noreferrer" className="text-[var(--primary)] hover:underline">
@@ -1952,7 +1952,7 @@ export function ProjectDetailsPage() {
                   ))}
                 </div>
               ) : (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-8 text-center text-sm text-[var(--text-muted)]">
                   No files attached yet. Click Add File to attach project documents.
                 </div>
               )}
@@ -1961,10 +1961,10 @@ export function ProjectDetailsPage() {
 
           {activeTab === 'invoices' ? (
             <Card className="space-y-4 p-5">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
                 <div>
                   <h3 className="text-lg font-bold text-[var(--text-main)]">Invoices</h3>
-                  <p className="text-sm text-slate-500">{invoices.length} invoice(s)</p>
+                  <p className="text-sm text-[var(--text-muted)]">{invoices.length} invoice(s)</p>
                 </div>
               </div>
               <DataTable
@@ -1997,53 +1997,53 @@ export function ProjectDetailsPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="p-0 border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <Card className="p-0 border-[var(--border)]">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
               <div className="flex items-center gap-2">
-                <Layers size={18} className="text-slate-800" />
-                <h2 className="text-lg font-semibold text-slate-900">Project info</h2>
+                <Layers size={18} className="text-[var(--text-main)]" />
+                <h2 className="text-lg font-semibold text-[var(--text-main)]">Project info</h2>
               </div>
-              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100 text-slate-500">
+              <button type="button" className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-[var(--surface-2)] text-[var(--text-muted)]">
                 <MoreHorizontal size={18} />
               </button>
             </div>
             <div className="flex flex-col">
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Hexagon size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{project.projectType || 'Project'}</span>
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <Hexagon size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-sm text-[var(--text-main)]">{project.projectType || 'Project'}</span>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <CheckCircle size={16} className="text-slate-500 shrink-0" />
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <CheckCircle size={16} className="text-[var(--text-muted)] shrink-0" />
                 <div className="flex">{renderStatusPill(project.status)}</div>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <Building size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{clientDisplayName || '-'}</span>
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <Building size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-sm text-[var(--text-main)]">{clientDisplayName || '-'}</span>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <User size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{ownerDisplayName || ownerName || '-'}</span>
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <User size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-sm text-[var(--text-main)]">{ownerDisplayName || ownerName || '-'}</span>
               </div>
-              <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                <UserPlus size={16} className="text-slate-500 shrink-0" />
-                <span className="text-sm text-slate-700">{project.createdByName || 'System'}</span>
+              <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                <UserPlus size={16} className="text-[var(--text-muted)] shrink-0" />
+                <span className="text-sm text-[var(--text-main)]">{project.createdByName || 'System'}</span>
               </div>
               {project.value ? (
-                <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                  <DollarSign size={16} className="text-slate-500 shrink-0" />
-                  <span className="text-sm text-slate-700">{formatMoney(project.value)}</span>
+                <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                  <DollarSign size={16} className="text-[var(--text-muted)] shrink-0" />
+                  <span className="text-sm text-[var(--text-main)]">{formatMoney(project.value)}</span>
                 </div>
               ) : null}
               {project.startDate ? (
-                <div className="flex items-center gap-4 border-b border-slate-100 px-5 py-3.5">
-                  <Calendar size={16} className="text-slate-500 shrink-0" />
-                  <span className="text-sm text-slate-700">{formatDate(project.startDate)} (Start Date)</span>
+                <div className="flex items-center gap-4 border-b border-[var(--border)] px-5 py-3.5">
+                  <Calendar size={16} className="text-[var(--text-muted)] shrink-0" />
+                  <span className="text-sm text-[var(--text-main)]">{formatDate(project.startDate)} (Start Date)</span>
                 </div>
               ) : null}
               {project.deadline ? (
                 <div className="flex items-center gap-4 px-5 py-3.5">
-                  <Calendar size={16} className="text-slate-500 shrink-0" />
-                  <span className="text-sm text-slate-700">{formatDate(project.deadline)} (Deadline)</span>
+                  <Calendar size={16} className="text-[var(--text-muted)] shrink-0" />
+                  <span className="text-sm text-[var(--text-main)]">{formatDate(project.deadline)} (Deadline)</span>
                 </div>
               ) : null}
             </div>

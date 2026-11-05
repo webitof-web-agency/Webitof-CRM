@@ -7,6 +7,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
 import { GeoMap, mapsLink } from "./GeoMap";
 import { hrm } from "./hrmApi";
+import { formatDate } from "../../lib/format";
 const blank = (radius) => ({ label: "", address: "", latitude: "", longitude: "", radiusMeters: radius, locationId: "", status: "Approved" });
 /** Office geofences (WFO) and employee home geofences (WFH). */
 export function HrmGeofences({ token, metadata, masters, can }) {
@@ -156,7 +157,7 @@ export function HrmGeofences({ token, metadata, masters, can }) {
                   <td className="px-3 py-2">{h.radiusMeters} m</td>
                   <td className="px-3 py-2">±{h.requestAccuracy ?? "?"} m</td>
                   <td className="px-3 py-2"><Status value={h.status} /></td>
-                  <td className="px-3 py-2 text-xs">{h.reviewedAt ? new Date(h.reviewedAt).toLocaleDateString() : "—"}{h.comment ? ` · ${h.comment}` : ""}</td>
+                  <td className="px-3 py-2 text-xs">{formatDate(h.reviewedAt)}{h.comment ? ` · ${h.comment}` : ""}</td>
                   <td className="px-3 py-2">
                     <div className="flex gap-1">
                       {h.status === "Pending" && can("approve") && (

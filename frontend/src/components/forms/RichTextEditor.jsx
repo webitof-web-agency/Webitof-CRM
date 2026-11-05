@@ -95,9 +95,9 @@ export function RichTextEditor({
   }
 
   return (
-    <div className={cn('overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 shadow-2xs transition-all', className)}>
+    <div className={cn('overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 shadow-2xs transition-all', className)}>
       {/* Formatting Toolbar */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-slate-100 bg-slate-50/90 px-2.5 py-1.5">
+      <div className="flex flex-wrap items-center gap-1 border-b border-[var(--border)] bg-slate-50/90 px-2.5 py-1.5">
         <div className="flex items-center gap-1 flex-wrap">
           {COMMANDS.map(({ command, value: cmdVal, label, Icon }) => (
             <button
@@ -105,7 +105,7 @@ export function RichTextEditor({
               type="button"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => runCommand(command, cmdVal)}
-              className="rounded-lg p-1.5 text-slate-600 transition hover:bg-white hover:text-blue-700 hover:shadow-2xs cursor-pointer"
+              className="rounded-lg p-1.5 text-[var(--text-muted)] transition hover:bg-[var(--surface-elevated)] hover:text-blue-700 hover:shadow-2xs cursor-pointer"
               title={label}
               aria-label={label}
             >
@@ -116,7 +116,7 @@ export function RichTextEditor({
             type="button"
             onMouseDown={(event) => event.preventDefault()}
             onClick={addLink}
-            className="rounded-lg p-1.5 text-slate-600 transition hover:bg-white hover:text-blue-700 hover:shadow-2xs cursor-pointer"
+            className="rounded-lg p-1.5 text-[var(--text-muted)] transition hover:bg-[var(--surface-elevated)] hover:text-blue-700 hover:shadow-2xs cursor-pointer"
             title="Add link"
             aria-label="Add link"
           >
@@ -143,7 +143,7 @@ export function RichTextEditor({
         }}
         onInput={(event) => onChange?.(event.currentTarget.innerHTML)}
         className={cn(
-          "rich-text-editor w-full px-4 py-3 text-sm leading-relaxed text-slate-800 outline-none overflow-y-auto",
+          "rich-text-editor w-full px-4 py-3 text-sm leading-relaxed text-[var(--text-main)] outline-none overflow-y-auto",
           resizable && "resize-y",
           "empty:before:pointer-events-none empty:before:text-slate-400 empty:before:content-[attr(data-placeholder)]",
           "[&_a]:text-blue-600 [&_a]:underline [&_ol]:list-decimal [&_ol]:pl-6 [&_ul]:list-disc [&_ul]:pl-6 [&_p]:mb-2 [&_h3]:text-base [&_h3]:font-bold [&_h3]:text-slate-900 [&_h3]:mb-1.5"
@@ -151,9 +151,9 @@ export function RichTextEditor({
       />
 
       {resizable && (
-        <div className="flex items-center justify-between px-3 py-1 bg-slate-50 border-t border-slate-100 text-[10px] text-slate-400 select-none">
+        <div className="flex items-center justify-between px-3 py-1 bg-[var(--surface-2)] border-t border-[var(--border)] text-[10px] text-[var(--text-muted)] select-none">
           <span>WYSIWYG Rich Editor</span>
-          <span className="flex items-center gap-1 text-slate-400">
+          <span className="flex items-center gap-1 text-[var(--text-muted)]">
             Drag bottom-right corner to resize ⇲
           </span>
         </div>

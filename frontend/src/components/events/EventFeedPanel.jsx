@@ -19,7 +19,7 @@ function getVisibilityLabel(visibility) {
 }
 
 function formatTimeRange(event) {
-  const dateStr = event?.startDate ? formatDateOnlyDisplay(event.startDate, 'en-US') : '';
+  const dateStr = event?.startDate ? formatDateOnlyDisplay(event.startDate, 'en-IN') : '';
   let timeStr = '';
   if (event?.startTime && event?.endTime) timeStr = `${event.startTime} - ${event.endTime}`;
   else if (event?.startTime) timeStr = event.startTime;

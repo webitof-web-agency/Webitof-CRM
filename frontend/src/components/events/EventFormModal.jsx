@@ -180,7 +180,7 @@ export function EventFormModal({
                 searchPlaceholder="Search records..."
               />
             ) : (
-              <div className="rounded-[var(--radius-input,0.75rem)] border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+              <div className="rounded-[var(--radius-input,0.75rem)] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm text-[var(--text-muted)]">
                 This event is not linked to a specific record.
               </div>
             )}
@@ -218,7 +218,7 @@ export function EventFormModal({
         />
 
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Share with</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Share with</div>
           <div className="flex flex-wrap items-center gap-6 pt-1">
             {[
               { value: 'only_me', label: 'Only me' },
@@ -238,15 +238,15 @@ export function EventFormModal({
                   className="!appearance-auto"
                   style={{ accentColor: 'var(--primary)' }}
                 />
-                <span className="text-sm text-slate-700">{option.label}</span>
+                <span className="text-sm text-[var(--text-main)]">{option.label}</span>
               </label>
             ))}
           </div>
         </div>
 
         {formData.visibility === 'specific' ? (
-          <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Specific members</div>
+          <div className="space-y-3 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Specific members</div>
             <SearchableSelect
               value={formData.allowedUserIds}
               onChange={(val) => set('allowedUserIds', val)}
@@ -255,21 +255,21 @@ export function EventFormModal({
               searchPlaceholder="Search members..."
               multiple
             />
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-[var(--text-muted)]">
               Team groups are not modeled in this workspace, so member selection is enabled here.
             </div>
           </div>
         ) : null}
 
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Color</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Color</div>
           <div className="flex flex-wrap gap-2">
             {DEFAULT_COLORS.map((color) => (
               <button
                 key={color}
                 type="button"
                 onClick={() => set('color', color)}
-                className={`h-6 w-6 rounded-full border-2 transition ${formData.color === color ? 'border-slate-300 ring-2 ring-offset-2' : 'border-white/70'}`}
+                className={`h-6 w-6 rounded-full border-2 transition ${formData.color === color ? 'border-[var(--border)] ring-2 ring-offset-2' : 'border-white/70'}`}
                 style={{ backgroundColor: color }}
                 aria-label={`Select color ${color}`}
               />

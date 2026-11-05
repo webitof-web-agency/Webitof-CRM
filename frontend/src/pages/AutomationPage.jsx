@@ -104,7 +104,7 @@ function lightBadgeClasses(state = '') {
   if (['Due Soon', 'Pending Approval', 'Scheduled'].includes(value)) return 'bg-amber-50 text-amber-600';
   if (['Paid', 'Active', 'Completed'].includes(value)) return 'bg-emerald-50 text-emerald-600';
   if (['Open', 'Renewal'].includes(value)) return 'bg-sky-50 text-sky-600';
-  return 'bg-slate-100 text-slate-600';
+  return 'bg-[var(--surface-2)] text-[var(--text-muted)]';
 }
 
 function priorityScore(state = '') {
@@ -121,7 +121,7 @@ function itemMeta(module) {
   if (module === 'AMC') return { accent: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', icon: RotateCcw };
   if (module === 'Renewal') return { accent: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', icon: Clock3 };
   if (module === 'Outsourcing') return { accent: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100', icon: Building2 };
-  return { accent: 'text-slate-600', bg: 'bg-slate-50', border: 'border-slate-100', icon: AlarmClock };
+  return { accent: 'text-[var(--text-muted)]', bg: 'bg-[var(--surface-2)]', border: 'border-[var(--border)]', icon: AlarmClock };
 }
 
 function MetricCard({ icon: Icon, label, value, helper, tone = 'slate' }) {
@@ -132,20 +132,20 @@ function MetricCard({ icon: Icon, label, value, helper, tone = 'slate' }) {
     violet: 'bg-violet-50 text-violet-600',
     sky: 'bg-sky-50 text-sky-600',
     orange: 'bg-orange-50 text-orange-600',
-    slate: 'bg-slate-100 text-slate-600'
+    slate: 'bg-[var(--surface-2)] text-[var(--text-muted)]'
   };
 
   return (
-    <Card className="px-5 py-5 shadow-sm border border-slate-100 rounded-2xl">
+    <Card className="px-5 py-5 shadow-sm border border-[var(--border)] rounded-2xl">
       <div className="flex items-start gap-4">
         <div className="w-11 h-11 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 mt-0.5">
           <div className={`absolute inset-0 opacity-10 ${palette[tone] ? palette[tone].split(' ')[1].replace('text-', 'bg-') : 'bg-slate-600'}`}></div>
-          <Icon size={20} strokeWidth={2.5} className={`relative z-10 ${palette[tone] ? palette[tone].split(' ')[1] : 'text-slate-600'}`} />
+          <Icon size={20} strokeWidth={2.5} className={`relative z-10 ${palette[tone] ? palette[tone].split(' ')[1] : 'text-[var(--text-muted)]'}`} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-bold text-slate-900 mb-1.5">{label}</p>
-          <h3 className="text-3xl font-bold text-slate-900 leading-none tracking-tight">{value}</h3>
-          <p className="mt-2 text-xs text-slate-500 leading-snug">{helper}</p>
+          <p className="text-[11px] font-bold text-[var(--text-main)] mb-1.5">{label}</p>
+          <h3 className="text-3xl font-bold text-[var(--text-main)] leading-none tracking-tight">{value}</h3>
+          <p className="mt-2 text-xs text-[var(--text-muted)] leading-snug">{helper}</p>
         </div>
       </div>
     </Card>
@@ -165,26 +165,26 @@ function AlertRow({ item, onOpen }) {
           onOpen(item);
         }
       }}
-      className={`w-full rounded-[18px] border ${meta.border} bg-white p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
+      className={`w-full rounded-[18px] border ${meta.border} bg-[var(--surface-elevated)] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
     >
       <div className="flex items-start gap-4">
-        <div className="w-11 h-11 rounded-[14px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-white group-hover:shadow transition-shadow">
+        <div className="w-11 h-11 rounded-[14px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)] group-hover:shadow transition-shadow">
           <div className={`absolute inset-0 opacity-15 ${meta.accent.replace('text-', 'bg-')}`}></div>
           <meta.icon size={18} strokeWidth={2.5} className={`relative z-10 ${meta.accent}`} />
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-600">
+            <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
               {item.module}
             </span>
             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${lightBadgeClasses(item.state)}`}>
               {item.state}
             </span>
           </div>
-          <div className="mt-2 truncate text-sm font-semibold text-slate-900">{item.title}</div>
-          <div className="mt-1 text-xs text-slate-500">{item.detail}</div>
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+          <div className="mt-2 truncate text-sm font-semibold text-[var(--text-main)]">{item.title}</div>
+          <div className="mt-1 text-xs text-[var(--text-muted)]">{item.detail}</div>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--text-muted)]">
             <span className="inline-flex items-center gap-1">
               <Clock3 size={12} />
               {formatDate(item.dueDate)}
@@ -194,7 +194,7 @@ function AlertRow({ item, onOpen }) {
         </div>
 
         <div className="shrink-0 text-right">
-          <div className="text-sm font-bold text-slate-900">{formatAmount(item.amount)}</div>
+          <div className="text-sm font-bold text-[var(--text-main)]">{formatAmount(item.amount)}</div>
           <div className="mt-3 flex justify-end">
             <Button
               as={Link}
@@ -216,7 +216,7 @@ function AlertRow({ item, onOpen }) {
 
 function PriorityAlertRow({ item, onOpen }) {
   const meta = itemMeta(item.module);
-  let stateColor = 'text-slate-500';
+  let stateColor = 'text-[var(--text-muted)]';
   if (['Expired', 'Overdue'].includes(item.state)) stateColor = 'text-rose-500';
   if (item.state === 'Due Soon') stateColor = 'text-amber-500';
   if (item.state === 'Pending Approval') stateColor = 'text-purple-500';
@@ -229,17 +229,17 @@ function PriorityAlertRow({ item, onOpen }) {
       className="flex items-center justify-between gap-4 py-2 group cursor-pointer"
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="w-8 h-8 rounded-[10px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-white opacity-90 group-hover:opacity-100 transition-opacity">
+        <div className="w-8 h-8 rounded-[10px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)] opacity-90 group-hover:opacity-100 transition-opacity">
           <div className={`absolute inset-0 opacity-15 ${meta.accent.replace('text-', 'bg-')}`}></div>
           <meta.icon size={14} strokeWidth={2.5} className={`relative z-10 ${meta.accent}`} />
         </div>
-        <div className="truncate text-xs font-bold text-slate-900 group-hover:text-[var(--primary)] transition-colors">
+        <div className="truncate text-xs font-bold text-[var(--text-main)] group-hover:text-[var(--primary)] transition-colors">
           {item.title}
         </div>
       </div>
       
       <div className="flex items-center justify-end gap-3 w-[200px] shrink-0">
-        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-500 text-center">
+        <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)] text-center">
           {item.module}
         </span>
         <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] ${lightBadgeClasses(item.state)} w-[85px]`}>
@@ -252,7 +252,7 @@ function PriorityAlertRow({ item, onOpen }) {
 
 function SummaryRunCard({ title, summary, labels = [], href, linkText, icon: Icon }) {
   return (
-    <Card className="shadow-sm border border-slate-100 p-6 relative bg-white" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+    <Card className="shadow-sm border border-[var(--border)] p-6 relative bg-[var(--surface-elevated)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           {Icon && (
@@ -262,8 +262,8 @@ function SummaryRunCard({ title, summary, labels = [], href, linkText, icon: Ico
             </div>
           )}
           <div>
-            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">{title}</h3>
-            <p className="mt-0.5 text-[11px] text-slate-500">
+            <h3 className="text-sm font-bold text-[var(--text-main)] uppercase tracking-wide">{title}</h3>
+            <p className="mt-0.5 text-[11px] text-[var(--text-muted)]">
               Last run {formatAgo(summary?.startedAt)} • Next run in 58 mins
             </p>
           </div>
@@ -275,13 +275,13 @@ function SummaryRunCard({ title, summary, labels = [], href, linkText, icon: Ico
 
       <div className="mt-8 grid grid-cols-2 gap-y-8 gap-x-6">
         {labels.map((item) => (
-          <div key={item.label} className={`relative flex justify-between p-5 rounded-[20px] ${item.cellBg || 'bg-slate-50'}`}>
+          <div key={item.label} className={`relative flex justify-between p-5 rounded-[20px] ${item.cellBg || 'bg-[var(--surface-2)]'}`}>
             <div className="flex flex-col">
-              <p className="text-[11px] font-bold text-slate-500">{item.label}</p>
+              <p className="text-[11px] font-bold text-[var(--text-muted)]">{item.label}</p>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-slate-900 leading-none">{summary ? summary[item.key] ?? 0 : 0}</span>
+                <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{summary ? summary[item.key] ?? 0 : 0}</span>
                 {item.growth && (
-                  <span className={`text-[11px] font-bold ${item.growth.startsWith('-') ? 'text-slate-400' : item.growth.startsWith('+') && item.key !== 'failures' && item.key !== 'skipped' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  <span className={`text-[11px] font-bold ${item.growth.startsWith('-') ? 'text-[var(--text-muted)]' : item.growth.startsWith('+') && item.key !== 'failures' && item.key !== 'skipped' ? 'text-emerald-500' : 'text-rose-500'}`}>
                     {item.growth}
                   </span>
                 )}
@@ -308,33 +308,33 @@ function SummaryRunCard({ title, summary, labels = [], href, linkText, icon: Ico
 
 function RunHistoryRow({ title, summary, href, accent = 'text-indigo-600', icon: Icon, iconBg, iconColor }) {
   const pills = [
-    { label: 'Events', labelColor: 'text-slate-500', value: summary?.events ?? (title.includes('AMC') ? 42 : 58) },
+    { label: 'Events', labelColor: 'text-[var(--text-muted)]', value: summary?.events ?? (title.includes('AMC') ? 42 : 58) },
     { label: 'Affected', labelColor: 'text-blue-500', value: summary?.affectedRecords ?? summary?.affectedAmcs ?? (title.includes('AMC') ? 24 : 32) },
     { label: 'Failures', labelColor: 'text-rose-500', value: summary?.failures ?? 0 }
   ];
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-white px-5 py-4 transition hover:border-slate-300 shadow-sm" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-5 py-4 transition hover:border-[var(--border)] shadow-sm" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
       <div className="flex items-center gap-4 min-w-0">
         {Icon && (
-          <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-white">
+          <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)]">
             <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
             <Icon size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
           </div>
         )}
         <div className="flex flex-col">
           <div className={`text-[11px] font-bold uppercase tracking-[0.16em] ${accent}`}>{title}</div>
-          <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+          <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--text-muted)] font-medium">
             {formatAgo(summary?.startedAt)}
             <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600">Completed</span>
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-6 sm:gap-8 bg-slate-50 px-6 py-2.5 rounded-[16px]">
+      <div className="flex flex-wrap items-center justify-end gap-6 sm:gap-8 bg-[var(--surface-2)] px-6 py-2.5 rounded-[16px]">
         {pills.map((pill) => (
           <div key={pill.label} className="flex flex-col items-center gap-1">
             <span className={`text-[10px] font-bold ${pill.labelColor}`}>{pill.label}</span>
-            <span className="text-xl font-bold text-slate-900 leading-none">{pill.value}</span>
+            <span className="text-xl font-bold text-[var(--text-main)] leading-none">{pill.value}</span>
           </div>
         ))}
         <Link
@@ -351,7 +351,7 @@ function RunHistoryRow({ title, summary, href, accent = 'text-indigo-600', icon:
 
 function EmptyState({ message }) {
   return (
-    <div className="rounded-[18px] border border-dashed border-indigo-200/60 bg-white/50 px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-slate-500 font-medium">
+    <div className="rounded-[18px] border border-dashed border-indigo-200/60 bg-[var(--surface)] px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-[var(--text-muted)] font-medium">
       <div className="relative">
         <div className="w-10 h-12 bg-indigo-50/50 border border-indigo-100 rounded flex flex-col items-start p-1.5 gap-1 shadow-sm">
           <div className="w-3/4 h-1 bg-indigo-100 rounded-full" />
@@ -359,7 +359,7 @@ function EmptyState({ message }) {
           <div className="w-full h-1 bg-indigo-100 rounded-full" />
           <div className="w-5/6 h-1 bg-indigo-100 rounded-full" />
         </div>
-        <div className="absolute -bottom-2 -right-2 bg-white rounded-full p-0.5 shadow-sm border border-slate-100">
+        <div className="absolute -bottom-2 -right-2 bg-[var(--surface-elevated)] rounded-full p-0.5 shadow-sm border border-[var(--border)]">
           <Search size={18} className="text-indigo-500" strokeWidth={2.5} />
         </div>
       </div>
@@ -699,19 +699,19 @@ export function AutomationPage() {
           <p className="mt-1 text-sm text-[var(--text-muted)]">AMC, renewals, and outsourcing alerts in one view</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={handleRefresh} variant="outline" className="bg-white shadow-sm border-slate-200 hover:bg-slate-50 gap-2 font-medium">
-            <RefreshCcw size={16} className="text-slate-500" />
+          <Button onClick={handleRefresh} variant="outline" className="bg-[var(--surface-elevated)] shadow-sm border-[var(--border)] hover:bg-[var(--surface-2)] gap-2 font-medium">
+            <RefreshCcw size={16} className="text-[var(--text-muted)]" />
             {refreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
-          <Button as={Link} to="/app/notifications" variant="outline" className="bg-white shadow-sm border-slate-200 hover:bg-slate-50 gap-2 font-medium">
-            <Bell size={16} className="text-slate-500" />
+          <Button as={Link} to="/app/notifications" variant="outline" className="bg-[var(--surface-elevated)] shadow-sm border-[var(--border)] hover:bg-[var(--surface-2)] gap-2 font-medium">
+            <Bell size={16} className="text-[var(--text-muted)]" />
             Notifications
-            <ChevronDown size={14} className="text-slate-400 ml-1" />
+            <ChevronDown size={14} className="text-[var(--text-muted)] ml-1" />
           </Button>
-          <Button as={Link} to="/app/reports" variant="outline" className="bg-white shadow-sm border-slate-200 hover:bg-slate-50 gap-2 font-medium">
-            <BarChart3 size={16} className="text-slate-500" />
+          <Button as={Link} to="/app/reports" variant="outline" className="bg-[var(--surface-elevated)] shadow-sm border-[var(--border)] hover:bg-[var(--surface-2)] gap-2 font-medium">
+            <BarChart3 size={16} className="text-[var(--text-muted)]" />
             Reports
-            <ChevronDown size={14} className="text-slate-400 ml-1" />
+            <ChevronDown size={14} className="text-[var(--text-muted)] ml-1" />
           </Button>
         </div>
       </div>
@@ -719,15 +719,15 @@ export function AutomationPage() {
       <div className="w-full flex flex-col gap-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="relative w-full lg:max-w-md">
-            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Search alerts, records, dates, amounts..."
-              className="h-11 pl-11 bg-white shadow-sm border-slate-200"
+              className="h-11 pl-11 bg-[var(--surface-elevated)] shadow-sm border-[var(--border)]"
               style={{ borderRadius: 'var(--radius-input, 0.75rem)' }}
             />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 border border-slate-200 bg-slate-50 p-1 text-slate-400 cursor-pointer hover:bg-slate-100" style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}>
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 border border-[var(--border)] bg-[var(--surface-2)] p-1 text-[var(--text-muted)] cursor-pointer hover:bg-[var(--surface-2)]" style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}>
               <Filter size={14} />
             </div>
           </div>
@@ -759,8 +759,8 @@ export function AutomationPage() {
           </div>
         </div>
 
-        <div className="flex w-full overflow-x-auto hide-scrollbar border-b border-slate-200 mt-2">
-          <div className="flex items-center pr-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 border-b-2 border-transparent shrink-0">
+        <div className="flex w-full overflow-x-auto hide-scrollbar border-b border-[var(--border)] mt-2">
+          <div className="flex items-center pr-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)] border-b-2 border-transparent shrink-0">
             <Filter size={12} className="mr-1.5" /> Module
           </div>
           {[
@@ -781,19 +781,19 @@ export function AutomationPage() {
               className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-semibold transition-colors border-b-2 flex items-center gap-2 ${
                 moduleFilter === item.key
                   ? 'border-[var(--primary)] text-[var(--primary)]'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--border)]'
               }`}
             >
               <span>{item.label}</span>
-              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${moduleFilter === item.key ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${moduleFilter === item.key ? 'bg-indigo-100 text-indigo-600' : 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>
                 {item.count}
               </span>
             </button>
           ))}
 
-          <div className="w-px h-6 bg-slate-200 mx-5 self-center shrink-0"></div>
+          <div className="w-px h-6 bg-[var(--surface-3)] mx-5 self-center shrink-0"></div>
 
-          <div className="flex items-center px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400 border-b-2 border-transparent shrink-0">
+          <div className="flex items-center px-4 py-3 text-[11px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)] border-b-2 border-transparent shrink-0">
             Status
           </div>
           {[
@@ -813,12 +813,12 @@ export function AutomationPage() {
               className={`shrink-0 whitespace-nowrap px-4 py-3 text-sm font-semibold transition-colors border-b-2 flex items-center gap-2 ${
                 statusFilter === item.key
                   ? 'border-[var(--primary)] text-[var(--primary)]'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--border)]'
               }`}
             >
               {item.label}
               {item.key !== 'all' && (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusFilter === item.key ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${statusFilter === item.key ? 'bg-indigo-100 text-indigo-600' : 'bg-[var(--surface-2)] text-[var(--text-muted)]'}`}>
                   {statusCounts[item.key] ?? 0}
                 </span>
               )}
@@ -827,12 +827,12 @@ export function AutomationPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
         <div className="inline-flex items-center gap-2">
           <span className={`h-2.5 w-2.5 rounded-full ${refreshing ? 'bg-amber-400' : 'bg-emerald-500'}`} />
           {refreshing ? 'Live refresh in progress' : 'Auto-refresh every 60 seconds'}
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5">
+        <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1.5">
           Showing {visibleAlerts.length} filtered alerts
         </div>
       </div>
@@ -914,8 +914,8 @@ export function AutomationPage() {
 
       <div className="pt-4">
         <div>
-          <h2 className="text-sm font-bold text-slate-900">Automation history</h2>
-          <p className="mt-1 text-xs text-slate-500">Latest automation runs and what they affected</p>
+          <h2 className="text-sm font-bold text-[var(--text-main)]">Automation history</h2>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">Latest automation runs and what they affected</p>
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
@@ -935,19 +935,19 @@ export function AutomationPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <Card className="shadow-sm border border-slate-100" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <Card className="shadow-sm border border-[var(--border)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-3">
+              <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <TriangleAlert size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 {moduleView.title}
               </h2>
-              <p className="mt-1 text-xs text-slate-500">{moduleView.helper}</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">{moduleView.helper}</p>
             </div>
-            <Badge tone="info" className="border-slate-200 bg-slate-50 text-slate-600">
+            <Badge tone="info" className="border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]">
               {moduleView.count} items
             </Badge>
           </div>
@@ -970,17 +970,17 @@ export function AutomationPage() {
           </div>
         </Card>
 
-        <Card className="shadow-sm border border-slate-100 bg-white" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+        <Card className="shadow-sm border border-[var(--border)] bg-[var(--surface-elevated)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
           <div className="flex items-center justify-between gap-3 pb-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-3">
+              <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <Zap size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 Quick actions
               </h2>
-              <p className="mt-1 text-xs text-slate-500">Jump into the relevant module fast</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">Jump into the relevant module fast</p>
             </div>
           </div>
 
@@ -1000,10 +1000,10 @@ export function AutomationPage() {
                   <item.icon size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-xs font-bold text-slate-900 group-hover:text-[var(--primary)] transition-colors">{item.label}</div>
-                  <div className="mt-0.5 text-[11px] font-medium text-slate-500">{item.desc}</div>
+                  <div className="text-xs font-bold text-[var(--text-main)] group-hover:text-[var(--primary)] transition-colors">{item.label}</div>
+                  <div className="mt-0.5 text-[11px] font-medium text-[var(--text-muted)]">{item.desc}</div>
                 </div>
-                <ArrowUpRight size={14} className="text-slate-400 group-hover:text-[var(--primary)] transition-colors" />
+                <ArrowUpRight size={14} className="text-[var(--text-muted)] group-hover:text-[var(--primary)] transition-colors" />
               </Link>
             ))}
           </div>
@@ -1012,19 +1012,19 @@ export function AutomationPage() {
 
       {moduleFilter === 'all' ? (
         <div className="grid gap-4 xl:grid-cols-3">
-          <Card className="shadow-sm border border-slate-100" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <Card className="shadow-sm border border-[var(--border)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
               <div>
-                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-3">
+                <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
                   <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                     <ShieldAlert size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                   </div>
                   AMC alerts
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">Due soon and expired AMC records</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">Due soon and expired AMC records</p>
               </div>
-              <Badge tone="info" className="border-slate-200 bg-slate-50 text-slate-600">
+              <Badge tone="info" className="border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]">
                 {amcAlerts.length}
               </Badge>
             </div>
@@ -1036,26 +1036,26 @@ export function AutomationPage() {
                   <EmptyState message="No AMC items need attention right now." />
                 )
               ) : (
-                <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+                <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-sm text-[var(--text-muted)]">
                   AMC details are hidden for this role.
                 </div>
               )}
             </div>
           </Card>
 
-          <Card className="shadow-sm border border-slate-100" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <Card className="shadow-sm border border-[var(--border)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
               <div>
-                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-3">
+                <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
                   <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                     <CalendarClock size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                   </div>
                   Renewal alerts
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">Renewals that need follow-up</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">Renewals that need follow-up</p>
               </div>
-              <Badge tone="info" className="border-slate-200 bg-slate-50 text-slate-600">
+              <Badge tone="info" className="border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]">
                 {renewalAlerts.length}
               </Badge>
             </div>
@@ -1068,19 +1068,19 @@ export function AutomationPage() {
             </div>
           </Card>
 
-          <Card className="shadow-sm border border-slate-100" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <Card className="shadow-sm border border-[var(--border)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
               <div>
-                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-3">
+                <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
                   <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                     <Building2 size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                   </div>
                   Outsourcing alerts
                 </h2>
-                <p className="mt-1 text-xs text-slate-500">Approval and payment items</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">Approval and payment items</p>
               </div>
-              <Badge tone="info" className="border-slate-200 bg-slate-50 text-slate-600">
+              <Badge tone="info" className="border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]">
                 {outsourcingAlerts.length}
               </Badge>
             </div>
@@ -1092,7 +1092,7 @@ export function AutomationPage() {
                   <EmptyState message="No outsourcing alerts right now." />
                 )
               ) : (
-                <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-sm text-slate-500">
+                <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-sm text-[var(--text-muted)]">
                   Outsourcing details are hidden for this role.
                 </div>
               )}
@@ -1100,19 +1100,19 @@ export function AutomationPage() {
           </Card>
         </div>
       ) : (
-        <Card className="shadow-sm border border-slate-100" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
-          <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <Card className="shadow-sm border border-[var(--border)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
             <div>
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-3">
+              <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <TriangleAlert size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 {moduleView.title}
               </h2>
-              <p className="mt-1 text-xs text-slate-500">{moduleView.helper}</p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">{moduleView.helper}</p>
             </div>
-            <Badge tone="info" className="border-slate-200 bg-slate-50 text-slate-600">
+            <Badge tone="info" className="border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]">
               {moduleView.count}
             </Badge>
           </div>

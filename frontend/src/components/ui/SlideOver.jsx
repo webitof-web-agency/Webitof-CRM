@@ -44,7 +44,7 @@ export function SlideOver({
       <div className="absolute inset-y-0 right-0 flex max-w-full pl-6 sm:pl-10">
         <div
           className={cn(
-            'pointer-events-auto relative w-screen bg-[var(--surface)] shadow-[var(--shadow-modal)] flex flex-col h-full animate-in slide-in-from-right duration-300 border-l border-[var(--border)]',
+            'pointer-events-auto relative w-screen bg-[var(--surface-elevated)] backdrop-blur-xl shadow-[var(--shadow-modal)] flex flex-col h-full animate-in slide-in-from-right duration-300 border-l border-[var(--border)]',
             width
           )}
           role="dialog"
@@ -74,7 +74,7 @@ export function SlideOver({
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto bg-[var(--surface)] relative p-6">
+          <div className="flex-1 overflow-y-auto bg-[var(--surface-elevated)] relative p-6">
             {children}
           </div>
 
