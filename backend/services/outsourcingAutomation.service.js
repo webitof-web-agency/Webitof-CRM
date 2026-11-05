@@ -4,6 +4,10 @@ const workflowAutomationLogModel = require('../models/workflowAutomationLog.mode
 const { getSettings } = require('../models/settings.model');
 const { businessDate, createId, round2, toNumber } = require('../utils/format');
 const { resolveSmtpConfig, sendMail } = require('./mailer.service');
+const { escapeHtml } = require('../utils/escapeHtml');
+
+// Overdue payables older than this stop triggering automatic emails (same limit as AMC and renewals).
+const OVERDUE_GRACE_DAYS = toNumber(process.env.AUTOMATION_OVERDUE_GRACE_DAYS ?? 30, 30);
 
 function normalizeDate(value) {
   if (!value) return null;
@@ -204,16 +208,17 @@ async function runOutsourcingAutomation({ dryRun = false, runSource = 'manual' }
       warnings: []
     };
 
-    if (approvalStatus === 'Pending') {
+    // One approval alert per record; later runs stay quiet until it is approved or rejected.
+    if (approvalStatus === 'Pending' && !record.lastApprovalAlertAt) {
       alertsSent += 1;
       if (!dryRun) {
         const subject = `Outsourcing approval pending: ${title}`;
         const html = `
           <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
             <p>Hello team,</p>
-            <p>An outsourcing record <strong>${title}</strong> is waiting for approval.</p>
+            <p>An outsourcing record <strong>${escapeHtml(title)}</strong> is waiting for approval.</p>
             <p>Amount: <strong>Rs. ${Number(record.totalAmount || record.baseAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
-            <p>Vendor: <strong>${record.vendorName || vendor?.name || '-'}</strong></p>
+            <p>Vendor: <strong>${escapeHtml(record.vendorName || vendor?.name || '-')}</strong></p>
           </div>
         `;
         const alertResult = await sendFinanceAlert({
@@ -222,6 +227,7 @@ async function runOutsourcingAutomation({ dryRun = false, runSource = 'manual' }
           text: `Outsourcing approval pending for ${title}.`
         });
         if (alertResult.sent) {
+          result.approvalAlertSent = true;
           await recordLog({
             moduleName: 'outsourcing',
             entityId: record.id,
@@ -253,7 +259,11 @@ async function runOutsourcingAutomation({ dryRun = false, runSource = 'manual' }
       }
     }
 
-    if (paymentStatus !== 'Paid' && dueDate && daysRemaining != null && daysRemaining <= reminderDays) {
+    // One due/overdue email per due date, and none once the payable is overdue past the grace limit.
+    const reminderAlreadySent = normalizeDate(record.lastReminderSentForDate) === dueDate;
+    const overdueBeyondGrace = daysRemaining != null && daysRemaining < -OVERDUE_GRACE_DAYS;
+    if (overdueBeyondGrace) result.warnings.push(`Overdue by ${-daysRemaining} days (limit ${OVERDUE_GRACE_DAYS}); no automatic reminder`);
+    if (paymentStatus !== 'Paid' && dueDate && daysRemaining != null && daysRemaining <= reminderDays && !reminderAlreadySent && !overdueBeyondGrace) {
       alertsSent += 1;
       const action = daysRemaining < 0 ? 'overdue_alert' : 'due_alert';
       if (!dryRun) {
@@ -262,10 +272,10 @@ async function runOutsourcingAutomation({ dryRun = false, runSource = 'manual' }
           const reminderHtml = `
             <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
               <p>Hello team,</p>
-              <p>Outsourcing payable for <strong>${title}</strong> is ${daysRemaining < 0 ? 'overdue' : 'due soon'}.</p>
+              <p>Outsourcing payable for <strong>${escapeHtml(title)}</strong> is ${daysRemaining < 0 ? 'overdue' : 'due soon'}.</p>
               <p>Due date: <strong>${dueDate}</strong></p>
-              <p>Status: <strong>${paymentStatus}</strong></p>
-              <p>Vendor: <strong>${record.vendorName || vendor?.name || '-'}</strong></p>
+              <p>Status: <strong>${escapeHtml(paymentStatus)}</strong></p>
+              <p>Vendor: <strong>${escapeHtml(record.vendorName || vendor?.name || '-')}</strong></p>
               <p>Amount: <strong>Rs. ${Number(record.totalAmount || record.baseAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
             </div>
           `;
@@ -351,6 +361,7 @@ async function runOutsourcingAutomation({ dryRun = false, runSource = 'manual' }
         reminderDays,
         approvalStatus,
         paymentStatus,
+        lastApprovalAlertAt: result.approvalAlertSent ? new Date().toISOString() : record.lastApprovalAlertAt || null,
         lastReminderSentAt: result.reminderSent ? new Date().toISOString() : record.lastReminderSentAt || null,
         lastReminderSentForDate: result.reminderSent ? dueDate : record.lastReminderSentForDate || null
       });

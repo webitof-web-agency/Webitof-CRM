@@ -13,6 +13,6 @@ router.post('/', requirePermission('invoices.write'), controller.create);
 router.get('/:id', requirePermission('invoices.read'), controller.getById);
 router.put('/:id', requirePermission('invoices.write'), controller.update);
 router.delete('/:id', requirePermission('invoices.delete'), controller.remove);
-router.post('/:id/send-email', requirePermission('invoices.read'), controller.sendEmail);
+router.post('/:id/send-email', requirePermission('invoices.write'), controller.sendEmail);
 
 module.exports = router;

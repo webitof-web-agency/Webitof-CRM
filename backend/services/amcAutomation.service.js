@@ -14,6 +14,7 @@ const { generateInvoiceNumber, getFinancialYear } = require('../utils/invoice');
 const { businessDate, createId, round2, toNumber } = require('../utils/format');
 const { resolveSmtpConfig, sendMail } = require('./mailer.service');
 const { syncInvoiceFinancialState } = require('./finance.service');
+const { escapeHtml } = require('../utils/escapeHtml');
 
 // Items overdue by more than this many days are not emailed or invoiced automatically, so a
 // long-stale record (or a first run after downtime) cannot mail clients or bill old periods
@@ -196,10 +197,10 @@ async function sendAmcReminder({ amc, client, dueDate }) {
   const subject = `AMC reminder: ${amc.title || amc.amcType || 'AMC'}${dueDate ? ` due on ${dueDate}` : ''}`;
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
-      <p>Hello ${client.companyName || client.name || 'Client'},</p>
-      <p>This is a reminder for your AMC <strong>${amc.title || amc.amcType || 'AMC'}</strong>${dueDate ? ` due on <strong>${dueDate}</strong>` : ''}.</p>
+      <p>Hello ${escapeHtml(client.companyName || client.name || 'Client')},</p>
+      <p>This is a reminder for your AMC <strong>${escapeHtml(amc.title || amc.amcType || 'AMC')}</strong>${dueDate ? ` due on <strong>${dueDate}</strong>` : ''}.</p>
       <p>Amount: <strong>Rs. ${amountText}</strong></p>
-      ${amc.remarks ? `<p>Notes: ${String(amc.remarks)}</p>` : ''}
+      ${amc.remarks ? `<p>Notes: ${escapeHtml(amc.remarks)}</p>` : ''}
       <p>Please review and process the renewal or billing as needed.</p>
     </div>
   `;

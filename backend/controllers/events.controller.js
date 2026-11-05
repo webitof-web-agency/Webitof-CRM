@@ -8,6 +8,16 @@ const {
   normalizeEventPayload
 } = require('../services/eventNormalization.service');
 
+// Team-visible events can be seen by everyone, but only their owner (or a super admin) may change them.
+function canModifyEvent(event, user) {
+  if (!user) return false;
+  return Boolean(user.isSuperAdmin) || String(event.ownerUserId || '') === String(user.id || '');
+}
+
+function forbiddenEvent(res) {
+  return res.status(403).json({ success: false, message: 'Only the event owner can change this event' });
+}
+
 async function list(req, res, next) {
   try {
     const { scopeType, scopeId, search } = req.query || {};
@@ -63,6 +73,7 @@ async function update(req, res, next) {
     if (!current || !isEventRecord(current) || !isVisibleToUser(current, req.user)) {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
+    if (!canModifyEvent(current, req.user)) return forbiddenEvent(res);
     const body = normalizeEventPayload({ ...current, ...(req.body || {}) }, req, { defaultScopeType: 'global', defaultEventType: 'event' });
     if (body.scopeType !== 'global' && !String(body.scopeId || '').trim()) {
       return res.status(400).json({ success: false, message: 'Linked record is required for this event scope' });
@@ -81,6 +92,7 @@ async function remove(req, res, next) {
     if (!current || !isEventRecord(current) || !isVisibleToUser(current, req.user)) {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
+    if (!canModifyEvent(current, req.user)) return forbiddenEvent(res);
     const ok = await leadEventModel.remove(req.params.id);
     if (!ok) {
       return res.status(404).json({ success: false, message: 'Record not found' });

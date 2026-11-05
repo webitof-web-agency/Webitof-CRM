@@ -3,6 +3,7 @@ const clientModel = require('../models/client.model');
 const workflowAutomationLogModel = require('../models/workflowAutomationLog.model');
 const { businessDate, createId, round2, toNumber } = require('../utils/format');
 const { resolveSmtpConfig, sendMail } = require('./mailer.service');
+const { escapeHtml } = require('../utils/escapeHtml');
 
 // Renewals overdue by more than this many days are not emailed automatically, so stale
 // records cannot trigger a burst of client emails. They are logged for manual follow-up.
@@ -131,10 +132,10 @@ async function sendRenewalReminder({ renewal, client, dueDate }) {
   const subject = `Renewal reminder: ${title}${dueDate ? ` due on ${dueDate}` : ''}`;
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111">
-      <p>Hello ${client.companyName || client.name || 'Client'},</p>
-      <p>This is a renewal reminder for <strong>${title}</strong>${dueDate ? ` due on <strong>${dueDate}</strong>` : ''}.</p>
+      <p>Hello ${escapeHtml(client.companyName || client.name || 'Client')},</p>
+      <p>This is a renewal reminder for <strong>${escapeHtml(title)}</strong>${dueDate ? ` due on <strong>${dueDate}</strong>` : ''}.</p>
       <p>Estimated amount: <strong>Rs. ${amount}</strong></p>
-      ${renewal.remarks ? `<p>Notes: ${String(renewal.remarks)}</p>` : ''}
+      ${renewal.remarks ? `<p>Notes: ${escapeHtml(renewal.remarks)}</p>` : ''}
       <p>Please review the renewal timeline and take action if needed.</p>
     </div>
   `;

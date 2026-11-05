@@ -15,6 +15,7 @@ const { LEAD_OPTIONS, LEAD_SCORE_RULES, calculateLeadScore } = require('../confi
 const { createValidationError, toList, validateLeadPayload } = require('../services/leadValidation.service');
 const { hasPermission } = require('../middlewares/auth');
 const { createId } = require('../utils/format');
+const { safeOrderBy } = require('../utils/orderBy');
 const followUpEngine = require('../services/followUpEngine.service');
 const {
   DEFAULT_PIPELINE_ID,
@@ -1169,7 +1170,7 @@ const leadsController = {
       let rows = await leadModel.list({
         where: { pipelineId, status, source, assignedTo, leadTemperature, priority, city, state, budgetRange },
         search,
-        orderBy: orderBy || 'updated_at DESC'
+        orderBy: safeOrderBy(orderBy, 'updated_at DESC')
       });
       rows = filterLeadsByPipelineAccess(rows, req);
 

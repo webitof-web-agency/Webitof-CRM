@@ -1,5 +1,6 @@
 const leadContactModel = require('../models/leadContact.model');
 const leadModel = require('../models/lead.model');
+const { safeOrderBy } = require('../utils/orderBy');
 const { DEFAULT_PIPELINE_ID, canAccessPipeline, userHasAllPipelineAccess } = require('../services/leadPipelineAccess.service');
 
 function forbiddenPipelineError() {
@@ -37,7 +38,7 @@ async function list(req, res, next) {
     let rows = await leadContactModel.list({
       where: filters,
       search,
-      orderBy: orderBy || 'updated_at DESC'
+      orderBy: safeOrderBy(orderBy, 'updated_at DESC')
     });
     rows = await filterContactsByAccess(rows, req);
 

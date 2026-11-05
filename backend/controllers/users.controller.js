@@ -40,8 +40,6 @@ async function lookupController(req, res, next) {
         username: user.username,
         email: user.email,
         phone: user.phone,
-        address: user.address,
-        gender: user.gender,
         isActive: user.isActive,
         roles: user.roles || []
       }));

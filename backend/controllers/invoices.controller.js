@@ -11,6 +11,7 @@ const { getInvoiceSnapshot, syncInvoiceFinancialState } = require('../services/f
 const { notifyBusinessEvent } = require('../services/notification.service');
 const { hasPermission } = require('../middlewares/auth');
 const { withTransaction } = require('../config/db');
+const { safeOrderBy } = require('../utils/orderBy');
 const followUpEngine = require('../services/followUpEngine.service');
 
 function buildPaymentMap(payments = []) {
@@ -227,7 +228,7 @@ invoicesController.list = async (req, res, next) => {
     let rows = await invoiceModel.list({
       where: filters,
       search,
-      orderBy: orderBy || 'invoice_date DESC'
+      orderBy: safeOrderBy(orderBy, 'invoice_date DESC')
     });
     rows = await enrichInvoices(rows);
 
@@ -339,6 +340,14 @@ invoicesController.update = async (req, res, next) => {
   }
 };
 
+// The public invoice page only renders the client's name, billing address and GSTIN; the rest of
+// the client record (phone, email, notes, internal fields) must not leave through an unauthenticated link.
+function publicClient(client) {
+  if (!client) return null;
+  const { id, name, companyName, billingAddress, address, city, state, stateCode, pincode, country, gstin } = client;
+  return { id, name, companyName, billingAddress, address, city, state, stateCode, pincode, country, gstin };
+}
+
 // Public endpoint — no auth required
 invoicesController.getPublic = async (req, res, next) => {
   try {
@@ -356,7 +365,7 @@ invoicesController.getPublic = async (req, res, next) => {
       success: true,
       data: {
         invoice: snapshot,
-        client,
+        client: publicClient(client),
         company: settings?.company || {},
         logos: settings?.logos || {},
         branding: settings?.branding || {},

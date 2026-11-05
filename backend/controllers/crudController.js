@@ -1,3 +1,4 @@
+const { safeOrderBy } = require('../utils/orderBy');
 function createCrudController(model, options = {}) {
   const defaultOrder = options.defaultOrder || 'updated_at DESC';
 
@@ -8,7 +9,7 @@ function createCrudController(model, options = {}) {
         let rows = await model.list({
           where: filters,
           search,
-          orderBy: orderBy || defaultOrder
+          orderBy: safeOrderBy(orderBy, defaultOrder)
         });
 
         if (typeof options.onList === 'function') {
