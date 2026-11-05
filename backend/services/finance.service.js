@@ -112,7 +112,17 @@ function daysUntil(dateString, fromDate = new Date()) {
   return Math.ceil((target - base) / (1000 * 60 * 60 * 24));
 }
 
+// Only money that actually landed counts against an invoice. Bounced, Reversed, Refunded
+// and still-uncleared payments are recorded for history but must not reduce the balance due.
+const COUNTED_PAYMENT_STATUSES = new Set(['received', 'cleared']);
+
+function isPaymentCounted(payment = {}) {
+  const status = String(payment.paymentStatus || '').trim().toLowerCase();
+  return !status || COUNTED_PAYMENT_STATUSES.has(status);
+}
+
 function getPaymentAppliedAmount(payment = {}) {
+  if (!isPaymentCounted(payment)) return 0;
   return round2(toNumber(payment.amountReceived) + toNumber(payment.tdsDeducted));
 }
 
@@ -674,6 +684,7 @@ module.exports = {
   buildInvoiceLedgerEntry,
   getInvoiceSnapshot,
   getPaymentAppliedAmount,
+  isPaymentCounted,
   calculatePayrollExpense,
   getPayrollExpenseTotal,
   getPayrollRecords,

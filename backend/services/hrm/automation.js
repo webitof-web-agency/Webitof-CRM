@@ -371,7 +371,12 @@ function schedule() {
         const p = await c.policy();
         if (!p.automationEnabled) return;
         const id = process.env.HRM_AUTOMATION_USER_ID;
-        if (!id) return;
+        if (!id) {
+          console.warn(
+            "HRM daily automation skipped: set HRM_AUTOMATION_USER_ID to the id of an active user with HRM access.",
+          );
+          return;
+        }
         const user = await require("../auth.service").getUserAccessProfile(id);
         if (user?.isActive) await run(user);
       } catch (error) {

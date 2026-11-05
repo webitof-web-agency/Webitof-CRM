@@ -294,6 +294,32 @@ async function resetPasswordWithOtp({ identifier, otp, password }, meta = {}) {
   };
 }
 
+async function changeOwnPassword(userId, { currentPassword, newPassword } = {}) {
+  const user = await userModel.findById(userId);
+  if (!user || !user.isActive) {
+    const error = new Error('User not found');
+    error.statusCode = 404;
+    throw error;
+  }
+  if (!currentPassword || !(await comparePassword(currentPassword, user.passwordHash))) {
+    const error = new Error('Current password is incorrect');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!newPassword || String(newPassword).trim().length < 8) {
+    const error = new Error('Password must be at least 8 characters long');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (String(newPassword) === String(currentPassword)) {
+    const error = new Error('New password must be different from the current password');
+    error.statusCode = 400;
+    throw error;
+  }
+  await userModel.update(userId, { passwordHash: await hashPassword(newPassword) });
+  return { message: 'Password changed successfully', updatedAt: nowIso() };
+}
+
 async function syncUserRoles(client, userId, roleIds = [], assignedBy = null) {
   await client.query('delete from user_roles where user_id = $1', [userId]);
   const uniqueRoleIds = [...new Set((roleIds || []).filter(Boolean))];
@@ -533,6 +559,7 @@ module.exports = {
   getAuthProfileByLogin,
   getRoleById,
   getUserAccessProfile,
+  changeOwnPassword,
   hashPassword,
   listPermissions,
   listRoles,

@@ -25,7 +25,7 @@ const {
   getPlaceOfSupplyForClient
 } = require('../utils/finance');
 const { round2, toNumber } = require('../utils/format');
-const { getInvoiceSnapshot, getPayrollExpenseTotal, getPayrollRecords } = require('./finance.service');
+const { getInvoiceSnapshot, getPaymentAppliedAmount, getPayrollExpenseTotal, getPayrollRecords } = require('./finance.service');
 
 function sumBy(items = [], iteratee = (item) => item) {
   return round2(items.reduce((sum, item) => sum + toNumber(iteratee(item)), 0));
@@ -262,7 +262,7 @@ async function buildDashboardSummary() {
     totalInvoiceAmount: sumBy(invoiceTotals, (item) => item.totalAmount),
     totalTaxableAmount: sumBy(invoiceTotals, (item) => item.taxableAmount),
     totalGstCharged: outputGst,
-    totalReceived: sumBy(state.payments, (payment) => toNumber(payment.amountReceived) + toNumber(payment.tdsDeducted)),
+    totalReceived: sumBy(state.payments, getPaymentAppliedAmount),
     totalDue: sumBy(invoiceSnapshots, (snapshot) => snapshot.balanceDue),
     overdueDue: sumBy(invoiceSnapshots.filter((snapshot) => snapshot.isOverdue), (snapshot) => snapshot.balanceDue),
     outputGst,
@@ -348,7 +348,7 @@ async function buildClientSummary(clientId) {
       totalInvoiceAmount: sumBy(invoiceTotals, (item) => item.totalAmount),
       totalTaxableAmount: sumBy(invoiceTotals, (item) => item.taxableAmount),
       totalGstCharged: sumBy(invoiceTotals, (item) => item.gstAmount),
-      totalReceived: sumBy(payments, (payment) => toNumber(payment.amountReceived) + toNumber(payment.tdsDeducted)),
+      totalReceived: sumBy(payments, getPaymentAppliedAmount),
       totalDue: sumBy(invoiceSnapshots, (snapshot) => snapshot.balanceDue),
       overdueDue: sumBy(invoiceSnapshots.filter((snapshot) => snapshot.isOverdue), (snapshot) => snapshot.balanceDue),
       paymentProgress: invoices.length ? round2(sumBy(invoiceSnapshots, (snapshot) => snapshot.paymentProgress) / invoices.length) : 0,

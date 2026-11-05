@@ -1,5 +1,5 @@
 const { loadBusinessState, buildRenewalDashboard, getRenewalTitle, getRenewalAmount } = require('../services/analytics.service');
-const { buildFinanceSummary, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
+const { buildFinanceSummary, getPaymentAppliedAmount, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
 const {
   calculateExpenseImpact,
   calculateInvoiceTotals,
@@ -126,7 +126,7 @@ function buildFinanceTrend(state, monthsBack = 6) {
     const monthKey = getMonthKey(payment.paymentDate || payment.createdAt);
     const bucket = bucketMap.get(monthKey);
     if (!bucket) return;
-    bucket.received = round2(bucket.received + toNumber(payment.amountReceived) + toNumber(payment.tdsDeducted));
+    bucket.received = round2(bucket.received + getPaymentAppliedAmount(payment));
   });
 
   buckets.forEach((bucket) => {

@@ -1,4 +1,5 @@
 const {
+  changeOwnPassword,
   createPasswordResetRequest,
   getUserAccessProfile,
   login,
@@ -75,6 +76,24 @@ async function resetPasswordController(req, res, next) {
   }
 }
 
+async function changePasswordController(req, res, next) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, message: 'Authentication required' });
+    const { currentPassword, newPassword, confirmPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'currentPassword and newPassword are required' });
+    }
+    if (confirmPassword !== undefined && newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'newPassword and confirmPassword must match' });
+    }
+    const result = await changeOwnPassword(userId, { currentPassword, newPassword });
+    res.json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function updateProfileController(req, res, next) {
   try {
     const userId = req.user?.id;
@@ -129,6 +148,7 @@ module.exports = {
   loginController,
   meController,
   resetPasswordController,
+  changePasswordController,
   updateProfileController,
   deleteAvatarController
 };
