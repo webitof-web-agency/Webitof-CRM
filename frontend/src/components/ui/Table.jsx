@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { isValidElement, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, ChevronsUpDown, Layers } from 'lucide-react';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
 import { EmptyState } from './EmptyState';
 import { Select } from './Select';
 import { cn } from '../../lib/cn';
+import { formatStructuredValue } from '../../utils/formatStructuredValue';
 
 function getNextSortDirection(currentKey, currentDirection, nextKey) {
   if (currentKey !== nextKey) return 'asc';
@@ -34,7 +35,8 @@ function formatTableValue(value, type) {
       ? String(value)
       : num.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
   }
-  return String(value);
+  if (typeof value === 'object' && !isValidElement(value)) return formatStructuredValue(value);
+  return isValidElement(value) ? value : String(value);
 }
 
 export function DataTable({

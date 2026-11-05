@@ -16,6 +16,7 @@ import { ConfirmDialog } from '../components/overlays/ConfirmDialog';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { sortRows } from '../lib/resource';
 import { cn } from '../lib/cn';
+import { formatStructuredValue } from '../utils/formatStructuredValue';
 import { STATIC_TECHNOLOGIES } from '../config/technologyStacks';
 import {
   SERVICE_PAYMENT_PLAN_OPTIONS,
@@ -249,7 +250,15 @@ function getMasterConfig(activeType, lookups = {}) {
       { key: 'name', label: 'Name' },
       { key: 'sortOrder', label: 'Order', align: 'right' },
       { key: 'isActive', label: 'Active', type: 'badge' },
-      { key: 'payload', label: 'Payload', ellipsis: true }
+      {
+        key: 'payload',
+        label: 'Payload',
+        ellipsis: true,
+        render: (row) => {
+          const text = formatStructuredValue(row.payload);
+          return <span title={text === '-' ? undefined : text}>{text}</span>;
+        }
+      }
     ],
     fullWidthFields: ['payload']
   };
