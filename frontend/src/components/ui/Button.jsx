@@ -13,6 +13,8 @@ const variants = {
     'bg-transparent text-slate-600 dark:text-slate-400 hover:bg-black/[0.05] dark:hover:bg-white/10 hover:text-slate-900 dark:hover:text-white active:scale-[0.98] focus-visible:ring-[var(--primary)]',
   destructive:
     'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700 text-white hover:brightness-110 active:scale-[0.98] shadow-md shadow-rose-500/25 border border-white/20 focus-visible:ring-rose-400',
+  success:
+    'bg-gradient-to-r from-emerald-500 via-emerald-600 to-emerald-700 text-white hover:brightness-110 active:scale-[0.98] shadow-md shadow-emerald-500/25 border border-white/20 focus-visible:ring-emerald-400',
   danger:
     'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700 text-white hover:brightness-110 active:scale-[0.98] shadow-md shadow-rose-500/25 border border-white/20 focus-visible:ring-rose-400',
   subtle:

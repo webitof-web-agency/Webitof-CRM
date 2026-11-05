@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { confirmAction } from '../lib/confirm';
 import { useSearchParams } from 'react-router-dom';
 import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key, PenTool, FileCheck2, ExternalLink, Eye, Download, Pencil, EyeOff, HardDrive } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
@@ -1936,7 +1937,7 @@ export function SettingsPage() {
                           <button
                             type="button"
                             onClick={async () => {
-                              if (!window.confirm(`Delete template "${tpl.name}"?`)) return;
+                              if (!(await confirmAction({ title: 'Delete template?', description: `"${tpl.name}" will be removed.`, confirmText: 'Delete', type: 'danger' }))) return;
                               const updated = (settings.invoiceTemplates || []).filter(t => t.id !== tpl.id);
                               setSettings(s => ({ ...s, invoiceTemplates: updated }));
                               await api.settings.save(token, { invoiceTemplates: updated });

@@ -7,6 +7,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import { ProtectedRoute } from './components/guards/ProtectedRoute';
 import { PermissionRoute } from './components/guards/PermissionRoute';
 import { HomeRedirect } from './components/guards/HomeRedirect';
+import { ConfirmHost } from './components/overlays/ConfirmHost';
 import { AppLayout } from './components/layout/AppLayout';
 import { schemaRegistry } from './config/resourceSchemas';
 
@@ -581,6 +582,7 @@ export default function App() {
               <AppRoutes />
             </Suspense>
             <Toaster richColors position="top-right" closeButton />
+            <ConfirmHost />
           </NotificationProvider>
         </HashRouter>
       </AuthProvider>

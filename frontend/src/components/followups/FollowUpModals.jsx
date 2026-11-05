@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { confirmAction } from '../../lib/confirm';
 import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronDown, Loader2, MessageCircle, Search, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
@@ -297,8 +298,8 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function close() {
-    if (dirty && !window.confirm('Discard unsaved follow-up changes?')) return;
+  async function close() {
+    if (dirty && !(await confirmAction({ title: 'Discard changes?', description: 'Your unsaved follow-up changes will be lost.', confirmText: 'Discard', type: 'warning' }))) return;
     onClose();
   }
 
@@ -873,7 +874,8 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
           <Button
             onClick={handleSubmit}
             disabled={busy}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer font-semibold shadow-xs"
+            variant="success"
+            className="cursor-pointer"
           >
             <CheckCircle2 size={14} className="mr-1.5" />
             {busy ? 'Saving...' : 'Mark as Completed'}
@@ -1007,7 +1009,8 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
                 type="button"
                 size="sm"
                 onClick={() => openWhatsAppDirect(phone, name, outcome, followUp.purpose || followUp.title)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white border-0 h-7 text-xs shadow-xs shrink-0 cursor-pointer font-semibold"
+                variant="success"
+                className="h-7 text-xs shrink-0 cursor-pointer"
               >
                 <Send size={12} className="mr-1.5" />
                 Send WhatsApp

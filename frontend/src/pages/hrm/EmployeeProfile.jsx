@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { confirmAction } from '../../lib/confirm';
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -246,10 +247,11 @@ function Documents({ token, employeeId, can }) {
                   size="sm"
                   variant="secondary"
                   aria-label={`Delete ${d.category}`}
-                  onClick={() =>
-                    window.confirm(`Delete ${d.category}?`) &&
-                    act(`/documents/${d.id}`, { method: "DELETE" }, "Document deleted")
-                  }
+                  onClick={async () => {
+                    if (await confirmAction({ title: 'Delete document?', description: `${d.category} will be removed.`, confirmText: 'Delete', type: 'danger' })) {
+                      act(`/documents/${d.id}`, { method: "DELETE" }, "Document deleted");
+                    }
+                  }}
                 >
                   <Trash2 size={15} />
                 </Button>

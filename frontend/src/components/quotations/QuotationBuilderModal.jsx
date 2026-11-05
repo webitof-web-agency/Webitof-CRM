@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { confirmAction } from '../../lib/confirm';
 import { Link } from 'react-router-dom';
 import { leadRoute, clientRoute } from '../../utils/entityRoutes';
 import {
@@ -1359,8 +1360,8 @@ export function QuotationBuilderModal({
     return () => clearTimeout(serverTimer);
   }, [formData, commercialTotals, calculatedMilestones, onAutoSave, effectiveDiscountValue]);
 
-  function handleDiscardDraft() {
-    if (!window.confirm('Discard auto-saved draft and reload template defaults from the Lead?')) return;
+  async function handleDiscardDraft() {
+    if (!(await confirmAction({ title: 'Discard draft?', description: 'The auto-saved draft will be discarded and the template defaults reloaded from the lead.', confirmText: 'Discard', type: 'warning' }))) return;
     try {
       localStorage.removeItem(autoSaveDraftKey);
     } catch (e) {}

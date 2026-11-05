@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
+import { confirmAction } from '../../lib/confirm';
 import {
   Phone,
   PhoneCall,
@@ -513,7 +514,7 @@ export function CallHistoryPage() {
 
   // Delete call log
   const handleDeleteCall = async (id) => {
-    if (!window.confirm('Delete this call log?')) return;
+    if (!(await confirmAction({ title: 'Delete call log?', description: 'This call log and its recording will be removed.', confirmText: 'Delete', type: 'danger' }))) return;
     try {
       await api.callLogs.remove(token, id);
       toast.success('Call log deleted');

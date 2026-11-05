@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Edit3, MapPin, Trash2 } from 'lucide-react';
+import { canModifyEvent } from '../../lib/eventAccess';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { mergeSharedLabelOptions, normalizeSharedLabels } from '../../lib/labels';
@@ -487,7 +488,7 @@ export function GlobalEventsDrawer({ open, onClose, token, user, sharedLabels = 
                                   {event.ownerUserId ? <span>by {userLookup.get(String(event.ownerUserId)) || currentUserName}</span> : null}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1">
+                              <div className={canModifyEvent(event, user) ? "flex items-center gap-1" : "hidden"}>
                                 <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setEditingEvent(event); }} title="Edit event">
                                   <Edit3 size={15} />
                                 </Button>

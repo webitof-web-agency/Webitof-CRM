@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { confirmAction } from '../../lib/confirm';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BellRing, CalendarDays, CheckCircle2,
@@ -3289,7 +3290,7 @@ export function FollowUpsPage() {
       if (action === 'escalate') { await api.followUps.escalate(token, item.id, { reason: 'Manually escalated from command center' }); toast.success('Follow-up escalated'); setMore(null); }
       if (action === 'acknowledge') { await api.followUps.acknowledge(token, item.id); toast.success('Reminder acknowledged'); setMore(null); }
       if (action === 'delete') {
-        if (!window.confirm(`Are you sure you want to delete follow-up "${item.title || item.followUpNumber}"?`)) return;
+        if (!(await confirmAction({ title: 'Delete follow-up?', description: `"${item.title || item.followUpNumber}" will be removed.`, confirmText: 'Delete', type: 'danger' }))) return;
         await api.followUps.remove(token, item.id);
         toast.success('Follow-up deleted successfully');
       }

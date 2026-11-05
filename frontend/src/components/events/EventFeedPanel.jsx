@@ -1,4 +1,6 @@
 import { CalendarDays, Edit3, MapPin, Trash2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { canModifyEvent } from '../../lib/eventAccess';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { formatDateOnlyDisplay } from '../../lib/dateOnly';
@@ -41,6 +43,7 @@ export function EventFeedPanel({
   subtitle = 'All events.',
   className = ''
 }) {
+  const { user } = useAuth();
   const displayEvents = (events && events.length > 0) ? events : selectedDateEvents;
 
   return (
@@ -94,7 +97,7 @@ export function EventFeedPanel({
                     <span>{getVisibilityLabel(event.visibility)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
+                <div className={canModifyEvent(event, user) ? "flex items-center gap-1" : "hidden"}>
                   <Button
                     variant="ghost"
                     size="icon"

@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { confirmAction } from '../../lib/confirm';
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check, Eye, Plus, Trash2, X } from "lucide-react";
@@ -727,7 +728,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
                               variant="secondary"
                               aria-label={`Delete ${d.category}`}
                               onClick={async () => {
-                                if (!window.confirm(`Delete ${d.category}?`)) return;
+                                if (!(await confirmAction({ title: 'Delete document?', description: `${d.category} will be removed.`, confirmText: 'Delete', type: 'danger' }))) return;
                                 try {
                                   await hrm(token, `/documents/${d.id}`, { method: "DELETE" });
                                   setDocuments((list) => list.filter((x) => x.id !== d.id));

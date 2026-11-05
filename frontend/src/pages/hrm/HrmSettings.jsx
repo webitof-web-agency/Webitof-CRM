@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { confirmAction } from '../../lib/confirm';
 import { toast } from "sonner";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
@@ -340,7 +341,7 @@ function masterDetail(type, m, nameOf) {
 const blankRecord = { name: "", isActive: true, payload: {} };
 
 async function deleteMaster(token, type, master) {
-  if (!window.confirm(`Delete "${master.name}"? If it is already used, mark it inactive instead.`))
+  if (!(await confirmAction({ title: 'Delete this entry?', description: `"${master.name}" will be removed. If it is already used, mark it inactive instead.`, confirmText: 'Delete', type: 'danger' })))
     return false;
   try {
     await hrm(token, `/masters/${type}/${master.id}`, { method: "DELETE" });

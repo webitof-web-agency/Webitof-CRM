@@ -5,7 +5,7 @@ import {
   Mail, MessageCircle, Link2, CheckCircle2, Clock, XCircle, ChevronDown, X, Send
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { api } from '../../api/client';
+import { api, request } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { PageLoader } from '../../components/ui/Loader';
 import { Card } from '../../components/ui/Card';
@@ -168,12 +168,11 @@ export function InvoiceDetailsPage() {
   const handleSendEmail = async (to, subject, body) => {
     setSendingEmail(true);
     try {
-      await fetch(`/api/invoices/${invoice.id}/send-email`, {
+      // Goes through the shared client so the API base URL and error handling match every other call.
+      await request(`/invoices/${encodeURIComponent(invoice.id)}/send-email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ to, subject, body })
-      }).then(r => r.json()).then(r => {
-        if (!r.success) throw new Error(r.message);
+        token,
+        body: { to, subject, body }
       });
       toast.success('Email sent successfully!');
       setEmailOpen(false);

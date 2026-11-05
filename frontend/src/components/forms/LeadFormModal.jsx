@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { confirmAction } from '../../lib/confirm';
 import { ChevronDown } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -266,8 +267,8 @@ export function LeadFormModal({ open, onClose, initialData: rawInitialData, lead
     });
   };
 
-  const requestClose = () => {
-    if (dirty && !busy && !window.confirm('Discard unsaved lead changes?')) return;
+  const requestClose = async () => {
+    if (dirty && !busy && !(await confirmAction({ title: 'Discard changes?', description: 'Your unsaved lead changes will be lost.', confirmText: 'Discard', type: 'warning' }))) return;
     onClose();
   };
 

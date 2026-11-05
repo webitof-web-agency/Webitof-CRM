@@ -147,7 +147,8 @@ export function WhatsAppModal({ open, onClose, recipient, onSent }) {
             <Button
               onClick={handleSendWhatsApp}
               disabled={!formattedPhone || logging}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm cursor-pointer"
+              variant="success"
+              className="cursor-pointer"
             >
               <Send size={14} className="mr-1.5" />
               Open in WhatsApp

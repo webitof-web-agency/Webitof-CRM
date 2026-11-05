@@ -1,6 +1,7 @@
-import { Button } from '../ui/Button';
-import { Modal } from '../ui/Modal';
+import { ConfirmModal } from '../ui/ConfirmModal';
 
+// Kept for existing call sites; it is ConfirmModal with the older prop names, so every
+// confirmation in the app looks the same (message as body text, not as a title subtitle).
 export function ConfirmDialog({
   open,
   title = 'Confirm action',
@@ -13,24 +14,16 @@ export function ConfirmDialog({
   busy = false
 }) {
   return (
-    <Modal
+    <ConfirmModal
       open={open}
       title={title}
-      subtitle={description}
-      onClose={onClose}
-      footer={
-        <div className="flex items-center justify-end gap-3">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
-            {cancelLabel}
-          </Button>
-          <Button type="button" variant={tone} onClick={onConfirm} disabled={busy}>
-            {confirmLabel}
-          </Button>
-        </div>
-      }
-      width="min(560px, 92vw)"
-    >
-      {/* Description is already passed as subtitle to Modal */}
-    </Modal>
+      description={description}
+      confirmText={confirmLabel}
+      cancelText={cancelLabel}
+      type={tone === 'destructive' ? 'danger' : 'info'}
+      onConfirm={onConfirm}
+      onCancel={onClose}
+      isLoading={busy}
+    />
   );
 }
