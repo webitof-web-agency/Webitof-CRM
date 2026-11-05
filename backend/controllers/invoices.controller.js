@@ -40,6 +40,28 @@ async function getNextInvoiceSequence(currentId = null) {
   return maxSequence + 1;
 }
 
+function isInvoiceNumberConflict(error) {
+  return error?.code === '23505' && /invoice_number/i.test(`${error.constraint || ''} ${error.detail || ''}`);
+}
+
+function invoiceNumberTakenError() {
+  const error = new Error('This invoice number is already used. Reload the page and save again.');
+  error.statusCode = 409;
+  return error;
+}
+
+// Auto-generated numbers are retried with a fresh sequence; a number typed in by the user is not.
+async function createWithNumberRetry(createOnce, numberSupplied) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await createOnce();
+    } catch (error) {
+      if (!isInvoiceNumberConflict(error)) throw error;
+      if (numberSupplied || attempt >= 2) throw invoiceNumberTakenError();
+    }
+  }
+}
+
 async function enrichInvoices(rows = []) {
   const [settings, clients, payments] = await Promise.all([
     getSettings(),
@@ -273,8 +295,9 @@ invoicesController.getById = async (req, res, next) => {
 
 invoicesController.create = async (req, res, next) => {
   try {
+    const createOnce = async () => {
     const body = await normalizeInvoice(req.body || {}, null, req.user);
-    const result = await withTransaction(async (db) => {
+    return withTransaction(async (db) => {
       const record = await invoiceModel.create(body, db);
       const snapshot = await syncInvoiceFinancialState(record.id, db);
       const nextRecord = snapshot || record;
@@ -295,6 +318,9 @@ invoicesController.create = async (req, res, next) => {
       });
       return { record, snapshot, nextRecord };
     });
+    };
+    // Two invoices saved at the same moment can pick the same next number; the second one gets a fresh number.
+    const result = await createWithNumberRetry(createOnce, Boolean(String(req.body?.invoiceNumber || '').trim()));
     const { record, snapshot, nextRecord } = result;
     notifyBusinessEvent({
       moduleName: 'invoices',
@@ -320,7 +346,11 @@ invoicesController.update = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
     const body = await normalizeInvoice(req.body || {}, current, req.user);
-    await invoiceModel.update(current.id, body);
+    try {
+      await invoiceModel.update(current.id, body);
+    } catch (error) {
+      throw isInvoiceNumberConflict(error) ? invoiceNumberTakenError() : error;
+    }
     const snapshot = await syncInvoiceFinancialState(current.id);
     const nextRecord = snapshot || (await invoiceModel.findById(current.id));
     notifyBusinessEvent({

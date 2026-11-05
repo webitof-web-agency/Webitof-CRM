@@ -52,7 +52,7 @@ async function run() {
 
     const result = await ensureInvoiceForApprovedQuotation({
       event: quotation,
-      req: { user: { id: user.id, fullName: user.full_name, username: user.username, email: user.email } },
+      req: { user: { id: user.id, fullName: user.full_name, username: user.username, email: user.email, permissions: ['leads.convert', 'invoices.write'] } },
       db
     });
 
@@ -69,7 +69,7 @@ async function run() {
 
     const duplicateCheck = await ensureInvoiceForApprovedQuotation({
       event: result.quotation,
-      req: { user: { id: user.id, fullName: user.full_name, username: user.username, email: user.email } },
+      req: { user: { id: user.id, fullName: user.full_name, username: user.username, email: user.email, permissions: ['leads.convert', 'invoices.write'] } },
       db
     });
     assert.equal(duplicateCheck.created, false);

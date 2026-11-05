@@ -5,6 +5,7 @@ const { getSettings } = require('../models/settings.model');
 const { calculateInvoiceTotals, getDefaultInvoiceTypeForClient, getPlaceOfSupplyForClient } = require('../utils/finance');
 const { generateInvoiceNumber } = require('../utils/invoice');
 const { round2, toNumber } = require('../utils/format');
+const { hasPermission } = require('../middlewares/auth');
 
 function getStructuredField(text, label) {
   const needle = String(label || '').trim().toLowerCase();
@@ -347,6 +348,14 @@ async function ensureInvoiceForApprovedQuotation({ event, req, db }) {
   let existingInvoice = existingResult.rows[0]?.id
     ? await invoiceModel.findById(existingResult.rows[0].id, db)
     : null;
+
+  // The first approval converts the lead to a client and creates an invoice, so it needs the
+  // permissions for both. Saving an already-invoiced quotation again is not an approval.
+  if (!existingInvoice && !(hasPermission(req?.user, 'leads.convert') && hasPermission(req?.user, 'invoices.write'))) {
+    const error = new Error('Approving a quotation creates the client and its invoice. You need the Convert Leads and Write Invoices permissions to approve.');
+    error.statusCode = 403;
+    throw error;
+  }
 
   const { convertLeadRecord } = require('../controllers/leads.controller');
   const converted = await convertLeadRecord(lead.id, settings, db, req, {
