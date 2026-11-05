@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Printer, RefreshCw, Copy, Check, X, Shield, Clock, ArrowLeft, ExternalLink } from 'lucide-react';
 import { api } from '../../api/client';
+import { Button } from '../../components/ui/Button';
 import { useAuth } from '../../context/AuthContext';
 import quotationBackgroundImage from '../../../assets/images/invoice_watermark.png';
 import frontCoverImg from '../../../assets/images/quotation-cover-front.png';
@@ -176,13 +177,9 @@ export function QuotationPreviewPage() {
             {error || 'The preview data could not be found in browser storage.'}
           </p>
           <div className="space-y-3">
-            <button
-              type="button"
-              onClick={() => loadData(true)}
-              className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-white font-semibold rounded-xl text-sm transition-all cursor-pointer shadow-lg shadow-[var(--primary)]/20"
-            >
+            <Button className="w-full" onClick={() => loadData(true)}>
               <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} /> Retry Loading
-            </button>
+            </Button>
             <button
               type="button"
               onClick={() => navigate(-1)}

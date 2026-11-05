@@ -94,14 +94,10 @@ export function FilesPage() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold text-slate-800">Manage Media Library</h1>
         {canWrite && (
-          <button
-            type="button"
-            onClick={() => setUploadOpen(true)}
-            className="inline-flex items-center justify-center rounded-[var(--radius-button,0.5rem)] bg-[var(--primary)] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-          >
-            <Upload size={16} className="mr-2" />
+          <Button onClick={() => setUploadOpen(true)}>
+            <Upload size={16} />
             Upload Files
-          </button>
+          </Button>
         )}
       </div>
 

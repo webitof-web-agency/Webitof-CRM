@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Folder, FileText, Image as ImageIcon, Video, FileArchive, Search, ChevronRight, Home, Grid as GridIcon, List as ListIcon, Check, Upload } from 'lucide-react';
 import { Input } from './Input';
+import { Button } from './Button';
 import { cn } from '../../lib/cn';
 import { api } from '../../api/client';
 import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
@@ -299,14 +300,10 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                 className="hidden" 
                 onChange={handleUpload}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center justify-center rounded-xl font-semibold transition text-xs h-9 px-3.5 bg-[var(--primary)] text-white hover:opacity-90 shadow-2xs cursor-pointer"
-              >
-                <Upload size={14} className="mr-1.5" />
+              <Button size="sm" onClick={() => fileInputRef.current?.click()}>
+                <Upload size={14} />
                 Upload File
-              </button>
+              </Button>
             </>
           )}
           <div className="relative flex-1 sm:w-64">

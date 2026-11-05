@@ -160,6 +160,7 @@ export const api = {
     me: (token) => request('/auth/me', { token, skipCache: true }),
     forgotPassword: (payload) => request('/auth/forgot-password', { method: 'POST', body: payload }),
     resetPassword: (payload) => request('/auth/reset-password', { method: 'POST', body: payload }),
+    changePassword: (token, payload) => request('/auth/change-password', { method: 'POST', token, body: payload }),
     updateProfile: (token, payload) => request('/auth/profile', { method: 'PATCH', token, body: payload }),
     deleteAvatar: (token) => request('/auth/avatar', { method: 'DELETE', token })
   },

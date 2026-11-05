@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Modal } from './Modal';
+import { Button } from './Button';
 import { Eye, Download, Copy, Check, FileText, Image as ImageIcon, Video, FileArchive, Trash2 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
@@ -120,34 +121,27 @@ export function FileDetailsModal({ open, file, onClose, onDelete }) {
             <h4 className="text-xs font-bold text-[var(--text-main)] mb-3">Actions</h4>
             <div className="flex flex-wrap items-center gap-2">
               {openUrl && (
-                <button
-                  type="button"
-                  onClick={() => window.open(openUrl, '_blank', 'noopener')}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors shadow-2xs cursor-pointer"
-                >
+                <Button variant="outline" size="sm" onClick={() => window.open(openUrl, '_blank', 'noopener')}>
                   <Eye size={14} className="text-blue-500" />
                   View
-                </button>
+                </Button>
               )}
               {downloadUrl && (
-                <button
-                  type="button"
-                  onClick={() => window.open(downloadUrl, '_blank', 'noopener')}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors shadow-2xs cursor-pointer"
-                >
+                <Button variant="outline" size="sm" onClick={() => window.open(downloadUrl, '_blank', 'noopener')}>
                   <Download size={14} className="text-emerald-500" />
                   Download
-                </button>
+                </Button>
               )}
               {onDelete && (
-                <button 
-                  type="button"
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => onDelete(file)}
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-1.5 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors shadow-2xs cursor-pointer"
+                  className="text-rose-500 hover:bg-rose-500/10 hover:border-rose-500/30"
                 >
                   <Trash2 size={14} className="text-rose-500" />
                   Delete
-                </button>
+                </Button>
               )}
             </div>
           </div>

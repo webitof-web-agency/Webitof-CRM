@@ -4,6 +4,7 @@ import { UserAvatar } from '../ui/UserAvatar';
 import { Tabs } from '../ui/Tabs';
 import { Input, Textarea } from '../ui/Input';
 import { Button } from '../ui/Button';
+import { ChangePasswordForm } from '../forms/ChangePasswordForm';
 import imageCompression from 'browser-image-compression';
 import { api } from '../../api/client';
 import { getFileViewUrl } from '../../lib/fileUpload';
@@ -315,9 +316,7 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
   ];
 
   if (isOwner) {
-    tabs.push({ id: 'account', label: 'Account Settings', content: (
-      <div className="p-12 text-center text-xs text-[var(--text-muted)]">Account settings coming soon.</div>
-    )});
+    tabs.push({ id: 'account', label: 'Account Settings', content: <ChangePasswordForm /> });
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────

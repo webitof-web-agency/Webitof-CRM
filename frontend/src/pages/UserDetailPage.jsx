@@ -328,12 +328,6 @@ export function UserDetailPage() {
     { id: 'general', label: 'General Info', content: generalInfoTab },
     { id: 'job', label: 'Job Info', content: jobInfoTab },
     { id: 'projects', label: `Projects (${assignedProjects.length})`, content: assignedProjectsTab },
-    { id: 'account', label: 'Account Settings', content: (
-      <div className="p-12 text-center text-slate-400">
-        <UserIcon size={32} className="mx-auto mb-3 text-slate-300" />
-        <p className="font-medium text-slate-500">Coming Soon</p>
-      </div>
-    )},
   ];
 
   return (
