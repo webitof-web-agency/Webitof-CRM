@@ -21,6 +21,7 @@ import {
   determineTaxType, getTaxLabel, validateGSTIN
 } from '../../lib/taxCalculator';
 import { invoiceRoute } from '../../utils/entityRoutes';
+import { IconButton } from '../../components/ui/IconButton';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -316,14 +317,13 @@ function LineItemRow({
             {item.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
           <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
-          <button
+          <IconButton tone="danger" size="sm"
             type="button"
             onClick={() => onRemove(index)}
-            className="p-1.5 rounded text-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
             title="Delete item"
           >
             <Trash2 size={14} />
-          </button>
+          </IconButton>
         </div>
       </td>
     </tr>

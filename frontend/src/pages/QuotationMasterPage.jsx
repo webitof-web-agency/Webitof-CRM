@@ -22,6 +22,7 @@ import { Input, Textarea } from '../components/ui/Input';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Loader } from '../components/ui/Loader';
 import quotationBackgroundImage from '../../assets/images/invoice_watermark.png';
+import { IconButton } from '../components/ui/IconButton';
 
 const BUILT_IN_QUOTATION_BACKGROUND = 'builtin:invoice_watermark.png';
 
@@ -313,7 +314,7 @@ export function QuotationMasterPage() {
                         {uploading === `logo-${index}` ? 'Uploading...' : client.logoUrl ? 'Replace logo' : 'Upload logo'}
                       </button>
                     </div>
-                    {canWrite ? <button type="button" onClick={() => removeClient(index)} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label={`Remove ${client.name || 'client'}`}><Trash2 size={16} /></button> : null}
+                    {canWrite ? <IconButton tone="danger" size="md" type="button" onClick={() => removeClient(index)} aria-label={`Remove ${client.name || 'client'}`}><Trash2 size={16} /></IconButton> : null}
                   </div>
                 ))}
               </div>

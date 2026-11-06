@@ -60,6 +60,8 @@ import {
   leadRoute,
   matchesRouteIdentifier
 } from '../../utils/entityRoutes';
+import { IconButton } from '../../components/ui/IconButton';
+import { Chip } from '../../components/ui/Chip';
 
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
@@ -1511,17 +1513,16 @@ function LeadEventsCalendar({
           <span className="min-w-0 flex-1 truncate">{event.title}</span>
         </button>
         {onDeleteEvent ? (
-          <button
+          <IconButton tone="danger" size="sm"
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onDeleteEvent(event);
             }}
-            className="rounded-full p-1 text-[var(--text-muted)] transition hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
             aria-label="Delete event"
           >
             <Trash2 size={12} />
-          </button>
+          </IconButton>
         ) : null}
       </div>
     );
@@ -5855,19 +5856,13 @@ export function LeadDetailsPage() {
                   {filterTabs.map((tab) => {
                     const active = taskStatusFilter === tab.key;
                     return (
-                      <button
+                      <Chip active={active} shape="rounded"
                         key={tab.key}
                         type="button"
                         onClick={() => {
                           setTaskStatusFilter(tab.key);
                           setTabPage('tasks', 1);
                         }}
-                        className={cn(
-                          'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer',
-                          active
-                            ? 'bg-[var(--primary)] text-white shadow-2xs'
-                            : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--hover-bg)]'
-                        )}
                       >
                         <span>{tab.label}</span>
                         <span className={cn(
@@ -5876,7 +5871,7 @@ export function LeadDetailsPage() {
                         )}>
                           {tab.count}
                         </span>
-                      </button>
+                      </Chip>
                     );
                   })}
                 </div>
@@ -6828,22 +6823,16 @@ export function LeadDetailsPage() {
                       { key: 'missed', label: `Missed / Busy (${callStats.missedOrBusy})` },
                       { key: 'recordings', label: `🎙️ Audio Recordings (${callStats.recordings})` }
                     ].map((tab) => (
-                      <button
+                      <Chip active={callFilter === tab.key} shape="rounded"
                         key={tab.key}
                         type="button"
                         onClick={() => {
                           setCallFilter(tab.key);
                           setTabPage('calls', 1);
                         }}
-                        className={cn(
-                          'rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer shrink-0',
-                          callFilter === tab.key
-                            ? 'bg-[var(--primary)] text-white shadow-xs'
-                            : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-[var(--surface-3)] hover:text-[var(--text-main)] border border-[var(--border-muted)]'
-                        )}
                       >
                         {tab.label}
-                      </button>
+                      </Chip>
                     ))}
                   </div>
                 </div>

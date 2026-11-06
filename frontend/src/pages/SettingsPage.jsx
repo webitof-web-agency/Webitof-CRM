@@ -18,6 +18,7 @@ import { applyTheme, applyUiSettings, persistAndApplyThemeSettings } from '../co
 import { cn } from '../lib/cn';
 import { FileBrowserModal } from '../components/ui/FileBrowserModal';
 import { ThemeSwitcher } from '../components/layout/ThemeSwitcher';
+import { IconButton } from '../components/ui/IconButton';
 
 function mergeDeep(target = {}, source = {}) {
   const result = Array.isArray(target) ? [...target] : { ...target };
@@ -1926,15 +1927,14 @@ export function SettingsPage() {
                               Set Default
                             </button>
                           )}
-                          <button
+                          <IconButton tone="primary" size="sm"
                             type="button"
                             onClick={() => openTemplateModal(tpl)}
-                            className="p-1.5 rounded text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
                             title="Edit template"
                           >
                             <Pencil size={14} />
-                          </button>
-                          <button
+                          </IconButton>
+                          <IconButton tone="danger" size="sm"
                             type="button"
                             onClick={async () => {
                               if (!(await confirmAction({ title: 'Delete template?', description: `"${tpl.name}" will be removed.`, confirmText: 'Delete', type: 'danger' }))) return;
@@ -1943,11 +1943,10 @@ export function SettingsPage() {
                               await api.settings.save(token, { invoiceTemplates: updated });
                               toast.success('Template deleted');
                             }}
-                            className="p-1.5 rounded text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
                             title="Delete template"
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </IconButton>
                         </div>
                       </div>
                     ))}
@@ -2037,9 +2036,8 @@ export function SettingsPage() {
                               <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{statusObj.label}</span>
                             </div>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
+                              <IconButton tone="primary" size="sm"
                                 type="button"
-                                className="p-1.5 text-slate-400 hover:text-[var(--primary)] rounded-md hover:bg-white dark:hover:bg-slate-800 focus:outline-none cursor-pointer"
                                 onClick={() => {
                                   setFieldEditorType('statuses');
                                   setFieldEditorData({ index, value: statusObj.label });
@@ -2051,10 +2049,9 @@ export function SettingsPage() {
                                 title="Edit Status"
                               >
                                 <Pencil size={14} />
-                              </button>
-                              <button
+                              </IconButton>
+                              <IconButton tone="danger" size="sm"
                                 type="button"
-                                className="p-1.5 text-slate-400 hover:text-red-500 rounded-md hover:bg-white dark:hover:bg-slate-800 focus:outline-none cursor-pointer"
                                 onClick={async () => {
                                   const newArr = (settings.statuses?.[activeModuleTab] || []).filter((_, i) => i !== index);
                                   updateSection(setSettings, 'statuses', activeModuleTab, newArr);
@@ -2068,7 +2065,7 @@ export function SettingsPage() {
                                 title="Delete Status"
                               >
                                 <Trash2 size={14} />
-                              </button>
+                              </IconButton>
                             </div>
                           </div>
                         );
@@ -2104,9 +2101,8 @@ export function SettingsPage() {
                           <div key={index} className="flex items-center justify-between px-3 py-2.5 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors group" style={{ borderRadius: 'var(--radius-input, 0.75rem)' }}>
                             <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{source}</span>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
+                              <IconButton tone="primary" size="sm"
                                 type="button"
-                                className="p-1.5 text-slate-400 hover:text-[var(--primary)] rounded-md hover:bg-white dark:hover:bg-slate-800 focus:outline-none cursor-pointer"
                                 onClick={() => {
                                   setFieldEditorType('sources');
                                   setFieldEditorData({ index, value: source });
@@ -2116,10 +2112,9 @@ export function SettingsPage() {
                                 title="Edit Source"
                               >
                                 <Pencil size={14} />
-                              </button>
-                              <button
+                              </IconButton>
+                              <IconButton tone="danger" size="sm"
                                 type="button"
-                                className="p-1.5 text-slate-400 hover:text-red-500 rounded-md hover:bg-white dark:hover:bg-slate-800 focus:outline-none cursor-pointer"
                                 onClick={async () => {
                                   const newArr = (settings.sources?.[activeModuleTab] || []).filter((_, i) => i !== index);
                                   updateSection(setSettings, 'sources', activeModuleTab, newArr);
@@ -2133,7 +2128,7 @@ export function SettingsPage() {
                                 title="Delete Source"
                               >
                                 <Trash2 size={14} />
-                              </button>
+                              </IconButton>
                             </div>
                           </div>
                         ))}

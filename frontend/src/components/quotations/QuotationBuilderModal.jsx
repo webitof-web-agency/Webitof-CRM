@@ -80,6 +80,8 @@ import {
   resolveTaxTreatment
 } from '../../utils/taxCalculationEngine';
 import { normalizeServicePaymentPlan } from '../../config/paymentPlans';
+import { IconButton } from '../ui/IconButton';
+import { Chip } from '../ui/Chip';
 
 const TECHNOLOGY_NAME_BY_ID = new Map((STATIC_TECHNOLOGIES || []).map((tech) => [String(tech.id), tech.name]));
 
@@ -2327,14 +2329,13 @@ export function QuotationBuilderModal({
                                     {formatLeadAmount(price, currency)}
                                   </span>
                                 )}
-                                <button
+                                <IconButton tone="danger" size="sm"
                                   type="button"
                                   onClick={() => handleRemoveService(svcName)}
-                                  className="text-[var(--text-muted)] hover:text-red-500 p-1 rounded-md hover:bg-red-50 transition-colors shrink-0 cursor-pointer"
                                   title={`Remove ${svcName}`}
                                 >
                                   <X size={13} />
-                                </button>
+                                </IconButton>
                               </div>
                             </div>
                           );
@@ -2507,13 +2508,13 @@ export function QuotationBuilderModal({
                                 <span className="font-mono font-bold text-xs text-[var(--text-main)]">
                                   {formatLeadAmount(item.amount || (item.qty * item.rate), currency)}
                                 </span>
-                                <button
+                                <IconButton tone="danger" size="sm"
                                   type="button"
                                   onClick={() => removeDeliverableItem(idx)}
-                                  className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 cursor-pointer"
+                                  title="Remove item"
                                 >
                                   <Trash2 size={14} />
-                                </button>
+                                </IconButton>
                               </div>
                             </div>
                           </div>
@@ -3015,18 +3016,13 @@ export function QuotationBuilderModal({
                         {/* Category Filter Pills */}
                         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
                           {TECH_CATEGORY_FILTERS.map((cat) => (
-                            <button
+                            <Chip active={techCategoryFilter === cat.id} tone="blue" shape="rounded" size="sm"
                               key={cat.id}
                               type="button"
                               onClick={() => setTechCategoryFilter(cat.id)}
-                              className={`px-2.5 py-1 text-[11px] font-bold rounded-lg whitespace-nowrap transition-all cursor-pointer ${
-                                techCategoryFilter === cat.id
-                                  ? 'bg-blue-600 text-white shadow-xs'
-                                  : 'bg-[var(--surface-2)] text-[var(--text-muted)] hover:bg-slate-200/80 border border-slate-200/60'
-                              }`}
                             >
                               {cat.label}
-                            </button>
+                            </Chip>
                           ))}
                         </div>
                       </div>
@@ -3276,13 +3272,13 @@ export function QuotationBuilderModal({
                           <span className="font-mono font-bold text-blue-700">
                             {ms.percentage}% ({formatLeadAmount(Math.round((ms.percentage / 100) * commercialTotals.totalAmount), currency)})
                           </span>
-                          <button
+                          <IconButton tone="danger" size="sm"
                             type="button"
                             onClick={() => removeMilestone(idx)}
-                            className="text-[var(--text-muted)] hover:text-red-500 cursor-pointer p-1"
+                            title="Remove milestone"
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </IconButton>
                         </div>
                       </div>
                     ))}
@@ -3403,18 +3399,13 @@ export function QuotationBuilderModal({
                           {legalCategories.map((cat) => {
                             const isActive = legalCategoryFilter === cat;
                             return (
-                              <button
+                              <Chip active={isActive} tone="blue" size="sm"
                                 key={cat}
                                 type="button"
                                 onClick={() => setLegalCategoryFilter(cat)}
-                                className={`px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors cursor-pointer ${
-                                  isActive
-                                    ? "bg-blue-600 text-white shadow-2xs"
-                                    : "bg-[var(--surface-elevated)] text-[var(--text-muted)] border border-[var(--border)] hover:bg-[var(--surface-2)]"
-                                }`}
                               >
                                 {cat}
-                              </button>
+                              </Chip>
                             );
                           })}
                         </div>
@@ -3542,14 +3533,13 @@ export function QuotationBuilderModal({
                                       {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                                     </button>
 
-                                    <button
+                                    <IconButton tone="neutral" size="sm"
                                       type="button"
                                       onClick={() => resetAgreementToDefault(originalIndex)}
-                                      className="p-1.5 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)] rounded-lg transition-colors cursor-pointer"
                                       title="Reset clauses to template default"
                                     >
                                       <RotateCcw size={13} />
-                                    </button>
+                                    </IconButton>
                                   </div>
                                 </div>
 

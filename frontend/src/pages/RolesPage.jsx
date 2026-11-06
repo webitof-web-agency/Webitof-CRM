@@ -12,6 +12,7 @@ import { ConfirmDialog } from '../components/overlays/ConfirmDialog';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { groupPermissionsByModule, mapRoleForForm } from '../lib/rbac';
 import { sortRows } from '../lib/resource';
+import { IconButton } from '../components/ui/IconButton';
 
 const NOTIFICATION_MODULES = [
   { key: '*', label: 'All Modules' },
@@ -463,14 +464,14 @@ export function RolesPage() {
             ? (row) => (
                 <div className="flex items-center justify-end gap-1">
                   {canEdit ? (
-                    <button type="button" onClick={() => openEdit(row)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                    <IconButton tone="primary" size="md" type="button" onClick={() => openEdit(row)} title="Edit">
                       <Edit2 size={16} />
-                    </button>
+                    </IconButton>
                   ) : null}
                   {canDelete ? (
-                    <button type="button" onClick={() => setDeleteTarget(row)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                    <IconButton tone="danger" size="md" type="button" onClick={() => setDeleteTarget(row)} title="Delete">
                       <Trash2 size={16} />
-                    </button>
+                    </IconButton>
                   ) : null}
                 </div>
               )

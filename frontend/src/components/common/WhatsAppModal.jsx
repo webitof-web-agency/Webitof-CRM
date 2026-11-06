@@ -6,6 +6,7 @@ import { Button } from '../ui/Button';
 import { Textarea } from '../ui/Input';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
+import { Chip } from '../ui/Chip';
 
 function cleanPhoneNumber(rawPhone) {
   if (!rawPhone) return '';
@@ -181,18 +182,13 @@ export function WhatsAppModal({ open, onClose, recipient, onSent }) {
             {templates.map((tpl) => {
               const active = selectedTemplate === tpl.id;
               return (
-                <button
+                <Chip active={active} tone="emerald" shape="rounded"
                   key={tpl.id}
                   type="button"
                   onClick={() => handleSelectTemplate(tpl.id)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                    active
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-[var(--surface-2)] hover:bg-[var(--surface-3)] text-[var(--text-main)]'
-                  }`}
                 >
                   {tpl.label}
-                </button>
+                </Chip>
               );
             })}
           </div>

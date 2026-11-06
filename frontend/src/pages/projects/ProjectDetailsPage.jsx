@@ -50,6 +50,7 @@ import { EventFeedPanel } from '../../components/events/EventFeedPanel';
 import { ProjectFormModal } from './ProjectFormModal';
 import { ProjectFileModal } from './ProjectFileModal';
 import { canonicalRoute, clientRoute } from '../../utils/entityRoutes';
+import { IconButton } from '../../components/ui/IconButton';
 
 const ACTIVITY_COLORS = ['#2563eb', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#14b8a6', '#ec4899', '#6366f1'];
 
@@ -537,24 +538,22 @@ function ActivityCard({ item, onEdit, onDelete }) {
         </div>
         <div className="flex items-center gap-2">
           {onEdit ? (
-            <button
+            <IconButton tone="neutral" size="md"
               type="button"
               onClick={() => onEdit(item)}
-              className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--text-main)]"
               aria-label="Edit activity"
             >
               <Pencil size={16} />
-            </button>
+            </IconButton>
           ) : null}
           {onDelete ? (
-            <button
+            <IconButton tone="danger" size="md"
               type="button"
               onClick={() => onDelete(item)}
-              className="rounded-full p-2 text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
               aria-label="Delete activity"
             >
               <Trash2 size={16} />
-            </button>
+            </IconButton>
           ) : null}
         </div>
       </div>

@@ -37,6 +37,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { cn } from '../../lib/cn';
+import { IconButton } from '../../components/ui/IconButton';
 
 function formatDuration(seconds = 0) {
   const s = Math.max(0, parseInt(seconds, 10) || 0);
@@ -1104,14 +1105,13 @@ export function CallHistoryPage() {
                             <Phone size={13} />
                           </a>
 
-                          <button
+                          <IconButton tone="danger" size="sm"
                             type="button"
                             onClick={() => handleDeleteCall(call.id)}
-                            className="p-1 text-[var(--text-muted)] hover:text-rose-600 transition-colors rounded-md hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
                             title="Delete log"
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </IconButton>
                         </div>
                       </td>
                     </tr>

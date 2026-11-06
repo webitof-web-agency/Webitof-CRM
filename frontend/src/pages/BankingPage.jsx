@@ -8,6 +8,7 @@ import { Modal } from '../components/ui/Modal';
 import { ResourceForm } from '../components/forms/ResourceForm';
 import { useAuth } from '../context/AuthContext';
 import { sortRows } from '../lib/resource';
+import { IconButton } from '../components/ui/IconButton';
 
 const accountSchema = {
   key: 'banking-accounts',
@@ -266,9 +267,9 @@ export function BankingPage() {
             hasPermission('banking.write')
               ? (row) => (
                   <div className="flex items-center justify-end gap-1">
-                    <button type="button" onClick={() => openEdit(row)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                    <IconButton tone="primary" size="md" type="button" onClick={() => openEdit(row)} title="Edit">
                       <Edit2 size={16} />
-                    </button>
+                    </IconButton>
                   </div>
                 )
               : undefined

@@ -23,6 +23,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { CompleteFollowUpModal, FollowUpFormModal, RescheduleFollowUpModal } from '../../components/followups/FollowUpModals';
+import { Chip } from '../../components/ui/Chip';
 
 const tabs = [
   { id: 'today', label: 'Today', icon: Clock3 },
@@ -710,7 +711,7 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
             : (hasQuickCounts ? quickCounts[tab.id] : undefined);
 
           return (
-            <button
+            <Chip active={active} size="sm"
               key={tab.id}
               type="button"
               onClick={() => setFilters((current) => ({
@@ -719,12 +720,6 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
                 page: 1
               }))}
               title={tab.helper}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition cursor-pointer select-none",
-                active
-                  ? "bg-[var(--primary)] text-white shadow-2xs font-bold"
-                  : "text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text-main)]"
-              )}
             >
               <Icon size={13} className={active ? "text-white" : "text-[var(--text-muted)]"} />
               <span>{tab.label}</span>
@@ -738,7 +733,7 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
                   {countVal}
                 </span>
               ) : null}
-            </button>
+            </Chip>
           );
         })}
       </div>
@@ -1977,16 +1972,10 @@ function AutomationView({ options, onRefresh }) {
         ].map((tab) => {
           const active = activeCategory === tab.id;
           return (
-            <button
+            <Chip active={active} shape="rounded"
               key={tab.id}
               type="button"
               onClick={() => setActiveCategory(tab.id)}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition cursor-pointer select-none",
-                active
-                  ? "bg-[var(--primary)] text-white shadow-2xs font-bold"
-                  : "text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text-main)]"
-              )}
             >
               <span>{tab.label}</span>
               <span className={cn(
@@ -1995,7 +1984,7 @@ function AutomationView({ options, onRefresh }) {
               )}>
                 {tab.count}
               </span>
-            </button>
+            </Chip>
           );
         })}
       </div>
@@ -2505,19 +2494,13 @@ function CompletedFollowUpsView({ options, onAction, onScheduleNext }) {
             { id: 'all', label: 'All Time' },
             { id: 'custom', label: 'Custom' }
           ].map((chip) => (
-            <button
+            <Chip active={dateRange === chip.id}
               key={chip.id}
               type="button"
               onClick={() => setDateRange(chip.id)}
-              className={cn(
-                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer",
-                dateRange === chip.id
-                  ? "bg-emerald-600 text-white shadow-2xs font-bold"
-                  : "bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)]/80"
-              )}
             >
               {chip.label}
-            </button>
+            </Chip>
           ))}
         </div>
 
@@ -2851,19 +2834,13 @@ function FollowUpReportView({ onAction }) {
               { id: 'all', label: 'All Time' },
               { id: 'custom', label: 'Custom' }
             ].map((chip) => (
-              <button
+              <Chip active={dateRange === chip.id}
                 key={chip.id}
                 type="button"
                 onClick={() => setDateRange(chip.id)}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer",
-                  dateRange === chip.id
-                    ? "bg-[var(--primary)] text-white shadow-2xs font-bold"
-                    : "bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)]/80"
-                )}
               >
                 {chip.label}
-              </button>
+              </Chip>
             ))}
           </div>
 

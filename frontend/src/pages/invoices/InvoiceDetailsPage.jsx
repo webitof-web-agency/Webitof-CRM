@@ -15,6 +15,7 @@ import { Modal } from '../../components/ui/Modal';
 import { InvoicePreview as InvoiceDocument } from '../../components/invoices/InvoicePreview';
 import { normalizeInvoiceNumber } from '../../lib/invoiceNumber';
 import { canonicalRoute, invoiceRoute } from '../../utils/entityRoutes';
+import { IconButton } from '../../components/ui/IconButton';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -217,9 +218,9 @@ export function InvoiceDetailsPage() {
                   <button onClick={handleCopyLink} className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Copy Link">
                     {copied ? <CheckCircle2 size={16} className="text-emerald-600" /> : <Link2 size={16} />}
                   </button>
-                  <button onClick={handleWhatsApp} className="p-1.5 rounded-lg text-slate-500 hover:text-green-600 hover:bg-green-50 transition-colors" title="WhatsApp Link">
+                  <IconButton tone="success" size="sm" onClick={handleWhatsApp} title="WhatsApp Link">
                     <WhatsAppIcon size={16} />
-                  </button>
+                  </IconButton>
                 </div>
               </div>
 

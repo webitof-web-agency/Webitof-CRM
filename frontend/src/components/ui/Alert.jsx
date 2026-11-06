@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Info, XCircle, X } from 'lucide-react';
 import { cn } from '../../lib/cn';
+import { IconButton } from './IconButton';
 
 const alertConfig = {
   success: {
@@ -63,14 +64,13 @@ export function Alert({
         {children && <div className={cn('mt-1', config.descClass)}>{children}</div>}
       </div>
       {onDismiss ? (
-        <button
+        <IconButton tone="neutral" size="sm"
           type="button"
           onClick={onDismiss}
-          className="rounded-lg p-1 text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
           aria-label="Dismiss alert"
         >
           <X size={14} />
-        </button>
+        </IconButton>
       ) : null}
     </div>
   );

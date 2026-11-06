@@ -5,6 +5,7 @@ import { Textarea } from '../ui/Input';
 import { MessageSquare, Copy, Check, ExternalLink, Mail, Sparkles, PhoneCall } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../../context/AuthContext';
+import { Chip } from '../ui/Chip';
 
 const DEFAULT_TEMPLATES = [
   {
@@ -224,18 +225,13 @@ export function WhatsAppTemplateModal({ open, onClose, lead }) {
           </label>
           <div className="flex flex-wrap gap-1.5">
             {DEFAULT_TEMPLATES.map((tpl) => (
-              <button
+              <Chip active={selectedTemplateId === tpl.id} tone="emerald" shape="rounded"
                 key={tpl.id}
                 type="button"
                 onClick={() => handleSelectTemplate(tpl.id)}
-                className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
-                  selectedTemplateId === tpl.id
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
-                }`}
               >
                 {tpl.name}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>

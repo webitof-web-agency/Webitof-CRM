@@ -9,6 +9,7 @@ import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { ConfirmModal } from '../ui/ConfirmModal';
 import { EventFormModal } from './EventFormModal';
+import { IconButton } from '../ui/IconButton';
 
 function formatDate(value) {
   return formatDateOnlyDisplay(value);
@@ -296,9 +297,9 @@ export function GlobalEventsDrawer({ open, onClose, token, user, sharedLabels = 
                 <CalendarPlus size={15} className="mr-1.5" />
                 Add Event
               </Button>
-              <button type="button" onClick={onClose} className="rounded-xl p-2 text-[var(--text-muted)] transition hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] cursor-pointer" aria-label="Close events">
+              <IconButton tone="neutral" size="md" type="button" onClick={onClose} aria-label="Close events">
                 <ChevronRight size={18} />
-              </button>
+              </IconButton>
             </div>
           </div>
 

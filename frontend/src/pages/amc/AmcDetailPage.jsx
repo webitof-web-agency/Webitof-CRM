@@ -24,6 +24,7 @@ import { Select } from '../../components/ui/Select';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { formatDateOnlyDisplay } from '../../lib/dateOnly';
+import { Chip } from '../../components/ui/Chip';
 
 function formatMoney(value) {
   return Number(value || 0).toLocaleString('en-IN', {
@@ -535,18 +536,13 @@ export function AmcDetailPage() {
               {historyActionChips.map((chip) => {
                 const active = historyAction === chip.value;
                 return (
-                  <button
+                  <Chip active={active}
                     key={chip.value}
                     type="button"
                     onClick={() => setHistoryAction(chip.value)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      active
-                        ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-sm'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                    }`}
                   >
                     {chip.label}
-                  </button>
+                  </Chip>
                 );
               })}
             </div>
@@ -554,18 +550,13 @@ export function AmcDetailPage() {
               {historyStatusChips.map((chip) => {
                 const active = historyStatus === chip.value;
                 return (
-                  <button
+                  <Chip active={active}
                     key={chip.key}
                     type="button"
                     onClick={() => setHistoryStatus(chip.value)}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      active
-                        ? 'border-[var(--primary)] bg-[var(--primary)] text-white shadow-sm'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                    }`}
                   >
                     {chip.label}
-                  </button>
+                  </Chip>
                 );
               })}
             </div>
