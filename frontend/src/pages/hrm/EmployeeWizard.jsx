@@ -113,6 +113,10 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
     attendancePolicyId: lists.attendancePolicies[0]?.id || "",
     managerId: "",
     workMode: "Office",
+    teamId: "",
+    probationEnd: "",
+    contractEnd: "",
+    exitDate: "",
   });
   const [profile, setProfile] = useState(EMPTY_PROFILE);
   const [financial, setFinancial] = useState(EMPTY_FINANCIAL);
@@ -297,6 +301,10 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
         attendancePolicyId: form.attendancePolicyId,
         managerId: form.managerId,
         workMode: form.workMode,
+        teamId: form.teamId || null,
+        probationEnd: form.probationEnd || null,
+        contractEnd: form.contractEnd || null,
+        exitDate: form.exitDate || null,
         ...(!editing && form.userId ? { userId: form.userId } : {}),
         ...(canPrivate ? { profile } : {}),
         ...(canSalary
@@ -645,6 +653,21 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
                   onChange={set("managerId")}
                 />
                 <F k="workMode" title="Work Mode" type="select" options={WORK_MODES} value={form.workMode} onChange={set("workMode")} />
+                {lists.teams.length > 0 && (
+                  <F k="teamId" title="Team" type="select" options={options(lists.teams)} value={form.teamId} onChange={set("teamId")} />
+                )}
+                <F k="probationEnd" title="Probation Ends" type="date" value={form.probationEnd} onChange={set("probationEnd")} />
+                <F k="contractEnd" title="Contract Ends" type="date" value={form.contractEnd} onChange={set("contractEnd")} />
+                {editing && (
+                  <F
+                    k="exitDate"
+                    title="Last Working Day"
+                    type="date"
+                    value={form.exitDate}
+                    onChange={set("exitDate")}
+                    min={form.joiningDate}
+                  />
+                )}
               </div>
             )}
 

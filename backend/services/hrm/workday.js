@@ -731,6 +731,9 @@ async function ping(user, body, db = null) {
     }
     let inside = null;
     let distance = null;
+    // Consecutive pings seen outside the fence. One stray fix (bad GPS, a moment at the door) must not
+    // raise a breach alert and notify the employee; it takes geofenceBreachPings in a row (default 2).
+    let strikes = 0;
     if (att.geofenceId && body.isMock !== true && loc.accuracy <= p.maxGpsAccuracyMeters * 2) {
       const f = fence(
         (await tx.query("SELECT * FROM hrm_geofences WHERE id=$1", [att.geofenceId])).rows[0],
@@ -739,6 +742,7 @@ async function ping(user, body, db = null) {
       if (n) {
         inside = n.inside;
         distance = n.distance;
+        strikes = inside ? 0 : Number(att.lastLocation?.strikes || 0) + 1;
         const evs = (
           await tx.query(
             "SELECT kind,at FROM hrm_attendance_events WHERE attendance_id=$1 AND kind IN ('exit','return') ORDER BY at DESC LIMIT 1",
@@ -747,7 +751,14 @@ async function ping(user, body, db = null) {
         ).rows;
         const outside = evs[0]?.kind === "exit";
         const shift = att.shiftSnapshot || {};
-        if (!inside && !outside && running && !onLunch && inShift(now, shift, p)) {
+        if (
+          !inside &&
+          !outside &&
+          running &&
+          !onLunch &&
+          inShift(now, shift, p) &&
+          strikes >= (Number(p.geofenceBreachPings) || 2)
+        ) {
           await event(tx, att, "exit", loc, { fence: f.label }, { inside: false, distanceMeters: distance });
           await openAlert(
             tx,
@@ -775,6 +786,7 @@ async function ping(user, body, db = null) {
         }
       }
     }
+    patch.lastLocation = JSON.stringify({ ...loc, inside, strikes });
     await c.update(tx, "hrm_attendance", att.id, patch);
     const report = await reportFor(tx, e.id, att.workDate);
     return {

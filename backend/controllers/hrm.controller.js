@@ -76,6 +76,7 @@ const controller = {
       req.params.id || null,
     ),
   ),
+  removeHoliday: respond((req) => queries.removeHoliday(req.user, req.params.id)),
   markAttendance: respond((req) =>
     require("../services/hrm/attendanceAdmin").mark(req.user, req.body),
   ),

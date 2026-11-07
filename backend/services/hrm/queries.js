@@ -351,6 +351,26 @@ async function deleteMaster(user, type, id, db = null) {
     return { deleted: true };
   }, db);
 }
+// A holiday changes the working calendar, so it cannot move or disappear once payroll covers its date.
+async function holidayLocked(db, date) {
+  const r = await db.query(
+    "SELECT 1 FROM hrm_payroll_runs r JOIN hrm_payroll_entries pe ON pe.run_id=r.id WHERE r.start_date<=$1 AND r.end_date>=$1 LIMIT 1",
+    [date],
+  );
+  return r.rowCount > 0;
+}
+async function removeHoliday(user, id, db = null) {
+  c.permit(user, "manage_settings");
+  return c.transaction(async (tx) => {
+    const old = c.camel((await tx.query("SELECT * FROM hrm_holidays WHERE id=$1 FOR UPDATE", [id])).rows[0]);
+    if (!old) c.fail("Holiday not found", 404);
+    if (await holidayLocked(tx, old.workDate))
+      c.fail("A payroll run already covers this date, so the holiday cannot be removed", 409);
+    await tx.query("DELETE FROM hrm_holidays WHERE id=$1", [id]);
+    await c.audit(tx, user, "holidays", id, "deleted", old, null);
+    return { id, deleted: true };
+  }, db);
+}
 async function holidays(user, body = null, id = null, db = c.dbDefault) {
   if (!body)
     return {
@@ -378,6 +398,9 @@ async function holidays(user, body = null, id = null, db = c.dbDefault) {
           )
         : null;
       if (id && !old) c.fail("Holiday not found", 404);
+      for (const date of new Set([values.workDate, old?.workDate].filter(Boolean)))
+        if (await holidayLocked(tx, date))
+          c.fail("A payroll run already covers this date, so the holiday cannot be changed", 409);
       const saved = id
         ? await c.update(tx, "hrm_holidays", id, values)
         : await c.insert(tx, "hrm_holidays", { ...values, createdBy: user.id });
@@ -387,4 +410,4 @@ async function holidays(user, body = null, id = null, db = c.dbDefault) {
     db === c.dbDefault ? null : db,
   );
 }
-module.exports = { list, lookups, masters, deleteMaster, holidays };
+module.exports = { list, lookups, masters, deleteMaster, holidays, removeHoliday };

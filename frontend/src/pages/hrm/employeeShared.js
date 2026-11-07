@@ -38,6 +38,7 @@ export function masterLists(masters) {
     departments: of("department"),
     designations: of("designation"),
     employmentTypes: of("employment_type"),
+    teams: of("team"),
     shifts: of("shift"),
     attendancePolicies: of("attendance_policy"),
     documentTypes: of("document_type").filter((m) => !m.payload?.system),

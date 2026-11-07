@@ -140,11 +140,12 @@ export function HrmCollection({
       setBusy(false);
     }
   }
-  const act = (title, path, body, comment = false, description) =>
+  const act = (title, path, body, comment = false, description, method) =>
     setAction({
       title,
       path,
       body,
+      method,
       comment,
       required: comment && ["Reject", "Request revision"].includes(title),
       description,
@@ -490,6 +491,25 @@ export function HrmCollection({
             }
           >
             Cancel
+          </Button>
+        )}
+        {kind === "holidays" && can("manage_settings") && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-rose-600"
+            onClick={() =>
+              act(
+                "Delete holiday",
+                `/holidays/${row.id}`,
+                {},
+                false,
+                "Removes this holiday from the calendar. This is not possible once a payroll run covers its date.",
+                "DELETE",
+              )
+            }
+          >
+            Delete
           </Button>
         )}
         {kind === "leave" &&
