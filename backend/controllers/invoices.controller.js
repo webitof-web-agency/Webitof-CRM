@@ -295,9 +295,18 @@ invoicesController.getById = async (req, res, next) => {
 
 invoicesController.create = async (req, res, next) => {
   try {
+    const numberSupplied = Boolean(String(req.body?.invoiceNumber || '').trim());
     const createOnce = async () => {
     const body = await normalizeInvoice(req.body || {}, null, req.user);
     return withTransaction(async (db) => {
+      // One invoice number is handed out at a time (the quotation approval path takes the same lock). When the
+      // caller did not type a number, it is worked out here, after the lock, from the numbers actually saved:
+      // the one computed above came from a read that another invoice may already have used.
+      await db.query(`select pg_advisory_xact_lock(hashtext('webitof-invoice-number'))`);
+      if (!numberSupplied) {
+        const settings = await getSettings();
+        body.invoiceNumber = generateInvoiceNumber(settings || {}, await getNextInvoiceSequence(), body.invoiceDate);
+      }
       const record = await invoiceModel.create(body, db);
       const snapshot = await syncInvoiceFinancialState(record.id, db);
       const nextRecord = snapshot || record;
@@ -320,7 +329,7 @@ invoicesController.create = async (req, res, next) => {
     });
     };
     // Two invoices saved at the same moment can pick the same next number; the second one gets a fresh number.
-    const result = await createWithNumberRetry(createOnce, Boolean(String(req.body?.invoiceNumber || '').trim()));
+    const result = await createWithNumberRetry(createOnce, numberSupplied);
     const { record, snapshot, nextRecord } = result;
     notifyBusinessEvent({
       moduleName: 'invoices',

@@ -3,6 +3,7 @@ import { confirmAction } from '../../lib/confirm';
 import { AlertTriangle, CalendarClock, Check, CheckCircle2, ChevronDown, Loader2, MessageCircle, Search, Send, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
+import { istDate, istDateTimeInput } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import { Modal } from '../ui/Modal';
@@ -18,12 +19,11 @@ const emptyForm = {
 };
 
 function todayInput() {
-  return new Date().toISOString().slice(0, 10);
+  return istDate(0);
 }
 
 function tomorrowInput() {
-  const date = new Date(Date.now() + 24 * 3600000);
-  return date.toISOString().slice(0, 10);
+  return istDate(1);
 }
 
 function Field({ label, required = false, error = '', children, wide = false, helper = '' }) {
@@ -244,8 +244,7 @@ const PRIORITIES_LIST = [
 ];
 
 function daysAheadInput(days) {
-  const date = new Date(Date.now() + days * 24 * 3600000);
-  return date.toISOString().slice(0, 10);
+  return istDate(days);
 }
 
 export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initialValue = null, lockRelatedEntity = false, hideRelatedEntity = false }) {
@@ -269,7 +268,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
           ...emptyForm,
           ...source,
           assignedTo: source.assignedTo || user?.id || (uList[0]?.id || ''),
-          date: due && !Number.isNaN(due.getTime()) ? due.toISOString().slice(0, 10) : source.date || tomorrowInput(),
+          date: due && !Number.isNaN(due.getTime()) ? istDate(0, due) : source.date || tomorrowInput(),
           time: due && !Number.isNaN(due.getTime()) ? due.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: source.timezone || 'Asia/Kolkata' }) : source.time || '10:00',
           tagsText: Array.isArray(source.tags) ? source.tags.join(', ') : '',
           recurrenceFrequency: source.recurrenceRule?.frequency || 'monthly'
@@ -281,7 +280,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
           ...emptyForm,
           ...source,
           assignedTo: source.assignedTo || user?.id || '',
-          date: due && !Number.isNaN(due.getTime()) ? due.toISOString().slice(0, 10) : source.date || tomorrowInput(),
+          date: due && !Number.isNaN(due.getTime()) ? istDate(0, due) : source.date || tomorrowInput(),
           time: due && !Number.isNaN(due.getTime()) ? due.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: source.timezone || 'Asia/Kolkata' }) : source.time || '10:00',
           tagsText: Array.isArray(source.tags) ? source.tags.join(', ') : '',
           recurrenceFrequency: source.recurrenceRule?.frequency || 'monthly'
@@ -326,8 +325,11 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
         recurrenceRule: form.isRecurring ? { frequency: form.recurrenceFrequency, interval: 1, respectBusinessHours: true } : {},
         timezone: 'Asia/Kolkata'
       };
+      // The form was seeded from the saved record, so it still carries the old dueAt / scheduledAt and the
+      // computed effectiveStatus. The date and time fields are what the user edited; send those only.
+      const { dueAt: _staleDueAt, scheduledAt: _staleScheduledAt, effectiveStatus: _computed, ...editable } = payload;
       const response = initialValue?.id
-        ? await api.followUps.update(token, initialValue.id, { ...payload, version: initialValue.version })
+        ? await api.followUps.update(token, initialValue.id, { ...editable, version: initialValue.version })
         : await api.followUps.create(token, payload);
       const duplicateCount = response.warnings?.duplicates?.length || 0;
       toast.success(initialValue?.id ? 'Follow-up updated successfully' : 'Follow-up scheduled successfully');
@@ -343,7 +345,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
     }
   }
 
-  const isPast = form.date && `${form.date}T${form.time || '00:00'}` < new Date().toISOString().slice(0, 16);
+  const isPast = form.date && `${form.date}T${form.time || '00:00'}` < istDateTimeInput();
   const isEdit = Boolean(initialValue?.id);
   const shouldHideRelated = hideRelatedEntity || lockRelatedEntity || Boolean(initialValue?.hideRelatedEntity) || Boolean(initialValue?.lockRelatedEntity);
   const isVisitFollowUp = ['Visit', 'Site visit'].includes(form.followUpType);
@@ -654,7 +656,7 @@ function computeAutoCadence(currentAttempts = 0) {
     if (hour >= 18 || hour < 9) {
       const nextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       if (nextDay.getDay() === 0) nextDay.setDate(nextDay.getDate() + 1);
-      const nextDayStr = nextDay.toISOString().slice(0, 10);
+      const nextDayStr = istDate(0, nextDay);
       return {
         nextAttempt: 1,
         date: nextDayStr,
@@ -678,7 +680,7 @@ function computeAutoCadence(currentAttempts = 0) {
   } else if (currentAttempts === 1) {
     const nextDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     if (nextDay.getDay() === 0) nextDay.setDate(nextDay.getDate() + 1);
-    const nextDayStr = nextDay.toISOString().slice(0, 10);
+    const nextDayStr = istDate(0, nextDay);
     return {
       nextAttempt: 2,
       date: nextDayStr,
@@ -833,7 +835,9 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
       onSaved?.(response.data, response.nextFollowUp);
       onClose();
     } catch (error) {
-      toast.error(error.message || 'Unable to complete follow-up');
+      // The server says which fields are wrong (for example the next action); show that, not a generic line.
+      const details = Object.values(error.payload?.details || {}).filter(Boolean).join('. ');
+      toast.error(details || error.message || 'Unable to complete follow-up');
     } finally {
       setBusy(false);
     }
@@ -981,7 +985,7 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
             </div>
             <p className="text-[11px] leading-relaxed">
               {cadenceInfo.isCold
-                ? 'No response after 3 attempts. Submitting will automatically transition this record to Unresponsive / Cold.'
+                ? 'No response after 3 attempts. Consider moving this lead to Unresponsive / Cold after you submit.'
                 : `Next follow-up automatically calculated for ${cadenceInfo.date === todayInput() ? 'today at ' + cadenceInfo.time : 'next day (' + cadenceInfo.date + ') at ' + cadenceInfo.time}.`}
             </p>
           </div>

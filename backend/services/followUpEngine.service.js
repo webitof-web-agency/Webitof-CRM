@@ -18,7 +18,7 @@ const FOLLOW_UP_TYPES = [
   'Support follow-up', 'Renewal follow-up', 'Feedback', 'Testimonial', 'Referral', 'Custom'
 ];
 const OUTCOMES = [
-  'Connected', 'Not Connected', 'Busy', 'Switched Off', 'Wrong Number', 'Callback Requested',
+  'Connected', 'Not Connected', 'No Response', 'Busy', 'Switched Off', 'Wrong Number', 'Callback Requested',
   'Interested', 'Highly Interested', 'Not Interested', 'Proposal Requested', 'Demo Requested',
   'Budget Issue', 'Decision Pending', 'Meeting Scheduled', 'Quotation Approved', 'Revision Requested',
   'Payment Promised', 'Payment Received', 'Requirement Pending', 'Client Approval Pending',
@@ -52,6 +52,14 @@ function forbidden(message = 'You do not have permission to access this follow-u
   const error = new Error(message);
   error.statusCode = 403;
   return error;
+}
+
+// Closed follow-ups (completed, cancelled, failed, auto-closed) stay closed: reopening one by rescheduling or
+// escalating it would revive a finished record and its history. A new follow-up is created instead.
+function assertOpenFollowUp(current, what = 'changed') {
+  if (CLOSED_FOLLOW_UP_STATUSES.includes(current.status)) {
+    throw validationError({ status: `This follow-up is ${String(current.status).toLowerCase()} and cannot be ${what}. Create a new follow-up instead.` });
+  }
 }
 
 function normalizeEntityType(value) {
@@ -707,13 +715,38 @@ async function updateFollowUp(id, patch = {}, actor = null, expectedVersion = nu
       throw error;
     }
     const settings = await getSettings(db);
-    const dueAt = patch.dueAt || patch.date ? parseDateTime(patch.dueAt, patch.date, patch.time, patch.timezone || current.timezone) : current.dueAt;
+    // "Overdue" is a computed label, never a stored status, so a form echoing it back means "unchanged".
+    const requestedStatus = patch.status === 'Overdue' ? undefined : patch.status;
+    // A new date and/or time wins over a stale dueAt that the form echoes back; a time alone keeps the day.
+    const timezone = patch.timezone || current.timezone;
+    let dueAt = current.dueAt;
+    if (patch.date || patch.time) {
+      const currentParts = dateTimeParts(current.dueAt, timezone);
+      dueAt = parseDateTime('', patch.date || currentParts.date, patch.time || currentParts.time, timezone);
+    } else if (patch.dueAt) {
+      dueAt = parseDateTime(patch.dueAt, '', '', timezone);
+    }
     if (!dueAt) throw validationError({ dueAt: 'Enter a valid due date and time' });
+    const assigneeChanged = patch.assignedTo !== undefined && String(patch.assignedTo || '') !== String(current.assignedTo || '');
+    const priorityChanged = patch.priority !== undefined && patch.priority !== current.priority;
+    const statusChanged = requestedStatus !== undefined && requestedStatus !== current.status;
+    const timeChanged = new Date(dueAt).getTime() !== new Date(current.dueAt).getTime();
+    // A closed follow-up may still get notes and tags, but not a new status, schedule, owner or priority.
+    if (CLOSED_FOLLOW_UP_STATUSES.includes(current.status) && (statusChanged || timeChanged || assigneeChanged || priorityChanged)) assertOpenFollowUp(current, 'changed');
+    // Manual status changes: back to an active state, or Cancelled. Completing needs an outcome (use Complete);
+    // Failed and Auto-Closed are set by the system.
+    if (statusChanged && ![...ACTIVE_FOLLOW_UP_STATUSES, 'Cancelled'].includes(requestedStatus)) {
+      throw validationError({ status: 'Use Complete to close a follow-up. This status is set by the system.' });
+    }
+    // Changing the owner is a separate permission from editing.
+    if (assigneeChanged && !(actor?.isSuperAdmin || hasPermission(actor, 'followups.reassign'))) {
+      throw forbidden('You need the reassign permission to change the assignee');
+    }
     if (patch.assignedTo !== undefined) await assertActiveAssignee(patch.assignedTo, db);
     const allowed = {
       title: patch.title, description: patch.description, followUpType: patch.followUpType, purpose: patch.purpose,
       scheduledAt: patch.scheduledAt || dueAt, dueAt, timezone: patch.timezone, expectedDurationMinutes: patch.expectedDurationMinutes,
-      priority: patch.priority, priorityReason: patch.priorityReason, status: patch.status, expectedOutcome: patch.expectedOutcome,
+      priority: patch.priority, priorityReason: patch.priorityReason, status: requestedStatus, expectedOutcome: patch.expectedOutcome,
       nextAction: patch.nextAction, internalNote: patch.internalNote, customerVisibleNote: patch.customerVisibleNote,
       tags: patch.tags, location: patch.location, attachments: patch.attachments, assignedTo: patch.assignedTo,
       assignedTeam: patch.assignedTeam, backupAssignee: patch.backupAssignee, templateId: patch.templateId,
@@ -738,6 +771,7 @@ async function markInProgress(id, actor) {
     const current = await followUpModel.findById(id, db);
     if (!current || current.deletedAt) return null;
     assertCanMutate(current, actor, 'complete');
+    assertOpenFollowUp(current, 'started');
     const updated = await followUpModel.update(id, { status: 'In Progress', updatedBy: actor?.id, version: Number(current.version || 1) + 1 }, db);
     await recordStatus(db, id, current.status, 'In Progress', actor?.id, 'Work started');
     await recordAudit(db, id, 'started', actor?.id, { status: current.status }, { status: 'In Progress' });
@@ -882,11 +916,16 @@ async function rescheduleFollowUp(id, payload = {}, actor = null, actionType = '
     const current = await followUpModel.findById(id, db);
     if (!current || current.deletedAt) return null;
     assertCanMutate(current, actor, actionType === 'snooze' ? 'reschedule' : 'reschedule');
+    assertOpenFollowUp(current, actionType === 'snooze' ? 'snoozed' : 'rescheduled');
     const reason = String(payload.reason || '').trim();
     if (!reason) throw validationError({ reason: `${actionType === 'snooze' ? 'Snooze' : 'Reschedule'} reason is required` });
     const settings = await getSettings(db);
-    let dueAt = parseDateTime(payload.dueAt, payload.date || payload.followUpDate, payload.time || payload.nextFollowUpTime, current.timezone);
-    if (actionType === 'snooze' && !dueAt) dueAt = new Date(Date.now() + Math.max(5, Number(payload.minutes || 30)) * 60000).toISOString();
+    // A snooze is "later by N minutes": when minutes are given they win over any date the form also carries.
+    const snoozeMinutes = actionType === 'snooze' ? Number(payload.minutes) : 0;
+    let dueAt = snoozeMinutes > 0
+      ? new Date(Date.now() + Math.max(5, snoozeMinutes) * 60000).toISOString()
+      : parseDateTime(payload.dueAt, payload.date || payload.followUpDate, payload.time || payload.nextFollowUpTime, current.timezone);
+    if (actionType === 'snooze' && !dueAt) dueAt = new Date(Date.now() + 30 * 60000).toISOString();
     if (!dueAt || new Date(dueAt) <= new Date()) throw validationError({ dueAt: 'New due date must be in the future' });
     const maxCritical = Number(settings.protectionThresholds?.maxCriticalSnoozes ?? 1);
     const maxReschedules = Number(settings.protectionThresholds?.maxReschedules ?? 3);
@@ -899,6 +938,8 @@ async function rescheduleFollowUp(id, payload = {}, actor = null, actionType = '
     const nextStatus = actionType === 'snooze' ? 'Snoozed' : 'Rescheduled';
     const updated = await followUpModel.update(id, {
       dueAt, scheduledAt: dueAt, status: nextStatus,
+      // A new due time restarts the overdue clock, so escalation levels start over for it.
+      escalationLevel: 0,
       rescheduleCount: Number(current.rescheduleCount || 0) + (actionType === 'reschedule' ? 1 : 0),
       snoozeCount: Number(current.snoozeCount || 0) + (actionType === 'snooze' ? 1 : 0),
       lastRescheduleReason: reason, updatedBy: actor?.id || null, version: Number(current.version || 1) + 1
@@ -924,6 +965,7 @@ async function reassignFollowUp(id, payload = {}, actor = null, options = {}) {
     const current = await followUpModel.findById(id, db);
     if (!current || current.deletedAt) return null;
     if (!(actor?.isSuperAdmin || hasPermission(actor, 'followups.reassign') || String(current.createdBy) === String(actor?.id))) throw forbidden();
+    assertOpenFollowUp(current, 'reassigned');
     if (!payload.assignedTo) throw validationError({ assignedTo: 'Assignee is required' });
     await assertActiveAssignee(payload.assignedTo, db);
     const updated = await followUpModel.update(id, { assignedTo: payload.assignedTo, assignedTeam: payload.assignedTeam ?? current.assignedTeam, updatedBy: actor?.id, version: Number(current.version || 1) + 1 }, db);
@@ -939,6 +981,7 @@ async function escalateFollowUp(id, payload = {}, actor = null, options = {}) {
     const current = await followUpModel.findById(id, db);
     if (!current || current.deletedAt) return null;
     if (!options.system && !(actor?.isSuperAdmin || hasPermission(actor, 'followups.escalate'))) throw forbidden();
+    assertOpenFollowUp(current, 'escalated');
     const level = Math.max(Number(current.escalationLevel || 0) + 1, Number(payload.level || 1));
     const priority = level >= 3 ? 'Critical' : PRIORITIES[Math.min(3, Math.max(PRIORITIES.indexOf(current.priority), 2))];
     const updated = await followUpModel.update(id, {
@@ -1404,59 +1447,112 @@ async function autoCloseEntityFollowUps(entityType, entityId, reason, actor = nu
   return options.db ? work(options.db) : withTransaction(work);
 }
 
-async function processSequenceEnrollments(db) {
+// One bad record (a deleted lead, an inactive owner, a bad row) must not stop the rest of the cycle, so each
+// item runs behind a savepoint: on failure only that item is rolled back and the cycle carries on.
+async function runIsolated(db, label, work) {
+  await db.query('savepoint follow_up_item');
+  try {
+    const value = await work();
+    await db.query('release savepoint follow_up_item');
+    return { ok: true, value };
+  } catch (error) {
+    await db.query('rollback to savepoint follow_up_item');
+    console.error(`[Follow-ups] ${label} failed:`, error.message);
+    return { ok: false, error };
+  }
+}
+
+// Runs one step of a sequence for an enrollment. Returns false when the sequence had no step left.
+async function advanceEnrollment(db, enrollment) {
+  const stepResult = await db.query(
+    `select * from follow_up_sequence_steps where sequence_id = $1 and is_active = true and step_order > $2 order by step_order asc limit 1`,
+    [enrollment.sequence_id, enrollment.current_step_order]
+  );
+  const step = stepResult.rows[0];
+  if (!step) {
+    await db.query(`update follow_up_sequence_enrollments set status='Completed', next_run_at=null, updated_at=now() where id=$1`, [enrollment.id]);
+    return false;
+  }
+  const key = `sequence-execution:${enrollment.id}:${step.id}`;
+  const exists = await db.query('select id from follow_up_sequence_executions where idempotency_key = $1 limit 1', [key]);
+  if (!exists.rows[0] && step.action_type === 'create_follow_up') {
+    const context = await findRelatedEntity(enrollment.related_entity_type, enrollment.related_entity_id, db);
+    const dueAt = new Date().toISOString();
+    const result = await createFollowUp({
+      relatedEntityType: enrollment.related_entity_type, relatedEntityId: enrollment.related_entity_id,
+      relatedEntityLabel: context?.label, title: step.title_template || step.name,
+      followUpType: step.follow_up_type || 'Call', purpose: step.name, dueAt,
+      assignedTo: context?.owner_user_id || enrollment.started_by, reminderSettings: step.reminder_settings || [],
+      source: 'sequence', isAutomatic: true, sequenceId: enrollment.sequence_id, sequenceStepId: step.id
+    }, { id: enrollment.started_by }, { db, system: true });
+    await db.query(
+      `insert into follow_up_sequence_executions (id,enrollment_id,sequence_step_id,step_order,action_type,status,idempotency_key,result)
+       values ($1,$2,$3,$4,$5,'Success',$6,$7::jsonb)`,
+      [createId('fuseqexec'), enrollment.id, step.id, step.step_order, step.action_type, key, JSON.stringify({ followUpId: result.record.id })]
+    );
+  } else if (!exists.rows[0] && step.action_type === 'escalate') {
+    const latest = await db.query(
+      `select id from follow_ups where related_entity_type=$1 and related_entity_id=$2 and status=any($3::text[]) and deleted_at is null order by due_at desc limit 1`,
+      [enrollment.related_entity_type, enrollment.related_entity_id, ACTIVE_FOLLOW_UP_STATUSES]
+    );
+    if (latest.rows[0]) await escalateFollowUp(latest.rows[0].id, { reason: step.name, action: 'sequence_escalation' }, { id: enrollment.started_by }, { db, system: true });
+    await db.query(
+      `insert into follow_up_sequence_executions (id,enrollment_id,sequence_step_id,step_order,action_type,status,idempotency_key,result)
+       values ($1,$2,$3,$4,$5,'Success',$6,'{}'::jsonb)`,
+      [createId('fuseqexec'), enrollment.id, step.id, step.step_order, step.action_type, key]
+    );
+  }
+  const next = await db.query(`select * from follow_up_sequence_steps where sequence_id=$1 and is_active=true and step_order>$2 order by step_order asc limit 1`, [enrollment.sequence_id, step.step_order]);
+  await db.query(
+    `update follow_up_sequence_enrollments set current_step_order=$2, status=$3, next_run_at=$4, updated_at=now() where id=$1`,
+    [enrollment.id, step.step_order, next.rows[0] ? 'Active' : 'Completed', next.rows[0] ? new Date(Date.now() + Number(next.rows[0].delay_minutes || 0) * 60000).toISOString() : null]
+  );
+  return true;
+}
+
+async function processSequenceEnrollments(db, report = { failed: 0 }) {
   const enrollments = await db.query(`select * from follow_up_sequence_enrollments where status = 'Active' and next_run_at <= now() order by next_run_at asc limit 100 for update skip locked`);
   let processed = 0;
   for (const enrollment of enrollments.rows) {
-    const stepResult = await db.query(
-      `select * from follow_up_sequence_steps where sequence_id = $1 and is_active = true and step_order > $2 order by step_order asc limit 1`,
-      [enrollment.sequence_id, enrollment.current_step_order]
-    );
-    const step = stepResult.rows[0];
-    if (!step) {
-      await db.query(`update follow_up_sequence_enrollments set status='Completed', next_run_at=null, updated_at=now() where id=$1`, [enrollment.id]);
+    const outcome = await runIsolated(db, `sequence enrollment ${enrollment.id}`, () => advanceEnrollment(db, enrollment));
+    if (outcome.ok) {
+      if (outcome.value) processed += 1;
       continue;
     }
-    const key = `sequence-execution:${enrollment.id}:${step.id}`;
-    const exists = await db.query('select id from follow_up_sequence_executions where idempotency_key = $1 limit 1', [key]);
-    if (!exists.rows[0] && step.action_type === 'create_follow_up') {
-      const context = await findRelatedEntity(enrollment.related_entity_type, enrollment.related_entity_id, db);
-      const dueAt = new Date().toISOString();
-      const result = await createFollowUp({
-        relatedEntityType: enrollment.related_entity_type, relatedEntityId: enrollment.related_entity_id,
-        relatedEntityLabel: context?.label, title: step.title_template || step.name,
-        followUpType: step.follow_up_type || 'Call', purpose: step.name, dueAt,
-        assignedTo: context?.owner_user_id || enrollment.started_by, reminderSettings: step.reminder_settings || [],
-        source: 'sequence', isAutomatic: true, sequenceId: enrollment.sequence_id, sequenceStepId: step.id
-      }, { id: enrollment.started_by }, { db, system: true });
-      await db.query(
-        `insert into follow_up_sequence_executions (id,enrollment_id,sequence_step_id,step_order,action_type,status,idempotency_key,result)
-         values ($1,$2,$3,$4,$5,'Success',$6,$7::jsonb)`,
-        [createId('fuseqexec'), enrollment.id, step.id, step.step_order, step.action_type, key, JSON.stringify({ followUpId: result.record.id })]
-      );
-    } else if (!exists.rows[0] && step.action_type === 'escalate') {
-      const latest = await db.query(
-        `select id from follow_ups where related_entity_type=$1 and related_entity_id=$2 and status=any($3::text[]) and deleted_at is null order by due_at desc limit 1`,
-        [enrollment.related_entity_type, enrollment.related_entity_id, ACTIVE_FOLLOW_UP_STATUSES]
-      );
-      if (latest.rows[0]) await escalateFollowUp(latest.rows[0].id, { reason: step.name, action: 'sequence_escalation' }, { id: enrollment.started_by }, { db, system: true });
-      await db.query(
-        `insert into follow_up_sequence_executions (id,enrollment_id,sequence_step_id,step_order,action_type,status,idempotency_key,result)
-         values ($1,$2,$3,$4,$5,'Success',$6,'{}'::jsonb)`,
-        [createId('fuseqexec'), enrollment.id, step.id, step.step_order, step.action_type, key]
-      );
-    }
-    const next = await db.query(`select * from follow_up_sequence_steps where sequence_id=$1 and is_active=true and step_order>$2 order by step_order asc limit 1`, [enrollment.sequence_id, step.step_order]);
-    await db.query(
-      `update follow_up_sequence_enrollments set current_step_order=$2, status=$3, next_run_at=$4, updated_at=now() where id=$1`,
-      [enrollment.id, step.step_order, next.rows[0] ? 'Active' : 'Completed', next.rows[0] ? new Date(Date.now() + Number(next.rows[0].delay_minutes || 0) * 60000).toISOString() : null]
-    );
-    processed += 1;
+    report.failed += 1;
+    // Back off for an hour instead of failing again on every tick.
+    await runIsolated(db, 'sequence backoff', () => db.query(
+      `update follow_up_sequence_enrollments set next_run_at = now() + interval '1 hour', updated_at = now() where id = $1`,
+      [enrollment.id]
+    ));
   }
   return processed;
 }
 
-async function processDueReminders(db) {
+// Returns true when an in-app notification was sent, false when the reminder was skipped.
+async function deliverReminder(db, reminder) {
+  if (!reminder.recipient_user_id || reminder.channel !== 'inApp') {
+    await db.query(`update follow_up_reminders set status='skipped', failure_reason=$2, updated_at=now() where id=$1`, [reminder.id, reminder.channel === 'inApp' ? 'Recipient missing' : 'Channel requires configured integration']);
+    return false;
+  }
+  const notificationKey = `notification:${reminder.id}`;
+  const notificationId = createId('notification');
+  await db.query(
+    `insert into notifications (id,recipient_type,user_id,module_name,event_key,entity_type,entity_id,title,message,severity,is_read,email_status,route_path,channels,idempotency_key,payload)
+     values ($1,'user',$2,'followups','reminder_due','followup',$3,$4,$5,$6,false,'pending',$7,'["inApp"]'::jsonb,$8,$9::jsonb)
+     on conflict (idempotency_key) where idempotency_key is not null do nothing`,
+    [notificationId, reminder.recipient_user_id, reminder.follow_up_id, reminder.title, `${reminder.related_entity_label || 'Record'} · ${reminder.follow_up_number} is due`, reminder.priority === 'Critical' ? 'danger' : reminder.priority === 'High' ? 'warning' : 'info', `/app/follow-ups?focus=${reminder.follow_up_id}`, notificationKey, JSON.stringify({ followUpId: reminder.follow_up_id, reminderId: reminder.id })]
+  );
+  await db.query(`update follow_up_reminders set status='sent', sent_at=now(), updated_at=now() where id=$1`, [reminder.id]);
+  await db.query(
+    `insert into follow_up_notification_logs (id,follow_up_id,reminder_id,channel,recipient,sent_at,delivery_status,idempotency_key,payload)
+     values ($1,$2,$3,'inApp',$4,now(),'sent',$5,$6::jsonb) on conflict (idempotency_key) do nothing`,
+    [createId('funotif'), reminder.follow_up_id, reminder.id, reminder.recipient_user_id, notificationKey, JSON.stringify({ notificationId })]
+  );
+  return true;
+}
+
+async function processDueReminders(db, report = { failed: 0 }) {
   const reminders = await db.query(
     `select r.*, f.follow_up_number, f.title, f.priority, f.related_entity_label, f.assigned_to
      from follow_up_reminders r join follow_ups f on f.id=r.follow_up_id
@@ -1466,30 +1562,22 @@ async function processDueReminders(db) {
   );
   let sent = 0;
   for (const reminder of reminders.rows) {
-    if (!reminder.recipient_user_id || reminder.channel !== 'inApp') {
-      await db.query(`update follow_up_reminders set status='skipped', failure_reason=$2, updated_at=now() where id=$1`, [reminder.id, reminder.channel === 'inApp' ? 'Recipient missing' : 'Channel requires configured integration']);
+    const outcome = await runIsolated(db, `reminder ${reminder.id}`, () => deliverReminder(db, reminder));
+    if (outcome.ok) {
+      if (outcome.value) sent += 1;
       continue;
     }
-    const notificationKey = `notification:${reminder.id}`;
-    const notificationId = createId('notification');
-    await db.query(
-      `insert into notifications (id,recipient_type,user_id,module_name,event_key,entity_type,entity_id,title,message,severity,is_read,email_status,route_path,channels,idempotency_key,payload)
-       values ($1,'user',$2,'followups','reminder_due','followup',$3,$4,$5,$6,false,'pending',$7,'["inApp"]'::jsonb,$8,$9::jsonb)
-       on conflict (idempotency_key) where idempotency_key is not null do nothing`,
-      [notificationId, reminder.recipient_user_id, reminder.follow_up_id, reminder.title, `${reminder.related_entity_label || 'Record'} · ${reminder.follow_up_number} is due`, reminder.priority === 'Critical' ? 'danger' : reminder.priority === 'High' ? 'warning' : 'info', `/app/follow-ups?focus=${reminder.follow_up_id}`, notificationKey, JSON.stringify({ followUpId: reminder.follow_up_id, reminderId: reminder.id })]
-    );
-    await db.query(`update follow_up_reminders set status='sent', sent_at=now(), updated_at=now() where id=$1`, [reminder.id]);
-    await db.query(
-      `insert into follow_up_notification_logs (id,follow_up_id,reminder_id,channel,recipient,sent_at,delivery_status,idempotency_key,payload)
-       values ($1,$2,$3,'inApp',$4,now(),'sent',$5,$6::jsonb) on conflict (idempotency_key) do nothing`,
-      [createId('funotif'), reminder.follow_up_id, reminder.id, reminder.recipient_user_id, notificationKey, JSON.stringify({ notificationId })]
-    );
-    sent += 1;
+    report.failed += 1;
+    // Do not retry a reminder that cannot be delivered on every tick; record why it was skipped.
+    await runIsolated(db, 'reminder skip', () => db.query(
+      `update follow_up_reminders set status='skipped', failure_reason=$2, updated_at=now() where id=$1`,
+      [reminder.id, `Delivery failed: ${String(outcome.error?.message || 'error').slice(0, 200)}`]
+    ));
   }
   return sent;
 }
 
-async function processOverdueEscalations(db) {
+async function processOverdueEscalations(db, report = { failed: 0 }) {
   const settings = await getSettings(db);
   const schedule = Array.isArray(settings.escalationSchedule) ? [...settings.escalationSchedule].sort((a, b) => Number(a.minutesOverdue) - Number(b.minutesOverdue)) : [];
   const result = await db.query(
@@ -1498,18 +1586,21 @@ async function processOverdueEscalations(db) {
   );
   let escalated = 0;
   for (const row of result.rows) {
-    const record = followUpModel.hydrateRow(row);
-    const minutes = Math.floor(calculateOverdueSeconds(record) / 60);
-    const level = getEscalationLevel(minutes, schedule);
-    if (level > Number(record.escalationLevel || 0)) {
+    const outcome = await runIsolated(db, `escalation ${row.id}`, async () => {
+      const record = followUpModel.hydrateRow(row);
+      const minutes = Math.floor(calculateOverdueSeconds(record) / 60);
+      const level = getEscalationLevel(minutes, schedule);
+      if (level <= Number(record.escalationLevel || 0)) return false;
       await escalateFollowUp(record.id, { level, reason: `Overdue by ${minutes} minutes`, action: 'automatic_overdue' }, null, { db, system: true });
-      escalated += 1;
-    }
+      return true;
+    });
+    if (!outcome.ok) report.failed += 1;
+    else if (outcome.value) escalated += 1;
   }
   return escalated;
 }
 
-async function processRenewalRisks(db) {
+async function processRenewalRisks(db, report = { failed: 0 }) {
   const settings = await getSettings(db);
   const renewalWindowDays = Math.max(1, Number(settings.protectionThresholds?.renewalWindowDays || 90));
   const result = await db.query(
@@ -1519,48 +1610,69 @@ async function processRenewalRisks(db) {
   );
   let created = 0;
   for (const renewal of result.rows) {
-    const ensured = await ensureEntityFollowUp('Renewal', renewal.id, {
-      title: 'Renewal follow-up', followUpType: 'Renewal follow-up', purpose: 'Renewal decision',
-      dueAt: parseDateTime('', renewal.due_date, '10:00', settings.timezone), priorityContext: { daysToExpiry: Math.ceil((new Date(renewal.due_date) - new Date()) / 86400000) }
-    }, null, { db });
-    if (!ensured.existing) created += 1;
-    await handleBusinessTrigger('renewal_approaching', 'Renewal', renewal.id, null, {
-      db, eventId: renewal.id, payload: { dueDate: renewal.due_date }
+    const outcome = await runIsolated(db, `renewal ${renewal.id}`, async () => {
+      const ensured = await ensureEntityFollowUp('Renewal', renewal.id, {
+        title: 'Renewal follow-up', followUpType: 'Renewal follow-up', purpose: 'Renewal decision',
+        dueAt: parseDateTime('', renewal.due_date, '10:00', settings.timezone), priorityContext: { daysToExpiry: Math.ceil((new Date(renewal.due_date) - new Date()) / 86400000) }
+      }, null, { db });
+      await handleBusinessTrigger('renewal_approaching', 'Renewal', renewal.id, null, {
+        db, eventId: renewal.id, payload: { dueDate: renewal.due_date }
+      });
+      return !ensured.existing;
     });
+    if (!outcome.ok) report.failed += 1;
+    else if (outcome.value) created += 1;
   }
   return created;
 }
 
-async function processPaymentPromises(db) {
+async function processPaymentPromises(db, report = { failed: 0 }) {
   const promises = await db.query(`update payment_promises set missed=true,status='Missed',updated_at=now() where status='Pending' and promise_date < current_date returning *`);
   let created = 0;
   for (const promise of promises.rows) {
-    const ensured = await ensureEntityFollowUp('Invoice', promise.invoice_id, {
-      title: 'Missed payment promise', followUpType: 'Payment follow-up', purpose: 'Promise date missed',
-      dueAt: new Date().toISOString(), priority: 'Critical', priorityContext: { promiseMissed: true },
-      description: promise.note || 'Payment promise date has passed.'
-    }, null, { db });
-    if (!ensured.existing) created += 1;
-    await handleBusinessTrigger('payment_promise_missed', 'Invoice', promise.invoice_id, null, {
-      db, eventId: promise.id, payload: promise
+    const outcome = await runIsolated(db, `payment promise ${promise.id}`, async () => {
+      const ensured = await ensureEntityFollowUp('Invoice', promise.invoice_id, {
+        title: 'Missed payment promise', followUpType: 'Payment follow-up', purpose: 'Promise date missed',
+        dueAt: new Date().toISOString(), priority: 'Critical', priorityContext: { promiseMissed: true },
+        description: promise.note || 'Payment promise date has passed.'
+      }, null, { db });
+      await handleBusinessTrigger('payment_promise_missed', 'Invoice', promise.invoice_id, null, {
+        db, eventId: promise.id, payload: promise
+      });
+      return !ensured.existing;
     });
+    if (!outcome.ok) report.failed += 1;
+    else if (outcome.value) created += 1;
   }
   return { missed: promises.rowCount, created };
 }
 
 async function runAutomationCycle({ runSource = 'cron' } = {}) {
   return withTransaction(async (db) => {
+    // One cycle at a time. A second instance, or a slow cycle overlapping the next tick or the manual run,
+    // would otherwise process the same reminders and create duplicate follow-ups.
+    const lock = await db.query(`select pg_try_advisory_xact_lock(hashtext('follow-up-automation-cycle')) as locked`);
+    if (!lock.rows[0]?.locked) return { runSource, skipped: true, reason: 'Another automation cycle is already running' };
+
     const startedAt = new Date().toISOString();
-    const remindersSent = await processDueReminders(db);
-    const escalations = await processOverdueEscalations(db);
-    const sequenceSteps = await processSequenceEnrollments(db);
-    const renewalFollowUps = await processRenewalRisks(db);
-    const paymentPromises = await processPaymentPromises(db);
-    const result = { runSource, startedAt, completedAt: new Date().toISOString(), remindersSent, escalations, sequenceSteps, renewalFollowUps, paymentPromises };
+    const report = { failed: 0 };
+    // Each stage is isolated too, so a failure in one (say the escalation query) does not stop the others.
+    const stage = async (name, work, fallback) => {
+      const outcome = await runIsolated(db, `stage ${name}`, work);
+      if (outcome.ok) return outcome.value;
+      report.failed += 1;
+      return fallback;
+    };
+    const remindersSent = await stage('reminders', () => processDueReminders(db, report), 0);
+    const escalations = await stage('escalations', () => processOverdueEscalations(db, report), 0);
+    const sequenceSteps = await stage('sequences', () => processSequenceEnrollments(db, report), 0);
+    const renewalFollowUps = await stage('renewals', () => processRenewalRisks(db, report), 0);
+    const paymentPromises = await stage('payment promises', () => processPaymentPromises(db, report), { missed: 0, created: 0 });
+    const result = { runSource, startedAt, completedAt: new Date().toISOString(), remindersSent, escalations, sequenceSteps, renewalFollowUps, paymentPromises, failed: report.failed };
     await db.query(
       `insert into workflow_automation_logs (id,module_name,entity_id,run_id,run_source,action,status,reference_name,message,payload)
        values ($1,'followups','engine',$2,$3,'automation_cycle','Success','Advanced Follow-up Engine',$4,$5::jsonb)`,
-      [createId('wflog'), createId('furun'), runSource, `Processed ${remindersSent} reminders and ${escalations} escalations`, JSON.stringify(result)]
+      [createId('wflog'), createId('furun'), runSource, `Processed ${remindersSent} reminders and ${escalations} escalations${report.failed ? ` (${report.failed} item(s) failed and were skipped)` : ''}`, JSON.stringify(result)]
     );
     return result;
   });
@@ -1569,8 +1681,14 @@ async function runAutomationCycle({ runSource = 'cron' } = {}) {
 function createFollowUpScheduler({ schedule = process.env.FOLLOW_UP_AUTOMATION_CRON || '*/10 * * * *', timezone = process.env.FOLLOW_UP_TIMEZONE || 'Asia/Kolkata' } = {}) {
   const cron = require('node-cron');
   if (!cron.validate(schedule)) throw new Error(`Invalid follow-up automation cron schedule: ${schedule}`);
+  let running = false;
   return cron.schedule(schedule, () => {
-    runAutomationCycle({ runSource: 'cron' }).catch((error) => console.error('[Follow-ups] Automation failed:', error.message));
+    // Skip a tick while the previous cycle is still running in this process.
+    if (running) return;
+    running = true;
+    runAutomationCycle({ runSource: 'cron' })
+      .catch((error) => console.error('[Follow-ups] Automation failed:', error.message))
+      .finally(() => { running = false; });
   }, { timezone });
 }
 

@@ -16,6 +16,7 @@ import { exportToCsv } from '../../lib/exportCsv';
 import { WhatsAppModal } from '../../components/common/WhatsAppModal';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
+import { istDate } from '../../lib/format';
 import { Badge } from '../../components/ui/Badge';
 import { Input, Textarea } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
@@ -1105,7 +1106,7 @@ function CalendarView({ rows, month, setMonth, onAction, onCreate, loading }) {
           {cells.map((day, index) => {
             const key = day ? `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` : '';
             const items = byDay[key] || [];
-            const isToday = key === new Date().toISOString().slice(0, 10);
+            const isToday = key === istDate(0);
             return (
               <div
                 key={`${day}-${index}`}

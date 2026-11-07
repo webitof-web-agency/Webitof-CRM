@@ -23,9 +23,22 @@ async function getById(req, res, next) {
   } catch (error) { next(error); }
 }
 
+// Set by the system (numbering, automation, completion chaining), never by an API caller.
+const SYSTEM_ONLY_CREATE_FIELDS = [
+  'id', 'followUpNumber', 'status', 'source', 'isAutomatic', 'automationRuleId', 'sequenceId', 'sequenceStepId',
+  'parentFollowUpId', 'previousFollowUpId', 'createdBy', 'updatedBy', 'version', 'completedAt', 'completedBy',
+  'escalationLevel', 'rescheduleCount', 'snoozeCount'
+];
+
+function userCreateBody(body = {}) {
+  const clean = { ...body };
+  SYSTEM_ONLY_CREATE_FIELDS.forEach((key) => delete clean[key]);
+  return clean;
+}
+
 async function create(req, res, next) {
   try {
-    const result = await engine.createFollowUp(req.body || {}, req.user);
+    const result = await engine.createFollowUp(userCreateBody(req.body), req.user);
     res.status(201).json({ success: true, data: result.record, warnings: result.warnings });
   } catch (error) { next(error); }
 }

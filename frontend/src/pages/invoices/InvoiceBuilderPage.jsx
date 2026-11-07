@@ -350,6 +350,9 @@ export function InvoiceBuilderPage() {
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [showGST, setShowGST] = useState(true);
+  // The number shown for a new invoice is only a suggestion taken from the list loaded with the page, which can
+  // be stale. Unless the user types their own, the server assigns the real next number when the invoice is saved.
+  const [numberEdited, setNumberEdited] = useState(false);
   const [showAdvance, setShowAdvance] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
   const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -583,15 +586,19 @@ export function InvoiceBuilderPage() {
     });
   }, [serviceCatalog, serviceLookup]);
 
-  // Auto-fill client fields on selection
+  // Fill the place of supply from the client. This must not touch the GST switch: GST applies to a buyer
+  // without a GSTIN as well, and this effect also runs when a saved invoice loads, where it would silently
+  // flip a taxed invoice to "No Tax" (and overwrite its saved place of supply).
+  const autoPlaceRef = useRef('');
   useEffect(() => {
     if (!selectedClient) return;
-    const hasGstin = Boolean(selectedClient.gstin);
-    setShowGST(hasGstin && draft.amountType === 'GST Extra');
-    setDraft(d => ({
-      ...d,
-      placeOfSupply: selectedClient.placeOfSupply || selectedClient.state || d.placeOfSupply || ''
-    }));
+    const clientPlace = selectedClient.placeOfSupply || selectedClient.state || '';
+    setDraft(d => {
+      // Keep a place the user typed, or one saved on the invoice; only follow the client while it is still ours.
+      if (d.placeOfSupply && d.placeOfSupply !== autoPlaceRef.current) return d;
+      autoPlaceRef.current = clientPlace;
+      return { ...d, placeOfSupply: clientPlace || d.placeOfSupply || '' };
+    });
   }, [selectedClient]);
 
   const taxType = useMemo(() => {
@@ -822,6 +829,8 @@ export function InvoiceBuilderPage() {
           }))
       };
 
+      if (!(id && id !== 'new') && !numberEdited) delete payload.invoiceNumber;
+
       if (id && id !== 'new') {
         await api.resources.update('/invoices', id, payload, token);
         toast.success('Invoice updated');
@@ -941,8 +950,10 @@ export function InvoiceBuilderPage() {
                     Generate
                   </button>
                 </div>
-                <Input value={draft.invoiceNumber} onChange={e => setDraft(d => ({ ...d, invoiceNumber: e.target.value }))} className="text-sm" />
-                <p className="mt-1 text-[11px] text-slate-400">Editable field. Click Generate if you want the system format.</p>
+                <Input value={draft.invoiceNumber} onChange={e => { setNumberEdited(true); setDraft(d => ({ ...d, invoiceNumber: e.target.value })); }} className="text-sm" />
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {id && id !== 'new' ? 'Editable field.' : 'Shown as a suggestion; the next free number is assigned when you save, unless you type your own.'}
+                </p>
                 <p className="mt-1 text-[11px] font-semibold text-slate-500">Financial year: {selectedFinancialYear}</p>
               </div>
               <div>
