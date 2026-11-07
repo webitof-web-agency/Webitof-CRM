@@ -6,7 +6,8 @@ import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Modal } from "../../components/ui/Modal";
 import { Pencil, Trash2 } from "lucide-react";
-import { Field, DetailValues } from "./HrmShared";
+import { Field, DetailValues, Lookup } from "./HrmShared";
+import { SalaryComponents } from "./SalaryComponents";
 import { hrm, label } from "./hrmApi";
 // Display names: "location" is the Branch used on the employee form.
 const masterTypeLabels = {
@@ -35,7 +36,7 @@ const masterFields = {
   ],
   team: [
     ["departmentId", "Department", "department"],
-    ["managerId", "Manager reference", "text"],
+    ["managerId", "Team manager", "employee"],
   ],
   location: [
     ["address", "Office address", "textarea"],
@@ -75,7 +76,7 @@ const masterFields = {
     ["content", "Letter template", "textarea"],
   ],
   kpi_template: [["factors", "KPI factors (one per line)", "lines"]],
-  salary_structure: [],
+  salary_structure: [["components", "Salary components (per month)", "components"]],
 };
 export function HrmSettings({ token, metadata, masters, can, onReload }) {
   const [tab, setTab] = useState("policy"),
@@ -484,6 +485,7 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
       {editing && (
         <MasterEditor
           token={token}
+          metadata={metadata}
           masters={masters}
           type={editing.type}
           initial={editing.record}
@@ -498,7 +500,7 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
   );
 }
 
-function MasterEditor({ token, masters, type, initial, onClose, onSaved }) {
+function MasterEditor({ token, metadata, masters, type, initial, onClose, onSaved }) {
   const [record, setRecord] = useState(initial),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -521,7 +523,12 @@ function MasterEditor({ token, masters, type, initial, onClose, onSaved }) {
           try {
             await hrm(token, `/masters/${type}${record.id ? `/${record.id}` : ""}`, {
               method: record.id ? "PUT" : "POST",
-              body: { name: record.name, isActive: record.isActive, payload: record.payload },
+              // "system" marks built-in masters; the server keeps it and rejects it as an editable field.
+              body: {
+                name: record.name,
+                isActive: record.isActive,
+                payload: Object.fromEntries(Object.entries(record.payload || {}).filter(([k]) => k !== "system")),
+              },
             });
             toast.success(`${title} saved`);
             onSaved();
@@ -557,7 +564,30 @@ function MasterEditor({ token, masters, type, initial, onClose, onSaved }) {
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {(masterFields[type] || []).map(([key, fieldTitle, fieldType]) => {
-            const wide = ["textarea", "lines", "days"].includes(fieldType);
+            const wide = ["textarea", "lines", "days", "components"].includes(fieldType);
+            if (fieldType === "components")
+              return (
+                <div key={key} className="sm:col-span-2">
+                  <p className="mb-1.5 text-xs font-semibold">{fieldTitle}</p>
+                  <SalaryComponents
+                    value={record.payload[key] || []}
+                    currency={metadata.policy.currency}
+                    onChange={(v) => setPayload(key, v)}
+                  />
+                </div>
+              );
+            if (fieldType === "employee")
+              return (
+                <div key={key}>
+                  <Lookup
+                    token={token}
+                    name={`master${key}`}
+                    title={fieldTitle}
+                    value={record.payload[key] || ""}
+                    onChange={(v) => setPayload(key, v || undefined)}
+                  />
+                </div>
+              );
             if (fieldType === "days")
               return (
                 <div key={key} className="sm:col-span-2">

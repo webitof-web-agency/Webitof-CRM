@@ -35,6 +35,8 @@ router.get("/resources/:kind", c.list);
 router.post("/records/:kind", c.record);
 router.put("/records/:kind/:id", c.record);
 router.post("/candidates/:id/convert", c.convert);
+router.post("/candidates/:id/stage", c.moveCandidate);
+router.get("/recruitment/pipeline", c.recruitmentPipeline);
 router.post("/masters/:type", c.master);
 router.put("/masters/:type/:id", c.master);
 router.delete("/masters/:type/:id", c.deleteMaster);

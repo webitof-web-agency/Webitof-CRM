@@ -152,6 +152,8 @@ const controller = {
   convert: respond((req) =>
     lifecycle.convertCandidate(req.user, req.params.id, req.body),
   ),
+  recruitmentPipeline: respond((req) => lifecycle.recruitmentPipeline(req.user, req.query)),
+  moveCandidate: respond((req) => lifecycle.moveCandidate(req.user, req.params.id, req.body)),
   offboard: respond((req) => lifecycle.offboard(req.user, req.params.id)),
   letter: respond((req) =>
     lifecycle.letter(req.user, req.params.id, req.query.templateId),

@@ -288,6 +288,16 @@ async function masters(user, type, body, id = null, db = null) {
         await c.master(tx, x, "employment_type", true);
     }
     if (payload.content) c.text(payload.content, "Template content", 30000);
+    if (payload.components != null) {
+      if (!Array.isArray(payload.components) || payload.components.length > 50)
+        c.fail("Provide up to 50 salary components");
+      for (const component of payload.components) {
+        c.allow(component, ["name", "type", "amount"]);
+        c.text(component.name, "Component name", 100, true);
+        c.choice(component.type, ["earning", "deduction", "employer"]);
+        c.number(component.amount, "Component monthly amount", 0, 1e8);
+      }
+    }
     const old = id
       ? c.camel(
           (
@@ -303,7 +313,8 @@ async function masters(user, type, body, id = null, db = null) {
       type: `hrm_${type}`,
       name: c.text(body.name, "Name", 160, true),
       isActive: c.boolean(body.isActive ?? old?.isActive ?? true),
-      payload: JSON.stringify(payload),
+      // The system flag is not editable (it is rejected as an unsupported field), but an edit must not drop it.
+      payload: JSON.stringify(old?.payload?.system ? { ...payload, system: true } : payload),
     };
     const saved = id
       ? await c.update(tx, "master_items", id, {

@@ -10,6 +10,7 @@ import { GeoMap } from "./GeoMap";
 import { hrm, localDay } from "./hrmApi";
 import { hm, clock, EVENT_LABELS, ALERT_LABELS } from "./hrmTime";
 import { SimpleTable } from "../../components/ui/SimpleTable";
+import { AlertHistory } from "./AlertHistory";
 
 const ALERT_ACTIONS = [
   ["ignore", "Ignore", false],
@@ -272,6 +273,7 @@ export function HrmLive({ token, metadata, can }) {
           ))}
         </Card>
       </div>
+      <AlertHistory token={token} tz={tz} />
       {action && (
         <ActionDialog
           action={action}

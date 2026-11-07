@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { SalaryComponents, suggestedMonthlyCost } from "./SalaryComponents";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { Field, Lookup } from "./HrmShared";
@@ -158,6 +159,52 @@ export function HrmForm({
               ),
             )}
         </div>
+        {config.endpoint === "/salary-history" && (
+          <div className="space-y-3 rounded-xl border border-[var(--border)] p-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--text-main)]">Salary components</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                Earnings and deductions drive payroll. Start from a salary structure, then adjust the amounts for this person.
+              </p>
+            </div>
+            {masters.some((m) => m.type === "hrm_salary_structure" && m.isActive) && (
+              <Field
+                name="salaryStructure"
+                title="Start from a salary structure"
+                type="select"
+                value=""
+                options={masters
+                  .filter((m) => m.type === "hrm_salary_structure" && m.isActive)
+                  .map((m) => ({ value: m.id, label: m.name }))}
+                onChange={(id) => {
+                  const structure = masters.find((m) => m.id === id);
+                  if (!structure) return;
+                  const components = (structure.payload?.components || []).map((x) => ({ ...x }));
+                  setData((d) => ({
+                    ...d,
+                    components,
+                    monthlyCost: d.monthlyCost === "" || d.monthlyCost == null ? suggestedMonthlyCost(components) : d.monthlyCost,
+                  }));
+                }}
+              />
+            )}
+            <SalaryComponents
+              value={data.components || []}
+              currency={data.currency || metadata.policy.currency}
+              onChange={(components) =>
+                setData((d) => ({
+                  ...d,
+                  components,
+                  // Keep an untouched monthly cost in step with the components; never overwrite one the user typed.
+                  monthlyCost:
+                    d.monthlyCost === "" || d.monthlyCost == null || d.monthlyCost === suggestedMonthlyCost(d.components || [])
+                      ? suggestedMonthlyCost(components)
+                      : d.monthlyCost,
+                }))
+              }
+            />
+          </div>
+        )}
         {config.endpoint === "/timesheets" && (
           <p className="text-sm text-[var(--text-muted)]">
             Approved daily work reports in this period will be included

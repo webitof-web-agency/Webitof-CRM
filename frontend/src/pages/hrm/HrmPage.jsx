@@ -12,6 +12,7 @@ import { HrmGeofences } from "./HrmGeofences";
 import { HrmMyDay } from "./HrmMyDay";
 import { EmployeeProfile } from "./EmployeeProfile";
 import { EmployeeWizard } from "./EmployeeWizard";
+import { HrmRecruitment } from "./HrmRecruitment";
 const sections = [
   ["overview", "Overview"],
   ["my-day", "My day", "self_service"],
@@ -27,6 +28,7 @@ const sections = [
   ["reimbursement", "Reimbursements"],
   ["payroll", "Payroll"],
   ["salary-history", "Compensation", "view_salary"],
+  ["recruitment", "Recruitment pipeline", "recruitment"],
   ["job", "Job openings", "recruitment"],
   ["candidate", "Candidates", "recruitment"],
   ["interview", "Interviews", "recruitment"],
@@ -138,6 +140,8 @@ export function HrmPage() {
           />
           <HrmMyDay token={token} />
         </div>
+      ) : kind === "recruitment" && can("recruitment") ? (
+        <HrmRecruitment {...props} />
       ) : kind === "geofences" && (can("approve") || can("manage_settings")) ? (
         <HrmGeofences {...props} />
       ) : available.some(([key]) => key === kind) ? (

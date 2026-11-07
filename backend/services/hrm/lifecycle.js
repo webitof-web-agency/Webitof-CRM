@@ -212,6 +212,96 @@ async function convertCandidate(user, id, body, db = null) {
     return employee;
   }, db);
 }
+// Recruitment board: open jobs with candidate counts, and the candidates of one job (or the ones not
+// tied to any job) with their latest interview. Read-only; stage changes go through moveCandidate.
+async function recruitmentPipeline(user, q = {}, db = c.dbDefault) {
+  c.permit(user, "recruitment");
+  const includeClosed = q.includeClosed === "true";
+  const jobs = (
+    await db.query(
+      `SELECT j.id,j.title,j.status,j.details,j.created_at,
+              count(k.id)::int AS candidates,
+              count(k.id) FILTER (WHERE k.status='Joined')::int AS joined
+         FROM hrm_records j
+         LEFT JOIN hrm_records k ON k.parent_id=j.id AND k.kind='candidate' AND k.archived_at IS NULL
+        WHERE j.kind='job' AND j.archived_at IS NULL ${includeClosed ? "" : "AND j.status<>'Closed'"}
+        GROUP BY j.id
+        ORDER BY (j.status='Open') DESC,j.created_at DESC
+        LIMIT 100`,
+    )
+  ).rows.map(c.camel);
+  const unassigned = (
+    await db.query(
+      "SELECT count(*)::int AS n FROM hrm_records WHERE kind='candidate' AND archived_at IS NULL AND parent_id IS NULL",
+    )
+  ).rows[0].n;
+  const requested = String(q.jobId || "");
+  const selectedJobId =
+    requested === "none"
+      ? "none"
+      : jobs.some((j) => j.id === requested)
+        ? requested
+        : jobs[0]?.id || (unassigned ? "none" : "");
+  let candidates = [];
+  if (selectedJobId) {
+    const values = [];
+    const scope = selectedJobId === "none" ? "k.parent_id IS NULL" : (values.push(selectedJobId), "k.parent_id=$1");
+    candidates = (
+      await db.query(
+        `SELECT k.id,k.title,k.status,k.details,k.parent_id,k.version,k.created_at,k.updated_at,
+                i.id AS interview_id,i.status AS interview_status,
+                i.details->>'scheduledAt' AS interview_at,i.details->>'interviewer' AS interviewer
+           FROM hrm_records k
+           LEFT JOIN LATERAL (
+             SELECT id,status,details FROM hrm_records i
+              WHERE i.kind='interview' AND i.parent_id=k.id AND i.archived_at IS NULL
+              ORDER BY i.created_at DESC LIMIT 1
+           ) i ON true
+          WHERE k.kind='candidate' AND k.archived_at IS NULL AND ${scope}
+          ORDER BY k.updated_at DESC
+          LIMIT 300`,
+        values,
+      )
+    ).rows.map(c.camel);
+  }
+  return {
+    stages: RECORDS.candidate.statuses,
+    jobs,
+    unassigned,
+    selectedJobId,
+    candidates,
+    truncated: candidates.length >= 300,
+  };
+}
+// Moves a candidate between stages without touching anything else on the record (a normal record
+// update replaces the whole record). Joining happens only through the employee conversion.
+async function moveCandidate(user, id, body, db = null) {
+  c.permit(user, "recruitment");
+  c.allow(body, ["status", "version"]);
+  return c.transaction(async (tx) => {
+    const old = c.camel(
+      (
+        await tx.query(
+          "SELECT * FROM hrm_records WHERE id=$1 AND kind='candidate' AND archived_at IS NULL FOR UPDATE",
+          [id],
+        )
+      ).rows[0],
+    );
+    if (!old) c.fail("Candidate not found", 404);
+    c.optimistic(old, body);
+    const status = c.choice(body.status, RECORDS.candidate.statuses, "Stage");
+    if (old.status === "Joined") c.fail("A candidate who has joined cannot be moved", 409);
+    if (status === "Joined") c.fail("Use Convert to employee to complete joining");
+    if (status === old.status) return old;
+    const saved = await c.update(tx, "hrm_records", id, {
+      status,
+      version: old.version + 1,
+      updatedAt: new Date(),
+    });
+    await c.audit(tx, user, "candidate", id, "stage-moved", old, saved);
+    return saved;
+  }, db);
+}
 async function offboard(user, id, db = null) {
   c.permit(user, "manage_employees", "hr_approve");
   if (!c.can(user, "hr_approve")) c.fail("Final HR approval required", 403);
@@ -469,6 +559,8 @@ async function document(
 }
 module.exports = {
   record,
+  recruitmentPipeline,
+  moveCandidate,
   convertCandidate,
   offboard,
   letter,

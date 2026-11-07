@@ -1005,6 +1005,20 @@ async function listAlerts(user, q = {}, db = c.dbDefault) {
     values.push(c.date(q.date));
     clauses.push(`a.work_date=$${values.length}`);
   }
+  // Date range for browsing past alerts (resolved ones are otherwise only reachable one day at a time).
+  if (q.from) {
+    values.push(c.date(q.from, "From date"));
+    clauses.push(`a.work_date>=$${values.length}`);
+  }
+  if (q.to) {
+    values.push(c.date(q.to, "To date"));
+    clauses.push(`a.work_date<=$${values.length}`);
+  }
+  if (q.kind) {
+    values.push(String(q.kind).slice(0, 40));
+    clauses.push(`a.kind=$${values.length}`);
+  }
+  // Newest first once resolved alerts are included; open ones still sort ahead of resolved.
   return (
     await db.query(
       `SELECT a.*,e.full_name AS employee_name,e.employee_number FROM hrm_alerts a JOIN hrm_employees e ON e.id=a.employee_id
