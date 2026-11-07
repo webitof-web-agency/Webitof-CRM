@@ -10,6 +10,7 @@ const modelMapping = {
   'bankTransaction.model.js': 'bank_transactions',
   'client.model.js': 'clients',
   'clientContact.model.js': 'client_contacts',
+  'creditNote.model.js': 'credit_notes',
   'expense.model.js': 'expenses',
   'fileAsset.model.js': 'file_assets',
   'followUp.model.js': 'follow_ups',
@@ -27,7 +28,7 @@ const modelMapping = {
   'project.model.js': 'projects',
   'renewal.model.js': 'renewals',
   'role.model.js': 'roles',
-  'settings.model.js': 'settings',
+  'settings.model.js': 'app_settings',
   'storageFolder.model.js': 'storage_folders',
   'user.model.js': 'users',
   'workflowAutomationLog.model.js': 'workflow_automation_logs'
