@@ -3,6 +3,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
+import { istDate } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card } from '../../components/ui/Card';
@@ -26,7 +27,7 @@ export function PaymentBuilderPage() {
   const [bankAccounts, setBankAccounts] = useState([]);
   
   const [draft, setDraft] = useState({
-    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentDate: istDate(0),
     clientId: location.state?.clientId || '',
     invoiceId: location.state?.invoiceId || '',
     amountReceived: '',
@@ -81,7 +82,8 @@ export function PaymentBuilderPage() {
   const handleSave = async () => {
     if (!draft.clientId) return toast.error('Client is required');
     if (!draft.paymentDate) return toast.error('Payment Date is required');
-    if (!draft.amountReceived) return toast.error('Amount is required');
+    if (!(Number(draft.amountReceived) > 0)) return toast.error('Enter an amount received greater than zero');
+    if (Number(draft.tdsDeducted) < 0) return toast.error('TDS deducted cannot be negative');
 
     setSaving(true);
     try {
@@ -155,6 +157,23 @@ export function PaymentBuilderPage() {
               value={draft.amountReceived}
               onChange={(e) => setDraft(d => ({ ...d, amountReceived: e.target.value }))}
             />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-[var(--text-main)]">TDS Deducted by Client (₹)</label>
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={draft.tdsDeducted ?? 0}
+              onChange={(e) => setDraft(d => ({ ...d, tdsDeducted: e.target.value }))}
+            />
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Tax the client withheld and paid to the government. It settles the invoice but is not money in your bank.</p>
+            {Number(draft.tdsDeducted) > 0 && (
+              <p className="mt-1 text-xs font-semibold text-[var(--text-main)]">
+                Applied to the invoice: ₹{((Number(draft.amountReceived) || 0) + (Number(draft.tdsDeducted) || 0)).toLocaleString('en-IN')}
+              </p>
+            )}
           </div>
 
           <div>

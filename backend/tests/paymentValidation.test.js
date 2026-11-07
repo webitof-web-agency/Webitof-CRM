@@ -25,7 +25,7 @@ const invoice = (extra = {}) => ({
   ...extra
 });
 
-function fakeDb({ existingPayments = [], duplicateOf = null } = {}) {
+function fakeDb({ existingPayments = [], duplicateOf = null, existingCredits = [] } = {}) {
   const calls = [];
   return {
     calls,
@@ -33,6 +33,7 @@ function fakeDb({ existingPayments = [], duplicateOf = null } = {}) {
       calls.push(sql.replace(/\s+/g, ' ').trim());
       if (/for update/.test(sql)) return { rows: [{ id: params[0] }] };
       if (/from payments where invoice_id/.test(sql)) return { rows: existingPayments };
+      if (/from credit_notes where invoice_id/.test(sql)) return { rows: existingCredits };
       if (/from payments where lower\(transaction_id\)/.test(sql))
         return { rows: duplicateOf && params[1] !== duplicateOf ? [{ id: duplicateOf }] : [] };
       return { rows: [] };
@@ -122,4 +123,13 @@ test('fields can be cleared on edit, and the default date is the Indian business
   assert.equal(cleared.bankAccountId, null);
   const created = await normalizePayment({ amountReceived: 10, clientId: 'c1' }, null, fakeDb());
   assert.match(created.paymentDate, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test('credit notes lower the balance a payment may take', async () => {
+  const credit = [{ id: 'cn1', invoice_id: 'inv1', status: 'Issued', total_amount: 400 }];
+  const db = () => fakeDb({ existingCredits: credit });
+  assert.equal(await status(normalizePayment({ ...base, amountReceived: 700 }, null, db())), 409, 'only 600 is still owed');
+  assert.equal(await status(normalizePayment({ ...base, amountReceived: 600 }, null, db())), 'ok');
+  const cancelled = [{ id: 'cn1', invoice_id: 'inv1', status: 'Cancelled', total_amount: 400 }];
+  assert.equal(await status(normalizePayment({ ...base, amountReceived: 1000 }, null, fakeDb({ existingCredits: cancelled }))), 'ok', 'a cancelled credit note does not count');
 });

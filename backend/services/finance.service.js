@@ -1,6 +1,7 @@
 const clientModel = require('../models/client.model');
 const invoiceModel = require('../models/invoice.model');
 const paymentModel = require('../models/payment.model');
+const creditNoteModel = require('../models/creditNote.model');
 const expenseModel = require('../models/expense.model');
 const outsourcingModel = require('../models/outsourcingExpense.model');
 const leadCommissionModel = require('../models/leadCommission.model');
@@ -126,10 +127,77 @@ function getPaymentAppliedAmount(payment = {}) {
   return round2(toNumber(payment.amountReceived) + toNumber(payment.tdsDeducted));
 }
 
-function getInvoiceSnapshot(invoice = {}, payments = [], settings = {}, client = {}) {
+// Money that actually reached the bank. TDS the client withheld settles the invoice (getPaymentAppliedAmount)
+// but was paid to the government, so it is not cash and must not count towards cash flow.
+function getPaymentCashAmount(payment = {}) {
+  return isPaymentCounted(payment) ? round2(toNumber(payment.amountReceived)) : 0;
+}
+
+function getPaymentTdsAmount(payment = {}) {
+  return isPaymentCounted(payment) ? round2(toNumber(payment.tdsDeducted)) : 0;
+}
+
+// ---- credit notes ------------------------------------------------------------------------------------------
+// A credit note reduces what the client owes on an issued invoice. It counts while Issued; cancelling it restores
+// the balance. The invoice is never edited.
+const isIssuedCreditNote = (note = {}) => String(note.status || 'Issued').trim() === 'Issued';
+
+function groupCreditNotesByInvoice(notes = []) {
+  const map = new Map();
+  for (const note of notes || []) {
+    if (!isIssuedCreditNote(note) || !note.invoiceId) continue;
+    const key = String(note.invoiceId);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(note);
+  }
+  return map;
+}
+
+// What a credit note against this invoice can be worth at most: its taxable value plus GST (before any advance
+// that was deducted from the amount due).
+function getInvoiceCreditCapacity(invoice = {}, settings = {}, client = {}) {
+  const totals = calculateInvoiceTotals(invoice, invoice.items || [], settings, client || {});
+  return round2(toNumber(totals.taxableAmount) + toNumber(totals.gstAmount));
+}
+
+// Totals for a credit note. With no items it credits the whole invoice; with items they are priced and taxed
+// exactly like invoice lines, using the invoice's own tax treatment (GST type, place of supply, inclusive/exclusive).
+function calculateCreditNoteTotals(invoice = {}, settings = {}, client = {}, items = null) {
+  const source = items
+    ? { amountType: invoice.amountType, placeOfSupply: invoice.placeOfSupply, invoiceType: invoice.invoiceType, items }
+    : invoice;
+  const totals = calculateInvoiceTotals(source, source.items || [], settings, client || {});
+  const taxableAmount = round2(toNumber(totals.taxableAmount));
+  const gstAmount = round2(toNumber(totals.gstAmount));
+  return {
+    items: totals.items || [],
+    taxableAmount,
+    cgst: round2(toNumber(totals.cgst)),
+    sgst: round2(toNumber(totals.sgst)),
+    utgst: round2(toNumber(totals.utgst)),
+    igst: round2(toNumber(totals.igst)),
+    gstAmount,
+    totalAmount: round2(taxableAmount + gstAmount)
+  };
+}
+
+async function loadCreditNotesForInvoice(invoiceId, dbClient = null) {
+  if (!invoiceId) return [];
+  const exec = dbClient?.query || null;
+  if (exec) {
+    const result = await exec.call(dbClient, "select * from credit_notes where invoice_id = $1 and status = 'Issued'", [invoiceId]);
+    return (result?.rows || []).map((row) => creditNoteModel.hydrateRow(row));
+  }
+  return creditNoteModel.list({ where: { invoiceId, status: 'Issued' } });
+}
+
+function getInvoiceSnapshot(invoice = {}, payments = [], settings = {}, client = {}, creditNotes = []) {
   const totals = calculateInvoiceTotals(invoice, invoice.items || [], settings, client || {});
   const amountPaid = round2(sumBy(payments, getPaymentAppliedAmount));
-  const balanceDue = round2(Math.max(0, totals.totalAmount - amountPaid));
+  const creditTotal = round2(sumBy((creditNotes || []).filter(isIssuedCreditNote), (note) => note.totalAmount));
+  const balanceDue = round2(Math.max(0, totals.totalAmount - amountPaid - creditTotal));
+  // Paid plus credited more than the invoice is worth: the client is owed the difference back.
+  const refundDue = round2(Math.max(0, amountPaid + creditTotal - totals.totalAmount));
   const paymentProgress = totals.totalAmount > 0 ? round2(Math.min(100, (amountPaid / totals.totalAmount) * 100)) : 0;
   // Whole days against today's IST calendar date: due today is 0, due yesterday is -1.
   const overdueDays = invoice.dueDate ? daysUntil(getDateOnly(invoice.dueDate), businessDate()) : null;
@@ -140,12 +208,13 @@ function getInvoiceSnapshot(invoice = {}, payments = [], settings = {}, client =
     if (currentStatus === 'Draft') {
       computedStatus = amountPaid > 0 ? (balanceDue <= 0 ? 'Paid' : 'Partially Paid') : 'Draft';
     } else if (totals.totalAmount > 0 && balanceDue <= 0) {
-      computedStatus = 'Paid';
+      // Settled with money: Paid. Settled only by credit notes (nothing received): Credited.
+      computedStatus = amountPaid <= 0 && creditTotal > 0 ? 'Credited' : 'Paid';
     } else if (amountPaid > 0) {
       computedStatus = 'Partially Paid';
     } else if (overdueDays !== null && overdueDays < 0) {
       computedStatus = 'Overdue';
-    } else if (!currentStatus || ['Paid', 'Partially Paid', 'Overdue'].includes(currentStatus)) {
+    } else if (!currentStatus || ['Paid', 'Partially Paid', 'Overdue', 'Credited'].includes(currentStatus)) {
       // Payments were removed or the due date moved: fall back to an open invoice.
       computedStatus = 'Sent';
     }
@@ -157,6 +226,8 @@ function getInvoiceSnapshot(invoice = {}, payments = [], settings = {}, client =
     financialYear: getFinancialYear(invoice.invoiceDate || invoice.invoice_date || invoice.createdAt),
     storedStatus: currentStatus || 'Sent',
     amountPaid,
+    creditTotal,
+    refundDue,
     balanceDue,
     paymentProgress,
     overdueDays: overdueDays == null ? null : Math.abs(Math.min(overdueDays, 0)),
@@ -168,13 +239,17 @@ function getInvoiceSnapshot(invoice = {}, payments = [], settings = {}, client =
 
 function buildPaymentLedgerEntry(payment = {}, client = null, project = null, invoice = null) {
   const appliedAmount = getPaymentAppliedAmount(payment);
+  const cashAmount = getPaymentCashAmount(payment);
   return {
     id: payment.id,
     module: 'payments',
     entryType: 'receipt',
     direction: 'in',
     date: normalizeDateValue(payment.paymentDate || payment.createdAt),
-    amount: appliedAmount,
+    // The ledger is a cash view: what reached the bank. The TDS withheld is shown beside it.
+    amount: cashAmount,
+    tdsDeducted: getPaymentTdsAmount(payment),
+    appliedAmount,
     clientId: payment.clientId || client?.id || null,
     clientName: client?.companyName || client?.name || '-',
     projectId: payment.projectId || project?.id || null,
@@ -367,6 +442,84 @@ function buildBankTransactionLedgerEntry(transaction = {}, client = null, projec
 // output GST or a receivable. Every report and dashboard uses this one test.
 const isIssuedInvoice = (invoice = {}) => !['Cancelled', 'Draft'].includes(String(invoice.status || '').trim());
 
+// ---- reporting period -------------------------------------------------------------------------------------
+// P&L and GST are filed per month or per financial year (April to March), so reports take a period. Dates are
+// plain Indian calendar dates (YYYY-MM-DD); nothing here goes through UTC.
+const REPORT_DATE_FIELDS = {
+  invoices: ['invoiceDate', 'createdAt'],
+  expenses: ['expenseDate', 'createdAt'],
+  outsourcingExpenses: ['expenseDate', 'createdAt'],
+  leadCommissions: ['commissionDate', 'createdAt'],
+  payments: ['paymentDate', 'createdAt'],
+  creditNotes: ['issueDate', 'createdAt']
+};
+
+function reportPeriodError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
+
+const isCalendarDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+const lastDayOfMonth = (year, month) => new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+
+// Financial year that contains a YYYY-MM-DD date: 1 April to 31 March.
+function financialYearBounds(dateString) {
+  const year = Number(dateString.slice(0, 4));
+  const month = Number(dateString.slice(5, 7));
+  const startYear = month >= 4 ? year : year - 1;
+  return { from: `${startYear}-04-01`, to: `${startYear + 1}-03-31`, label: `FY ${startYear}-${String((startYear + 1) % 100).padStart(2, '0')}` };
+}
+
+// query: { period: 'all' | 'thisFy' | 'lastFy' | 'thisMonth' | 'lastMonth' } or { from, to } or { fy: '2025-26' }
+function parseReportPeriod(query = {}, today = businessDate()) {
+  const period = String(query.period || '').trim();
+  const todayYear = Number(today.slice(0, 4));
+  const todayMonth = Number(today.slice(5, 7));
+  if (period === 'thisFy') return { active: true, ...financialYearBounds(today) };
+  if (period === 'lastFy') {
+    const current = financialYearBounds(today);
+    return { active: true, ...financialYearBounds(`${Number(current.from.slice(0, 4)) - 1}-04-01`) };
+  }
+  if (period === 'thisMonth') return { active: true, from: `${today.slice(0, 7)}-01`, to: lastDayOfMonth(todayYear, todayMonth), label: 'This month' };
+  if (period === 'lastMonth') {
+    const year = todayMonth === 1 ? todayYear - 1 : todayYear;
+    const month = todayMonth === 1 ? 12 : todayMonth - 1;
+    return { active: true, from: `${year}-${String(month).padStart(2, '0')}-01`, to: lastDayOfMonth(year, month), label: 'Last month' };
+  }
+  if (query.fy) {
+    const match = String(query.fy).match(/^(\d{4})-(\d{2})$/);
+    if (!match || (Number(match[1]) + 1) % 100 !== Number(match[2])) throw reportPeriodError('Financial year must look like 2025-26.');
+    return { active: true, from: `${match[1]}-04-01`, to: `${Number(match[1]) + 1}-03-31`, label: `FY ${query.fy}` };
+  }
+  const from = String(query.from || '').trim();
+  const to = String(query.to || '').trim();
+  if (!from && !to) return { active: false, from: '', to: '', label: 'All time' };
+  if ((from && !isCalendarDate(from)) || (to && !isCalendarDate(to))) throw reportPeriodError('Dates must be valid and look like 2026-04-01.');
+  if (from && to && from > to) throw reportPeriodError('The start date is after the end date.');
+  return { active: true, from, to, label: `${from || 'start'} to ${to || 'today'}` };
+}
+
+// A copy of the business state limited to a period. Invoices by invoice date, payments by payment date, costs by
+// their own dates. An active period also drops the "salary payable per user" fallback, which would otherwise
+// invent a current-month payroll cost for any past period.
+function filterStateByPeriod(state = {}, period = { active: false }) {
+  if (!period.active) return state;
+  const inRange = (record, fields) => {
+    const raw = fields.map((field) => record?.[field]).find(Boolean);
+    const day = getDateOnly(raw);
+    if (!day) return false;
+    if (period.from && day < period.from) return false;
+    if (period.to && day > period.to) return false;
+    return true;
+  };
+  const filtered = { ...state, users: [] };
+  for (const [collection, fields] of Object.entries(REPORT_DATE_FIELDS)) {
+    filtered[collection] = (state[collection] || []).filter((record) => inRange(record, fields));
+  }
+  return filtered;
+}
+
 // Draft, rejected and cancelled expenses were never incurred, so they stay out of totals.
 const isVoidedExpense = (expense = {}) =>
   ['Draft', 'Cancelled', 'Rejected'].includes(String(expense.status || '').trim()) ||
@@ -391,9 +544,13 @@ function buildFinanceSummary(state = {}, filters = {}) {
 
   const validPayments = (state.payments || []).filter(p => isWithinRange(p.paymentDate || p.createdAt));
 
+  // Credit notes issued up to the end of the period count against their invoice's balance.
+  const creditNotesInScope = (state.creditNotes || []).filter((note) => !toDate || getDateOnly(note.issueDate || note.createdAt) <= toDate);
+  const creditsByInvoice = groupCreditNotesByInvoice(creditNotesInScope);
   const invoiceSnapshots = (state.invoices || [])
     .filter((invoice) => isIssuedInvoice(invoice) && isWithinRange(invoice.invoiceDate || invoice.createdAt))
-    .map((invoice) => getInvoiceSnapshot(invoice, validPayments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), settings, clientById.get(String(invoice.clientId)) || {}));
+    .map((invoice) => getInvoiceSnapshot(invoice, validPayments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), settings, clientById.get(String(invoice.clientId)) || {}, creditsByInvoice.get(String(invoice.id)) || []));
+  const totalCreditNotes = sumBy((state.creditNotes || []).filter((note) => isIssuedCreditNote(note) && isWithinRange(note.issueDate || note.createdAt)), (note) => note.totalAmount);
 
   const expenseImpacts = (state.expenses || [])
     .filter(e => isWithinRange(e.expenseDate || e.createdAt) && !isSalaryExpenseRecord(e) && !isVoidedExpense(e))
@@ -416,6 +573,8 @@ function buildFinanceSummary(state = {}, filters = {}) {
   const bankTransactionDebits = validBankTransactions.filter((item) => bankTypeOf(item) === 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
 
   const totalReceived = sumBy(validPayments, getPaymentAppliedAmount);
+  const totalCashReceived = sumBy(validPayments, getPaymentCashAmount);
+  const totalTdsDeducted = sumBy(validPayments, getPaymentTdsAmount);
   const totalOutstanding = sumBy(invoiceSnapshots, (item) => item.balanceDue);
   const totalExpense = sumBy(expenseImpacts, (item) => item.expenseAmount);
   const totalOutsourcingPayable = sumBy(outsourcingImpacts, (item) => item.totalAmount);
@@ -427,7 +586,10 @@ function buildFinanceSummary(state = {}, filters = {}) {
     totalInvoices: (state.invoices || []).length,
     totalInvoiceAmount: sumBy(invoiceSnapshots, (item) => item.totalAmount),
     totalTaxableAmount: sumBy(invoiceSnapshots, (item) => item.taxableAmount),
+    totalCreditNotes,
     totalReceived,
+    totalCashReceived,
+    totalTdsDeducted,
     totalOutstanding,
     totalOverdueOutstanding: sumBy(invoiceSnapshots.filter((item) => item.isOverdue), (item) => item.balanceDue),
     totalExpenses: totalExpense,
@@ -439,7 +601,7 @@ function buildFinanceSummary(state = {}, filters = {}) {
     officeExpense: round2(totalExpense + payrollExpense),
     cashInBank,
     totalReceivables: round2(totalOutstanding),
-    netCashFlow: round2(totalReceived - totalPayables),
+    netCashFlow: round2(totalCashReceived - totalPayables),
     paymentCount: (state.payments || []).length,
     overdueInvoiceCount: invoiceSnapshots.filter((item) => item.isOverdue).length,
     partialPaymentCount: invoiceSnapshots.filter((item) => item.computedStatus === 'Partially Paid').length,
@@ -468,10 +630,11 @@ function buildFinanceLedger(state = {}, filters = {}) {
     paymentsByInvoiceId.get(key).push(payment);
   });
 
+  const ledgerCredits = groupCreditNotesByInvoice(state.creditNotes);
   const entries = [
     ...(state.invoices || [])
       .filter((invoice) => invoice.status !== 'Cancelled')
-      .map((invoice) => getInvoiceSnapshot(invoice, paymentsByInvoiceId.get(String(invoice.id)) || [], settings, clientById.get(String(invoice.clientId)) || {}))
+      .map((invoice) => getInvoiceSnapshot(invoice, paymentsByInvoiceId.get(String(invoice.id)) || [], settings, clientById.get(String(invoice.clientId)) || {}, ledgerCredits.get(String(invoice.id)) || []))
       .map((snapshot) => buildInvoiceLedgerEntry(snapshot, clientById.get(String(snapshot.clientId)) || null, projectById.get(String(snapshot.projectId)) || null)),
     ...(state.payments || []).map((payment) => buildPaymentLedgerEntry(
       payment,
@@ -666,12 +829,13 @@ function buildBankReconciliation(state = {}, filters = {}) {
 async function syncInvoiceFinancialState(invoiceId, dbClient = null) {
   if (!invoiceId) return null;
   const exec = dbClient?.query || null;
-  const [invoiceResult, paymentResult, settingsResult] = await Promise.all([
+  const [invoiceResult, paymentResult, settingsResult, creditNotes] = await Promise.all([
     invoiceModel.findById(invoiceId, dbClient),
     exec
       ? exec.call(dbClient, 'select * from payments where invoice_id = $1 order by payment_date asc, created_at asc', [invoiceId])
       : paymentModel.list({ where: { invoiceId } }),
-    getSettings()
+    getSettings(),
+    loadCreditNotesForInvoice(invoiceId, dbClient)
   ]);
 
   const invoice = invoiceResult;
@@ -686,7 +850,7 @@ async function syncInvoiceFinancialState(invoiceId, dbClient = null) {
   const client = exec
     ? await clientModel.findById(invoice.clientId, dbClient)
     : (settingsResult && invoice.clientId ? await clientModel.findById(invoice.clientId) : null);
-  const snapshot = getInvoiceSnapshot(invoice, payments, settingsResult || {}, client || {});
+  const snapshot = getInvoiceSnapshot(invoice, payments, settingsResult || {}, client || {}, creditNotes);
   const desiredStatus = snapshot.computedStatus || invoice.status;
   if (String(invoice.status || '') !== String(desiredStatus || '')) {
     await invoiceModel.update(invoiceId, { status: desiredStatus }, dbClient);
@@ -703,22 +867,28 @@ async function syncInvoiceFinancialState(invoiceId, dbClient = null) {
 async function getInvoiceBalance(invoiceId, dbClient = null, { excludePaymentId = '' } = {}) {
   if (!invoiceId) return null;
   const exec = dbClient?.query || null;
-  const [invoice, paymentResult, settings] = await Promise.all([
+  const [invoice, paymentResult, settings, creditNotes] = await Promise.all([
     invoiceModel.findById(invoiceId, dbClient),
     exec
       ? exec.call(dbClient, 'select * from payments where invoice_id = $1', [invoiceId])
       : paymentModel.list({ where: { invoiceId } }),
-    getSettings()
+    getSettings(),
+    loadCreditNotesForInvoice(invoiceId, dbClient)
   ]);
   if (!invoice) return null;
   const payments = (Array.isArray(paymentResult?.rows) ? paymentResult.rows.map((row) => paymentModel.hydrateRow(row)) : paymentResult || [])
     .filter((payment) => !excludePaymentId || String(payment.id) !== String(excludePaymentId));
   const client = invoice.clientId ? await clientModel.findById(invoice.clientId, dbClient) : null;
-  const snapshot = getInvoiceSnapshot(invoice, payments, settings || {}, client || {});
+  const snapshot = getInvoiceSnapshot(invoice, payments, settings || {}, client || {}, creditNotes);
   return { invoice, balanceDue: snapshot.balanceDue, totalAmount: snapshot.totalAmount };
 }
 
 module.exports = {
+  isIssuedCreditNote,
+  groupCreditNotesByInvoice,
+  getInvoiceCreditCapacity,
+  calculateCreditNoteTotals,
+  loadCreditNotesForInvoice,
   getInvoiceBalance,
   buildBankReconciliation,
   buildFinanceLedger,
@@ -726,8 +896,12 @@ module.exports = {
   buildPaymentLedgerEntry,
   buildInvoiceLedgerEntry,
   getInvoiceSnapshot,
+  parseReportPeriod,
+  filterStateByPeriod,
   isIssuedInvoice,
   getPaymentAppliedAmount,
+  getPaymentCashAmount,
+  getPaymentTdsAmount,
   isPaymentCounted,
   calculatePayrollExpense,
   getPayrollExpenseTotal,

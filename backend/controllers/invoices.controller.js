@@ -3,11 +3,12 @@ const invoiceModel = require('../models/invoice.model');
 const clientModel = require('../models/client.model');
 const bankAccountModel = require('../models/bankAccount.model');
 const paymentModel = require('../models/payment.model');
+const creditNoteModel = require('../models/creditNote.model');
 const masterItemModel = require('../models/masterItem.model');
 const { getSettings } = require('../models/settings.model');
 const { calculateInvoiceTotals, getDefaultInvoiceTypeForClient, getPlaceOfSupplyForClient } = require('../utils/finance');
 const { generateInvoiceNumber, getFinancialYear, normalizeInvoiceNumber } = require('../utils/invoice');
-const { getInvoiceSnapshot, syncInvoiceFinancialState, isPaymentCounted } = require('../services/finance.service');
+const { getInvoiceSnapshot, syncInvoiceFinancialState, isPaymentCounted, groupCreditNotesByInvoice } = require('../services/finance.service');
 const { notifyBusinessEvent } = require('../services/notification.service');
 const { hasPermission } = require('../middlewares/auth');
 const { withTransaction } = require('../config/db');
@@ -63,14 +64,16 @@ async function createWithNumberRetry(createOnce, numberSupplied) {
 }
 
 async function enrichInvoices(rows = []) {
-  const [settings, clients, payments] = await Promise.all([
+  const [settings, clients, payments, creditNotes] = await Promise.all([
     getSettings(),
     clientModel.list(),
-    paymentModel.list()
+    paymentModel.list(),
+    creditNoteModel.list()
   ]);
   const clientMap = new Map(clients.map((client) => [String(client.id), client]));
   const paymentMap = buildPaymentMap(payments);
-  return rows.map((row) => getInvoiceSnapshot(row, paymentMap.get(String(row.id)) || [], settings || {}, clientMap.get(String(row.clientId)) || {}));
+  const creditMap = groupCreditNotesByInvoice(creditNotes);
+  return rows.map((row) => getInvoiceSnapshot(row, paymentMap.get(String(row.id)) || [], settings || {}, clientMap.get(String(row.clientId)) || {}, creditMap.get(String(row.id)) || []));
 }
 
 function normalizeServiceCatalogRecord(record = {}, categoryMap = new Map()) {
@@ -272,18 +275,20 @@ invoicesController.getById = async (req, res, next) => {
     if (!record) {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
-    const [settings, clients, payments] = await Promise.all([
+    const [settings, clients, payments, creditNotes] = await Promise.all([
       getSettings(),
       clientModel.list(),
-      paymentModel.list()
+      paymentModel.list(),
+      creditNoteModel.list({ where: { invoiceId: record.id }, orderBy: 'issue_date ASC, created_at ASC' })
     ]);
     const client = clients.find((item) => String(item.id) === String(record.clientId)) || null;
     const bankAccount = record.bankAccountId ? await bankAccountModel.findById(record.bankAccountId) : null;
-    const snapshot = getInvoiceSnapshot(record, payments.filter((payment) => String(payment.invoiceId) === String(record.id)), settings || {}, client || {});
+    const snapshot = getInvoiceSnapshot(record, payments.filter((payment) => String(payment.invoiceId) === String(record.id)), settings || {}, client || {}, creditNotes);
     res.json({
       success: true,
       data: {
         ...snapshot,
+        creditNotes,
         bankAccount,
         template: resolveInvoiceTemplate(settings || {}, record)
       }
@@ -377,12 +382,14 @@ invoicesController.update = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
     const currentStatus = String(current.status || '');
-    if (['Paid', 'Cancelled'].includes(currentStatus)) {
+    if (['Paid', 'Cancelled', 'Credited'].includes(currentStatus)) {
       return res.status(409).json({
         success: false,
         message: currentStatus === 'Paid'
-          ? 'A paid invoice cannot be edited. Reverse its payments first if it has to change.'
-          : 'A cancelled invoice cannot be edited.'
+          ? 'A paid invoice cannot be edited. Reverse its payments first if it has to change; to correct the billed amount, issue a credit note.'
+          : currentStatus === 'Credited'
+            ? 'A fully credited invoice cannot be edited.'
+            : 'A cancelled invoice cannot be edited.'
       });
     }
     if (String(req.body?.status || '') === 'Cancelled') {
@@ -449,14 +456,15 @@ invoicesController.getPublic = async (req, res, next) => {
     if (!invoice) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
-    const [client, settings, bankAccount, payments] = await Promise.all([
+    const [client, settings, bankAccount, payments, creditNotes] = await Promise.all([
       invoice.clientId ? clientModel.findById(invoice.clientId) : Promise.resolve(null),
       getSettings(),
       invoice.bankAccountId ? bankAccountModel.findById(invoice.bankAccountId) : Promise.resolve(null),
       // The payments that count, so a client who has paid is not shown "Overdue" with the full balance.
-      paymentModel.list({ where: { invoiceId: invoice.id } })
+      paymentModel.list({ where: { invoiceId: invoice.id } }),
+      creditNoteModel.list({ where: { invoiceId: invoice.id } })
     ]);
-    const snapshot = publicInvoice(getInvoiceSnapshot(invoice, payments, settings || {}, client || {}));
+    const snapshot = publicInvoice(getInvoiceSnapshot(invoice, payments, settings || {}, client || {}, creditNotes));
     res.json({
       success: true,
       data: {

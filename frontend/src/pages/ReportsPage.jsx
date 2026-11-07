@@ -8,11 +8,21 @@ import { DataTable } from '../components/ui/Table';
 import { StatCard } from '../components/ui/StatCard';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
+import { Chip } from '../components/ui/Chip';
 import { useAuth } from '../context/AuthContext';
 
 function formatAmount(value) {
   return Number(value || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 });
 }
+
+const PERIODS = [
+  { key: 'all', label: 'All time' },
+  { key: 'thisFy', label: 'This FY' },
+  { key: 'lastFy', label: 'Last FY' },
+  { key: 'thisMonth', label: 'This month' },
+  { key: 'lastMonth', label: 'Last month' },
+  { key: 'custom', label: 'Custom' }
+];
 
 const sections = [
   { key: 'summary', label: 'Summary' },
@@ -30,6 +40,11 @@ export function ReportsPage() {
   const [dashboard, setDashboard] = useState(null);
   const [profitLoss, setProfitLoss] = useState(null);
   const [gst, setGst] = useState(null);
+  // P&L and GST are filed per month or financial year, so they follow a period instead of all time.
+  const [period, setPeriod] = useState('all');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [periodLoading, setPeriodLoading] = useState(false);
   const [payroll, setPayroll] = useState(null);
   const [audit, setAudit] = useState(null);
   const [renewals, setRenewals] = useState(null);
@@ -47,10 +62,8 @@ export function ReportsPage() {
     async function load() {
       setLoading(true);
       try {
-        const [summaryResponse, profitResponse, gstResponse, payrollResponse, auditResponse, renewalsResponse, payablesResponse] = await Promise.all([
+        const [summaryResponse, payrollResponse, auditResponse, renewalsResponse, payablesResponse] = await Promise.all([
           api.reports.dashboard(token),
-          api.reports.profitLoss(token),
-          api.reports.gst(token),
           api.reports.payroll(token),
           api.reports.caAudit(token),
           api.reports.renewalDashboard(token),
@@ -58,8 +71,6 @@ export function ReportsPage() {
         ]);
         if (!mounted) return;
         setDashboard(summaryResponse.data || {});
-        setProfitLoss(profitResponse.data || {});
-        setGst(gstResponse.data || {});
         setPayroll(payrollResponse?.data || {});
         setAudit(auditResponse.data || {});
         setRenewals(renewalsResponse.data || {});
@@ -77,6 +88,31 @@ export function ReportsPage() {
       mounted = false;
     };
   }, [token]);
+
+  const periodQuery = useMemo(() => {
+    if (period === 'all') return {};
+    if (period === 'custom') return { from: customFrom, to: customTo };
+    return { period };
+  }, [period, customFrom, customTo]);
+  const customIncomplete = period === 'custom' && !customFrom && !customTo;
+  const customInvalid = period === 'custom' && customFrom && customTo && customFrom > customTo;
+
+  useEffect(() => {
+    if (customIncomplete || customInvalid) return undefined;
+    let active = true;
+    setPeriodLoading(true);
+    Promise.all([api.reports.profitLoss(token, periodQuery), api.reports.gst(token, periodQuery)])
+      .then(([profitResponse, gstResponse]) => {
+        if (!active) return;
+        setProfitLoss(profitResponse.data || {});
+        setGst(gstResponse.data || {});
+      })
+      .catch((error) => active && toast.error(error.message || 'Unable to load the report for this period'))
+      .finally(() => active && setPeriodLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [token, periodQuery, customIncomplete, customInvalid]);
 
   const renewalRows = useMemo(() => {
     const all = renewals?.rows || [];
@@ -147,16 +183,44 @@ export function ReportsPage() {
         ))}
       </div>
 
+      {['summary', 'profit', 'gst'].includes(activeSection) ? (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Report period">
+            {PERIODS.map((item) => (
+              <Chip key={item.key} active={period === item.key} onClick={() => setPeriod(item.key)}>
+                {item.label}
+              </Chip>
+            ))}
+          </div>
+          {period === 'custom' ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Input type="date" aria-label="From date" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} className="h-8 w-40 text-xs" />
+              <span className="text-xs text-[var(--text-muted)]">to</span>
+              <Input type="date" aria-label="To date" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} className="h-8 w-40 text-xs" />
+            </div>
+          ) : null}
+          <p className="text-xs text-[var(--text-muted)]" role="status">
+            {customInvalid
+              ? 'The start date is after the end date.'
+              : customIncomplete
+                ? 'Pick a start and/or end date.'
+                : periodLoading
+                  ? 'Updating…'
+                  : `Showing ${profitLoss?.period?.label || 'All time'} for Profit & Loss and GST.`}
+          </p>
+        </div>
+      ) : null}
+
       {activeSection === 'summary' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {[
-            { title: 'Taxable Revenue', value: dashboard?.totalTaxableAmount || 0, helper: 'From invoices', icon: FileText, bg: 'bg-blue-50/80 text-blue-500' },
-            { title: 'Received', value: dashboard?.totalReceived || 0, helper: 'Payments received', icon: BarChart3, bg: 'bg-emerald-50/80 text-emerald-500' },
-            { title: 'Outstanding', value: dashboard?.totalOutstanding || dashboard?.totalDue || 0, helper: 'Open receivables', icon: BarChart3, bg: 'bg-rose-50/80 text-rose-500' },
-            { title: 'Payables', value: dashboard?.totalPayables || 0, helper: 'Vendor, commission, and payroll dues', icon: BarChart3, bg: 'bg-amber-50/80 text-amber-500' },
-            { title: 'Payroll', value: dashboard?.payrollExpense || 0, helper: 'Active user salaries', icon: BarChart3, bg: 'bg-purple-50/80 text-purple-500' },
-            { title: 'Cash in Bank', value: dashboard?.cashInBank || 0, helper: 'Opening + credits - debits', icon: BarChart3, bg: 'bg-indigo-50/80 text-indigo-500' },
-            { title: 'Net GST', value: gst?.netGstPayable || dashboard?.netGstPayable || 0, helper: 'Input minus output', icon: BarChart3, bg: 'bg-cyan-50/80 text-cyan-500' },
+            { title: 'Taxable Revenue', value: dashboard?.totalTaxableAmount || 0, helper: 'From invoices', icon: FileText, bg: 'bg-blue-500/10 text-blue-500' },
+            { title: 'Received', value: dashboard?.totalReceived || 0, helper: 'Payments received', icon: BarChart3, bg: 'bg-emerald-500/10 text-emerald-500' },
+            { title: 'Outstanding', value: dashboard?.totalOutstanding || dashboard?.totalDue || 0, helper: 'Open receivables', icon: BarChart3, bg: 'bg-rose-500/10 text-rose-500' },
+            { title: 'Payables', value: dashboard?.totalPayables || 0, helper: 'Vendor, commission, and payroll dues', icon: BarChart3, bg: 'bg-amber-500/10 text-amber-500' },
+            { title: 'Payroll', value: dashboard?.payrollExpense || 0, helper: 'Active user salaries', icon: BarChart3, bg: 'bg-purple-500/10 text-purple-500' },
+            { title: 'Cash in Bank', value: dashboard?.cashInBank || 0, helper: 'Opening + credits - debits', icon: BarChart3, bg: 'bg-indigo-500/10 text-indigo-500' },
+            { title: 'Net GST', value: gst?.netGstPayable || dashboard?.netGstPayable || 0, helper: 'Input minus output', icon: BarChart3, bg: 'bg-cyan-500/10 text-cyan-500' },
           ].map((item, i) => {
             const Icon = item.icon;
             return (
@@ -178,11 +242,11 @@ export function ReportsPage() {
       {activeSection === 'profit' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {[
-            { label: 'Revenue', value: profitLoss?.revenue, helper: 'Total income generated', bg: 'bg-emerald-50/80 text-emerald-500' },
-            { label: 'Expense', value: profitLoss?.expense, helper: 'Total costs incurred', bg: 'bg-rose-50/80 text-rose-500' },
-            { label: 'Payroll', value: profitLoss?.payrollExpense, helper: 'Employee salary costs', bg: 'bg-amber-50/80 text-amber-500' },
-            { label: 'Office Expense', value: profitLoss?.officeExpense, helper: 'Operational costs', bg: 'bg-purple-50/80 text-purple-500' },
-            { label: 'Profit', value: profitLoss?.profit, helper: 'Net income', bg: 'bg-blue-50/80 text-blue-500' }
+            { label: 'Revenue', value: profitLoss?.revenue, helper: 'Total income generated', bg: 'bg-emerald-500/10 text-emerald-500' },
+            { label: 'Expense', value: profitLoss?.expense, helper: 'Total costs incurred', bg: 'bg-rose-500/10 text-rose-500' },
+            { label: 'Payroll', value: profitLoss?.payrollExpense, helper: 'Employee salary costs', bg: 'bg-amber-500/10 text-amber-500' },
+            { label: 'Office Expense', value: profitLoss?.officeExpense, helper: 'Operational costs', bg: 'bg-purple-500/10 text-purple-500' },
+            { label: 'Profit', value: profitLoss?.profit, helper: 'Net income', bg: 'bg-blue-500/10 text-blue-500' }
           ].map((item, i) => (
             <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
               <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
@@ -201,10 +265,10 @@ export function ReportsPage() {
       {activeSection === 'gst' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Output GST', value: gst?.outputGst, helper: 'Collected from sales', bg: 'bg-amber-50/80 text-amber-500' },
-            { label: 'Input GST', value: gst?.inputGst, helper: 'Paid on purchases', bg: 'bg-indigo-50/80 text-indigo-500' },
-            { label: 'Net Payable', value: gst?.netGstPayable, helper: 'Amount due to govt', bg: 'bg-rose-50/80 text-rose-500' },
-            { label: 'IGST', value: gst?.igst, helper: 'Inter-state tax', bg: 'bg-cyan-50/80 text-cyan-500' }
+            { label: 'Output GST', value: gst?.outputGst, helper: 'Collected from sales', bg: 'bg-amber-500/10 text-amber-500' },
+            { label: 'Input GST', value: gst?.inputGst, helper: 'Paid on purchases', bg: 'bg-indigo-500/10 text-indigo-500' },
+            { label: 'Net Payable', value: gst?.netGstPayable, helper: 'Amount due to govt', bg: 'bg-rose-500/10 text-rose-500' },
+            { label: 'IGST', value: gst?.igst, helper: 'Inter-state tax', bg: 'bg-cyan-500/10 text-cyan-500' }
           ].map((item) => (
             <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
               <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
@@ -224,10 +288,10 @@ export function ReportsPage() {
         <div className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {[
-              { label: 'Active Employees', value: payroll?.summary?.activeEmployees, isNum: true, helper: 'Total active staff', bg: 'bg-blue-50/80 text-blue-500' },
-              { label: 'Monthly Payroll', value: payroll?.summary?.totalMonthlyPayroll, helper: 'Active user salary cost', bg: 'bg-purple-50/80 text-purple-500' },
-              { label: 'Annual Payroll', value: payroll?.summary?.annualPayroll, helper: 'Projected yearly cost', bg: 'bg-emerald-50/80 text-emerald-500' },
-              { label: 'Average Salary', value: payroll?.summary?.averageSalary, helper: 'Average monthly salary', bg: 'bg-amber-50/80 text-amber-500' }
+              { label: 'Active Employees', value: payroll?.summary?.activeEmployees, isNum: true, helper: 'Total active staff', bg: 'bg-blue-500/10 text-blue-500' },
+              { label: 'Monthly Payroll', value: payroll?.summary?.totalMonthlyPayroll, helper: 'Active user salary cost', bg: 'bg-purple-500/10 text-purple-500' },
+              { label: 'Annual Payroll', value: payroll?.summary?.annualPayroll, helper: 'Projected yearly cost', bg: 'bg-emerald-500/10 text-emerald-500' },
+              { label: 'Average Salary', value: payroll?.summary?.averageSalary, helper: 'Average monthly salary', bg: 'bg-amber-500/10 text-amber-500' }
             ].map((item) => (
               <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
                 <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
@@ -285,12 +349,12 @@ export function ReportsPage() {
       {activeSection === 'audit' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[
-            { label: 'Invoices', value: audit?.invoiceCount, helper: 'Total generated', bg: 'bg-blue-50/80 text-blue-500' },
-            { label: 'Clients', value: audit?.clientCount, helper: 'Active clients', bg: 'bg-emerald-50/80 text-emerald-500' },
-            { label: 'Projects', value: audit?.projectCount, helper: 'Ongoing projects', bg: 'bg-purple-50/80 text-purple-500' },
-            { label: 'Pending TDS', value: audit?.pendingTdsCount, helper: 'TDS to be filed', bg: 'bg-rose-50/80 text-rose-500' },
-            { label: 'Pending ITC', value: audit?.pendingItcCount, helper: 'ITC to be claimed', bg: 'bg-amber-50/80 text-amber-500' },
-            { label: 'Renewals Due', value: audit?.renewalDueSoonCount, helper: 'Upcoming renewals', bg: 'bg-indigo-50/80 text-indigo-500' }
+            { label: 'Invoices', value: audit?.invoiceCount, helper: 'Total generated', bg: 'bg-blue-500/10 text-blue-500' },
+            { label: 'Clients', value: audit?.clientCount, helper: 'Active clients', bg: 'bg-emerald-500/10 text-emerald-500' },
+            { label: 'Projects', value: audit?.projectCount, helper: 'Ongoing projects', bg: 'bg-purple-500/10 text-purple-500' },
+            { label: 'Pending TDS', value: audit?.pendingTdsCount, helper: 'TDS to be filed', bg: 'bg-rose-500/10 text-rose-500' },
+            { label: 'Pending ITC', value: audit?.pendingItcCount, helper: 'ITC to be claimed', bg: 'bg-amber-500/10 text-amber-500' },
+            { label: 'Renewals Due', value: audit?.renewalDueSoonCount, helper: 'Upcoming renewals', bg: 'bg-indigo-500/10 text-indigo-500' }
           ].map((item) => (
             <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
               <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>

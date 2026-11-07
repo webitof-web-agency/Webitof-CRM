@@ -154,6 +154,15 @@ export async function downloadWithAuth(path, token, fallbackName = 'download') {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function reportQuery(query = {}) {
+  const params = new URLSearchParams();
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value != null && value !== '') params.set(key, value);
+  });
+  const text = params.toString();
+  return text ? `?${text}` : '';
+}
+
 export const api = {
   auth: {
     login: (payload) => request('/auth/login', { method: 'POST', body: payload }),
@@ -169,12 +178,18 @@ export const api = {
   },
   reports: {
     dashboard: (token) => request('/reports/dashboard', { token, skipCache: true }),
-    profitLoss: (token) => request('/reports/profit-loss', { token, skipCache: true }),
-    gst: (token) => request('/reports/gst', { token, skipCache: true }),
+    // Both take an optional period: { period: 'thisFy' | 'lastFy' | 'thisMonth' | 'lastMonth' } or { from, to } (YYYY-MM-DD).
+    profitLoss: (token, query = {}) => request(`/reports/profit-loss${reportQuery(query)}`, { token, skipCache: true }),
+    gst: (token, query = {}) => request(`/reports/gst${reportQuery(query)}`, { token, skipCache: true }),
     pendingPayables: (token) => request('/reports/pending-payables', { token, skipCache: true }),
     caAudit: (token) => request('/reports/ca-audit', { token, skipCache: true }),
     payroll: (token) => request('/reports/payroll', { token, skipCache: true }),
     renewalDashboard: (token) => request('/reports/renewals', { token, skipCache: true })
+  },
+  creditNotes: {
+    list: (token, query = {}) => request(`/credit-notes${reportQuery(query)}`, { token, skipCache: true }),
+    create: (token, payload) => request('/credit-notes', { method: 'POST', token, body: payload }),
+    cancel: (token, id, payload) => request(`/credit-notes/${id}/cancel`, { method: 'POST', token, body: payload })
   },
   finance: {
     summary: (token, query = {}) => {

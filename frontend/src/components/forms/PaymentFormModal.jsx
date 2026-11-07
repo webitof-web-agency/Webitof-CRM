@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
+import { istDate } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../ui/Modal';
 import { Input, Textarea } from '../ui/Input';
@@ -32,7 +33,7 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
   const [invoices, setInvoices] = useState([]);
   
   const [draft, setDraft] = useState({
-    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentDate: istDate(0),
     clientId: '',
     invoiceId: '',
     amountReceived: '',
@@ -77,7 +78,7 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
           }));
         } else {
             setDraft({
-                paymentDate: new Date().toISOString().slice(0, 10),
+                paymentDate: istDate(0),
                 clientId: '',
                 invoiceId: '',
                 amountReceived: '',
@@ -101,7 +102,8 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
   const handleSave = async () => {
     if (!draft.clientId) return toast.error('Client is required');
     if (!draft.paymentDate) return toast.error('Payment Date is required');
-    if (!draft.amountReceived) return toast.error('Amount is required');
+    if (!(Number(draft.amountReceived) > 0)) return toast.error('Enter an amount received greater than zero');
+    if (Number(draft.tdsDeducted) < 0) return toast.error('TDS deducted cannot be negative');
 
     setSaving(true);
     try {
@@ -191,6 +193,22 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
               value={draft.amountReceived}
               onChange={(e) => setDraft(d => ({ ...d, amountReceived: e.target.value }))}
             />
+          </PaymentFormRow>
+
+          <PaymentFormRow label="TDS Deducted by Client (₹)">
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              value={draft.tdsDeducted ?? 0}
+              onChange={(e) => setDraft(d => ({ ...d, tdsDeducted: e.target.value }))}
+            />
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Tax the client withheld and paid to the government. It settles the invoice but is not money in your bank.</p>
+            {Number(draft.tdsDeducted) > 0 && (
+              <p className="mt-1 text-xs font-semibold text-[var(--text-main)]">
+                Applied to the invoice: ₹{((Number(draft.amountReceived) || 0) + (Number(draft.tdsDeducted) || 0)).toLocaleString('en-IN')}
+              </p>
+            )}
           </PaymentFormRow>
 
           <PaymentFormRow label="Payment Status">

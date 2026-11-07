@@ -16,6 +16,7 @@ import { InvoicePreview as InvoiceDocument } from '../../components/invoices/Inv
 import { normalizeInvoiceNumber } from '../../lib/invoiceNumber';
 import { canonicalRoute, invoiceRoute } from '../../utils/entityRoutes';
 import { IconButton } from '../../components/ui/IconButton';
+import { CreditNotesPanel } from '../../components/invoices/CreditNotesPanel';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ const STATUS_COLORS = {
   Overdue: { bg: 'bg-red-100', text: 'text-red-700', icon: XCircle },
   'Partially Paid': { bg: 'bg-amber-100', text: 'text-amber-700', icon: Clock },
   Cancelled: { bg: 'bg-red-100', text: 'text-red-600', icon: XCircle },
+  Credited: { bg: 'bg-purple-100', text: 'text-purple-700', icon: CheckCircle2 },
 };
 
 const WhatsAppIcon = ({ size = 16, className = '' }) => (
@@ -105,6 +107,7 @@ export function InvoiceDetailsPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const canEdit = hasPermission('invoices.manage') || hasPermission('invoices.write');
 
@@ -138,7 +141,7 @@ export function InvoiceDetailsPage() {
     }
     load();
     return () => { active = false; };
-  }, [id, token, navigate]);
+  }, [id, token, navigate, reloadKey]);
 
   if (loading) return <PageLoader />;
   if (!invoice) return null;
@@ -240,7 +243,7 @@ export function InvoiceDetailsPage() {
               )}
 
               {/* Record Payment (hide if fully paid) */}
-              {invoice.status !== 'Paid' && invoice.status !== 'Cancelled' && (
+              {!['Paid', 'Cancelled', 'Credited'].includes(invoice.status) && (
                 <Button onClick={() => navigate('/app/payments/new', { state: { invoiceId: invoice.id, clientId: invoice.clientId } })} className="shadow-md shadow-[var(--primary)]/20 px-5">
                   <CreditCard size={16} className="mr-2" /> Record Payment
                 </Button>
@@ -248,6 +251,15 @@ export function InvoiceDetailsPage() {
             </div>
           </div>
         </div>
+
+        <CreditNotesPanel
+          invoice={invoice}
+          client={client}
+          company={settings?.company || {}}
+          canWrite={canEdit}
+          token={token}
+          onChanged={() => setReloadKey((key) => key + 1)}
+        />
 
         {/* Invoice Document Wrapper */}
         <div className="max-w-5xl mx-auto px-4">

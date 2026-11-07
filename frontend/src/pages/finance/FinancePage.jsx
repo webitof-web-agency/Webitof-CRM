@@ -197,15 +197,18 @@ export function FinancePage() {
   }, [token, refreshTick, overviewFrom, overviewTo]);
 
   const overviewCards = useMemo(() => ([
-    { title: 'RECEIVED', value: summary?.totalReceived || 0, helper: 'Actual collections', icon: Wallet, color: 'text-green-500', bg: 'bg-green-50/80' },
-    { title: 'OUTSTANDING', value: summary?.totalOutstanding || 0, helper: 'Open receivables', icon: Banknote, color: 'text-blue-500', bg: 'bg-blue-50/80' },
-    { title: 'OVERDUE', value: summary?.totalOverdueOutstanding || 0, helper: 'Past due invoices', icon: CircleDollarSign, color: 'text-rose-500', bg: 'bg-rose-50/80' },
-    { title: 'PAYABLES', value: summary?.totalPayables || 0, helper: 'Outsourcing + commissions + expenses + payroll', icon: ArrowDownRight, color: 'text-orange-500', bg: 'bg-orange-50/80' },
-    { title: 'PAYROLL', value: summary?.totalPayrollExpense || 0, helper: 'Active user salaries', icon: ShieldCheck, color: 'text-purple-500', bg: 'bg-purple-50/80' },
-    { title: 'CASH IN BANK', value: summary?.cashInBank || 0, helper: 'Opening balance + credits - debits', icon: ArrowUpRight, color: 'text-emerald-500', bg: 'bg-emerald-50/80' },
-    { title: 'NET CASH FLOW', value: summary?.netCashFlow || 0, helper: 'Receipts minus payables', icon: Scale, color: 'text-cyan-500', bg: 'bg-cyan-50/80' },
-    { title: 'UNRECONCILED', value: summary?.unreconciledBankTransactions || 0, helper: 'Bank lines waiting for match', icon: SplitSquareHorizontal, color: 'text-pink-500', bg: 'bg-pink-50/80' },
-    { title: 'PAYMENTS', value: summary?.paymentCount || 0, helper: 'Recorded receipts', icon: ShieldCheck, color: 'text-indigo-500', bg: 'bg-indigo-50/80', isCount: true }
+    { title: 'RECEIVED', value: summary?.totalCashReceived ?? summary?.totalReceived ?? 0, helper: 'Cash collected (excludes TDS)', icon: Wallet, color: 'text-green-500', bg: 'bg-green-500/10' },
+    ...(Number(summary?.totalTdsDeducted) > 0
+      ? [{ title: 'TDS WITHHELD', value: summary.totalTdsDeducted, helper: 'Deducted by clients (tax credit)', icon: ShieldCheck, color: 'text-amber-500', bg: 'bg-amber-500/10' }]
+      : []),
+    { title: 'OUTSTANDING', value: summary?.totalOutstanding || 0, helper: 'Open receivables', icon: Banknote, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+    { title: 'OVERDUE', value: summary?.totalOverdueOutstanding || 0, helper: 'Past due invoices', icon: CircleDollarSign, color: 'text-rose-500', bg: 'bg-rose-500/10' },
+    { title: 'PAYABLES', value: summary?.totalPayables || 0, helper: 'Outsourcing + commissions + expenses + payroll', icon: ArrowDownRight, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+    { title: 'PAYROLL', value: summary?.totalPayrollExpense || 0, helper: 'Active user salaries', icon: ShieldCheck, color: 'text-purple-500', bg: 'bg-purple-500/10' },
+    { title: 'CASH IN BANK', value: summary?.cashInBank || 0, helper: 'Opening balance + credits - debits', icon: ArrowUpRight, color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
+    { title: 'NET CASH FLOW', value: summary?.netCashFlow || 0, helper: 'Receipts minus payables', icon: Scale, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
+    { title: 'UNRECONCILED', value: summary?.unreconciledBankTransactions || 0, helper: 'Bank lines waiting for match', icon: SplitSquareHorizontal, color: 'text-pink-500', bg: 'bg-pink-500/10' },
+    { title: 'PAYMENTS', value: summary?.paymentCount || 0, helper: 'Recorded receipts', icon: ShieldCheck, color: 'text-indigo-500', bg: 'bg-indigo-500/10', isCount: true }
   ]), [summary]);
 
   const filteredLedgerRows = useMemo(() => {
@@ -395,7 +398,7 @@ export function FinancePage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   ['Total Invoiced', summary?.totalInvoiceAmount || 0, FileText],
-                  ['Total Received', summary?.totalReceived || 0, Wallet],
+                  ['Total Received (cash)', summary?.totalCashReceived ?? summary?.totalReceived ?? 0, Wallet],
                   ['Total Outstanding', summary?.totalOutstanding || 0, CircleDollarSign],
                   ['Overdue Outstanding', summary?.totalOverdueOutstanding || 0, AlertCircle]
                 ].map(([label, value, Icon]) => (

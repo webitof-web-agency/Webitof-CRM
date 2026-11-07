@@ -2,6 +2,7 @@ const clientModel = require('../models/client.model');
 const projectModel = require('../models/project.model');
 const invoiceModel = require('../models/invoice.model');
 const paymentModel = require('../models/payment.model');
+const creditNoteModel = require('../models/creditNote.model');
 const expenseModel = require('../models/expense.model');
 const outsourcingModel = require('../models/outsourcingExpense.model');
 const leadCommissionModel = require('../models/leadCommission.model');
@@ -93,7 +94,8 @@ async function loadBusinessState() {
     amcs,
     renewals,
     vendors,
-    followUps
+    followUps,
+    creditNotes
   ] = await Promise.all([
     clientModel.list(),
     projectModel.list(),
@@ -112,7 +114,8 @@ async function loadBusinessState() {
     amcModel.list(),
     renewalModel.list(),
     masterItemModel.listByType('vendor'),
-    followUpModel.list()
+    followUpModel.list(),
+    creditNoteModel.list()
   ]);
 
   return {
@@ -135,8 +138,14 @@ async function loadBusinessState() {
     amcs,
     renewals,
     vendors,
-    followUps
+    followUps,
+    creditNotes
   };
+}
+
+// Issued credit notes reduce what is owed on an invoice; getInvoiceSnapshot ignores cancelled ones.
+function creditNotesFor(state, invoice) {
+  return (state.creditNotes || []).filter((note) => String(note.invoiceId) === String(invoice.id));
 }
 
 function getUserDisplayName(userId, state) {
@@ -243,7 +252,7 @@ async function buildDashboardSummary() {
     .map((invoice) => {
       const client = state.clients.find((item) => String(item.id) === String(invoice.clientId));
       const payments = state.payments.filter((payment) => String(payment.invoiceId) === String(invoice.id));
-      return getInvoiceSnapshot(invoice, payments, state.settings, client);
+      return getInvoiceSnapshot(invoice, payments, state.settings, client, creditNotesFor(state, invoice));
     });
   const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
   const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
@@ -334,7 +343,7 @@ async function buildClientSummary(clientId) {
   const primaryContact = contacts.find((contact) => contact.isPrimary) || contacts[0] || null;
 
   const invoiceTotals = invoices.map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, client));
-  const invoiceSnapshots = invoices.map((invoice) => getInvoiceSnapshot(invoice, state.payments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), state.settings, client));
+  const invoiceSnapshots = invoices.map((invoice) => getInvoiceSnapshot(invoice, state.payments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), state.settings, client, creditNotesFor(state, invoice)));
   const expenseImpacts = expenses.map(calculateExpenseImpact);
   const outsourcingImpacts = outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
   const commissionImpacts = leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
@@ -807,7 +816,7 @@ async function buildProjectSummary(projectId) {
   const ownerDisplayName = owner?.fullName || owner?.username || owner?.email || project.assignedToName || project.ownerName || getUserDisplayName(project.assignedTo || project.createdBy, state);
 
   const invoiceTotals = invoices.map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, client));
-  const invoiceSnapshots = invoices.map((invoice) => getInvoiceSnapshot(invoice, state.payments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), state.settings, client));
+  const invoiceSnapshots = invoices.map((invoice) => getInvoiceSnapshot(invoice, state.payments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), state.settings, client, creditNotesFor(state, invoice)));
   const expenseImpacts = expenses.map(calculateExpenseImpact);
   const outsourcingImpacts = outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
   const commissionImpacts = leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));

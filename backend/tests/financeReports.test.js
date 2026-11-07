@@ -85,3 +85,33 @@ test('ledger totals count cash once: payments and unlinked bank credits, not inv
   assert.ok(entries.some((e) => e.module === 'invoices'), 'invoices still appear in the ledger list');
   assert.ok(entries.find((e) => e.id === 't3').neutral, 'transfers are flagged neutral');
 });
+
+test('TDS settles the invoice but is not cash: cash flow and the ledger show only what reached the bank', () => {
+  const state = baseState({
+    invoices: [invoice('1', 'Sent')],
+    payments: [{ id: 'p1', invoiceId: '1', clientId: 'c1', amountReceived: 900, tdsDeducted: 100, paymentDate: '2026-10-08', paymentStatus: 'Received' }]
+  });
+  const summary = buildFinanceSummary(state);
+  assert.equal(summary.totalReceived, 1000, 'applied to the invoice: cash plus TDS');
+  assert.equal(summary.totalCashReceived, 900);
+  assert.equal(summary.totalTdsDeducted, 100);
+  assert.equal(summary.totalOutstanding, 0, 'the invoice is fully settled');
+  assert.equal(summary.netCashFlow, 900, 'cash flow does not count the TDS withheld');
+  const { totals, entries } = buildFinanceLedger(state, {});
+  const receipt = entries.find((entry) => entry.module === 'payments');
+  assert.equal(receipt.amount, 900);
+  assert.equal(receipt.tdsDeducted, 100);
+  assert.equal(receipt.appliedAmount, 1000);
+  assert.equal(totals.totalIn, 900);
+});
+
+test('a bounced payment contributes neither cash nor TDS', () => {
+  const state = baseState({
+    invoices: [invoice('1', 'Sent')],
+    payments: [{ id: 'p1', invoiceId: '1', clientId: 'c1', amountReceived: 900, tdsDeducted: 100, paymentDate: '2026-10-08', paymentStatus: 'Bounced' }]
+  });
+  const summary = buildFinanceSummary(state);
+  assert.equal(summary.totalCashReceived, 0);
+  assert.equal(summary.totalTdsDeducted, 0);
+  assert.equal(summary.totalOutstanding, 1000);
+});

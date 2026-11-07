@@ -424,6 +424,37 @@ CREATE TABLE IF NOT EXISTS payments (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- A credit note reduces what a client owes on an issued invoice (returns, discounts after billing, billing
+-- corrections). The invoice itself is never edited or deleted. Amounts are positive; GST follows the invoice.
+CREATE TABLE IF NOT EXISTS credit_notes (
+  id text PRIMARY KEY,
+  credit_note_number text NOT NULL UNIQUE,
+  invoice_id text NOT NULL REFERENCES invoices(id) ON DELETE RESTRICT,
+  client_id text REFERENCES clients(id) ON DELETE SET NULL,
+  issue_date date NOT NULL,
+  reason text NOT NULL,
+  status text NOT NULL DEFAULT 'Issued',
+  amount_type text,
+  place_of_supply text,
+  items jsonb NOT NULL DEFAULT '[]'::jsonb,
+  taxable_amount numeric(14,2) NOT NULL DEFAULT 0,
+  cgst numeric(14,2) NOT NULL DEFAULT 0,
+  sgst numeric(14,2) NOT NULL DEFAULT 0,
+  utgst numeric(14,2) NOT NULL DEFAULT 0,
+  igst numeric(14,2) NOT NULL DEFAULT 0,
+  gst_amount numeric(14,2) NOT NULL DEFAULT 0,
+  total_amount numeric(14,2) NOT NULL CHECK (total_amount > 0),
+  cancelled_at timestamptz,
+  cancel_reason text,
+  created_by text REFERENCES users(id) ON DELETE SET NULL,
+  payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_credit_notes_invoice_id ON credit_notes(invoice_id);
+CREATE INDEX IF NOT EXISTS idx_credit_notes_issue_date ON credit_notes(issue_date);
+
 CREATE TABLE IF NOT EXISTS expenses (
   id text PRIMARY KEY,
   expense_date date NOT NULL,

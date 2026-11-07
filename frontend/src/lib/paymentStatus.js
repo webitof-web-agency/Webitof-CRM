@@ -15,7 +15,7 @@ const PAYMENT_INFO = new Set(['Refunded']);
 const INVOICE_SUCCESS = new Set(['Paid']);
 const INVOICE_WARNING = new Set(['Partially Paid']);
 const INVOICE_DANGER = new Set(['Overdue', 'Cancelled']);
-const INVOICE_INFO = new Set(['Sent']);
+const INVOICE_INFO = new Set(['Sent', 'Credited']);
 
 export function getPaymentStatusTone(status) {
   const value = String(status || 'Received');

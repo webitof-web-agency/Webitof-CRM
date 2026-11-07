@@ -258,13 +258,27 @@ function Metric({ label, value, helper, icon: Icon, tone = 'blue', active = fals
   );
 }
 
+// What the signed-in user may do to a follow-up. The server refuses the rest; hiding the buttons just stops the
+// user clicking into a "403".
+function useFollowUpPermissions() {
+  const { hasPermission } = useAuth();
+  return {
+    complete: hasPermission('followups.complete'),
+    edit: hasPermission('followups.edit_own', 'followups.edit_any'),
+    reschedule: hasPermission('followups.reschedule'),
+    escalate: hasPermission('followups.escalate'),
+    remove: hasPermission('followups.delete')
+  };
+}
+
 function FollowUpActions({ item, onAction }) {
   const closed = terminalStatuses.has(item.status);
   const phone = item.relatedPhone || item.phone || item.mobile;
+  const can = useFollowUpPermissions();
 
   return (
     <div className="flex items-center gap-1 shrink-0">
-      {!closed && (
+      {!closed && can.complete && (
         <button
           type="button"
           onClick={() => onAction('complete', item)}
@@ -294,15 +308,29 @@ function FollowUpActions({ item, onAction }) {
         <Eye size={13} />
       </IconButton>
 
-      <IconButton box="7.5" variant="outline"
-        type="button"
-        onClick={() => onAction('edit', item)}
-        title="Edit Follow-up"
-      >
-        <Pencil size={13} />
-      </IconButton>
+      {can.edit && (
+        <IconButton box="7.5" variant="outline"
+          type="button"
+          onClick={() => onAction('edit', item)}
+          title="Edit Follow-up"
+        >
+          <Pencil size={13} />
+        </IconButton>
+      )}
 
-      {!closed && (
+      {!closed && can.complete && item.status !== 'In Progress' && (
+        <IconButton box="7.5" variant="outline" type="button" onClick={() => onAction('start', item)} title="Start work">
+          <Play size={13} />
+        </IconButton>
+      )}
+
+      {!closed && (can.reschedule || can.escalate || can.edit) && (
+        <IconButton box="7.5" variant="outline" type="button" onClick={() => onAction('more', item)} title="More actions: snooze, escalate, acknowledge">
+          <MoreHorizontal size={13} />
+        </IconButton>
+      )}
+
+      {!closed && can.reschedule && (
         <button
           type="button"
           onClick={() => onAction('reschedule', item)}
@@ -313,14 +341,16 @@ function FollowUpActions({ item, onAction }) {
         </button>
       )}
 
-      <button
-        type="button"
-        onClick={() => onAction('delete', item)}
-        title="Delete"
-        className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 border border-rose-500/20 bg-rose-500/5 transition shadow-2xs cursor-pointer"
-      >
-        <Trash2 size={13} />
-      </button>
+      {can.remove && (
+        <button
+          type="button"
+          onClick={() => onAction('delete', item)}
+          title="Delete"
+          className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 border border-rose-500/20 bg-rose-500/5 transition shadow-2xs cursor-pointer"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
     </div>
   );
 }
@@ -332,6 +362,7 @@ function FollowUpCard({ item, onAction, dense = false }) {
   const route = entityRoute(item);
   const [openMenu, setOpenMenu] = useState(false);
   const phone = item.relatedPhone || item.phone || item.mobile;
+  const can = useFollowUpPermissions();
 
   // Dense Mode for Kanban Columns
   if (dense) {
@@ -393,14 +424,25 @@ function FollowUpCard({ item, onAction, dense = false }) {
                   >
                     <Eye size={13} /> View
                   </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
-                    onClick={() => { setOpenMenu(false); onAction('edit', item); }}
-                  >
-                    <Pencil size={13} /> Edit
-                  </button>
-                  {!closed && (
+                  {can.edit && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
+                      onClick={() => { setOpenMenu(false); onAction('edit', item); }}
+                    >
+                      <Pencil size={13} /> Edit
+                    </button>
+                  )}
+                  {!closed && can.complete && item.status !== 'In Progress' && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
+                      onClick={() => { setOpenMenu(false); onAction('start', item); }}
+                    >
+                      <Play size={13} /> Start work
+                    </button>
+                  )}
+                  {!closed && can.reschedule && (
                     <button
                       type="button"
                       className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 cursor-pointer"
@@ -409,13 +451,24 @@ function FollowUpCard({ item, onAction, dense = false }) {
                       <TimerReset size={13} /> Reschedule
                     </button>
                   )}
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
-                    onClick={() => { setOpenMenu(false); onAction('delete', item); }}
-                  >
-                    <Trash2 size={13} /> Delete
-                  </button>
+                  {!closed && (can.reschedule || can.escalate || can.edit) && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
+                      onClick={() => { setOpenMenu(false); onAction('more', item); }}
+                    >
+                      <MoreHorizontal size={13} /> More actions
+                    </button>
+                  )}
+                  {can.remove && (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                      onClick={() => { setOpenMenu(false); onAction('delete', item); }}
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -2398,13 +2451,14 @@ function Detail({ label, value }) {
 }
 
 function MoreActionsModal({ item, open, onClose, onAction }) {
+  const can = useFollowUpPermissions();
   return (
     <Modal open={open} onClose={onClose} title="More follow-up actions" subtitle={item?.followUpNumber} width="min(520px, 96vw)">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Button variant="outline" onClick={() => onAction('snooze', item)} className="!rounded-xl cursor-pointer"><BellRing size={16} className="mr-1.5" />Snooze with reason</Button>
-        <Button variant="outline" onClick={() => onAction('escalate', item)} className="!rounded-xl cursor-pointer"><ShieldAlert size={16} className="mr-1.5" />Escalate</Button>
-        <Button variant="outline" onClick={() => onAction('acknowledge', item)} className="!rounded-xl cursor-pointer"><CheckCircle2 size={16} className="mr-1.5" />Acknowledge reminder</Button>
-        <Button variant="outline" onClick={() => onAction('edit', item)} className="!rounded-xl cursor-pointer"><Settings2 size={16} className="mr-1.5" />Edit follow-up</Button>
+        {can.reschedule && <Button variant="outline" onClick={() => onAction('snooze', item)} className="!rounded-xl cursor-pointer"><BellRing size={16} className="mr-1.5" />Snooze with reason</Button>}
+        {can.escalate && <Button variant="outline" onClick={() => onAction('escalate', item)} className="!rounded-xl cursor-pointer"><ShieldAlert size={16} className="mr-1.5" />Escalate</Button>}
+        {can.edit && <Button variant="outline" onClick={() => onAction('acknowledge', item)} className="!rounded-xl cursor-pointer"><CheckCircle2 size={16} className="mr-1.5" />Acknowledge reminder</Button>}
+        {can.edit && <Button variant="outline" onClick={() => onAction('edit', item)} className="!rounded-xl cursor-pointer"><Settings2 size={16} className="mr-1.5" />Edit follow-up</Button>}
       </div>
     </Modal>
   );

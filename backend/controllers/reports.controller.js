@@ -1,5 +1,5 @@
 const { loadBusinessState, buildRenewalDashboard, getRenewalTitle, getRenewalAmount } = require('../services/analytics.service');
-const { buildFinanceSummary, isIssuedInvoice, getPaymentAppliedAmount, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
+const { buildFinanceSummary, parseReportPeriod, filterStateByPeriod, isIssuedInvoice, isIssuedCreditNote, getPaymentAppliedAmount, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
 const {
   calculateExpenseImpact,
   calculateInvoiceTotals,
@@ -177,7 +177,10 @@ async function dashboardSummary(req, res, next) {
     const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
     const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
-    const outputGst = sumBy(invoiceTotals, (item) => item.gstAmount);
+    // GST on a credit note reverses output tax in the period the credit note is issued.
+    const issuedCredits = (state.creditNotes || []).filter(isIssuedCreditNote);
+    const creditGst = (field) => sumBy(issuedCredits, (note) => note[field]);
+    const outputGst = round2(sumBy(invoiceTotals, (item) => item.gstAmount) - creditGst('gstAmount'));
     const inputGst = sumBy(expenseImpacts, (item) => item.inputGst)
       + sumBy(outsourcingImpacts, (item) => item.inputGst)
       + sumBy(commissionImpacts, (item) => item.inputGst);
@@ -257,6 +260,7 @@ async function dashboardSummary(req, res, next) {
         overdueDue: financeSummary.totalOverdueOutstanding,
         totalInvoiceAmount: sumBy(invoiceTotals, (item) => item.totalAmount),
         totalTaxableAmount: sumBy(invoiceTotals, (item) => item.taxableAmount),
+        period: { from: period.from, to: period.to, label: period.label },
         outputGst,
         inputGst,
         netGstPayable: round2(outputGst - inputGst),
@@ -297,14 +301,17 @@ async function dashboardSummary(req, res, next) {
 
 async function profitLoss(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const period = parseReportPeriod(req.query);
+    const state = filterStateByPeriod(await loadBusinessState(), period);
     const invoiceTotals = state.invoices
       .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
     const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
     const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
-    const revenue = sumBy(invoiceTotals, (item) => item.taxableAmount);
+    // Credit notes issued in the period take back revenue (taxable value) that was billed earlier or now.
+    const issuedCredits = (state.creditNotes || []).filter(isIssuedCreditNote);
+    const revenue = round2(sumBy(invoiceTotals, (item) => item.taxableAmount) - sumBy(issuedCredits, (note) => note.taxableAmount));
     const expense = sumBy(expenseImpacts, (item) => item.expenseAmount)
       + sumBy(outsourcingImpacts, (item) => item.expenseImpact)
       + sumBy(commissionImpacts, (item) => item.expenseImpact);
@@ -318,8 +325,10 @@ async function profitLoss(req, res, next) {
         expense: totalExpense,
         payrollExpense,
         officeExpense: round2(expense + payrollExpense),
+        period: { from: period.from, to: period.to, label: period.label },
         profit: round2(revenue - totalExpense),
-        grossRevenue: sumBy(invoiceTotals, (item) => item.totalAmount),
+        grossRevenue: round2(sumBy(invoiceTotals, (item) => item.totalAmount) - sumBy(issuedCredits, (note) => note.totalAmount)),
+        creditNotes: sumBy(issuedCredits, (note) => note.totalAmount),
         totalInputGst: sumBy(expenseImpacts, (item) => item.inputGst) + sumBy(outsourcingImpacts, (item) => item.inputGst) + sumBy(commissionImpacts, (item) => item.inputGst)
       }
     });
@@ -330,14 +339,18 @@ async function profitLoss(req, res, next) {
 
 async function gstSummary(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const period = parseReportPeriod(req.query);
+    const state = filterStateByPeriod(await loadBusinessState(), period);
     const invoiceTotals = state.invoices
       .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
     const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
     const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
-    const outputGst = sumBy(invoiceTotals, (item) => item.gstAmount);
+    // GST on a credit note reverses output tax in the period the credit note is issued.
+    const issuedCredits = (state.creditNotes || []).filter(isIssuedCreditNote);
+    const creditGst = (field) => sumBy(issuedCredits, (note) => note[field]);
+    const outputGst = round2(sumBy(invoiceTotals, (item) => item.gstAmount) - creditGst('gstAmount'));
     const inputGst = sumBy(expenseImpacts, (item) => item.inputGst)
       + sumBy(outsourcingImpacts, (item) => item.inputGst)
       + sumBy(commissionImpacts, (item) => item.inputGst);
@@ -345,13 +358,15 @@ async function gstSummary(req, res, next) {
     res.json({
       success: true,
       data: {
+        period: { from: period.from, to: period.to, label: period.label },
         outputGst,
         inputGst,
         netGstPayable: round2(outputGst - inputGst),
-        cgst: sumBy(invoiceTotals, (item) => item.cgst),
-        sgst: sumBy(invoiceTotals, (item) => item.sgst),
-        utgst: sumBy(invoiceTotals, (item) => item.utgst),
-        igst: sumBy(invoiceTotals, (item) => item.igst)
+        cgst: round2(sumBy(invoiceTotals, (item) => item.cgst) - creditGst('cgst')),
+        sgst: round2(sumBy(invoiceTotals, (item) => item.sgst) - creditGst('sgst')),
+        utgst: round2(sumBy(invoiceTotals, (item) => item.utgst) - creditGst('utgst')),
+        igst: round2(sumBy(invoiceTotals, (item) => item.igst) - creditGst('igst')),
+        creditNoteGst: creditGst('gstAmount')
       }
     });
   } catch (error) {

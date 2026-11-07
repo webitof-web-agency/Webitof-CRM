@@ -33,6 +33,7 @@ invoiceModel.findByExactId = async (id) => {
 clientModel.findById = async () => ({ id: 'c1', companyName: 'Acme', phone: '999', email: 'a@acme.test', notes: 'private' });
 bankAccountModel.findById = async () => null;
 paymentModel.list = async () => [{ invoiceId: invoice.id, amountReceived: 1000, tdsDeducted: 0, paymentStatus: 'Received' }];
+require('../models/creditNote.model').list = async () => [];
 settingsModel.getSettings = async () => ({ company: { name: 'Webitof' }, invoice: {}, gst: {}, tds: {} });
 
 const { getPublic } = require('../controllers/invoices.controller');
