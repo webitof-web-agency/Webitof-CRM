@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { SearchableSelect } from './SearchableSelect';
 import { api } from '../../api/client';
 import { toast } from 'sonner';
+import { SimpleTable } from '../ui/SimpleTable';
 
 function parseCSVLine(text) {
   const result = [];
@@ -370,36 +371,23 @@ export function LeadImportModal({ open, onClose, onSuccess, pipelines = [], user
                 <span>Preview (First 5 records)</span>
                 <span>Total: {validLeads.length} leads</span>
               </div>
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 max-h-56 overflow-y-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700">
-                    <tr>
-                      <th className="p-2">#</th>
-                      <th className="p-2">Name / Contact</th>
-                      <th className="p-2">Company</th>
-                      <th className="p-2">Phone</th>
-                      <th className="p-2">Email</th>
-                      <th className="p-2">Service</th>
-                      <th className="p-2">Source</th>
-                      <th className="p-2">Budget</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-600 dark:text-slate-400">
-                    {validLeads.slice(0, 5).map((l, idx) => (
-                      <tr key={idx} className="hover:bg-[var(--surface-2)] dark:hover:bg-slate-800/40">
-                        <td className="p-2 font-mono text-[10px] text-[var(--text-muted)]">{idx + 1}</td>
-                        <td className="p-2 font-medium text-slate-800 dark:text-slate-200">{l.name}</td>
-                        <td className="p-2">{l.companyName || '-'}</td>
-                        <td className="p-2 font-mono">{l.phone || <span className="text-rose-500 font-semibold">Missing</span>}</td>
-                        <td className="p-2">{l.email || '-'}</td>
-                        <td className="p-2">{l.requiredServices?.join(', ') || '-'}</td>
-                        <td className="p-2">{l.source}</td>
-                        <td className="p-2 font-medium">{l.estimatedBudget ? `₹${l.estimatedBudget.toLocaleString('en-IN')}` : '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <SimpleTable
+                compact
+                stickyHeader
+                className="max-h-56 overflow-y-auto"
+                rowKey={(_, idx) => idx}
+                rows={validLeads.slice(0, 5)}
+                columns={[
+                  { key: 'n', label: '#', className: 'font-mono text-[10px] text-[var(--text-muted)]', render: (_, idx) => idx + 1 },
+                  { key: 'name', label: 'Name / Contact', className: 'font-medium', render: (l) => l.name },
+                  { key: 'company', label: 'Company', className: 'text-[var(--text-muted)]', render: (l) => l.companyName || '-' },
+                  { key: 'phone', label: 'Phone', className: 'font-mono text-[var(--text-muted)]', render: (l) => l.phone || <span className="text-rose-500 font-semibold">Missing</span> },
+                  { key: 'email', label: 'Email', className: 'text-[var(--text-muted)]', render: (l) => l.email || '-' },
+                  { key: 'service', label: 'Service', className: 'text-[var(--text-muted)]', render: (l) => l.requiredServices?.join(', ') || '-' },
+                  { key: 'source', label: 'Source', className: 'text-[var(--text-muted)]', render: (l) => l.source },
+                  { key: 'budget', label: 'Budget', className: 'font-medium', render: (l) => (l.estimatedBudget ? `₹${l.estimatedBudget.toLocaleString('en-IN')}` : '-') }
+                ]}
+              />
             </div>
 
             {/* Progress bar if importing */}

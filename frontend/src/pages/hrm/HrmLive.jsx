@@ -9,6 +9,7 @@ import { Field, Status, ActionDialog } from "./HrmShared";
 import { GeoMap } from "./GeoMap";
 import { hrm, localDay } from "./hrmApi";
 import { hm, clock, EVENT_LABELS, ALERT_LABELS } from "./hrmTime";
+import { SimpleTable } from "../../components/ui/SimpleTable";
 
 const ALERT_ACTIONS = [
   ["ignore", "Ignore", false],
@@ -109,60 +110,91 @@ export function HrmLive({ token, metadata, can }) {
             <RefreshCw size={14} /> Refresh
           </Button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-[var(--text-muted)]">
-              <tr>
-                {["Employee", "Status", "Mode", "Worked", "Lunch", "Next report", "Idle / offline", "Alerts", "Report", ""].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-3 py-2 font-semibold">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.employeeId} className="border-t border-[var(--border)]">
-                  <td className="px-3 py-2.5">
-                    <span className="font-semibold">{r.fullName}</span>
-                    <span className="block text-xs text-[var(--text-muted)]">{r.employeeNumber} · {r.designation || "—"}</span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      <Pill tone={stateTone[r.state]}>{r.state}</Pill>
-                      {r.offline && <Pill tone="bg-rose-500/10 text-rose-700 dark:text-rose-400">Offline</Pill>}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    {r.workMode || "—"}
-                    {r.source && <span className="block text-xs text-[var(--text-muted)]">{r.source === "web" ? "Web" : r.source === "app" ? "App" : r.source}</span>}
-                  </td>
-                  <td className="px-3 py-2.5 tabular-nums">{r.summary ? hm(r.summary.workedMinutes) : "—"}</td>
-                  <td className="px-3 py-2.5 tabular-nums">
-                    {r.summary?.lunchMinutes ? hm(r.summary.lunchMinutes) : "—"}
-                    {r.summary?.lunchOverrunMinutes > 0 && <span className="block text-xs text-rose-600">+{r.summary.lunchOverrunMinutes} min over</span>}
-                  </td>
-                  <td className="px-3 py-2.5 tabular-nums">
-                    {r.slot ? (
-                      r.slot.onLunch ? "Paused" : r.slot.overdue ? <span className="font-semibold text-rose-600">Overdue</span> : clock(r.slot.dueAt, tz)
-                    ) : "—"}
-                  </td>
-                  <td className="px-3 py-2.5 tabular-nums">
-                    {r.summary ? `${hm(r.summary.idleMinutes)} / ${hm(r.summary.offlineMinutes)}` : "—"}
-                  </td>
-                  <td className="px-3 py-2.5">{r.openAlerts ? <Pill tone="bg-amber-500/10 text-amber-700">{r.openAlerts}</Pill> : "—"}</td>
-                  <td className="px-3 py-2.5">
-                    {r.reportStatus ? <Status value={r.reportStatus} /> : "—"}
-                    {r.reportEdits > 0 && <span className="block text-xs text-[var(--text-muted)]">edited {r.reportEdits}×</span>}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <Button size="xs" variant="secondary" onClick={() => setDay({ employeeId: r.employeeId, date: live.date })}>
-                      Day
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SimpleTable
+          bordered={false}
+          textSize="sm"
+          rowKey="employeeId"
+          rows={rows}
+          columns={[
+            {
+              key: "employee",
+              label: "Employee",
+              render: (r) => (
+                <>
+                  <span className="font-semibold">{r.fullName}</span>
+                  <span className="block text-xs text-[var(--text-muted)]">{r.employeeNumber} · {r.designation || "—"}</span>
+                </>
+              ),
+            },
+            {
+              key: "state",
+              label: "Status",
+              render: (r) => (
+                <div className="flex flex-wrap gap-1">
+                  <Pill tone={stateTone[r.state]}>{r.state}</Pill>
+                  {r.offline && <Pill tone="bg-rose-500/10 text-rose-700 dark:text-rose-400">Offline</Pill>}
+                </div>
+              ),
+            },
+            {
+              key: "mode",
+              label: "Mode",
+              render: (r) => (
+                <>
+                  {r.workMode || "—"}
+                  {r.source && <span className="block text-xs text-[var(--text-muted)]">{r.source === "web" ? "Web" : r.source === "app" ? "App" : r.source}</span>}
+                </>
+              ),
+            },
+            { key: "worked", label: "Worked", className: "tabular-nums", render: (r) => (r.summary ? hm(r.summary.workedMinutes) : "—") },
+            {
+              key: "lunch",
+              label: "Lunch",
+              className: "tabular-nums",
+              render: (r) => (
+                <>
+                  {r.summary?.lunchMinutes ? hm(r.summary.lunchMinutes) : "—"}
+                  {r.summary?.lunchOverrunMinutes > 0 && <span className="block text-xs text-rose-600">+{r.summary.lunchOverrunMinutes} min over</span>}
+                </>
+              ),
+            },
+            {
+              key: "next",
+              label: "Next report",
+              className: "tabular-nums",
+              render: (r) =>
+                r.slot ? (
+                  r.slot.onLunch ? "Paused" : r.slot.overdue ? <span className="font-semibold text-rose-600">Overdue</span> : clock(r.slot.dueAt, tz)
+                ) : "—",
+            },
+            {
+              key: "idle",
+              label: "Idle / offline",
+              className: "tabular-nums",
+              render: (r) => (r.summary ? `${hm(r.summary.idleMinutes)} / ${hm(r.summary.offlineMinutes)}` : "—"),
+            },
+            { key: "alerts", label: "Alerts", render: (r) => (r.openAlerts ? <Pill tone="bg-amber-500/10 text-amber-700">{r.openAlerts}</Pill> : "—") },
+            {
+              key: "report",
+              label: "Report",
+              render: (r) => (
+                <>
+                  {r.reportStatus ? <Status value={r.reportStatus} /> : "—"}
+                  {r.reportEdits > 0 && <span className="block text-xs text-[var(--text-muted)]">edited {r.reportEdits}×</span>}
+                </>
+              ),
+            },
+            {
+              key: "day",
+              label: "",
+              render: (r) => (
+                <Button size="xs" variant="secondary" onClick={() => setDay({ employeeId: r.employeeId, date: live.date })}>
+                  Day
+                </Button>
+              ),
+            },
+          ]}
+        />
       </Card>
       <div className="grid gap-5 xl:grid-cols-2">
         <Card className="space-y-3 p-5">

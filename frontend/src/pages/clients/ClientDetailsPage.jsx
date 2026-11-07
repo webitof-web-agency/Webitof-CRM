@@ -1057,8 +1057,8 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                   key={day.toISOString()}
                   className={cn(
                     'min-h-32 border-r border-b border-[var(--border)] p-3 text-left transition hover:bg-[var(--surface-2)]',
-                    !isCurrentMonth && 'bg-slate-50/70 text-[var(--text-muted)]',
-                    isSelected && 'bg-[color-mix(in_srgb,var(--primary)_7%,white)]',
+                    !isCurrentMonth && 'bg-[var(--surface-2)] text-[var(--text-muted)]',
+                    isSelected && 'bg-[color-mix(in_srgb,var(--primary)_7%,transparent)]',
                     isToday && 'ring-1 ring-inset ring-[var(--primary)]'
                   )}
                 >
@@ -2250,21 +2250,21 @@ export function ClientDetailsPage() {
                     {formatMoney(totalOpeningBalance, currency, currencySymbol)}
                   </p>
                 </div>
-                <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-100">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">Total Invoiced (Debit)</span>
-                  <p className="text-base sm:text-lg font-bold text-blue-700 mt-1 font-mono">
+                <div className="p-3.5 bg-blue-500/10 rounded-xl border border-blue-500/20">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">Total Invoiced (Debit)</span>
+                  <p className="text-base sm:text-lg font-bold text-blue-700 dark:text-blue-300 mt-1 font-mono">
                     {formatMoney(totalInvoicedAmount, currency, currencySymbol)}
                   </p>
                 </div>
-                <div className="p-3.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600">Total Received (Credit)</span>
-                  <p className="text-base sm:text-lg font-bold text-emerald-700 mt-1 font-mono">
+                <div className="p-3.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Total Received (Credit)</span>
+                  <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300 mt-1 font-mono">
                     {formatMoney(totalPaidAmount, currency, currencySymbol)}
                   </p>
                 </div>
-                <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Net Balance Due</span>
-                  <p className={`text-base sm:text-lg font-black mt-1 font-mono ${netOutstandingBalance > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                <div className="p-3.5 bg-amber-500/10 rounded-xl border border-amber-500/25">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">Net Balance Due</span>
+                  <p className={`text-base sm:text-lg font-black mt-1 font-mono ${netOutstandingBalance > 0 ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"}`}>
                     {formatMoney(netOutstandingBalance, currency, currencySymbol)}
                   </p>
                 </div>
@@ -2286,7 +2286,7 @@ export function ClientDetailsPage() {
                   </thead>
                   <tbody className="divide-y divide-[var(--border)] bg-[var(--surface-elevated)] font-medium">
                     {totalOpeningBalance > 0 && (
-                      <tr className="bg-slate-50/50 text-[var(--text-muted)] italic">
+                      <tr className="bg-[var(--surface-2)] text-[var(--text-muted)] italic">
                         <td className="py-2.5 px-3">-</td>
                         <td className="py-2.5 px-3"><span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--surface-2)] text-[var(--text-muted)]">Balance</span></td>
                         <td className="py-2.5 px-3">-</td>
@@ -2297,10 +2297,10 @@ export function ClientDetailsPage() {
                       </tr>
                     )}
                     {statementLedger.length ? statementLedger.map((row) => (
-                      <tr key={row.id} className="hover:bg-slate-50/60 transition-colors">
+                      <tr key={row.id} className="hover:bg-[var(--hover-bg)] transition-colors">
                         <td className="py-2.5 px-3 text-[var(--text-muted)] whitespace-nowrap">{formatDate(row.date)}</td>
                         <td className="py-2.5 px-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${row.type === 'Invoice' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold ${row.type === 'Invoice' ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300' : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'}`}>
                             {row.type}
                           </span>
                         </td>
@@ -2314,10 +2314,10 @@ export function ClientDetailsPage() {
                           </button>
                         </td>
                         <td className="py-2.5 px-3 text-[var(--text-main)]">{row.description}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-blue-700">
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-blue-700 dark:text-blue-300">
                           {row.debit > 0 ? formatMoney(row.debit, currency, currencySymbol) : '-'}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-600">
+                        <td className="py-2.5 px-3 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
                           {row.credit > 0 ? formatMoney(row.credit, currency, currencySymbol) : '-'}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-[var(--text-main)]">
@@ -2336,9 +2336,9 @@ export function ClientDetailsPage() {
                     <tfoot className="bg-[var(--surface-2)] font-bold text-xs sm:text-sm border-t-2 border-[var(--border)]">
                       <tr>
                         <td colSpan={4} className="py-3 px-3 text-[var(--text-main)] uppercase tracking-wider">Total / Closing Balance</td>
-                        <td className="py-3 px-3 text-right font-mono text-blue-700">{formatMoney(totalInvoicedAmount, currency, currencySymbol)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-emerald-700">{formatMoney(totalPaidAmount, currency, currencySymbol)}</td>
-                        <td className="py-3 px-3 text-right font-mono text-amber-800 text-base">{formatMoney(netOutstandingBalance, currency, currencySymbol)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-blue-700 dark:text-blue-300">{formatMoney(totalInvoicedAmount, currency, currencySymbol)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-emerald-700 dark:text-emerald-300">{formatMoney(totalPaidAmount, currency, currencySymbol)}</td>
+                        <td className="py-3 px-3 text-right font-mono text-amber-800 dark:text-amber-300 text-base">{formatMoney(netOutstandingBalance, currency, currencySymbol)}</td>
                       </tr>
                     </tfoot>
                   )}

@@ -8,6 +8,7 @@ import { Field, Status } from "./HrmShared";
 import { GeoMap, mapsLink } from "./GeoMap";
 import { hrm } from "./hrmApi";
 import { formatDate } from "../../lib/format";
+import { SimpleTable } from "../../components/ui/SimpleTable";
 const blank = (radius) => ({ label: "", address: "", latitude: "", longitude: "", radiusMeters: radius, locationId: "", status: "Approved" });
 /** Office geofences (WFO) and employee home geofences (WFH). */
 export function HrmGeofences({ token, metadata, masters, can }) {
@@ -144,38 +145,36 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       <Card className="space-y-3 p-5">
         <h2 className="font-semibold">Employee home locations ({homes.length})</h2>
         <p className="text-xs text-[var(--text-muted)]">Employees register their home once from the app. Pending requests can also be approved, with the radius adjusted on a map, from the HRM overview.</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="text-xs text-[var(--text-muted)]">
-              <tr>{["Employee", "Location", "Radius", "GPS accuracy", "Status", "Reviewed", ""].map((h) => <th key={h} className="px-3 py-2">{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {homes.map((h) => (
-                <tr key={h.id} className="border-t border-[var(--border)]">
-                  <td className="px-3 py-2">{h.employeeName}<span className="block text-xs text-[var(--text-muted)]">{h.employeeNumber}</span></td>
-                  <td className="px-3 py-2"><a className="text-[var(--primary)]" href={mapsLink(h)} target="_blank" rel="noreferrer">{h.latitude.toFixed(5)}, {h.longitude.toFixed(5)} ↗</a></td>
-                  <td className="px-3 py-2">{h.radiusMeters} m</td>
-                  <td className="px-3 py-2">±{h.requestAccuracy ?? "?"} m</td>
-                  <td className="px-3 py-2"><Status value={h.status} /></td>
-                  <td className="px-3 py-2 text-xs">{formatDate(h.reviewedAt)}{h.comment ? ` · ${h.comment}` : ""}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex gap-1">
-                      {h.status === "Pending" && can("approve") && (
-                        <>
-                          <Button size="xs" onClick={() => homeAction(h, "approve")}>Approve</Button>
-                          <Button size="xs" variant="secondary" onClick={() => homeAction(h, "reject")}>Reject</Button>
-                        </>
-                      )}
-                      {h.status === "Approved" && can("approve") && (
-                        <Button size="xs" variant="ghost" onClick={() => homeAction(h, "retire")}>Reset</Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SimpleTable
+          bordered={false}
+          textSize="sm"
+          rows={homes}
+          columns={[
+            { key: "employee", label: "Employee", render: (h) => <>{h.employeeName}<span className="block text-xs text-[var(--text-muted)]">{h.employeeNumber}</span></> },
+            { key: "location", label: "Location", render: (h) => <a className="text-[var(--primary)]" href={mapsLink(h)} target="_blank" rel="noreferrer">{h.latitude.toFixed(5)}, {h.longitude.toFixed(5)} ↗</a> },
+            { key: "radius", label: "Radius", render: (h) => <>{h.radiusMeters} m</> },
+            { key: "accuracy", label: "GPS accuracy", render: (h) => <>±{h.requestAccuracy ?? "?"} m</> },
+            { key: "status", label: "Status", render: (h) => <Status value={h.status} /> },
+            { key: "reviewed", label: "Reviewed", render: (h) => <>{formatDate(h.reviewedAt)}{h.comment ? ` · ${h.comment}` : ""}</> },
+            {
+              key: "actions",
+              label: "",
+              render: (h) => (
+                <div className="flex gap-1">
+                  {h.status === "Pending" && can("approve") && (
+                    <>
+                      <Button size="xs" onClick={() => homeAction(h, "approve")}>Approve</Button>
+                      <Button size="xs" variant="secondary" onClick={() => homeAction(h, "reject")}>Reject</Button>
+                    </>
+                  )}
+                  {h.status === "Approved" && can("approve") && (
+                    <Button size="xs" variant="ghost" onClick={() => homeAction(h, "retire")}>Reset</Button>
+                  )}
+                </div>
+              ),
+            },
+          ]}
+        />
       </Card>
     </div>
   );

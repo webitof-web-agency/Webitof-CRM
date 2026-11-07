@@ -24,6 +24,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { CompleteFollowUpModal, FollowUpFormModal, RescheduleFollowUpModal } from '../../components/followups/FollowUpModals';
 import { Chip } from '../../components/ui/Chip';
+import { SimpleTable } from '../../components/ui/SimpleTable';
 
 const tabs = [
   { id: 'today', label: 'Today', icon: Clock3 },
@@ -3057,60 +3058,54 @@ function FollowUpReportView({ onAction }) {
         ) : recentRows.length === 0 ? (
           <p className="text-xs text-[var(--text-muted)] text-center py-6">No activity records found for this period.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[var(--border)] text-[var(--text-muted)] uppercase tracking-wider font-semibold text-[10px]">
-                  <th className="py-2.5 px-3">Lead / Client</th>
-                  <th className="py-2.5 px-3">Assignee</th>
-                  <th className="py-2.5 px-3">Type</th>
-                  <th className="py-2.5 px-3">Status</th>
-                  <th className="py-2.5 px-3">Outcome / Notes</th>
-                  <th className="py-2.5 px-3">Date</th>
-                  <th className="py-2.5 px-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-muted)]">
-                {recentRows.map((row) => {
+          <SimpleTable
+            bordered={false}
+            headerClassName="uppercase tracking-wider text-[10px]"
+            rows={recentRows}
+            columns={[
+              {
+                key: 'lead',
+                label: 'Lead / Client',
+                className: 'font-semibold',
+                render: (row) => {
                   const leadRoute = entityRoute(row);
-                  return (
-                    <tr key={row.id} className="hover:bg-[var(--surface-2)]/40 transition">
-                      <td className="py-2.5 px-3 font-semibold text-[var(--text-main)]">
-                        {leadRoute ? (
-                          <button
-                            type="button"
-                            onClick={() => navigate(leadRoute)}
-                            className="inline-flex items-center gap-1 hover:text-[var(--primary)] transition cursor-pointer text-left"
-                          >
-                            <span>{row.relatedEntityLabel || row.companyName || 'Lead'}</span>
-                            <ExternalLink size={10} className="opacity-60" />
-                          </button>
-                        ) : (
-                          <span>{row.relatedEntityLabel || row.companyName || 'Lead'}</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-[var(--text-muted)]">{row.assigneeName || 'Unassigned'}</td>
-                      <td className="py-2.5 px-3 text-[var(--text-muted)]">{row.followUpType || 'Call'}</td>
-                      <td className="py-2.5 px-3">{renderStatusPill(row.effectiveStatus || row.status, true)}</td>
-                      <td className="py-2.5 px-3 max-w-[240px] truncate text-[var(--text-muted)]">
-                        {row.discussionNote || row.actualOutcome || row.description || '—'}
-                      </td>
-                      <td className="py-2.5 px-3 text-[var(--text-muted)] whitespace-nowrap">{formatDateTime(row.dueAt || row.updatedAt)}</td>
-                      <td className="py-2.5 px-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => onAction('details', row)}
-                          className="px-2 py-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-main)] transition text-[11px] font-medium cursor-pointer"
-                        >
-                          View
-                        </button>
-                      </td>
-                    </tr>
+                  const label = row.relatedEntityLabel || row.companyName || 'Lead';
+                  return leadRoute ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(leadRoute)}
+                      className="inline-flex items-center gap-1 hover:text-[var(--primary)] transition cursor-pointer text-left"
+                    >
+                      <span>{label}</span>
+                      <ExternalLink size={10} className="opacity-60" />
+                    </button>
+                  ) : (
+                    <span>{label}</span>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                }
+              },
+              { key: 'assignee', label: 'Assignee', className: 'text-[var(--text-muted)]', render: (row) => row.assigneeName || 'Unassigned' },
+              { key: 'type', label: 'Type', className: 'text-[var(--text-muted)]', render: (row) => row.followUpType || 'Call' },
+              { key: 'status', label: 'Status', render: (row) => renderStatusPill(row.effectiveStatus || row.status, true) },
+              {
+                key: 'notes',
+                label: 'Outcome / Notes',
+                className: 'max-w-[240px] truncate text-[var(--text-muted)]',
+                render: (row) => row.discussionNote || row.actualOutcome || row.description || '—'
+              },
+              { key: 'date', label: 'Date', nowrap: true, className: 'text-[var(--text-muted)]', render: (row) => formatDateTime(row.dueAt || row.updatedAt) },
+              {
+                key: 'action',
+                label: 'Action',
+                align: 'right',
+                render: (row) => (
+                  <Button size="xs" variant="outline" onClick={() => onAction('details', row)}>
+                    View
+                  </Button>
+                )
+              }
+            ]}
+          />
         )}
       </div>
     </div>

@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { ConfirmDialog } from '../overlays/ConfirmDialog';
 import { DriveConfigForm } from './DriveConfigForm';
+import { SimpleTable } from '../ui/SimpleTable';
 
 const PROVIDERS = [
   { id: 'local', label: 'Local server', description: 'Files are saved on the CRM server disk.', icon: HardDrive },
@@ -334,35 +335,27 @@ export function StorageSettingsPanel({ token, canWrite, oauthResult = null, onOa
             {backupsError ? <p className="text-xs text-rose-600 dark:text-rose-400">{backupsError}</p> : null}
             {!backupsError && !backups.length ? <p className="text-xs text-slate-500">No backups in Drive yet.</p> : null}
             {backups.length ? (
-              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold">File</th>
-                      <th className="px-3 py-2 font-semibold">Created</th>
-                      <th className="px-3 py-2 font-semibold">Size</th>
-                      {canWrite ? <th className="px-3 py-2" /> : null}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {backups.map((file) => (
-                      <tr key={file.id}>
-                        <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-100 break-all">{file.name}</td>
-                        <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{formatDate(file.createdTime)}</td>
-                        <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{formatBytes(file.size)}</td>
-                        {canWrite ? (
-                          <td className="px-3 py-2 text-right">
-                            <Button size="xs" variant="outline" onClick={() => downloadDriveBackup(file)} loading={busy === `download-${file.id}`} disabled={Boolean(busy)}>
-                              <Download size={12} />
-                              Download
-                            </Button>
-                          </td>
-                        ) : null}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <SimpleTable
+                rows={backups}
+                columns={[
+                  { key: 'name', label: 'File', className: 'font-medium break-all', render: (file) => file.name },
+                  { key: 'created', label: 'Created', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatDate(file.createdTime) },
+                  { key: 'size', label: 'Size', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatBytes(file.size) },
+                  ...(canWrite
+                    ? [{
+                        key: 'actions',
+                        label: '',
+                        align: 'right',
+                        render: (file) => (
+                          <Button size="xs" variant="outline" onClick={() => downloadDriveBackup(file)} loading={busy === `download-${file.id}`} disabled={Boolean(busy)}>
+                            <Download size={12} />
+                            Download
+                          </Button>
+                        )
+                      }]
+                    : [])
+                ]}
+              />
             ) : null}
           </div>
         ) : null}
