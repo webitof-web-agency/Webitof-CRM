@@ -45,7 +45,7 @@ function LogEntry({ entry, index, accent = 'text-[var(--text-muted)]' }) {
   ].filter(Boolean);
 
   return (
-    <div className="rounded-[16px] border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -89,7 +89,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-m
     <Card className="shadow-sm border border-[var(--border)]" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b-0">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
             <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
             <Icon size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
           </div>
@@ -111,10 +111,10 @@ export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-m
         </div>
       </div>
 
-      <div className="mt-2 rounded-[20px] border border-[var(--border)] px-6 py-6 bg-[var(--surface-elevated)]">
+      <div className="mt-2 rounded-3xl border border-[var(--border)] px-6 py-6 bg-[var(--surface-elevated)]">
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)]">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)]">
               <div className="absolute inset-0 opacity-10 bg-slate-500"></div>
               <Clock3 size={18} strokeWidth={2.5} className="text-[var(--text-muted)] relative z-10" />
             </div>
@@ -127,7 +127,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-m
           </div>
           <div className="flex flex-wrap items-end gap-6 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-indigo-500 pb-2 min-w-[60px]">
-              <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden mb-1">
                 <div className="absolute inset-0 opacity-10 bg-indigo-500"></div>
                 <Bell size={18} strokeWidth={2.5} className="text-indigo-500 relative z-10" />
               </div>
@@ -135,7 +135,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-m
               <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{latestRun?.remindersSent ?? 0}</span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-blue-500 pb-2 min-w-[60px]">
-              <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden mb-1">
                 <div className="absolute inset-0 opacity-10 bg-blue-500"></div>
                 <AlertCircle size={18} strokeWidth={2.5} className="text-blue-500 relative z-10" />
               </div>
@@ -143,7 +143,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-m
               <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{latestRun?.alertsSent ?? 0}</span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-orange-400 pb-2 min-w-[60px]">
-              <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden mb-1">
                 <div className="absolute inset-0 opacity-10 bg-orange-400"></div>
                 <Clock3 size={18} strokeWidth={2.5} className="text-orange-400 relative z-10" />
               </div>
@@ -151,7 +151,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-m
               <span className="text-2xl font-bold text-[var(--text-main)] leading-none">{latestRun?.skipped ?? 0}</span>
             </div>
             <div className="flex flex-col items-center gap-1.5 border-b-[3px] border-rose-500 pb-2 min-w-[60px]">
-              <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden mb-1">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden mb-1">
                 <div className="absolute inset-0 opacity-10 bg-rose-500"></div>
                 <XCircle size={18} strokeWidth={2.5} className="text-rose-500 relative z-10" />
               </div>
@@ -174,7 +174,7 @@ export function AutomationLogSection({ title, feed, accent = 'text-[var(--text-m
               ))}
             </div>
           ) : (
-            <div className="rounded-[20px] border border-dashed border-indigo-200/60 bg-[var(--surface)] px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-[var(--text-muted)] font-medium">
+            <div className="rounded-3xl border border-dashed border-indigo-200/60 bg-[var(--surface)] px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-[var(--text-muted)] font-medium">
               <div className="relative">
                 <div className="w-10 h-12 bg-indigo-50/50 border border-indigo-100 rounded flex flex-col items-start p-1.5 gap-1 shadow-sm">
                   <div className="w-3/4 h-1 bg-indigo-100 rounded-full" />

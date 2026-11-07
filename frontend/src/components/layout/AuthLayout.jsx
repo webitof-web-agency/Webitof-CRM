@@ -132,12 +132,12 @@ export function AuthLayout({
                     )}
                   </div>
                 ) : (
-                  <div className="relative mb-3 flex h-14 w-14 items-center justify-center rounded-[20px] bg-[var(--primary)] text-white font-black text-xl shadow-xl shadow-[var(--primary)]/35 border border-white/40 ring-4 ring-[var(--primary)]/15 transition-transform duration-300">
+                  <div className="relative mb-3 flex h-14 w-14 items-center justify-center rounded-3xl bg-[var(--primary)] text-white font-black text-xl shadow-xl shadow-[var(--primary)]/35 border border-white/40 ring-4 ring-[var(--primary)]/15 transition-transform duration-300">
                     {isAuthenticating && (
-                      <div className="absolute inset-0 rounded-[20px] ring-4 ring-cyan-400/80 animate-biometric-radar pointer-events-none" />
+                      <div className="absolute inset-0 rounded-3xl ring-4 ring-cyan-400/80 animate-biometric-radar pointer-events-none" />
                     )}
                     <span className="drop-shadow-md">W</span>
-                    <div className="absolute inset-0 rounded-[20px] bg-gradient-to-tr from-white/30 via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-white/30 via-transparent to-transparent pointer-events-none" />
                   </div>
                 )}
 

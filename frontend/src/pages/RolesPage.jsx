@@ -414,7 +414,7 @@ export function RolesPage() {
         ].map((item) => {
           const Icon = item.icon;
           return (
-            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-2xl">
               <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
                 <Icon size={20} strokeWidth={2} />
               </div>

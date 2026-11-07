@@ -41,6 +41,7 @@ import {
   getLeadPriorityColor
 } from '../config/leadManagement';
 import { leadRoute } from '../utils/entityRoutes';
+import { IconButton } from '../components/ui/IconButton';
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -172,7 +173,7 @@ function InlineStatusCell({ status, leadId, statusColors, statusOptions = [], on
                     "w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer text-left",
                     isSelected
                       ? "bg-slate-100 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800/50"
                   )}
                 >
                   <span className="flex items-center gap-2 truncate">
@@ -237,7 +238,7 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
               setOpen(false);
               onExportClick?.();
             }}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
           >
             <Download size={14} className="text-emerald-500 shrink-0" />
             <span>Export to CSV</span>
@@ -250,7 +251,7 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
                 setOpen(false);
                 onImportClick();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
             >
               <Upload size={14} className="text-blue-500 shrink-0" />
               <span>Import CSV</span>
@@ -264,7 +265,7 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
                 setOpen(false);
                 onLabelsClick();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
             >
               <Tag size={14} className="text-purple-500 shrink-0" />
               <span>Manage Labels</span>
@@ -278,7 +279,7 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
                 setOpen(false);
                 onPipelinesClick();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
             >
               <GitBranch size={14} className="text-emerald-500 shrink-0" />
               <span>Manage Pipelines</span>
@@ -598,17 +599,16 @@ function RowActionsDropdown({ row, navigate, canCreate, canDelete, setEditingDat
       onMouseLeave={() => setOpen(false)}
       onClick={(e) => e.stopPropagation()}
     >
-      <button
+      <IconButton box="8" shape="full"
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           setOpen((prev) => !prev);
         }}
-        className="inline-flex items-center justify-center h-8 w-8 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none"
         title="Actions"
       >
         <MoreVertical className="h-4 w-4" />
-      </button>
+      </IconButton>
 
       {open && (
         <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-[var(--surface)] p-1.5 shadow-modal border border-[var(--border)] z-50 text-left animate-in fade-in zoom-in-95 duration-100">
@@ -1676,13 +1676,13 @@ export function LeadsPage() {
           <button
             type="button"
             onClick={() => { setPanelData(null); setPanelLeadData(null); }}
-            className="flex items-center gap-2 text-sm text-slate-500 hover:text-[var(--primary)] transition-colors"
+            className="flex items-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--primary)] transition-colors"
           >
             <ArrowLeft size={16} />
             Back to Leads
           </button>
           <span className="text-slate-300">/</span>
-          <span className="text-sm font-medium text-slate-700">
+          <span className="text-sm font-medium text-[var(--text-main)]">
             {panelType === 'owner' ? 'Owner Profile' : 'Contact Profile'}
           </span>
         </div>
@@ -1712,7 +1712,7 @@ export function LeadsPage() {
               "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
               activeTab === 'all'
                 ? "border-[var(--primary)]/40 ring-2 ring-[var(--primary)]/15 bg-[var(--primary)]/5"
-                : "border-[var(--border)] hover:border-slate-300 dark:hover:border-slate-700"
+                : "border-[var(--border)] hover:border-[var(--border)] dark:hover:border-slate-700"
             )}
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform shrink-0">
@@ -1722,7 +1722,7 @@ export function LeadsPage() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Total Leads</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-black tracking-tight text-[var(--text-main)]">{stats.total}</span>
-                <span className="text-[10px] text-slate-400 font-medium truncate">records</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">records</span>
               </div>
             </div>
           </div>
@@ -1734,7 +1734,7 @@ export function LeadsPage() {
               "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
               activeTab === 'hot'
                 ? "border-rose-500/40 ring-2 ring-rose-500/15 bg-rose-500/5"
-                : "border-[var(--border)] hover:border-rose-200 dark:hover:border-rose-900/50"
+                : "border-[var(--border)] hover:border-rose-500/25 dark:hover:border-rose-900/50"
             )}
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform shrink-0">
@@ -1744,7 +1744,7 @@ export function LeadsPage() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Hot Leads</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-black tracking-tight text-rose-600 dark:text-rose-400">{stats.hot}</span>
-                <span className="text-[10px] text-slate-400 font-medium truncate">priority</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">priority</span>
               </div>
             </div>
           </div>
@@ -1756,7 +1756,7 @@ export function LeadsPage() {
               "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
               activeTab === 'followups'
                 ? "border-amber-500/40 ring-2 ring-amber-500/15 bg-amber-500/5"
-                : "border-[var(--border)] hover:border-amber-200 dark:hover:border-amber-900/50"
+                : "border-[var(--border)] hover:border-amber-500/25 dark:hover:border-amber-900/50"
             )}
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-transform shrink-0">
@@ -1768,7 +1768,7 @@ export function LeadsPage() {
                 <span className={cn("text-base font-black tracking-tight", stats.followUpsDue > 0 ? "text-amber-600 dark:text-amber-400" : "text-[var(--text-main)]")}>
                   {stats.followUpsDue}
                 </span>
-                <span className="text-[10px] text-slate-400 font-medium truncate">due</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">due</span>
               </div>
             </div>
           </div>
@@ -1780,7 +1780,7 @@ export function LeadsPage() {
               "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
               activeTab === 'unassigned'
                 ? "border-violet-500/40 ring-2 ring-violet-500/15 bg-violet-500/5"
-                : "border-[var(--border)] hover:border-violet-200 dark:hover:border-violet-900/50"
+                : "border-[var(--border)] hover:border-violet-500/25 dark:hover:border-violet-900/50"
             )}
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 group-hover:scale-110 transition-transform shrink-0">
@@ -1790,7 +1790,7 @@ export function LeadsPage() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Unassigned</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-black tracking-tight text-violet-600 dark:text-violet-400">{stats.unassigned}</span>
-                <span className="text-[10px] text-slate-400 font-medium truncate">leads</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">leads</span>
               </div>
             </div>
           </div>
@@ -1802,7 +1802,7 @@ export function LeadsPage() {
               "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
               activeTab === 'won'
                 ? "border-emerald-500/40 ring-2 ring-emerald-500/15 bg-emerald-500/5"
-                : "border-[var(--border)] hover:border-emerald-200 dark:hover:border-emerald-900/50"
+                : "border-[var(--border)] hover:border-emerald-500/25 dark:hover:border-emerald-900/50"
             )}
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
@@ -1812,7 +1812,7 @@ export function LeadsPage() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Won / Converted</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-black tracking-tight text-emerald-600 dark:text-emerald-400">{stats.won}</span>
-                <span className="text-[10px] text-slate-400 font-medium truncate">closed</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">closed</span>
               </div>
             </div>
           </div>
@@ -1824,7 +1824,7 @@ export function LeadsPage() {
               "group relative flex items-center gap-2 rounded-2xl border bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm cursor-pointer select-none shrink-0",
               activeTab === 'lost'
                 ? "border-rose-500/40 ring-2 ring-rose-500/15 bg-rose-500/5"
-                : "border-[var(--border)] hover:border-rose-200 dark:hover:border-rose-900/50"
+                : "border-[var(--border)] hover:border-rose-500/25 dark:hover:border-rose-900/50"
             )}
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 group-hover:scale-110 transition-transform shrink-0">
@@ -1834,7 +1834,7 @@ export function LeadsPage() {
               <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Lost Leads</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-base font-black tracking-tight text-rose-600 dark:text-rose-400">{stats.lost}</span>
-                <span className="text-[10px] text-slate-400 font-medium truncate">dropped</span>
+                <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">dropped</span>
               </div>
             </div>
           </div>
@@ -1842,7 +1842,7 @@ export function LeadsPage() {
           {/* Pipeline Value */}
           <div
             onClick={() => { setActiveTab('all'); setPage(1); }}
-            className="group relative flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer select-none shrink-0"
+            className="group relative flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm hover:border-[var(--border)] dark:hover:border-slate-700 cursor-pointer select-none shrink-0"
           >
             <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
               <TrendingUp size={15} />
@@ -1873,7 +1873,7 @@ export function LeadsPage() {
           >
             <SlidersHorizontal size={15} />
             {activeFiltersCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--primary)] text-white text-[9px] font-black leading-none ring-2 ring-white dark:ring-slate-900">
+              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--primary)] text-white text-[10px] font-black leading-none ring-2 ring-white dark:ring-slate-900">
                 {activeFiltersCount}
               </span>
             )}

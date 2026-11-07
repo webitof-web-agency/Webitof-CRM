@@ -61,6 +61,7 @@ import { normalizeSharedLabels, mergeSharedLabelOptions } from '../../lib/labels
 import { formatDateOnlyDisplay, formatDateOnlyInput, isSameDateOnly } from '../../lib/dateOnly';
 import { EventFeedPanel } from '../../components/events/EventFeedPanel';
 import { canonicalRoute, invoiceRoute, paymentRoute } from '../../utils/entityRoutes';
+import { IconButton } from '../../components/ui/IconButton';
 
 function InfoTooltip({ text }) {
   const [open, setOpen] = useState(false);
@@ -1140,14 +1141,13 @@ function CalendarPanel({ events, view, currentDate, onViewChange, onDateChange, 
                         </div>
                       </button>
                       {onDeleteEvent ? (
-                        <button
+                        <IconButton box="8" tone="danger" shape="full" className="ml-2"
                           type="button"
                           onClick={() => onDeleteEvent(item)}
-                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
                           aria-label="Delete event"
                         >
                           <Trash2 size={14} />
-                        </button>
+                        </IconButton>
                       ) : null}
                     </div>
                   )) : (
@@ -1718,7 +1718,7 @@ export function ClientDetailsPage() {
           {activeTab === 'overview' && (
             <>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
                     <Briefcase size={24} strokeWidth={2} />
                   </div>
@@ -1728,7 +1728,7 @@ export function ClientDetailsPage() {
                     <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total active projects</p>
                   </div>
                 </Card>
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
                     <Receipt size={24} strokeWidth={2} />
                   </div>
@@ -1738,7 +1738,7 @@ export function ClientDetailsPage() {
                     <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total billed amount</p>
                   </div>
                 </Card>
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
                     <Wallet size={24} strokeWidth={2} />
                   </div>
@@ -1748,7 +1748,7 @@ export function ClientDetailsPage() {
                     <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total payments received</p>
                   </div>
                 </Card>
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
                     <Clock3 size={24} strokeWidth={2} />
                   </div>

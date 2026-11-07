@@ -9,6 +9,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Field, DetailValues, Lookup } from "./HrmShared";
 import { SalaryComponents } from "./SalaryComponents";
 import { hrm, label } from "./hrmApi";
+import { IconButton } from '../../components/ui/IconButton';
 // Display names: "location" is the Branch used on the employee form.
 const masterTypeLabels = {
   location: "Branch / office location",
@@ -444,11 +445,10 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                             </span>
                           )}
                         </button>
-                        <button
+                        <IconButton size="sm" className="opacity-60 group-hover:opacity-100"
                           type="button"
                           aria-label={`Edit ${m.name}`}
                           title="Edit"
-                          className="rounded-md p-1 text-[var(--text-muted)] opacity-60 hover:bg-[var(--surface)] hover:text-[var(--text-main)] group-hover:opacity-100"
                           onClick={() =>
                             setEditing({
                               type,
@@ -457,19 +457,18 @@ function MastersBoard({ token, masters, masterTypes, onReload }) {
                           }
                         >
                           <Pencil size={13} />
-                        </button>
+                        </IconButton>
                         {!m.payload?.system && (
-                          <button
+                          <IconButton size="sm" tone="danger" className="opacity-60 group-hover:opacity-100"
                             type="button"
                             aria-label={`Delete ${m.name}`}
                             title="Delete"
-                            className="rounded-md p-1 text-[var(--text-muted)] opacity-60 hover:bg-rose-500/10 hover:text-rose-600 group-hover:opacity-100"
                             onClick={async () => {
                               if (await deleteMaster(token, type, m)) onReload();
                             }}
                           >
                             <Trash2 size={13} />
-                          </button>
+                          </IconButton>
                         )}
                       </li>
                     );

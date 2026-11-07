@@ -49,7 +49,7 @@ export function TechnologyStacksPage() {
           return (
             <article
               key={group.id}
-              className="flex min-h-[250px] flex-col overflow-hidden rounded-[18px] border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)] backdrop-blur-xl transition-colors hover:border-[var(--primary)]"
+              className="flex min-h-[250px] flex-col overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-[var(--shadow-card)] backdrop-blur-xl transition-colors hover:border-[var(--primary)]"
             >
               <div className="flex items-center gap-3">
                 <span

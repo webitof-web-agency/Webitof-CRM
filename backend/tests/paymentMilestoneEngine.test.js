@@ -1,12 +1,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {
-  validateMilestones,
-  calculateMilestoneAmounts,
-  parseMilestonesFromText,
-  serializeMilestonesToText,
-  MILESTONE_PRESETS
-} = require('../utils/paymentMilestoneEngine');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+// The shipped milestone engine lives in the frontend (the quotation builder and preview use it), so the
+// test loads that file. It is an ES module; the other copy that used to sit in backend/utils had no
+// runtime importer and was removed.
+let validateMilestones;
+let calculateMilestoneAmounts;
+let parseMilestonesFromText;
+let serializeMilestonesToText;
+let MILESTONE_PRESETS;
+test.before(async () => {
+  const engine = await import(pathToFileURL(path.resolve(__dirname, '../../frontend/src/utils/paymentMilestoneEngine.js')).href);
+  ({ validateMilestones, calculateMilestoneAmounts, parseMilestonesFromText, serializeMilestonesToText, MILESTONE_PRESETS } = engine);
+});
 
 test('milestone validator detects valid 100% total', () => {
   const milestones = [

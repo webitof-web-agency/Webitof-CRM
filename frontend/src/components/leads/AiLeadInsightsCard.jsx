@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { cn } from '../../lib/cn';
 import { Button } from '../ui/Button';
 import { analyzeLeadIntelligence } from '../../utils/aiLeadAnalyzer';
+import { IconButton } from '../ui/IconButton';
 
 export function AiLeadInsightsCard({
   lead,
@@ -152,15 +153,14 @@ export function AiLeadInsightsCard({
         </div>
 
         <div className="flex items-center gap-1">
-          <button
+          <IconButton box="7"
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
             title="Re-analyze lead"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-2)] hover:text-[var(--text-main)] transition-colors cursor-pointer"
           >
             <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin text-violet-500')} />
-          </button>
+          </IconButton>
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
@@ -202,7 +202,7 @@ export function AiLeadInsightsCard({
               <span className="text-lg font-black tracking-tight text-[var(--text-main)] leading-none">
                 {score}
               </span>
-              <span className="text-[9px] font-semibold text-[var(--text-muted)] tracking-wider uppercase mt-0.5">
+              <span className="text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase mt-0.5">
                 Score
               </span>
             </div>

@@ -232,7 +232,7 @@ function CompactAudioPlayer({ url, fileName, durationSeconds = 0 }) {
       </div>
 
       {/* Clean Monospace Time */}
-      <span className="text-[9px] font-mono font-medium text-[var(--text-muted)] whitespace-nowrap">
+      <span className="text-[10px] font-mono font-medium text-[var(--text-muted)] whitespace-nowrap">
         {formatClockTime(currentTime)}/{formatClockTime(duration)}
       </span>
 
@@ -598,10 +598,10 @@ export function CallHistoryPage() {
               <PhoneCall size={14} />
             </div>
             <div className="min-w-0">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Total</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Total</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-black tracking-tight text-[var(--text-main)]">{stats.totalCalls}</span>
-                <span className="text-[9px] text-slate-400 font-medium truncate">calls</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">calls</span>
               </div>
             </div>
           </div>
@@ -621,10 +621,10 @@ export function CallHistoryPage() {
               <PhoneOutgoing size={14} />
             </div>
             <div className="min-w-0">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Outgoing</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Outgoing</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-black tracking-tight text-sky-600 dark:text-sky-400">{stats.outgoingCalls}</span>
-                <span className="text-[9px] text-slate-400 font-medium truncate">dialed</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">dialed</span>
               </div>
             </div>
           </div>
@@ -644,10 +644,10 @@ export function CallHistoryPage() {
               <PhoneIncoming size={14} />
             </div>
             <div className="min-w-0">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Incoming</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Incoming</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-black tracking-tight text-emerald-600 dark:text-emerald-400">{stats.incomingCalls}</span>
-                <span className="text-[9px] text-slate-400 font-medium truncate">received</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">received</span>
               </div>
             </div>
           </div>
@@ -667,10 +667,10 @@ export function CallHistoryPage() {
               <PhoneMissed size={14} />
             </div>
             <div className="min-w-0">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Missed</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Missed</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-black tracking-tight text-rose-600 dark:text-rose-400">{stats.missedCalls}</span>
-                <span className="text-[9px] text-slate-400 font-medium truncate">lost</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">lost</span>
               </div>
             </div>
           </div>
@@ -684,7 +684,7 @@ export function CallHistoryPage() {
               <Clock size={14} />
             </div>
             <div className="min-w-0">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Talk Time</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Talk Time</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-black tracking-tight text-amber-600 dark:text-amber-400 truncate">
                   {formatDuration(stats.totalDurationSeconds)}
@@ -708,10 +708,10 @@ export function CallHistoryPage() {
               <Headphones size={14} />
             </div>
             <div className="min-w-0">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Recordings</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">Recordings</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-black tracking-tight text-indigo-600 dark:text-indigo-400">{stats.withRecordingCount}</span>
-                <span className="text-[9px] text-slate-400 font-medium truncate">audios</span>
+                <span className="text-[10px] text-slate-400 font-medium truncate">audios</span>
               </div>
             </div>
           </div>
@@ -910,7 +910,7 @@ export function CallHistoryPage() {
 
       {/* 4. Calls Table View: Fits 100% On Screen, No Horizontal Scroll */}
       {activeTab === 'calls' && (
-        <div className="liquid-glass-card relative rounded-[22px] border border-white/80 dark:border-white/10 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all overflow-hidden">
+        <div className="liquid-glass-card relative rounded-3xl border border-white/80 dark:border-white/10 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all overflow-hidden">
           {/* Top Specular Light Highlight */}
           <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/90 dark:via-white/20 to-transparent pointer-events-none z-20" />
 
@@ -1013,18 +1013,18 @@ export function CallHistoryPage() {
                           <div className="font-bold text-[var(--text-main)] text-xs flex items-center gap-1 min-w-0">
                             <span className="truncate" title={call.customerName}>{call.customerName || 'Customer'}</span>
                             {call.leadId && (
-                              <span className="text-[8px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-1 py-0.2 rounded font-bold shrink-0">
+                              <span className="text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-1 py-0.2 rounded font-bold shrink-0">
                                 Lead
                               </span>
                             )}
                             {call.clientId && (
-                              <span className="text-[8px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-1 py-0.2 rounded font-bold shrink-0">
+                              <span className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-1 py-0.2 rounded font-bold shrink-0">
                                 Client
                               </span>
                             )}
                           </div>
                           <div className="flex items-center gap-1 mt-0.5">
-                            <span className="text-[10.5px] font-mono text-[var(--text-muted)] font-medium">
+                            <span className="text-[11px] font-mono text-[var(--text-muted)] font-medium">
                               {call.customerPhone}
                             </span>
                             <button
@@ -1069,7 +1069,7 @@ export function CallHistoryPage() {
                       <td className="px-2.5 py-2 border-b border-[var(--border)]">
                         <div className="min-w-0">
                           {call.outcome && (
-                            <span className="inline-block px-1.5 py-0.2 text-[9.5px] font-semibold rounded bg-[var(--surface-2)] text-[var(--text-main)] border border-[var(--border)] mb-0.5 leading-tight">
+                            <span className="inline-block px-1.5 py-0.2 text-[10px] font-semibold rounded bg-[var(--surface-2)] text-[var(--text-main)] border border-[var(--border)] mb-0.5 leading-tight">
                               {call.outcome}
                             </span>
                           )}
@@ -1242,19 +1242,19 @@ export function CallHistoryPage() {
               {/* Stats Box */}
               <div className="grid grid-cols-3 gap-1 bg-[var(--surface-2)] p-2 rounded-xl text-center border border-[var(--border)]">
                 <div>
-                  <div className="text-[9px] text-[var(--text-muted)] uppercase font-bold">Total</div>
+                  <div className="text-[10px] text-[var(--text-muted)] uppercase font-bold">Total</div>
                   <div className="text-sm font-black text-[var(--text-main)]">
                     {staff.totalCalls}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[9px] text-sky-500 uppercase font-bold">Out</div>
+                  <div className="text-[10px] text-sky-500 uppercase font-bold">Out</div>
                   <div className="text-sm font-black text-sky-600 dark:text-sky-400">
                     {staff.outgoingCalls}
                   </div>
                 </div>
                 <div>
-                  <div className="text-[9px] text-emerald-500 uppercase font-bold">In</div>
+                  <div className="text-[10px] text-emerald-500 uppercase font-bold">In</div>
                   <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
                     {staff.incomingCalls}
                   </div>

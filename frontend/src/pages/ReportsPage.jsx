@@ -123,13 +123,13 @@ export function ReportsPage() {
           <p className="mt-1 text-sm text-[var(--text-muted)]">Financial summaries, audit snapshots, and renewal intelligence in one place.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => window.location.reload()} className="bg-white shadow-sm border-slate-200 hover:bg-slate-50 gap-2">
+          <Button variant="outline" onClick={() => window.location.reload()} className="bg-[var(--surface-elevated)] shadow-sm border-[var(--border)] hover:bg-[var(--surface-2)] gap-2">
             <RefreshCw size={16} /> Refresh
           </Button>
         </div>
       </div>
 
-      <div className="flex items-center gap-6 border-b border-slate-200 px-2 overflow-x-auto">
+      <div className="flex items-center gap-6 border-b border-[var(--border)] px-2 overflow-x-auto">
         {sections.map((section) => (
           <button
             key={section.key}
@@ -139,7 +139,7 @@ export function ReportsPage() {
               'inline-flex items-center gap-2 px-1 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap',
               activeSection === section.key
                 ? 'border-[var(--primary)] text-[var(--primary)]'
-                : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                : 'border-transparent text-[var(--text-muted)] hover:border-[var(--border)] hover:text-[var(--text-main)]'
             )}
           >
             {section.label}
@@ -160,14 +160,14 @@ export function ReportsPage() {
           ].map((item, i) => {
             const Icon = item.icon;
             return (
-              <Card key={i} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+              <Card key={i} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
                 <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
                   <Icon size={20} strokeWidth={2} />
                 </div>
                 <div className="overflow-hidden min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.title}</p>
-                  <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : formatAmount(item.value)}</h3>
-                  <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1 truncate">{item.title}</p>
+                  <h3 className="text-base md:text-lg font-bold text-[var(--text-main)] leading-tight truncate">{loading ? '...' : formatAmount(item.value)}</h3>
+                  <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate">{item.helper}</p>
                 </div>
               </Card>
             );
@@ -184,14 +184,14 @@ export function ReportsPage() {
             { label: 'Office Expense', value: profitLoss?.officeExpense, helper: 'Operational costs', bg: 'bg-purple-50/80 text-purple-500' },
             { label: 'Profit', value: profitLoss?.profit, helper: 'Net income', bg: 'bg-blue-50/80 text-blue-500' }
           ].map((item, i) => (
-            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
               <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
                 <BarChart3 size={20} strokeWidth={2} />
               </div>
               <div className="overflow-hidden min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
-                <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : formatAmount(item.value || 0)}</h3>
-                <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1 truncate">{item.label}</p>
+                <h3 className="text-base md:text-lg font-bold text-[var(--text-main)] leading-tight truncate">{loading ? '...' : formatAmount(item.value || 0)}</h3>
+                <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate">{item.helper}</p>
               </div>
             </Card>
           ))}
@@ -206,14 +206,14 @@ export function ReportsPage() {
             { label: 'Net Payable', value: gst?.netGstPayable, helper: 'Amount due to govt', bg: 'bg-rose-50/80 text-rose-500' },
             { label: 'IGST', value: gst?.igst, helper: 'Inter-state tax', bg: 'bg-cyan-50/80 text-cyan-500' }
           ].map((item) => (
-            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
               <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
                 <BarChart3 size={20} strokeWidth={2} />
               </div>
               <div className="overflow-hidden min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
-                <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : formatAmount(item.value || 0)}</h3>
-                <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1 truncate">{item.label}</p>
+                <h3 className="text-base md:text-lg font-bold text-[var(--text-main)] leading-tight truncate">{loading ? '...' : formatAmount(item.value || 0)}</h3>
+                <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate">{item.helper}</p>
               </div>
             </Card>
           ))}
@@ -229,16 +229,16 @@ export function ReportsPage() {
               { label: 'Annual Payroll', value: payroll?.summary?.annualPayroll, helper: 'Projected yearly cost', bg: 'bg-emerald-50/80 text-emerald-500' },
               { label: 'Average Salary', value: payroll?.summary?.averageSalary, helper: 'Average monthly salary', bg: 'bg-amber-50/80 text-amber-500' }
             ].map((item) => (
-              <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+              <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
                 <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
                   <BarChart3 size={20} strokeWidth={2} />
                 </div>
                 <div className="overflow-hidden min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
-                  <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1 truncate">{item.label}</p>
+                  <h3 className="text-base md:text-lg font-bold text-[var(--text-main)] leading-tight truncate">
                     {loading ? '...' : item.isNum ? Number(item.value || 0).toLocaleString('en-IN') : formatAmount(item.value || 0)}
                   </h3>
-                  <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+                  <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate">{item.helper}</p>
                 </div>
               </Card>
             ))}
@@ -292,14 +292,14 @@ export function ReportsPage() {
             { label: 'Pending ITC', value: audit?.pendingItcCount, helper: 'ITC to be claimed', bg: 'bg-amber-50/80 text-amber-500' },
             { label: 'Renewals Due', value: audit?.renewalDueSoonCount, helper: 'Upcoming renewals', bg: 'bg-indigo-50/80 text-indigo-500' }
           ].map((item) => (
-            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+            <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-[var(--border)] rounded-2xl">
               <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
                 <FileText size={20} strokeWidth={2} />
               </div>
               <div className="overflow-hidden min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
-                <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : Number(item.value || 0).toLocaleString('en-IN')}</h3>
-                <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1 truncate">{item.label}</p>
+                <h3 className="text-base md:text-lg font-bold text-[var(--text-main)] leading-tight truncate">{loading ? '...' : Number(item.value || 0).toLocaleString('en-IN')}</h3>
+                <p className="mt-1 text-[10px] text-[var(--text-muted)] truncate">{item.helper}</p>
               </div>
             </Card>
           ))}

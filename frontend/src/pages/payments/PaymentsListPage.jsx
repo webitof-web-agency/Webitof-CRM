@@ -226,7 +226,7 @@ export function PaymentsListPage() {
           <p className="mt-1 text-sm text-[var(--text-muted)]">Record and track all client payments against invoices.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button type="button" variant="secondary" onClick={handleExportCsv} className="bg-white shadow-sm border border-slate-200 hover:bg-slate-50 text-slate-700 cursor-pointer">
+          <Button type="button" variant="secondary" onClick={handleExportCsv} className="bg-[var(--surface-elevated)] shadow-sm border border-[var(--border)] hover:bg-[var(--surface-2)] text-[var(--text-main)] cursor-pointer">
             <Download size={16} className="mr-2 text-emerald-600" /> Export CSV
           </Button>
           {canCreate && (
@@ -311,7 +311,7 @@ export function PaymentsListPage() {
               </Button>
             )}
             {canDelete && (
-              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50">
+              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-500/10">
                 <Trash2 size={16} />
               </Button>
             )}

@@ -28,9 +28,9 @@ function SidebarLink({ item, onNavigate, open, isChild = false }) {
         return cn(
           'group relative flex items-center gap-3 overflow-hidden whitespace-nowrap font-semibold transition-all duration-150',
           isChild
-            ? 'h-8.5 text-[11.5px] px-2.5 mx-1 rounded-[10px]'
+            ? 'h-8.5 text-xs px-2.5 mx-1 rounded-xl'
             : 'h-10 text-xs',
-          !isChild && (open ? 'mx-3 px-3.5 rounded-[14px]' : 'mx-2 justify-center px-0 rounded-[14px]'),
+          !isChild && (open ? 'mx-3 px-3.5 rounded-2xl' : 'mx-2 justify-center px-0 rounded-2xl'),
           active
             ? 'bg-gradient-to-r from-[var(--primary)]/15 to-[var(--primary)]/5 dark:from-[var(--primary)]/25 dark:to-[var(--primary)]/10 text-[var(--primary)] dark:text-[var(--primary)] border border-[var(--primary)]/25 dark:border-[var(--primary)]/35 shadow-xs font-bold'
             : 'text-[var(--sidebar-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[var(--text-main)] border border-transparent'
@@ -106,7 +106,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
         to={item.path}
         onClick={onNavigate}
         className={cn(
-          'group relative flex h-10 items-center justify-center overflow-hidden whitespace-nowrap rounded-[14px] text-xs font-semibold transition-all duration-150 mx-2 px-0',
+          'group relative flex h-10 items-center justify-center overflow-hidden whitespace-nowrap rounded-2xl text-xs font-semibold transition-all duration-150 mx-2 px-0',
           isParentActive
             ? 'bg-gradient-to-r from-[var(--primary)]/15 to-[var(--primary)]/5 dark:from-[var(--primary)]/25 dark:to-[var(--primary)]/10 text-[var(--primary)] dark:text-[var(--primary)] border border-[var(--primary)]/25 dark:border-[var(--primary)]/35 shadow-xs font-bold'
             : 'text-[var(--sidebar-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[var(--text-main)] border border-transparent'
@@ -132,7 +132,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
       <div
         onClick={() => onToggleExpand(item.path)}
         className={cn(
-          'group relative flex h-10 items-center justify-between overflow-hidden whitespace-nowrap rounded-[14px] text-xs font-semibold transition-all duration-150 mx-3 px-3.5 cursor-pointer select-none',
+          'group relative flex h-10 items-center justify-between overflow-hidden whitespace-nowrap rounded-2xl text-xs font-semibold transition-all duration-150 mx-3 px-3.5 cursor-pointer select-none',
           isParentActive
             ? 'bg-[var(--primary)]/10 dark:bg-[var(--primary)]/20 text-[var(--primary)] dark:text-[var(--primary)] font-bold border border-[var(--primary)]/25 dark:border-[var(--primary)]/35'
             : 'text-[var(--sidebar-text)] hover:bg-black/[0.04] dark:hover:bg-white/[0.06] hover:text-[var(--text-main)] border border-transparent'

@@ -158,7 +158,7 @@ export function LoginPage() {
                 autoFocus
                 disabled={loginStatus !== 'idle'}
                 required
-                className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 transition-all duration-200"
+                className="liquid-glass-input h-10.5 rounded-2xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 transition-all duration-200"
               />
             </div>
           </div>
@@ -189,7 +189,7 @@ export function LoginPage() {
                 placeholder="Password"
                 autoComplete="current-password"
                 disabled={loginStatus !== 'idle'}
-                className="liquid-glass-input h-10.5 pr-10 rounded-[14px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 transition-all duration-200"
+                className="liquid-glass-input h-10.5 pr-10 rounded-2xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 transition-all duration-200"
                 required
               />
               <button
@@ -230,7 +230,7 @@ export function LoginPage() {
           <button
             type="submit"
             disabled={loginStatus !== 'idle'}
-            className={`w-full h-11 text-sm font-bold rounded-[14px] transition-all duration-300 flex items-center justify-center gap-2 group mt-2.5 cursor-pointer select-none ${
+            className={`w-full h-11 text-sm font-bold rounded-2xl transition-all duration-300 flex items-center justify-center gap-2 group mt-2.5 cursor-pointer select-none ${
               loginStatus === 'success'
                 ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-xl shadow-emerald-500/30 border border-emerald-300/40 scale-[1.01]'
                 : loginStatus === 'authenticating'
@@ -295,7 +295,7 @@ export function LoginPage() {
             {/* Modal Header */}
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/30 border border-white/40">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/30 border border-white/40">
                   <KeyRound size={20} />
                 </div>
                 <div>
@@ -335,7 +335,7 @@ export function LoginPage() {
                     placeholder="admin@webitof.com"
                     autoFocus
                     required
-                    className="liquid-glass-input h-11 rounded-[16px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
+                    className="liquid-glass-input h-11 rounded-2xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
                   />
                 </div>
 
@@ -343,13 +343,13 @@ export function LoginPage() {
                   <button
                     type="button"
                     onClick={closeForgotModal}
-                    className="w-1/3 h-11 text-xs font-semibold rounded-[14px] text-slate-700 dark:text-slate-300 hover:bg-black/[0.05] dark:hover:bg-white/10 transition-all cursor-pointer"
+                    className="w-1/3 h-11 text-xs font-semibold rounded-2xl text-slate-700 dark:text-slate-300 hover:bg-black/[0.05] dark:hover:bg-white/10 transition-all cursor-pointer"
                   >
                     Cancel
                   </button>
                   <Button
                     type="submit"
-                    className="w-2/3 h-11 text-xs font-bold rounded-[14px] bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-lg shadow-[var(--primary)]/30 border border-white/30 transition-all cursor-pointer"
+                    className="w-2/3 h-11 text-xs font-bold rounded-2xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-lg shadow-[var(--primary)]/30 border border-white/30 transition-all cursor-pointer"
                     loading={modalBusy}
                   >
                     <span>Send OTP</span>
@@ -373,7 +373,7 @@ export function LoginPage() {
                     placeholder="123456"
                     autoFocus
                     required
-                    className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 font-mono tracking-widest"
+                    className="liquid-glass-input h-10.5 rounded-2xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 font-mono tracking-widest"
                   />
                 </div>
 
@@ -391,7 +391,7 @@ export function LoginPage() {
                       }
                       placeholder="••••••••••••"
                       required
-                      className="liquid-glass-input h-10.5 pr-10 rounded-[14px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
+                      className="liquid-glass-input h-10.5 pr-10 rounded-2xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
                     />
                     <button
                       type="button"
@@ -417,7 +417,7 @@ export function LoginPage() {
                     }
                     placeholder="••••••••••••"
                     required
-                    className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
+                    className="liquid-glass-input h-10.5 rounded-2xl text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
                   />
                 </div>
 
@@ -440,7 +440,7 @@ export function LoginPage() {
 
                 <Button
                   type="submit"
-                  className="w-full h-11 text-xs font-bold rounded-[14px] bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-lg shadow-[var(--primary)]/30 border border-white/30 transition-all mt-2 cursor-pointer"
+                  className="w-full h-11 text-xs font-bold rounded-2xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-lg shadow-[var(--primary)]/30 border border-white/30 transition-all mt-2 cursor-pointer"
                   loading={modalBusy}
                 >
                   <span>Update Password</span>

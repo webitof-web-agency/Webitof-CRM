@@ -12,7 +12,7 @@ import { PAYMENT_STATUS_OPTIONS } from '../../lib/paymentStatus';
 function PaymentFormRow({ label, children, required }) {
   return (
     <div className="flex flex-col gap-1 py-2 md:flex-row md:items-start md:gap-4">
-      <div className="shrink-0 pt-2 text-sm font-medium text-slate-500 md:w-48 lg:w-56">
+      <div className="shrink-0 pt-2 text-sm font-medium text-[var(--text-muted)] md:w-48 lg:w-56">
         {label} {required && <span className="text-red-500">*</span>}
       </div>
       <div className="min-w-0 flex-1">

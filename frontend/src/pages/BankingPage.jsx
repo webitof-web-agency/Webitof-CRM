@@ -189,7 +189,7 @@ export function BankingPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+      <div className="flex items-center gap-2 border-b border-[var(--border)] pb-1">
         {[
           ['accounts', `Accounts (${accounts.length})`],
           ['transactions', `Transactions (${transactions.length})`]
@@ -200,7 +200,7 @@ export function BankingPage() {
             className={`px-5 py-2.5 text-sm font-semibold transition-all border-b-2 -mb-[1px] ${
               activeTab === key 
                 ? 'border-[var(--primary)] text-[var(--primary)]' 
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--border)]'
             }`}
             onClick={() => setActiveTab(key)}
           >
@@ -225,22 +225,22 @@ export function BankingPage() {
             activeTab === 'transactions' ? (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 text-[var(--text-muted)] mr-1"><Filter size={16} /> <span className="text-sm font-medium">Filters:</span></div>
-                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
                   <option value="">All Types</option>
                   <option value="Credit">Credit</option>
                   <option value="Debit">Debit</option>
                   <option value="Transfer">Transfer</option>
                   <option value="Adjustment">Adjustment</option>
                 </select>
-                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
+                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
                   <option value="">All Banks</option>
                   {lookups.bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber}</option>)}
                 </select>
-                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterClient} onChange={e => setFilterClient(e.target.value)}>
+                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterClient} onChange={e => setFilterClient(e.target.value)}>
                   <option value="">All Clients</option>
                   {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
-                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
                   <option value="">All Projects</option>
                   {lookups.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
@@ -248,14 +248,14 @@ export function BankingPage() {
             ) : (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 text-[var(--text-muted)] mr-1"><Filter size={16} /> <span className="text-sm font-medium">Filters:</span></div>
-                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
                   <option value="">All Account Types</option>
                   <option value="Current">Current</option>
                   <option value="Savings">Savings</option>
                   <option value="OD">OD</option>
                   <option value="Cash Credit">Cash Credit</option>
                 </select>
-                <select className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
+                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
                   <option value="">Primary Status</option>
                   <option value="true">Primary Only</option>
                   <option value="false">Secondary Only</option>

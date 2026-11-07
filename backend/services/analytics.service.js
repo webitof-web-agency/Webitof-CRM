@@ -25,7 +25,7 @@ const {
   getPlaceOfSupplyForClient
 } = require('../utils/finance');
 const { round2, toNumber } = require('../utils/format');
-const { getInvoiceSnapshot, getPaymentAppliedAmount, getPayrollExpenseTotal, getPayrollRecords } = require('./finance.service');
+const { getInvoiceSnapshot, isIssuedInvoice, getPaymentAppliedAmount, getPayrollExpenseTotal, getPayrollRecords } = require('./finance.service');
 
 function sumBy(items = [], iteratee = (item) => item) {
   return round2(items.reduce((sum, item) => sum + toNumber(iteratee(item)), 0));
@@ -233,13 +233,13 @@ function mapEventRecord(event, fallbackTitle = 'Event') {
 async function buildDashboardSummary() {
   const state = await loadBusinessState();
   const invoiceTotals = state.invoices
-    .filter((invoice) => invoice.status !== 'Cancelled')
+    .filter(isIssuedInvoice)
     .map((invoice) => {
       const client = state.clients.find((item) => String(item.id) === String(invoice.clientId));
       return calculateInvoiceTotals(invoice, invoice.items || [], state.settings, client);
     });
   const invoiceSnapshots = state.invoices
-    .filter((invoice) => invoice.status !== 'Cancelled')
+    .filter(isIssuedInvoice)
     .map((invoice) => {
       const client = state.clients.find((item) => String(item.id) === String(invoice.clientId));
       const payments = state.payments.filter((payment) => String(payment.invoiceId) === String(invoice.id));

@@ -138,7 +138,7 @@ function MetricCard({ icon: Icon, label, value, helper, tone = 'slate' }) {
   return (
     <Card className="px-5 py-5 shadow-sm border border-[var(--border)] rounded-2xl">
       <div className="flex items-start gap-4">
-        <div className="w-11 h-11 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 mt-0.5">
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0 mt-0.5">
           <div className={`absolute inset-0 opacity-10 ${palette[tone] ? palette[tone].split(' ')[1].replace('text-', 'bg-') : 'bg-slate-600'}`}></div>
           <Icon size={20} strokeWidth={2.5} className={`relative z-10 ${palette[tone] ? palette[tone].split(' ')[1] : 'text-[var(--text-muted)]'}`} />
         </div>
@@ -165,10 +165,10 @@ function AlertRow({ item, onOpen }) {
           onOpen(item);
         }
       }}
-      className={`w-full rounded-[18px] border ${meta.border} bg-[var(--surface-elevated)] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
+      className={`w-full rounded-2xl border ${meta.border} bg-[var(--surface-elevated)] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm`}
     >
       <div className="flex items-start gap-4">
-        <div className="w-11 h-11 rounded-[14px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)] group-hover:shadow transition-shadow">
+        <div className="w-11 h-11 rounded-2xl flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)] group-hover:shadow transition-shadow">
           <div className={`absolute inset-0 opacity-15 ${meta.accent.replace('text-', 'bg-')}`}></div>
           <meta.icon size={18} strokeWidth={2.5} className={`relative z-10 ${meta.accent}`} />
         </div>
@@ -229,7 +229,7 @@ function PriorityAlertRow({ item, onOpen }) {
       className="flex items-center justify-between gap-4 py-2 group cursor-pointer"
     >
       <div className="flex items-center gap-3 flex-1 min-w-0">
-        <div className="w-8 h-8 rounded-[10px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)] opacity-90 group-hover:opacity-100 transition-opacity">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)] opacity-90 group-hover:opacity-100 transition-opacity">
           <div className={`absolute inset-0 opacity-15 ${meta.accent.replace('text-', 'bg-')}`}></div>
           <meta.icon size={14} strokeWidth={2.5} className={`relative z-10 ${meta.accent}`} />
         </div>
@@ -239,10 +239,10 @@ function PriorityAlertRow({ item, onOpen }) {
       </div>
       
       <div className="flex items-center justify-end gap-3 w-[200px] shrink-0">
-        <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)] text-center">
+        <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--text-muted)] text-center">
           {item.module}
         </span>
-        <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.16em] ${lightBadgeClasses(item.state)} w-[85px]`}>
+        <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${lightBadgeClasses(item.state)} w-[85px]`}>
           {item.state === 'Due Soon' ? `Due in ${item.daysRemaining || 7}d` : item.state}
         </span>
       </div>
@@ -256,7 +256,7 @@ function SummaryRunCard({ title, summary, labels = [], href, linkText, icon: Ico
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           {Icon && (
-            <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
               <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
               <Icon size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
             </div>
@@ -275,7 +275,7 @@ function SummaryRunCard({ title, summary, labels = [], href, linkText, icon: Ico
 
       <div className="mt-8 grid grid-cols-2 gap-y-8 gap-x-6">
         {labels.map((item) => (
-          <div key={item.label} className={`relative flex justify-between p-5 rounded-[20px] ${item.cellBg || 'bg-[var(--surface-2)]'}`}>
+          <div key={item.label} className={`relative flex justify-between p-5 rounded-3xl ${item.cellBg || 'bg-[var(--surface-2)]'}`}>
             <div className="flex flex-col">
               <p className="text-[11px] font-bold text-[var(--text-muted)]">{item.label}</p>
               <div className="mt-2 flex items-baseline gap-2">
@@ -287,7 +287,7 @@ function SummaryRunCard({ title, summary, labels = [], href, linkText, icon: Ico
                 )}
               </div>
             </div>
-            <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
               <div className={`absolute inset-0 opacity-10 ${item.iconColor.replace('text-', 'bg-')}`}></div>
               <item.icon size={18} strokeWidth={2.5} className={`relative z-10 ${item.iconColor}`} />
             </div>
@@ -317,7 +317,7 @@ function RunHistoryRow({ title, summary, href, accent = 'text-indigo-600', icon:
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-5 py-4 transition hover:border-[var(--border)] shadow-sm" style={{ borderRadius: 'var(--radius-card, 1.5rem)' }}>
       <div className="flex items-center gap-4 min-w-0">
         {Icon && (
-          <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)]">
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0 shadow-sm border border-slate-200/50 bg-[var(--surface-elevated)]">
             <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
             <Icon size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
           </div>
@@ -330,7 +330,7 @@ function RunHistoryRow({ title, summary, href, accent = 'text-indigo-600', icon:
           </div>
         </div>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-6 sm:gap-8 bg-[var(--surface-2)] px-6 py-2.5 rounded-[16px]">
+      <div className="flex flex-wrap items-center justify-end gap-6 sm:gap-8 bg-[var(--surface-2)] px-6 py-2.5 rounded-2xl">
         {pills.map((pill) => (
           <div key={pill.label} className="flex flex-col items-center gap-1">
             <span className={`text-[10px] font-bold ${pill.labelColor}`}>{pill.label}</span>
@@ -351,7 +351,7 @@ function RunHistoryRow({ title, summary, href, accent = 'text-indigo-600', icon:
 
 function EmptyState({ message }) {
   return (
-    <div className="rounded-[18px] border border-dashed border-indigo-200/60 bg-[var(--surface)] px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-[var(--text-muted)] font-medium">
+    <div className="rounded-2xl border border-dashed border-indigo-200/60 bg-[var(--surface)] px-4 py-10 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-[var(--text-muted)] font-medium">
       <div className="relative">
         <div className="w-10 h-12 bg-indigo-50/50 border border-indigo-100 rounded flex flex-col items-start p-1.5 gap-1 shadow-sm">
           <div className="w-3/4 h-1 bg-indigo-100 rounded-full" />
@@ -939,7 +939,7 @@ export function AutomationPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
             <div>
               <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <TriangleAlert size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
@@ -974,7 +974,7 @@ export function AutomationPage() {
           <div className="flex items-center justify-between gap-3 pb-4">
             <div>
               <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <Zap size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
@@ -996,7 +996,7 @@ export function AutomationPage() {
                 to={item.to}
                 className="flex items-center gap-4 transition group"
               >
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] ${item.iconBg} ${item.iconColor} transition-colors group-hover:bg-[color-mix(in_srgb,var(--primary)_25%,transparent)]`}>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${item.iconBg} ${item.iconColor} transition-colors group-hover:bg-[color-mix(in_srgb,var(--primary)_25%,transparent)]`}>
                   <item.icon size={18} />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -1016,7 +1016,7 @@ export function AutomationPage() {
             <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
               <div>
                 <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                     <ShieldAlert size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                   </div>
@@ -1036,7 +1036,7 @@ export function AutomationPage() {
                   <EmptyState message="No AMC items need attention right now." />
                 )
               ) : (
-                <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-sm text-[var(--text-muted)]">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-sm text-[var(--text-muted)]">
                   AMC details are hidden for this role.
                 </div>
               )}
@@ -1047,7 +1047,7 @@ export function AutomationPage() {
             <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
               <div>
                 <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                     <CalendarClock size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                   </div>
@@ -1072,7 +1072,7 @@ export function AutomationPage() {
             <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
               <div>
                 <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                     <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                     <Building2 size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                   </div>
@@ -1092,7 +1092,7 @@ export function AutomationPage() {
                   <EmptyState message="No outsourcing alerts right now." />
                 )
               ) : (
-                <div className="rounded-[18px] border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-sm text-[var(--text-muted)]">
+                <div className="rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-4 py-8 text-sm text-[var(--text-muted)]">
                   Outsourcing details are hidden for this role.
                 </div>
               )}
@@ -1104,7 +1104,7 @@ export function AutomationPage() {
           <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
             <div>
               <h2 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[12px] flex items-center justify-center relative overflow-hidden shrink-0">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <TriangleAlert size={18} strokeWidth={2.5} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>

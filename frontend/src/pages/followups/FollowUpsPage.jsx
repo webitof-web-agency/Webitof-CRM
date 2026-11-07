@@ -25,6 +25,7 @@ import { Modal } from '../../components/ui/Modal';
 import { CompleteFollowUpModal, FollowUpFormModal, RescheduleFollowUpModal } from '../../components/followups/FollowUpModals';
 import { Chip } from '../../components/ui/Chip';
 import { SimpleTable } from '../../components/ui/SimpleTable';
+import { IconButton } from '../../components/ui/IconButton';
 
 const tabs = [
   { id: 'today', label: 'Today', icon: Clock3 },
@@ -196,37 +197,37 @@ function Metric({ label, value, helper, icon: Icon, tone = 'blue', active = fals
     rose: {
       bg: 'bg-rose-500/10',
       text: 'text-rose-600 dark:text-rose-400',
-      border: 'hover:border-rose-200 dark:hover:border-rose-900/50',
+      border: 'hover:border-rose-500/25 dark:hover:border-rose-900/50',
       activeRing: 'border-rose-500/40 ring-2 ring-rose-500/15 bg-rose-500/5'
     },
     blue: {
       bg: 'bg-blue-500/10',
       text: 'text-blue-600 dark:text-blue-400',
-      border: 'hover:border-blue-200 dark:hover:border-blue-900/50',
+      border: 'hover:border-blue-500/25 dark:hover:border-blue-900/50',
       activeRing: 'border-blue-500/40 ring-2 ring-blue-500/15 bg-blue-500/5'
     },
     amber: {
       bg: 'bg-amber-500/10',
       text: 'text-amber-600 dark:text-amber-400',
-      border: 'hover:border-amber-200 dark:hover:border-amber-900/50',
+      border: 'hover:border-amber-500/25 dark:hover:border-amber-900/50',
       activeRing: 'border-amber-500/40 ring-2 ring-amber-500/15 bg-amber-500/5'
     },
     emerald: {
       bg: 'bg-emerald-500/10',
       text: 'text-emerald-600 dark:text-emerald-400',
-      border: 'hover:border-emerald-200 dark:hover:border-emerald-900/50',
+      border: 'hover:border-emerald-500/25 dark:hover:border-emerald-900/50',
       activeRing: 'border-emerald-500/40 ring-2 ring-emerald-500/15 bg-emerald-500/5'
     },
     violet: {
       bg: 'bg-violet-500/10',
       text: 'text-violet-600 dark:text-violet-400',
-      border: 'hover:border-violet-200 dark:hover:border-violet-900/50',
+      border: 'hover:border-violet-500/25 dark:hover:border-violet-900/50',
       activeRing: 'border-violet-500/40 ring-2 ring-violet-500/15 bg-violet-500/5'
     }
   }[tone] || {
     bg: 'bg-slate-500/10',
     text: 'text-slate-600 dark:text-slate-400',
-    border: 'hover:border-slate-300 dark:hover:border-slate-700',
+    border: 'hover:border-[var(--border)] dark:hover:border-slate-700',
     activeRing: 'border-[var(--primary)]/40 ring-2 ring-[var(--primary)]/15 bg-[var(--primary)]/5'
   };
 
@@ -249,7 +250,7 @@ function Metric({ label, value, helper, icon: Icon, tone = 'blue', active = fals
           <span className={cn("text-base font-black tracking-tight", toneConfig.text)}>
             {value ?? 0}
           </span>
-          {helper && <span className="text-[10px] text-slate-400 font-medium truncate">{helper}</span>}
+          {helper && <span className="text-[10px] text-[var(--text-muted)] font-medium truncate">{helper}</span>}
         </div>
       </div>
     </div>
@@ -284,23 +285,21 @@ function FollowUpActions({ item, onAction }) {
         </button>
       )}
 
-      <button
+      <IconButton box="7.5" variant="outline"
         type="button"
         onClick={() => onAction('details', item)}
         title="View Details"
-        className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)] border border-[var(--border)] bg-[var(--surface)] transition shadow-2xs cursor-pointer"
       >
         <Eye size={13} />
-      </button>
+      </IconButton>
 
-      <button
+      <IconButton box="7.5" variant="outline"
         type="button"
         onClick={() => onAction('edit', item)}
         title="Edit Follow-up"
-        className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface-2)] border border-[var(--border)] bg-[var(--surface)] transition shadow-2xs cursor-pointer"
       >
         <Pencil size={13} />
-      </button>
+      </IconButton>
 
       {!closed && (
         <button
@@ -435,7 +434,7 @@ function FollowUpCard({ item, onAction, dense = false }) {
           <button
             type="button"
             onClick={() => onAction('view_lead', item)}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition cursor-pointer max-w-full truncate"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition cursor-pointer max-w-full truncate"
             title="View Lead Profile"
           >
             <UserRound size={10} className="shrink-0" />
@@ -452,7 +451,7 @@ function FollowUpCard({ item, onAction, dense = false }) {
         ) : null}
 
         {/* Footer (Assignee + Due Date/Time) */}
-        <div className="flex items-center justify-between gap-1 pt-2 border-t border-[var(--border-muted)] text-[10.5px]">
+        <div className="flex items-center justify-between gap-1 pt-2 border-t border-[var(--border-muted)] text-[11px]">
           <div className="flex items-center gap-1 font-medium text-[var(--text-muted)] truncate min-w-0">
             <UserRound size={11} className="text-[var(--text-muted)] shrink-0" />
             <span className="truncate">{item.assigneeName || 'Unassigned'}</span>
@@ -726,7 +725,7 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
               <span>{tab.label}</span>
               {countVal !== undefined && countVal !== null ? (
                 <span className={cn(
-                  "inline-flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-extrabold leading-none shrink-0",
+                  "inline-flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11px] font-extrabold leading-none shrink-0",
                   active
                     ? "bg-white/25 text-white"
                     : "bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border)]"
@@ -823,7 +822,7 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
       {/* Table Content */}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1100px] text-left text-xs sm:text-sm">
-          <thead className="bg-[var(--surface-2)]/60 text-[10.5px] uppercase font-bold tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]">
+          <thead className="bg-[var(--surface-2)]/60 text-[11px] uppercase font-bold tracking-wider text-[var(--text-muted)] border-b border-[var(--border)]">
             <tr>
               <th className="px-4 py-3 font-bold">Record / Client</th>
               <th className="px-4 py-3 font-bold">Purpose & Title</th>
@@ -1148,7 +1147,7 @@ function CalendarView({ rows, month, setMonth, onAction, onCreate, loading }) {
                           }}
                           title="Click to view details"
                           className={cn(
-                            "block w-full truncate rounded-lg px-2 py-1 text-left text-[10.5px] font-semibold transition-all cursor-pointer shadow-2xs hover:shadow-xs hover:scale-[1.01] active:scale-[0.99]",
+                            "block w-full truncate rounded-lg px-2 py-1 text-left text-[11px] font-semibold transition-all cursor-pointer shadow-2xs hover:shadow-xs hover:scale-[1.01] active:scale-[0.99]",
                             item.effectiveStatus === 'Overdue'
                               ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 hover:bg-rose-500/20"
                               : item.priority === 'Critical'
@@ -2562,14 +2561,13 @@ function CompletedFollowUpsView({ options, onAction, onScheduleNext }) {
             />
           </div>
 
-          <button
+          <IconButton box="9" variant="outline"
             type="button"
             onClick={loadCompleted}
             title="Refresh"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface)] transition cursor-pointer shrink-0"
           >
             <RefreshCcw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
+          </IconButton>
 
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs font-bold ml-auto">
             <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
@@ -2623,7 +2621,7 @@ function CompletedFollowUpsView({ options, onAction, onScheduleNext }) {
 
                   <div className="flex items-center gap-1.5 shrink-0">
                     {renderPriorityPill(item.priority, true)}
-                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
                       <CheckCircle2 size={11} className="text-emerald-600 dark:text-emerald-400" />
                       Completed
                     </span>
@@ -2655,7 +2653,7 @@ function CompletedFollowUpsView({ options, onAction, onScheduleNext }) {
 
                 {/* Outcome Box (Green container) */}
                 <div className="rounded-xl border border-emerald-500/25 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 space-y-1">
-                  <div className="flex items-center gap-1.5 text-[11.5px] font-bold text-emerald-800 dark:text-emerald-300">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800 dark:text-emerald-300">
                     <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
                     <span>✓ Completed</span>
                   </div>
@@ -2709,14 +2707,13 @@ function CompletedFollowUpsView({ options, onAction, onScheduleNext }) {
                     <span>Schedule Next</span>
                   </button>
 
-                  <button
+                  <IconButton box="8" variant="outline"
                     type="button"
                     onClick={() => onAction('details', item)}
                     title="View details"
-                    className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface)] transition cursor-pointer shrink-0"
                   >
                     <MoreHorizontal size={15} />
-                  </button>
+                  </IconButton>
                 </div>
               </div>
             );
@@ -2858,14 +2855,13 @@ function FollowUpReportView({ onAction }) {
               />
             </div>
 
-            <button
+            <IconButton box="9" variant="outline"
               type="button"
               onClick={loadReport}
               title="Refresh Report"
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--surface)] transition cursor-pointer shrink-0"
             >
               <RefreshCcw size={14} className={loading ? "animate-spin" : ""} />
-            </button>
+            </IconButton>
           </div>
         </div>
 
@@ -3349,7 +3345,7 @@ export function FollowUpsPage() {
               <span>{tab.label}</span>
               {tab.id === 'attention' && attentionBadge > 0 ? (
                 <span className={cn(
-                  "inline-flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10.5px] font-extrabold leading-none shrink-0",
+                  "inline-flex h-4.5 min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11px] font-extrabold leading-none shrink-0",
                   active ? "bg-white/30 text-white" : "bg-rose-500 text-white"
                 )}>
                   {attentionBadge}

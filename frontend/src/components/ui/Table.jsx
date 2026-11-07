@@ -129,7 +129,7 @@ export function DataTable({
   return (
     <div className={cn(
       'liquid-glass-card relative overflow-hidden border border-white/80 dark:border-white/10 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all',
-      compact ? 'rounded-2xl' : 'rounded-[22px]'
+      compact ? 'rounded-2xl' : 'rounded-3xl'
     )}>
       {/* Top Specular Light Highlight */}
       <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/90 dark:via-white/20 to-transparent pointer-events-none z-20" />

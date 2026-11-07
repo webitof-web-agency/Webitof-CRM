@@ -1,5 +1,5 @@
 const { loadBusinessState, buildRenewalDashboard, getRenewalTitle, getRenewalAmount } = require('../services/analytics.service');
-const { buildFinanceSummary, getPaymentAppliedAmount, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
+const { buildFinanceSummary, isIssuedInvoice, getPaymentAppliedAmount, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
 const {
   calculateExpenseImpact,
   calculateInvoiceTotals,
@@ -78,7 +78,7 @@ function buildFinanceTrend(state, monthsBack = 6) {
   const clientsById = new Map((state.clients || []).map((client) => [String(client.id), client]));
 
   (state.invoices || []).forEach((invoice) => {
-    if (invoice.status === 'Cancelled') return;
+    if (!isIssuedInvoice(invoice)) return;
     const monthKey = getMonthKey(invoice.invoiceDate || invoice.createdAt);
     const bucket = bucketMap.get(monthKey);
     if (!bucket) return;
@@ -172,7 +172,7 @@ async function dashboardSummary(req, res, next) {
     const state = await loadBusinessState();
     const financeSummary = buildFinanceSummary(state);
     const invoiceTotals = state.invoices
-      .filter((invoice) => invoice.status !== 'Cancelled')
+      .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
     const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
@@ -285,16 +285,9 @@ async function dashboardSummary(req, res, next) {
         outsourcingOverdue: state.outsourcingExpenses.filter((item) => getOutsourcingAlertState(item, state.settings) === 'Overdue').length,
         automationAlerts,
         recentActivity: [
-          ...(state.invoices || []).map(i => ({ type: 'Invoice', id: i.id, title: i.invoiceNumber, amount: i.totalAmount || 0, date: i.invoiceDate || i.createdAt, status: i.status })),
-          ...(state.payments || []).map(p => ({ type: 'Payment', id: p.id, title: p.paymentNumber || p.referenceNumber || 'Payment Received', amount: p.amountReceived || 0, date: p.paymentDate || p.createdAt, status: p.status || 'Completed' }))
-        ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5).length ? [
-          ...(state.invoices || []).map(i => ({ type: 'Invoice', id: i.id, title: i.invoiceNumber, amount: i.totalAmount || 0, date: i.invoiceDate || i.createdAt, status: i.status })),
-          ...(state.payments || []).map(p => ({ type: 'Payment', id: p.id, title: p.paymentNumber || p.referenceNumber || 'Payment Received', amount: p.amountReceived || 0, date: p.paymentDate || p.createdAt, status: p.status || 'Completed' }))
-        ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5) : [
-          { type: 'Invoice', id: 'mock1', title: 'INV-2026-042', amount: 45000, date: new Date().toISOString(), status: 'Sent' },
-          { type: 'Payment', id: 'mock2', title: 'PAY-8932', amount: 15500, date: new Date(Date.now() - 86400000).toISOString(), status: 'Completed' },
-          { type: 'Invoice', id: 'mock3', title: 'INV-2026-041', amount: 8200, date: new Date(Date.now() - 86400000 * 2).toISOString(), status: 'Paid' },
-        ]
+          ...(state.invoices || []).map((i) => ({ type: 'Invoice', id: i.id, title: i.invoiceNumber, amount: i.totalAmount || 0, date: i.invoiceDate || i.createdAt, status: i.status || 'Draft' })),
+          ...(state.payments || []).map((p) => ({ type: 'Payment', id: p.id, title: p.paymentNumber || p.referenceNumber || 'Payment Received', amount: p.amountReceived || 0, date: p.paymentDate || p.createdAt, status: p.paymentStatus || 'Received' }))
+        ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5)
       }
     });
   } catch (error) {
@@ -306,7 +299,7 @@ async function profitLoss(req, res, next) {
   try {
     const state = await loadBusinessState();
     const invoiceTotals = state.invoices
-      .filter((invoice) => invoice.status !== 'Cancelled')
+      .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
     const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
@@ -339,7 +332,7 @@ async function gstSummary(req, res, next) {
   try {
     const state = await loadBusinessState();
     const invoiceTotals = state.invoices
-      .filter((invoice) => invoice.status !== 'Cancelled')
+      .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
     const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
@@ -399,7 +392,7 @@ async function caAudit(req, res, next) {
     const state = await loadBusinessState();
     const dashboard = await buildRenewalDashboard(state);
     const invoiceTotals = state.invoices
-      .filter((invoice) => invoice.status !== 'Cancelled')
+      .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
     const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
     const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));

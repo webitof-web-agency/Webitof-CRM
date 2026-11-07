@@ -115,7 +115,7 @@ export function ExpenseDetailsPage() {
             <button
               type="button"
               onClick={() => navigate('/app/expenses')}
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800"
+              className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)]"
             >
               <ArrowLeft size={16} />
               Back to Expenses
@@ -127,7 +127,7 @@ export function ExpenseDetailsPage() {
           </div>
           <div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
+              <span className="rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-xs font-medium text-sky-700">
                 {expense.paymentStatus || expense.status || 'Pending'}
               </span>
               <span className="text-sm text-[var(--text-muted)]">
@@ -140,47 +140,47 @@ export function ExpenseDetailsPage() {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
           <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
             <IndianRupee size={24} strokeWidth={2} />
           </div>
           <div className="overflow-hidden">
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Total Amount</p>
-            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(totalAmount)}</h3>
-            <p className="mt-1 text-xs text-slate-400 truncate">Total expenditure</p>
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Total Amount</p>
+            <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{formatMoney(totalAmount)}</h3>
+            <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Total expenditure</p>
           </div>
         </Card>
         
-        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
           <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
             <Wallet size={24} strokeWidth={2} />
           </div>
           <div className="overflow-hidden">
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Base Amount</p>
-            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(baseAmount)}</h3>
-            <p className="mt-1 text-xs text-slate-400 truncate">Amount before tax</p>
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Base Amount</p>
+            <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{formatMoney(baseAmount)}</h3>
+            <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Amount before tax</p>
           </div>
         </Card>
         
-        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
           <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
             <FileText size={24} strokeWidth={2} />
           </div>
           <div className="overflow-hidden">
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">GST Amount</p>
-            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">{formatMoney(gstAmount)}</h3>
-            <p className="mt-1 text-xs text-slate-400 truncate">Tax applied</p>
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">GST Amount</p>
+            <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">{formatMoney(gstAmount)}</h3>
+            <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Tax applied</p>
           </div>
         </Card>
 
-        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+        <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
           <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
             <Tag size={24} strokeWidth={2} />
           </div>
           <div className="overflow-hidden">
-            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">Category</p>
-            <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate" title={category?.name || '-'}>{category?.name || '-'}</h3>
-            <p className="mt-1 text-xs text-slate-400 truncate">Expense category</p>
+            <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">Category</p>
+            <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate" title={category?.name || '-'}>{category?.name || '-'}</h3>
+            <p className="mt-1 text-xs text-[var(--text-muted)] truncate">Expense category</p>
           </div>
         </Card>
       </div>
@@ -195,7 +195,7 @@ export function ExpenseDetailsPage() {
               <span>Base Amount ({basePercent.toFixed(1)}%)</span>
               <span>GST ({gstPercent.toFixed(1)}%)</span>
             </div>
-            <div className="h-4 w-full overflow-hidden rounded-full bg-slate-100 flex">
+            <div className="h-4 w-full overflow-hidden rounded-full bg-[var(--surface-2)] flex">
               <div
                 className="h-full bg-blue-500 transition-all duration-500"
                 style={{ width: `${basePercent}%` }}
@@ -207,19 +207,19 @@ export function ExpenseDetailsPage() {
             </div>
             
             <div className="mt-8 grid grid-cols-2 gap-4">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
                 <p className="text-sm font-medium text-[var(--text-muted)] mb-1">ITC Eligible</p>
                 <p className={cn("text-lg font-semibold", expense.itcEligible ? "text-emerald-600" : "text-[var(--text-main)]")}>
                   {expense.itcEligible ? 'Yes' : 'No'}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
                 <p className="text-sm font-medium text-[var(--text-muted)] mb-1">RCM Applicable</p>
                 <p className={cn("text-lg font-semibold", expense.rcmApplicable ? "text-amber-600" : "text-[var(--text-main)]")}>
                   {expense.rcmApplicable ? 'Yes' : 'No'}
                 </p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
                 <p className="text-sm font-medium text-[var(--text-muted)] mb-1">Balance Due</p>
                 <p className="text-lg font-semibold text-[var(--text-main)]">{formatMoney(balanceDue)}</p>
               </div>
@@ -325,10 +325,10 @@ export function ExpenseDetailsPage() {
                     href={file.url || '#'}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center justify-between rounded-xl border border-slate-200 p-3 transition hover:bg-slate-50 hover:border-slate-300"
+                    className="flex items-center justify-between rounded-xl border border-[var(--border)] p-3 transition hover:bg-[var(--surface-2)] hover:border-[var(--border)]"
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600">
                         <FileText size={18} />
                       </div>
                       <div className="min-w-0">
@@ -340,7 +340,7 @@ export function ExpenseDetailsPage() {
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center">
+              <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-6 text-center">
                 <Paperclip className="mx-auto h-6 w-6 text-slate-300" />
                 <p className="mt-2 text-sm text-[var(--text-muted)]">No attachments found</p>
               </div>
@@ -349,7 +349,7 @@ export function ExpenseDetailsPage() {
 
           {/* Notes */}
           {expense.notes && (
-            <Card className="p-6 bg-amber-50/50 border-amber-100">
+            <Card className="p-6 bg-amber-50/50 border-amber-500/25">
               <h3 className="text-sm font-semibold text-amber-800 mb-2">Notes</h3>
               <p className="text-sm text-amber-900 whitespace-pre-wrap">{expense.notes}</p>
             </Card>

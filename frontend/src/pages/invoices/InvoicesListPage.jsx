@@ -74,7 +74,7 @@ export function InvoicesListPage() {
     if (!dateString) return <span className="text-sm text-[var(--text-muted)]">-</span>;
     if (/^\d{4}-\d{2}-\d{2}$/.test(String(dateString))) {
       const [yyyy, mm, dd] = String(dateString).split('-');
-      return <span className="text-sm text-slate-600">{`${dd}-${mm}-${yyyy}`}</span>;
+      return <span className="text-sm text-[var(--text-muted)]">{`${dd}-${mm}-${yyyy}`}</span>;
     }
     const d = new Date(dateString);
     if (Number.isNaN(d.getTime())) return <span className="text-sm text-[var(--text-muted)]">-</span>;
@@ -88,7 +88,7 @@ export function InvoicesListPage() {
     hr = hr % 12 || 12;
     const hrStr = String(hr).padStart(2, '0');
     return (
-      <span className="text-sm text-slate-600">
+      <span className="text-sm text-[var(--text-muted)]">
         {`${dd}-${mm}-${yyyy} ${hrStr}:${min}:${sec} ${ampm}`}
       </span>
     );
@@ -159,7 +159,7 @@ export function InvoicesListPage() {
         </div>
         <div className="flex items-center gap-3">
           {canExport && (
-            <Button type="button" variant="secondary" onClick={() => setExportOpen(true)} className="bg-white shadow-sm border border-slate-200 hover:bg-slate-50 text-slate-700">
+            <Button type="button" variant="secondary" onClick={() => setExportOpen(true)} className="bg-[var(--surface-elevated)] shadow-sm border border-[var(--border)] hover:bg-[var(--surface-2)] text-[var(--text-main)]">
               <Download size={16} className="mr-2" /> Export invoices
             </Button>
           )}
@@ -240,7 +240,7 @@ export function InvoicesListPage() {
               </Button>
             )}
             {canDelete && (
-              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-50">
+              <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(row)} title="Delete" className="text-red-500 hover:text-red-600 hover:bg-red-500/10">
                 <Trash2 size={16} />
               </Button>
             )}

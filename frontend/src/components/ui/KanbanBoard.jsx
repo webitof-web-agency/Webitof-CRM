@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Calendar, CircleUser, IndianRupee, MoreVertical, Phone, Pencil, Trash2, Eye } from 'lucide-react';
 import { cn } from '../../lib/cn';
 import { getLeadStatusColor } from '../../config/leadManagement';
+import { IconButton } from './IconButton';
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -186,18 +187,17 @@ export function KanbanBoard({
                         ) : null}
                       </div>
                       <div className="relative flex items-center gap-1">
-                        <button
+                        <IconButton size="sm" className="opacity-0 group-hover:opacity-100"
                           type="button"
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpenMenuId((current) => (current === lead.id ? null : lead.id));
                           }}
-                          className="rounded-lg p-1 text-[var(--text-muted)] opacity-0 transition hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] group-hover:opacity-100 cursor-pointer"
                           aria-label="Lead actions"
                         >
                           <MoreVertical size={15} />
-                        </button>
+                        </IconButton>
                         {openMenuId === lead.id && (
                           <div
                             className="absolute right-0 top-7 z-20 w-36 overflow-hidden rounded-xl border border-[var(--border-glass)] bg-[var(--surface)] p-1 shadow-[var(--shadow-modal)] animate-fade-scale"

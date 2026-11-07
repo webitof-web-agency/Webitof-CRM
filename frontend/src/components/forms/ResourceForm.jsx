@@ -407,7 +407,7 @@ export function ResourceForm({
                   </label>
                   <span className={cn(
                     'font-bold',
-                    compact ? 'rounded-md px-2 py-0.5 text-[10.5px]' : 'rounded-full px-2.5 py-1 text-[11px]',
+                    compact ? 'rounded-md px-2 py-0.5 text-[11px]' : 'rounded-full px-2.5 py-1 text-[11px]',
                     Math.abs(formattedTotal - 100) <= 0.01
                       ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                       : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'

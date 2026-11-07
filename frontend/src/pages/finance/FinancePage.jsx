@@ -72,10 +72,10 @@ function formatDate(value) {
 
 function badgeClass(value = '') {
   const text = String(value || '').toLowerCase();
-  if (text === 'matched' || text === 'paid' || text === 'posted' || text === 'in') return 'bg-emerald-100 text-emerald-700';
-  if (text === 'suggested' || text === 'partially paid') return 'bg-amber-100 text-amber-700';
-  if (text === 'unmatched' || text === 'overdue') return 'bg-rose-100 text-rose-700';
-  return 'bg-slate-100 text-slate-700';
+  if (text === 'matched' || text === 'paid' || text === 'posted' || text === 'in') return 'bg-emerald-500/15 text-emerald-700';
+  if (text === 'suggested' || text === 'partially paid') return 'bg-amber-500/15 text-amber-700';
+  if (text === 'unmatched' || text === 'overdue') return 'bg-rose-500/15 text-rose-700';
+  return 'bg-[var(--surface-2)] text-[var(--text-main)]';
 }
 
 function Badge({ children, tone }) {
@@ -293,7 +293,7 @@ export function FinancePage() {
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 px-2 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[var(--border)] px-2 mb-6">
         <div className="flex items-center gap-6 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -305,10 +305,10 @@ export function FinancePage() {
                 className={`inline-flex items-center gap-2 px-1 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
                   activeTab === tab.key
                     ? 'border-[var(--primary)] text-[var(--primary)]'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-900'
+                    : 'border-transparent text-[var(--text-muted)] hover:border-[var(--border)] hover:text-[var(--text-main)]'
                 }`}
               >
-                {Icon && <Icon size={16} className={activeTab === tab.key ? 'text-[var(--primary)]' : 'text-slate-400'} />}
+                {Icon && <Icon size={16} className={activeTab === tab.key ? 'text-[var(--primary)]' : 'text-[var(--text-muted)]'} />}
                 {tab.label}
               </button>
             );
@@ -321,14 +321,14 @@ export function FinancePage() {
                 type="date"
                 value={overviewFrom}
                 onChange={(e) => setOverviewFrom(e.target.value)}
-                className="h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                className="h-10 rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
               />
-              <span className="text-slate-400 text-sm">to</span>
+              <span className="text-[var(--text-muted)] text-sm">to</span>
               <input
                 type="date"
                 value={overviewTo}
                 onChange={(e) => setOverviewTo(e.target.value)}
-                className="h-10 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+                className="h-10 rounded-md border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-2 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
               />
             </div>
           )}
@@ -365,31 +365,31 @@ export function FinancePage() {
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {overviewCards.map((card, i) => (
-              <Card key={i} className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-slate-100 rounded-[16px]">
+              <Card key={i} className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                 <div className={`shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full ${card.bg} ${card.color}`}>
                   <card.icon size={24} strokeWidth={2} />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1">{card.title}</p>
-                  <h3 className="text-lg md:text-xl font-bold text-slate-800 leading-tight truncate">
+                  <p className="text-[10px] md:text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-1">{card.title}</p>
+                  <h3 className="text-lg md:text-xl font-bold text-[var(--text-main)] leading-tight truncate">
                     {loading ? '...' : (card.isCount ? Number(card.value || 0).toLocaleString('en-IN') : formatAmount(card.value))}
                   </h3>
-                  {card.helper && <p className="text-[9px] text-slate-400 mt-1 truncate">{card.helper}</p>}
+                  {card.helper && <p className="text-[10px] text-[var(--text-muted)] mt-1 truncate">{card.helper}</p>}
                 </div>
               </Card>
             ))}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Card className="p-5 shadow-sm border border-slate-100 flex flex-col rounded-[16px] bg-white">
+            <Card className="p-5 shadow-sm border border-[var(--border)] flex flex-col rounded-2xl bg-[var(--surface-elevated)]">
               <div className="flex items-center gap-3.5 mb-5">
-                <div className="w-10 h-10 rounded-[10px] flex items-center justify-center relative overflow-hidden shrink-0">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <ReceiptText size={20} strokeWidth={2} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Receivables snapshot</h3>
-                  <p className="text-[10px] text-slate-500 mt-0.5">What is billed, collected, and still due.</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Receivables snapshot</h3>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">What is billed, collected, and still due.</p>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -399,14 +399,14 @@ export function FinancePage() {
                   ['Total Outstanding', summary?.totalOutstanding || 0, CircleDollarSign],
                   ['Overdue Outstanding', summary?.totalOverdueOutstanding || 0, AlertCircle]
                 ].map(([label, value, Icon]) => (
-                  <div key={label} className="rounded-[12px] border border-slate-100 p-4 bg-white hover:border-slate-200 transition-colors">
+                  <div key={label} className="rounded-xl border border-[var(--border)] p-4 bg-[var(--surface-elevated)] hover:border-[var(--border)] transition-colors">
                     <div className="flex items-center gap-2.5 mb-2">
-                      <div className="text-slate-400">
+                      <div className="text-[var(--text-muted)]">
                         <Icon size={16} strokeWidth={2.5} />
                       </div>
-                      <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)]">{label}</div>
                     </div>
-                    <div className={`text-lg font-bold ${label === 'Overdue Outstanding' ? 'text-red-500' : 'text-slate-800'}`}>
+                    <div className={`text-lg font-bold ${label === 'Overdue Outstanding' ? 'text-red-500' : 'text-[var(--text-main)]'}`}>
                       {loading ? '...' : formatAmount(value)}
                     </div>
                   </div>
@@ -414,15 +414,15 @@ export function FinancePage() {
               </div>
             </Card>
 
-            <Card className="p-5 md:p-6 shadow-sm border border-slate-100 flex flex-col rounded-[20px] bg-white">
+            <Card className="p-5 md:p-6 shadow-sm border border-[var(--border)] flex flex-col rounded-3xl bg-[var(--surface-elevated)]">
               <div className="flex items-center gap-3.5 mb-6">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
                   <div className="absolute inset-0 opacity-10" style={{ backgroundColor: 'var(--primary)' }}></div>
                   <SplitSquareHorizontal size={20} strokeWidth={2} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-800">Bank reconciliation snapshot</h3>
-                  <p className="text-[10px] text-slate-500 mt-0.5">Quick read on what is matched to bank entries.</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Bank reconciliation snapshot</h3>
+                  <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Quick read on what is matched to bank entries.</p>
                 </div>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -432,14 +432,14 @@ export function FinancePage() {
                   ['Unmatched', reconciliation?.summary?.unmatched || 0, XCircle],
                   ['Matched Amount', reconciliation?.summary?.matchedAmount || 0, Banknote]
                 ].map(([label, value, Icon]) => (
-                  <div key={label} className="rounded-[12px] border border-slate-100 p-4 bg-white hover:border-slate-200 transition-colors">
+                  <div key={label} className="rounded-xl border border-[var(--border)] p-4 bg-[var(--surface-elevated)] hover:border-[var(--border)] transition-colors">
                     <div className="flex items-center gap-2.5 mb-2">
-                      <div className="text-slate-400">
+                      <div className="text-[var(--text-muted)]">
                         <Icon size={16} strokeWidth={2.5} />
                       </div>
-                      <div className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">{label}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)]">{label}</div>
                     </div>
-                    <div className="text-lg font-bold text-slate-800">
+                    <div className="text-lg font-bold text-[var(--text-main)]">
                       {typeof value === 'number' && label.includes('Amount') ? formatAmount(value) : value.toLocaleString('en-IN')}
                     </div>
                   </div>
@@ -448,7 +448,7 @@ export function FinancePage() {
             </Card>
           </div>
 
-          <Card className="p-5 md:p-6 shadow-sm border border-slate-100 flex flex-col rounded-[20px] bg-white">
+          <Card className="p-5 md:p-6 shadow-sm border border-[var(--border)] flex flex-col rounded-3xl bg-[var(--surface-elevated)]">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-3.5">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center relative overflow-hidden shrink-0">
@@ -456,14 +456,14 @@ export function FinancePage() {
                   <Activity size={20} strokeWidth={2} style={{ color: 'var(--primary)' }} className="relative z-10" />
                 </div>
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-0.5">Health check</p>
-                  <h3 className="text-sm font-bold text-slate-800">Finance flow indicators</h3>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] mb-0.5">Health check</p>
+                  <h3 className="text-sm font-bold text-[var(--text-main)]">Finance flow indicators</h3>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-50">{summary?.paymentCount || 0} payments</span>
-                <span className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-50">{summary?.bankCredits || 0} bank credits</span>
-                <span className="rounded-full border border-slate-200 px-3 py-1.5 text-[10px] font-bold text-slate-600 bg-slate-50">{summary?.bankDebits || 0} bank debits</span>
+                <span className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-2)]">{summary?.paymentCount || 0} payments</span>
+                <span className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-2)]">{summary?.bankCredits || 0} bank credits</span>
+                <span className="rounded-full border border-[var(--border)] px-3 py-1.5 text-[10px] font-bold text-[var(--text-muted)] bg-[var(--surface-2)]">{summary?.bankDebits || 0} bank debits</span>
               </div>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
@@ -471,14 +471,14 @@ export function FinancePage() {
                 const Icon = item.icon;
                 const RightIcon = item.rightIcon;
                 return (
-                  <div key={item.label} className="rounded-[16px] border border-slate-100 p-4 bg-white flex items-center justify-between shadow-sm">
+                  <div key={item.label} className="rounded-2xl border border-[var(--border)] p-4 bg-[var(--surface-elevated)] flex items-center justify-between shadow-sm">
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-${item.color}-50 text-${item.color}-500`}>
                         <Icon size={20} strokeWidth={2.5} />
                       </div>
                       <div>
-                        <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-0.5">{item.label}</div>
-                        <div className="text-lg font-bold text-slate-800">{loading ? '...' : Number(item.value || 0).toLocaleString('en-IN')}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-muted)] mb-0.5">{item.label}</div>
+                        <div className="text-lg font-bold text-[var(--text-main)]">{loading ? '...' : Number(item.value || 0).toLocaleString('en-IN')}</div>
                       </div>
                     </div>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center bg-${item.color}-50 text-${item.color}-500 shrink-0`}>
@@ -533,17 +533,17 @@ export function FinancePage() {
               <div className="flex items-center justify-end gap-1">
                 {row.invoiceId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Invoice" onClick={() => navigate(`/app/invoices/${row.invoiceId}`)}>
-                    <FileText size={16} className="text-slate-400 hover:text-blue-500 transition-colors" />
+                    <FileText size={16} className="text-[var(--text-muted)] hover:text-blue-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.clientId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Client" onClick={() => navigate(`/app/clients/${row.clientId}`)}>
-                    <Building2 size={16} className="text-slate-400 hover:text-emerald-500 transition-colors" />
+                    <Building2 size={16} className="text-[var(--text-muted)] hover:text-emerald-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.projectId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Project" onClick={() => navigate(`/app/projects/${row.projectId}`)}>
-                    <Briefcase size={16} className="text-slate-400 hover:text-purple-500 transition-colors" />
+                    <Briefcase size={16} className="text-[var(--text-muted)] hover:text-purple-500 transition-colors" />
                   </Button>
                 ) : null}
               </div>
@@ -601,17 +601,17 @@ export function FinancePage() {
               <div className="flex items-center justify-end gap-1">
                 {row.invoiceId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Invoice" onClick={() => navigate(`/app/invoices/${row.invoiceId}`)}>
-                    <FileText size={16} className="text-slate-400 hover:text-blue-500 transition-colors" />
+                    <FileText size={16} className="text-[var(--text-muted)] hover:text-blue-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.clientId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Client" onClick={() => navigate(`/app/clients/${row.clientId}`)}>
-                    <Building2 size={16} className="text-slate-400 hover:text-emerald-500 transition-colors" />
+                    <Building2 size={16} className="text-[var(--text-muted)] hover:text-emerald-500 transition-colors" />
                   </Button>
                 ) : null}
                 {row.projectId ? (
                   <Button type="button" variant="ghost" size="icon" title="Open Project" onClick={() => navigate(`/app/projects/${row.projectId}`)}>
-                    <Briefcase size={16} className="text-slate-400 hover:text-purple-500 transition-colors" />
+                    <Briefcase size={16} className="text-[var(--text-muted)] hover:text-purple-500 transition-colors" />
                   </Button>
                 ) : null}
               </div>

@@ -105,6 +105,8 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
       () => employees.privateProfile(manager, e.id, null, db),
       { statusCode: 403 },
     );
+    const balanceOf = async (user, employeeId, leaveTypeId) =>
+      (await ops.leaveBalance(user, employeeId, 2026, db)).find((row) => row.leaveTypeId === leaveTypeId).balance;
     const leaveType = await queries.masters(
       admin,
       "leave_type",
@@ -146,7 +148,7 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
     );
     await ops.approveRequest(manager, leave.id, { action: "approve" }, db);
     assert.equal(
-      Number((await ops.leaveBalance(staff, e.id, 2026, db))[0].balance),
+      Number(await balanceOf(staff, e.id, leaveType.id)),
       11,
     );
     await assert.rejects(
@@ -154,7 +156,7 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
       { statusCode: 409 },
     );
     assert.equal(
-      Number((await ops.leaveBalance(staff, e.id, 2026, db))[0].balance),
+      Number(await balanceOf(staff, e.id, leaveType.id)),
       11,
     );
     const project = await c.insert(db, "projects", {

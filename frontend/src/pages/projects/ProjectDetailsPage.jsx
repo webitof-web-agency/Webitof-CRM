@@ -1070,14 +1070,13 @@ function ProjectCalendar({ events, view, currentDate, onViewChange, onDateChange
                         </div>
                       </button>
                       {onDeleteEvent ? (
-                        <button
+                        <IconButton box="8" tone="danger" shape="full" className="ml-2"
                           type="button"
                           onClick={() => onDeleteEvent(item)}
-                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-50 hover:text-rose-600"
                           aria-label="Delete event"
                         >
                           <Trash2 size={14} />
-                        </button>
+                        </IconButton>
                       ) : null}
                     </div>
                   )) : (
@@ -1471,7 +1470,7 @@ export function ProjectDetailsPage() {
           {activeTab === 'overview' ? (
             <>
               <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-emerald-50/80 text-emerald-500">
                     <Activity size={24} strokeWidth={2} />
                   </div>
@@ -1482,7 +1481,7 @@ export function ProjectDetailsPage() {
                   </div>
                 </Card>
 
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-purple-50/80 text-purple-500">
                     <CheckCircle2 size={24} strokeWidth={2} />
                   </div>
@@ -1493,7 +1492,7 @@ export function ProjectDetailsPage() {
                   </div>
                 </Card>
 
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-amber-50/80 text-amber-500">
                     <Tag size={24} strokeWidth={2} />
                   </div>
@@ -1504,7 +1503,7 @@ export function ProjectDetailsPage() {
                   </div>
                 </Card>
 
-                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-[16px]">
+                <Card className="px-4 py-6 md:px-5 flex items-center gap-4 shadow-sm border border-[var(--border)] rounded-2xl">
                   <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 flex items-center justify-center rounded-full bg-blue-50/80 text-blue-500">
                     <Clock3 size={24} strokeWidth={2} />
                   </div>

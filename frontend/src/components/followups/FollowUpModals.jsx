@@ -182,7 +182,7 @@ function RelatedRecordCombobox({ entityType, value, label, onChange, token, erro
                   setQueryText('');
                   setResults([]);
                 }}
-                className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-blue-50 dark:hover:bg-blue-950/60 transition cursor-pointer group"
+                className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-left hover:bg-blue-500/10 dark:hover:bg-blue-950/60 transition cursor-pointer group"
               >
                 <div className="min-w-0 pr-2">
                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-blue-700 dark:group-hover:text-blue-400 truncate">
@@ -437,7 +437,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
                 key={qTitle}
                 type="button"
                 onClick={() => set('title', qTitle)}
-                className="px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-300 border border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-700 transition cursor-pointer"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-300 border border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-700 transition cursor-pointer"
               >
                 {qTitle}
               </button>
@@ -461,7 +461,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
                 key={qPurp}
                 type="button"
                 onClick={() => set('purpose', qPurp)}
-                className="px-2 py-0.5 rounded-md text-[10.5px] font-medium bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-300 border border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-700 transition cursor-pointer"
+                className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-50 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 text-slate-600 dark:text-slate-300 hover:text-blue-700 dark:hover:text-blue-300 border border-slate-200 dark:border-slate-700 hover:border-blue-200 dark:hover:border-blue-700 transition cursor-pointer"
               >
                 {qPurp}
               </button>
@@ -534,11 +534,11 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
           {/* Quick Date & Time Presets */}
           <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-slate-200 dark:border-slate-800">
             <div className="flex items-center gap-1">
-              <span className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">📅 Date:</span>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">📅 Date:</span>
               <button
                 type="button"
                 onClick={() => set('date', todayInput())}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold border transition cursor-pointer ${
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition cursor-pointer ${
                   form.date === todayInput()
                     ? 'bg-blue-600 text-white border-blue-600 shadow-2xs font-bold'
                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -549,7 +549,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
               <button
                 type="button"
                 onClick={() => set('date', tomorrowInput())}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold border transition cursor-pointer ${
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition cursor-pointer ${
                   form.date === tomorrowInput()
                     ? 'bg-blue-600 text-white border-blue-600 shadow-2xs font-bold'
                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -560,7 +560,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
               <button
                 type="button"
                 onClick={() => set('date', daysAheadInput(2))}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold border transition cursor-pointer ${
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition cursor-pointer ${
                   form.date === daysAheadInput(2)
                     ? 'bg-blue-600 text-white border-blue-600 shadow-2xs font-bold'
                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -571,7 +571,7 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
               <button
                 type="button"
                 onClick={() => set('date', daysAheadInput(7))}
-                className={`px-2 py-0.5 rounded text-[10.5px] font-semibold border transition cursor-pointer ${
+                className={`px-2 py-0.5 rounded text-[11px] font-semibold border transition cursor-pointer ${
                   form.date === daysAheadInput(7)
                     ? 'bg-blue-600 text-white border-blue-600 shadow-2xs font-bold'
                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
@@ -582,13 +582,13 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
             </div>
 
             <div className="flex items-center gap-1">
-              <span className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">⏰ Time:</span>
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">⏰ Time:</span>
               {['10:00', '11:30', '14:00', '16:00', '17:30', '18:30'].map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => set('time', t)}
-                  className={`px-1.5 py-0.5 rounded text-[10.5px] font-medium border transition cursor-pointer ${
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-medium border transition cursor-pointer ${
                     form.time === t
                       ? 'bg-blue-600 text-white border-blue-600 font-semibold shadow-2xs'
                       : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'

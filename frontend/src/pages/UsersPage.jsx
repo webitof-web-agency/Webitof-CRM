@@ -169,7 +169,7 @@ export function UsersPage() {
           { label: 'Admins', value: stats.admins, helper: 'Admin role mapped', bg: 'bg-purple-50/80 text-purple-500' },
           { label: 'Inactive', value: stats.inactive, helper: 'Disabled accounts', bg: 'bg-rose-50/80 text-rose-500' }
         ].map((item) => (
-          <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+          <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-2xl">
             <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
               <Users size={20} strokeWidth={2} />
             </div>

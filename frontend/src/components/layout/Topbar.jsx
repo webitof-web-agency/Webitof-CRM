@@ -106,7 +106,7 @@ export function Topbar({
         <button
           type="button"
           onClick={onOpenCommandPalette}
-          className="flex w-full items-center justify-between rounded-[14px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] hover:bg-white/90 dark:hover:bg-white/[0.09] px-3.5 py-2 text-xs text-slate-500 dark:text-slate-400 transition-all duration-150 shadow-xs backdrop-blur-md group cursor-pointer"
+          className="flex w-full items-center justify-between rounded-2xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] hover:bg-white/90 dark:hover:bg-white/[0.09] px-3.5 py-2 text-xs text-slate-500 dark:text-slate-400 transition-all duration-150 shadow-xs backdrop-blur-md group cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <Search size={14} className="text-slate-400 dark:text-slate-500 group-hover:text-[var(--primary)] transition-colors" />
@@ -126,7 +126,7 @@ export function Topbar({
         <button
           type="button"
           onClick={onOpenCommandPalette}
-          className="sm:hidden flex h-9.5 w-9.5 items-center justify-center rounded-[12px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          className="sm:hidden flex h-9.5 w-9.5 items-center justify-center rounded-xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
           aria-label="Search"
         >
           <Search size={16} />
@@ -136,14 +136,14 @@ export function Topbar({
         <button
           type="button"
           onClick={toggleMode}
-          className="relative flex h-9.5 w-9.5 items-center justify-center rounded-[12px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 transition-all duration-200 hover:bg-white/90 dark:hover:bg-white/10 hover:scale-105 cursor-pointer shadow-xs"
+          className="relative flex h-9.5 w-9.5 items-center justify-center rounded-xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 transition-all duration-200 hover:bg-white/90 dark:hover:bg-white/10 hover:scale-105 cursor-pointer shadow-xs"
           title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           aria-label="Toggle dark mode"
         >
           {isDarkMode ? (
             <Sun size={17} className="text-amber-400 transition-transform duration-300 hover:rotate-45" strokeWidth={2.2} />
           ) : (
-            <Moon size={17} className="text-slate-600 transition-transform duration-300 hover:-rotate-12" strokeWidth={2} />
+            <Moon size={17} className="text-[var(--text-muted)] transition-transform duration-300 hover:-rotate-12" strokeWidth={2} />
           )}
         </button>
 
@@ -151,7 +151,7 @@ export function Topbar({
         <button
           type="button"
           onClick={onCalendarClick}
-          className="relative flex h-9.5 w-9.5 items-center justify-center rounded-[12px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 transition-all hover:bg-white/90 dark:hover:bg-white/10 hover:scale-105 cursor-pointer shadow-xs"
+          className="relative flex h-9.5 w-9.5 items-center justify-center rounded-xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 transition-all hover:bg-white/90 dark:hover:bg-white/10 hover:scale-105 cursor-pointer shadow-xs"
           aria-label="Open events and calendar"
           title="Events & Calendar"
         >
@@ -163,19 +163,19 @@ export function Topbar({
           <button
             type="button"
             onClick={() => setNotificationsOpen((current) => !current)}
-            className="relative flex h-9.5 w-9.5 items-center justify-center rounded-[12px] border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 transition-all hover:bg-white/90 dark:hover:bg-white/10 hover:scale-105 cursor-pointer shadow-xs"
+            className="relative flex h-9.5 w-9.5 items-center justify-center rounded-xl border border-white/60 dark:border-white/10 bg-white/60 dark:bg-white/[0.05] text-slate-600 dark:text-slate-300 transition-all hover:bg-white/90 dark:hover:bg-white/10 hover:scale-105 cursor-pointer shadow-xs"
             aria-label="Open notifications"
           >
             <Bell size={17} strokeWidth={1.8} />
             {unreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 flex min-w-4 h-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-none text-white shadow-xs animate-pulse-subtle">
+              <span className="absolute -right-1 -top-1 flex min-w-4 h-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold leading-none text-white shadow-xs animate-pulse-subtle">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             ) : null}
           </button>
 
           {notificationsOpen ? (
-            <div className="absolute right-0 mt-2 w-[22rem] sm:w-[24rem] overflow-hidden rounded-[22px] border border-white/80 dark:border-white/15 bg-white/90 dark:bg-[#131620]/90 shadow-2xl backdrop-blur-2xl animate-fade-scale z-50">
+            <div className="absolute right-0 mt-2 w-[22rem] sm:w-[24rem] overflow-hidden rounded-3xl border border-white/80 dark:border-white/15 bg-white/90 dark:bg-[#131620]/90 shadow-2xl backdrop-blur-2xl animate-fade-scale z-50">
               <div className="flex items-center justify-between gap-3 border-b border-black/[0.06] dark:border-white/[0.08] px-4 py-3 bg-white/50 dark:bg-white/[0.02]">
                 <div>
                   <p className="text-xs font-bold text-slate-900 dark:text-white">Notifications</p>
@@ -215,7 +215,7 @@ export function Topbar({
                         if (item.link) navigate(item.link);
                         setNotificationsOpen(false);
                       }}
-                      className={`w-full rounded-[14px] p-2.5 text-left transition-all duration-150 cursor-pointer ${
+                      className={`w-full rounded-2xl p-2.5 text-left transition-all duration-150 cursor-pointer ${
                         item.isRead
                           ? 'bg-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
                           : 'bg-[var(--primary)]/8 dark:bg-[var(--primary)]/15 hover:bg-[var(--primary)]/12 border border-[var(--primary)]/15'
@@ -223,7 +223,7 @@ export function Topbar({
                     >
                       <div className="flex items-start gap-2.5">
                         <div
-                          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] ${
+                          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${
                             item.isRead
                               ? 'bg-black/[0.05] dark:bg-white/10 text-slate-500 dark:text-slate-400'
                               : 'bg-[var(--primary)] text-white shadow-xs'
@@ -272,18 +272,18 @@ export function Topbar({
           >
             <UserAvatar
               name={user?.fullName || user?.name || 'Admin'}
-              className="h-9.5 w-9.5 text-slate-400 border border-white/60 dark:border-white/15 shadow-xs transition-transform duration-150 group-hover:scale-105"
+              className="h-9.5 w-9.5 text-[var(--text-muted)] border border-white/60 dark:border-white/15 shadow-xs transition-transform duration-150 group-hover:scale-105"
               fallbackSize={16}
             />
           </div>
 
           {/* Dropdown Menu */}
           {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-[22px] bg-white/90 dark:bg-[#131620]/90 border border-white/80 dark:border-white/15 shadow-2xl backdrop-blur-2xl focus:outline-none overflow-hidden p-1.5 animate-fade-scale z-50">
+            <div className="absolute right-0 mt-2 w-64 origin-top-right rounded-3xl bg-white/90 dark:bg-[#131620]/90 border border-white/80 dark:border-white/15 shadow-2xl backdrop-blur-2xl focus:outline-none overflow-hidden p-1.5 animate-fade-scale z-50">
               <div className="flex items-center gap-3 px-3 py-3 border-b border-black/[0.06] dark:border-white/[0.08]">
                 <UserAvatar
                   name={user?.fullName || user?.name || 'Admin'}
-                  className="h-10 w-10 text-slate-500 border border-white/60 dark:border-white/15 shadow-xs"
+                  className="h-10 w-10 text-[var(--text-muted)] border border-white/60 dark:border-white/15 shadow-xs"
                   fallbackSize={20}
                 />
                 <div className="min-w-0 flex-1">
@@ -302,9 +302,9 @@ export function Topbar({
                 <Link
                   to="/app/profile"
                   onClick={() => setDropdownOpen(false)}
-                  className="flex items-center gap-2.5 rounded-[12px] px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors hover:bg-black/[0.04] dark:hover:bg-white/10"
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors hover:bg-black/[0.04] dark:hover:bg-white/10"
                 >
-                  <Settings size={14} className="text-slate-400" />
+                  <Settings size={14} className="text-[var(--text-muted)]" />
                   Edit Profile
                 </Link>
                 <button
@@ -312,7 +312,7 @@ export function Topbar({
                     setDropdownOpen(false);
                     logout();
                   }}
-                  className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 transition-colors hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 transition-colors hover:bg-rose-500/10 dark:hover:bg-rose-950/40 cursor-pointer"
                 >
                   <LogOut size={14} />
                   Logout

@@ -2037,7 +2037,7 @@ export function QuotationBuilderModal({
                       </div>
 
                       {/* Footer Link Hint */}
-                      <div className="pt-2 text-[10.5px] text-[var(--text-muted)] flex items-center justify-between">
+                      <div className="pt-2 text-[11px] text-[var(--text-muted)] flex items-center justify-between">
                         <span>Click pill to open full lead profile</span>
                         <ExternalLink size={10} className="text-[var(--text-muted)]" />
                       </div>
@@ -3264,7 +3264,7 @@ export function QuotationBuilderModal({
                           <div>
                             <div className="font-bold text-[var(--text-main)]">{ms.name}</div>
                             {ms.dueEvent && ms.dueEvent !== ms.name && (
-                              <div className="text-[10.5px] text-[var(--text-muted)]">Condition: {ms.dueEvent}</div>
+                              <div className="text-[11px] text-[var(--text-muted)]">Condition: {ms.dueEvent}</div>
                             )}
                           </div>
                         </div>
@@ -3598,14 +3598,14 @@ export function QuotationBuilderModal({
                   {/* Summary Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl space-y-2">
-                      <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">CLIENT &amp; CHARTER</div>
+                      <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">CLIENT &amp; CHARTER</div>
                       <div className="text-sm font-bold text-[var(--text-main)]">{lead?.companyName || lead?.name || 'Client'}</div>
                       <div className="text-xs text-[var(--text-muted)]">Proposal: <strong>{formData.title}</strong></div>
                       <div className="text-xs text-[var(--text-muted)]">Validity: <strong>{formData.validUntil}</strong></div>
                     </div>
 
                     <div className="p-4 bg-[var(--surface-2)] border border-[var(--border)] rounded-xl space-y-2">
-                      <div className="text-[10.5px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">COMMERCIAL SUMMARY</div>
+                      <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">COMMERCIAL SUMMARY</div>
                       <div className="text-xl font-extrabold font-mono text-blue-700">{formatLeadAmount(commercialTotals.totalAmount, currency)}</div>
                       <div className="text-xs text-[var(--text-muted)]">Tax Breakdown: <strong>{commercialTotals.taxLabel}</strong> ({formatLeadAmount(commercialTotals.gstAmount, currency)})</div>
                       <div className="text-xs text-[var(--text-muted)]">Milestones: <strong>{formData.milestones?.length || 0} Stage-Gate disbursements (100%)</strong></div>
@@ -3651,7 +3651,7 @@ export function QuotationBuilderModal({
           <div className="lg:col-span-4 space-y-4">
             <Card className="p-4 bg-[var(--surface-elevated)] border-[var(--border)] shadow-2xs space-y-4 sticky top-4">
               <div className="border-b border-[var(--border)] pb-2.5">
-                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
                   LIVE INVESTMENT SUMMARY
                 </span>
                 <div className="text-2xl font-black text-[var(--text-main)] font-mono mt-1">
@@ -3692,7 +3692,7 @@ export function QuotationBuilderModal({
                     : 'bg-amber-50 border-amber-200 text-amber-900'
                 }`}>
                   <div className="font-bold">{budgetFit.label}</div>
-                  <div className="text-[10.5px] opacity-80 mt-0.5">Lead Budget: {formatLeadAmount(budgetFit.leadBudget, currency)}</div>
+                  <div className="text-[11px] opacity-80 mt-0.5">Lead Budget: {formatLeadAmount(budgetFit.leadBudget, currency)}</div>
                 </div>
               )}
 
@@ -3705,7 +3705,7 @@ export function QuotationBuilderModal({
                   </span>
                 </div>
                 {!milestoneValidation.isValid && (
-                  <div className="text-[10.5px] text-amber-800 leading-tight">
+                  <div className="text-[11px] text-amber-800 leading-tight">
                     {milestoneValidation.difference > 0 ? `${milestoneValidation.difference}% remaining` : `${Math.abs(milestoneValidation.difference)}% excess`}
                   </div>
                 )}

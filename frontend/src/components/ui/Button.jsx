@@ -24,12 +24,12 @@ const variants = {
 };
 
 const sizes = {
-  xs: 'h-7.5 px-3 text-xs rounded-[10px] gap-1.5 font-semibold',
-  sm: 'h-8.5 px-3.5 text-xs font-semibold rounded-[12px] gap-1.5',
-  md: 'h-10 px-4 text-xs sm:text-sm font-semibold rounded-[14px] gap-2',
-  lg: 'h-11.5 px-5.5 text-sm font-bold rounded-[16px] gap-2.5',
-  icon: 'h-9.5 w-9.5 p-0 rounded-[12px] justify-center',
-  'icon-sm': 'h-8 w-8 p-0 rounded-[10px] justify-center'
+  xs: 'h-7.5 px-3 text-xs rounded-xl gap-1.5 font-semibold',
+  sm: 'h-8.5 px-3.5 text-xs font-semibold rounded-xl gap-1.5',
+  md: 'h-10 px-4 text-xs sm:text-sm font-semibold rounded-2xl gap-2',
+  lg: 'h-11.5 px-5.5 text-sm font-bold rounded-2xl gap-2.5',
+  icon: 'h-9.5 w-9.5 p-0 rounded-xl justify-center',
+  'icon-sm': 'h-8 w-8 p-0 rounded-xl justify-center'
 };
 
 export const Button = forwardRef(function Button(

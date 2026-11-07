@@ -49,13 +49,13 @@ export function ForgotPasswordPage() {
             placeholder="admin@webitof.com"
             autoFocus
             required
-            className="liquid-glass-input h-11 rounded-[16px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 transition-all duration-200"
+            className="liquid-glass-input h-11 rounded-2xl text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 transition-all duration-200"
           />
         </div>
 
         <Button
           type="submit"
-          className="w-full h-11.5 text-sm font-bold rounded-[16px] bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-xl shadow-[var(--primary)]/30 border border-white/30 transition-all duration-200 mt-2 cursor-pointer"
+          className="w-full h-11.5 text-sm font-bold rounded-2xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-xl shadow-[var(--primary)]/30 border border-white/30 transition-all duration-200 mt-2 cursor-pointer"
           loading={busy}
         >
           <span>Send Verification OTP</span>

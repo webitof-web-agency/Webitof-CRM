@@ -192,7 +192,7 @@ export function NotificationsPage() {
           { label: 'Today', value: stats.today, helper: 'Created in last 24 hours', bg: 'bg-emerald-50/80 text-emerald-500', Icon: Clock3 },
           { label: 'High Priority', value: stats.high, helper: 'Warnings and critical events', bg: 'bg-rose-50/80 text-rose-500', Icon: ShieldAlert }
         ].map((item) => (
-          <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-[16px]">
+          <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-2xl">
             <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
               <item.Icon size={20} strokeWidth={2} />
             </div>

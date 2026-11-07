@@ -286,7 +286,7 @@ function LineItemRow({
             className={`w-full text-xs text-right bg-white border border-slate-200 rounded-[var(--radius-input,0.75rem)] px-2 py-1.5 hover:border-slate-300 focus:bg-white focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] outline-none transition-all text-slate-700 font-medium ${Boolean(item.serviceId) && !canEditServiceRates ? 'cursor-not-allowed opacity-60 bg-slate-100' : ''}`}
           />
           {item.serviceId && !canEditServiceRates && (
-            <p className="text-[9px] text-amber-600 text-right leading-tight font-medium px-1 mt-0.5">Locked price</p>
+            <p className="text-[10px] text-amber-600 text-right leading-tight font-medium px-1 mt-0.5">Locked price</p>
           )}
         </div>
       </td>

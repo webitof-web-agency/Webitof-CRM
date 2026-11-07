@@ -401,7 +401,7 @@ export function QuotationMasterPage() {
                 ].map(([value, label]) => <div key={label} className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-lg font-bold text-[var(--primary)]">{value || '—'}</div><div className="text-[10px] font-semibold uppercase text-[var(--text-muted)]">{label}</div></div>)}
               </div>
               <div className="flex -space-x-2">
-                {form.topClients.slice(0, 6).map((client, index) => <div key={client.id || index} title={client.name} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-slate-100 text-[9px] font-bold text-slate-500">{client.logoUrl ? <img src={client.logoUrl} alt="" className="h-full w-full object-contain p-1" /> : (client.name || '?').slice(0, 2).toUpperCase()}</div>)}
+                {form.topClients.slice(0, 6).map((client, index) => <div key={client.id || index} title={client.name} className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-slate-100 text-[10px] font-bold text-slate-500">{client.logoUrl ? <img src={client.logoUrl} alt="" className="h-full w-full object-contain p-1" /> : (client.name || '?').slice(0, 2).toUpperCase()}</div>)}
               </div>
             </div>
           </Card>

@@ -523,8 +523,8 @@ export function SettingsPage() {
   return (
     <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Manage your system configurations.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">Settings</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Manage your system configurations.</p>
       </div>
       <div className="flex flex-col md:flex-row gap-8 items-start">
         <Card className="w-full md:w-64 shrink-0 flex flex-col gap-1 p-3 sticky top-24 shadow-sm h-fit">
@@ -533,7 +533,7 @@ export function SettingsPage() {
             const Icon = tab.icon;
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}
-                className={cn("flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all text-left cursor-pointer group", isActive ? "bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]" : "text-slate-600 hover:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)] hover:text-[var(--primary)]")}>
+                className={cn("flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all text-left cursor-pointer group", isActive ? "bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)] hover:text-[var(--primary)]")}>
                 <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
                 {tab.label}
               </button>
@@ -545,16 +545,16 @@ export function SettingsPage() {
             <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
               {/* Card 1: Business Identity & Legal Information */}
               <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="mb-6 border-b border-[var(--border)] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Building2 size={20} className="text-slate-800" />
-                      <h3 className="text-lg font-semibold text-slate-800">Business Identity & Legal Details</h3>
+                      <Building2 size={20} className="text-[var(--text-main)]" />
+                      <h3 className="text-lg font-semibold text-[var(--text-main)]">Business Identity & Legal Details</h3>
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">Official corporate, tax, and registration information of Webitof.</p>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">Official corporate, tax, and registration information of Webitof.</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-700 border border-emerald-500/25">
                       <CheckCircle2 size={13} className="text-emerald-600" /> OPC Private Limited
                     </span>
                   </div>
@@ -562,7 +562,7 @@ export function SettingsPage() {
 
                 <div className="grid gap-5 md:grid-cols-2">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Brand / Trading Name</label>
+                    <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Brand / Trading Name</label>
                     <Input
                       value={settings.company?.name || ''}
                       onChange={(e) => updateSection(setSettings, 'company', 'name', e.target.value)}
@@ -571,7 +571,7 @@ export function SettingsPage() {
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-slate-700">Legal Registered Name</label>
+                    <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Legal Registered Name</label>
                     <Input
                       value={settings.company?.legalName || ''}
                       onChange={(e) => updateSection(setSettings, 'company', 'legalName', e.target.value)}
@@ -594,7 +594,7 @@ export function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => copyToClipboard(settings.company.cin, 'CIN')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-muted)] dark:hover:text-slate-200 cursor-pointer"
                           title="Copy CIN"
                         >
                           <Copy size={14} />
@@ -616,7 +616,7 @@ export function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => copyToClipboard(settings.company.gstin, 'GSTIN')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-muted)] dark:hover:text-slate-200 cursor-pointer"
                           title="Copy GSTIN"
                         >
                           <Copy size={14} />
@@ -640,7 +640,7 @@ export function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => copyToClipboard(settings.company.udyam, 'Udyam Number')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-muted)] dark:hover:text-slate-200 cursor-pointer"
                           title="Copy Udyam Number"
                         >
                           <Copy size={14} />
@@ -662,7 +662,7 @@ export function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => copyToClipboard(settings.company.pan, 'PAN')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-muted)] dark:hover:text-slate-200 cursor-pointer"
                           title="Copy PAN"
                         >
                           <Copy size={14} />
@@ -684,7 +684,7 @@ export function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => copyToClipboard(settings.company.tan, 'TAN')}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-muted)] dark:hover:text-slate-200 cursor-pointer"
                           title="Copy TAN"
                         >
                           <Copy size={14} />
@@ -748,7 +748,7 @@ export function SettingsPage() {
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                         Registered Office Address (as per RoC records)
                       </label>
-                      <span className="text-xs text-slate-400">Statutory / MCA address</span>
+                      <span className="text-xs text-[var(--text-muted)]">Statutory / MCA address</span>
                     </div>
                     <Textarea
                       rows={2}
@@ -763,7 +763,7 @@ export function SettingsPage() {
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">
                         Corporate / Operational Headquarters Address
                       </label>
-                      <span className="text-xs text-slate-400">Commercial office address for invoices</span>
+                      <span className="text-xs text-[var(--text-muted)]">Commercial office address for invoices</span>
                     </div>
                     <Textarea
                       rows={2}
@@ -910,7 +910,7 @@ export function SettingsPage() {
                           variant="ghost"
                           type="button"
                           onClick={() => removeCompanyAsset({ kind: 'signature' })}
-                          className="text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                          className="text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 dark:hover:bg-rose-950/40"
                         >
                           <Trash2 size={15} className="mr-1.5" /> Remove
                         </Button>
@@ -1086,7 +1086,7 @@ export function SettingsPage() {
                               <button
                                 type="button"
                                 onClick={() => removeCompanyAsset({ kind: 'certificate', type: certType.type })}
-                                className="inline-flex items-center justify-center h-8 px-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                className="inline-flex items-center justify-center h-8 px-2 rounded-lg text-[var(--text-muted)] hover:text-rose-600 hover:bg-rose-500/10 dark:hover:bg-rose-950/40 transition-colors"
                                 title="Remove"
                               >
                                 <Trash2 size={13} />
@@ -1195,7 +1195,7 @@ export function SettingsPage() {
                               <button
                                 type="button"
                                 onClick={() => removeCompanyAsset({ kind: 'certificate', id: cert.id, type: cert.type })}
-                                className="inline-flex items-center justify-center h-8 px-2 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                className="inline-flex items-center justify-center h-8 px-2 rounded-lg text-[var(--text-muted)] hover:text-rose-600 hover:bg-rose-500/10 dark:hover:bg-rose-950/40 transition-colors"
                                 title="Remove"
                               >
                                 <Trash2 size={13} />
@@ -1341,7 +1341,7 @@ export function SettingsPage() {
                           </button>
 
                           {(pendingLogos[key] || settings.logos?.[key]) && (
-                            <button
+                            <IconButton box="9" tone="danger" variant="outline"
                               type="button"
                               onClick={() => {
                                 if (pendingLogos[key]) {
@@ -1354,12 +1354,11 @@ export function SettingsPage() {
                                   updateSection(setSettings, 'logos', key, '');
                                 }
                               }}
-                              className="inline-flex items-center justify-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 h-9 w-9 text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shadow-sm shrink-0 cursor-pointer"
                               style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}
                               title="Remove logo"
                             >
                               <X size={15} />
-                            </button>
+                            </IconButton>
                           )}
                         </div>
                       </div>
@@ -1457,7 +1456,7 @@ export function SettingsPage() {
                                 'relative flex items-center justify-center h-10 w-10 rounded-full shadow-sm border border-black/10 transition-all hover:scale-110 cursor-pointer',
                                 isActive
                                   ? 'scale-110 ring-2 ring-offset-2 ring-[var(--primary)]'
-                                  : 'hover:ring-2 hover:ring-offset-2 hover:ring-slate-300 dark:hover:ring-slate-600'
+                                  : 'hover:ring-2 hover:ring-offset-2 hover:ring-[var(--border)] dark:hover:ring-slate-600'
                               )}
                               style={{ backgroundColor: color }}
                               onClick={() => {
@@ -1472,7 +1471,7 @@ export function SettingsPage() {
 
                         <div className="w-px h-8 bg-[var(--border)] mx-1"></div>
 
-                        <div className="relative h-10 w-10 rounded-full shadow-sm border border-black/10 overflow-hidden hover:scale-110 transition-all hover:ring-2 hover:ring-offset-2 hover:ring-slate-300 dark:hover:ring-slate-600 group cursor-pointer">
+                        <div className="relative h-10 w-10 rounded-full shadow-sm border border-black/10 overflow-hidden hover:scale-110 transition-all hover:ring-2 hover:ring-offset-2 hover:ring-[var(--border)] dark:hover:ring-slate-600 group cursor-pointer">
                           <input
                             type="color"
                             className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 m-0 border-0"
@@ -1631,7 +1630,7 @@ export function SettingsPage() {
                           <button
                             type="button"
                             onClick={() => setShowSmtpPassword((prev) => !prev)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-muted)] dark:hover:text-slate-200 cursor-pointer"
                             title={showSmtpPassword ? 'Hide password' : 'Show password'}
                           >
                             {showSmtpPassword ? <EyeOff size={15} /> : <Eye size={15} />}
@@ -1758,7 +1757,7 @@ export function SettingsPage() {
                         type="button"
                         className={cn(
                           "relative flex items-center justify-center h-10 w-10 rounded-full shadow-sm border border-black/10 transition-all hover:scale-110",
-                          isActive ? "scale-110 ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-500" : "hover:ring-2 hover:ring-offset-2 hover:ring-slate-300 dark:hover:ring-slate-600"
+                          isActive ? "scale-110 ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-500" : "hover:ring-2 hover:ring-offset-2 hover:ring-[var(--border)] dark:hover:ring-slate-600"
                         )}
                         style={{ backgroundColor: color, '--tw-ring-color': color }}
                         onClick={() => updateSection(setSettings, 'invoiceTheme', 'primaryColor', color)}
@@ -1768,7 +1767,7 @@ export function SettingsPage() {
                     );
                   })}
                   <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1" />
-                  <div className="relative h-10 w-10 rounded-full shadow-sm border border-black/10 overflow-hidden hover:scale-110 transition-all hover:ring-2 hover:ring-offset-2 hover:ring-slate-300 dark:hover:ring-slate-600 group" title="Custom Color">
+                  <div className="relative h-10 w-10 rounded-full shadow-sm border border-black/10 overflow-hidden hover:scale-110 transition-all hover:ring-2 hover:ring-offset-2 hover:ring-[var(--border)] dark:hover:ring-slate-600 group" title="Custom Color">
                     <input
                       type="color"
                       className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 m-0 border-0"
@@ -1816,7 +1815,7 @@ export function SettingsPage() {
                     </div>
                   )}
                   <div className="flex flex-wrap gap-3">
-                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-[var(--radius-button,0.5rem)] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-[var(--radius-button,0.5rem)] text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors">
                       <Upload size={15} className="text-slate-500 dark:text-slate-400" />
                       Upload Image
                       <input
@@ -1835,7 +1834,7 @@ export function SettingsPage() {
                     </label>
                     <button
                       type="button"
-                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-[var(--radius-button,0.5rem)] text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 dark:border-slate-700 rounded-[var(--radius-button,0.5rem)] text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors"
                       onClick={() => setWatermarkBrowserOpen(true)}
                     >
                       <Image size={15} className="text-slate-500 dark:text-slate-400" />
@@ -1922,7 +1921,7 @@ export function SettingsPage() {
                                 setSettings(next);
                                 await handleSaveSection(['invoiceTemplates'], 'Default template set');
                               }}
-                              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                              className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium px-2 py-1 rounded hover:bg-blue-500/10 dark:hover:bg-blue-900/30 transition-colors"
                             >
                               Set Default
                             </button>
@@ -2203,7 +2202,7 @@ export function SettingsPage() {
                     { key: 'lutEnabled', label: 'LUT Export Enabled', desc: 'Apply zero-rated GST for international/overseas clients under Letter of Undertaking.' },
                     { key: 'enableCess', label: 'Enable GST Cess', desc: 'Apply Cess on top of GST for applicable goods/services.' },
                   ].map(({ key, label, desc }) => (
-                    <label key={key} className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors">
+                    <label key={key} className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-[var(--surface-2)] dark:hover:bg-slate-900/40 transition-colors">
                       <input
                         type="checkbox"
                         checked={!!(settings.gst?.[key])}
@@ -2277,7 +2276,7 @@ export function SettingsPage() {
                       value={settings.tds?.commissionSection || '194H'}
                       onChange={(e) => updateSection(setSettings, 'tds', 'commissionSection', e.target.value)}
                       placeholder="194H" />
-                    <p className="text-xs text-slate-400 mt-1">e.g. 194H (Commission), 194J (Professional)</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">e.g. 194H (Commission), 194J (Professional)</p>
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">TDS Rate (%)</label>
@@ -2292,7 +2291,7 @@ export function SettingsPage() {
                       value={settings.tds?.commissionThreshold ?? 15000}
                       onChange={(e) => updateSection(setSettings, 'tds', 'commissionThreshold', Number(e.target.value))}
                       placeholder="15000" />
-                    <p className="text-xs text-slate-400 mt-1">TDS applies only above this limit</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">TDS applies only above this limit</p>
                   </div>
                 </div>
               </Card>
@@ -2319,10 +2318,10 @@ export function SettingsPage() {
                       <Clock3 size={22} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-slate-800">
+                      <h2 className="text-lg font-bold text-[var(--text-main)]">
                         Follow-up Engine & SLA Policy Settings
                       </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">
                         Control business calendar, operating hours, risk thresholds and automated protection policies.
                       </p>
                     </div>
@@ -2341,19 +2340,19 @@ export function SettingsPage() {
               <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
                 {/* Left Column: Protection Thresholds */}
                 <Card className="p-6 space-y-5">
-                  <div className="border-b border-slate-100 pb-3">
+                  <div className="border-b border-[var(--border)] pb-3">
                     <div className="flex items-center gap-2">
                       <ShieldAlert size={18} className="text-rose-500" />
-                      <h3 className="text-base font-bold text-slate-800">Risk & SLA Protection Thresholds</h3>
+                      <h3 className="text-base font-bold text-[var(--text-main)]">Risk & SLA Protection Thresholds</h3>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
                       These values configure how the CRM detects neglected leads, high-value deals at risk, and overdue bottlenecks.
                     </p>
                   </div>
 
                   <div className="grid gap-5 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">
                         High-Value Deal Threshold (₹)
                       </label>
                       <Input
@@ -2361,11 +2360,11 @@ export function SettingsPage() {
                         value={followUpSettings.protectionThresholds?.highValueLead ?? 250000}
                         onChange={(e) => updateFollowUpThreshold('highValueLead', e.target.value)}
                       />
-                      <p className="text-xs text-slate-400 mt-1">Deals above this value trigger priority alerts.</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Deals above this value trigger priority alerts.</p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">
                         Untouched Lead SLA (Hours)
                       </label>
                       <Input
@@ -2373,11 +2372,11 @@ export function SettingsPage() {
                         value={followUpSettings.protectionThresholds?.untouchedHours ?? 24}
                         onChange={(e) => updateFollowUpThreshold('untouchedHours', e.target.value)}
                       />
-                      <p className="text-xs text-slate-400 mt-1">Hours before a newly assigned lead is marked neglected.</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Hours before a newly assigned lead is marked neglected.</p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">
                         Waiting-for-Client Limit (Hours)
                       </label>
                       <Input
@@ -2385,11 +2384,11 @@ export function SettingsPage() {
                         value={followUpSettings.protectionThresholds?.waitingHours ?? 48}
                         onChange={(e) => updateFollowUpThreshold('waitingHours', e.target.value)}
                       />
-                      <p className="text-xs text-slate-400 mt-1">Hours before client inaction triggers a re-engagement nudge.</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Hours before client inaction triggers a re-engagement nudge.</p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">
                         Max Allowable Reschedules
                       </label>
                       <Input
@@ -2397,11 +2396,11 @@ export function SettingsPage() {
                         value={followUpSettings.protectionThresholds?.maxReschedules ?? 3}
                         onChange={(e) => updateFollowUpThreshold('maxReschedules', e.target.value)}
                       />
-                      <p className="text-xs text-slate-400 mt-1">Reschedule count before deal is flagged as stalling.</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Reschedule count before deal is flagged as stalling.</p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">
                         Daily Workload Limit per Agent
                       </label>
                       <Input
@@ -2409,11 +2408,11 @@ export function SettingsPage() {
                         value={followUpSettings.protectionThresholds?.dailyWorkloadWarning ?? 12}
                         onChange={(e) => updateFollowUpThreshold('dailyWorkloadWarning', e.target.value)}
                       />
-                      <p className="text-xs text-slate-400 mt-1">Daily follow-up limit before agent shows as overloaded.</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Daily follow-up limit before agent shows as overloaded.</p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">
                         Renewal Window Notice (Days)
                       </label>
                       <Input
@@ -2421,7 +2420,7 @@ export function SettingsPage() {
                         value={followUpSettings.protectionThresholds?.renewalWindowDays ?? 90}
                         onChange={(e) => updateFollowUpThreshold('renewalWindowDays', e.target.value)}
                       />
-                      <p className="text-xs text-slate-400 mt-1">Days in advance to generate upcoming contract renewals.</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Days in advance to generate upcoming contract renewals.</p>
                     </div>
                   </div>
                 </Card>
@@ -2429,18 +2428,18 @@ export function SettingsPage() {
                 {/* Right Column: Operating Hours & Customer Safety */}
                 <div className="space-y-6">
                   <Card className="p-6 space-y-4">
-                    <div className="border-b border-slate-100 pb-3">
+                    <div className="border-b border-[var(--border)] pb-3">
                       <div className="flex items-center gap-2">
                         <Clock3 size={18} className="text-blue-500" />
-                        <h3 className="text-base font-bold text-slate-800">Operating Hours</h3>
+                        <h3 className="text-base font-bold text-[var(--text-main)]">Operating Hours</h3>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1">Automated tasks respect local working hours.</p>
+                      <p className="text-xs text-[var(--text-muted)] mt-1">Automated tasks respect local working hours.</p>
                     </div>
 
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">Time Zone</label>
+                      <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Time Zone</label>
                       <select
-                        className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-[var(--primary)] focus:outline-none"
+                        className="w-full h-10 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] focus:border-[var(--primary)] focus:outline-none"
                         value={followUpSettings.timezone || 'Asia/Kolkata'}
                         onChange={(e) => setFollowUpSettings((curr) => ({ ...curr, timezone: e.target.value }))}
                       >
@@ -2450,7 +2449,7 @@ export function SettingsPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">Shift Starts</label>
+                        <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Shift Starts</label>
                         <Input
                           type="time"
                           value={followUpSettings.businessHours?.start || '09:30'}
@@ -2462,7 +2461,7 @@ export function SettingsPage() {
                       </div>
 
                       <div>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-700">Shift Ends</label>
+                        <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Shift Ends</label>
                         <Input
                           type="time"
                           value={followUpSettings.businessHours?.end || '18:30'}
@@ -3043,7 +3042,7 @@ curl_close($ch);
             {previewDoc?.url && (previewDoc.mimeType === 'application/pdf' || previewDoc.url.toLowerCase().endsWith('.pdf') || previewDoc.name?.toLowerCase().endsWith('.pdf')) ? (
               <iframe
                 src={previewDoc.url}
-                className="w-full h-[65vh] rounded-lg border border-slate-200 dark:border-slate-800 bg-white"
+                className="w-full h-[65vh] rounded-lg border border-slate-200 dark:border-slate-800 bg-[var(--surface-elevated)]"
                 title={previewDoc.label}
               />
             ) : previewDoc?.url ? (

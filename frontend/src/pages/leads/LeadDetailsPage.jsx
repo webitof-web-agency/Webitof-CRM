@@ -73,7 +73,7 @@ function InfoTooltip({ text }) {
     >
       <button
         type="button"
-        className="text-slate-400 hover:text-slate-600 focus:outline-none cursor-help"
+        className="text-[var(--text-muted)] hover:text-[var(--text-muted)] focus:outline-none cursor-help"
       >
         <HelpCircle size={14} />
       </button>
@@ -312,7 +312,7 @@ function ColorSwatches({ value, onChange, colors, size = 'sm' }) {
           className={cn(
             size === 'lg' ? 'h-5 w-5' : 'h-4 w-4',
             'rounded-full border transition',
-            value === color ? 'ring-2 ring-slate-300 ring-offset-1' : 'border-transparent'
+            value === color ? 'ring-2 ring-[var(--border)] ring-offset-1' : 'border-transparent'
           )}
           style={{ backgroundColor: color }}
           aria-label={`Select color ${color}`}
@@ -326,11 +326,11 @@ function ColorSwatches({ value, onChange, colors, size = 'sm' }) {
 function AttachmentChips({ attachments = [], onRemove }) {
   if (!attachments.length) return null;
   return (
-    <div className="flex flex-wrap gap-2 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-3">
+    <div className="flex flex-wrap gap-2 rounded-2xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-3">
       {attachments.map((file) => (
         <span
           key={file.driveFileId}
-          className="inline-flex max-w-full items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
+          className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-1 text-xs font-medium text-[var(--text-main)]"
         >
           <span className="truncate">{file.name}</span>
           {getFileOpenUrl(file) ? (
@@ -346,7 +346,7 @@ function AttachmentChips({ attachments = [], onRemove }) {
           {onRemove ? (
             <button
               type="button"
-              className="text-slate-400 hover:text-rose-500"
+              className="text-[var(--text-muted)] hover:text-rose-500"
               onClick={() => onRemove(file.driveFileId)}
               aria-label={`Remove ${file.name}`}
             >
@@ -1676,14 +1676,13 @@ function LeadEventsCalendar({
                     </div>
                   </button>
                   {onDeleteEvent ? (
-                    <button
+                    <IconButton box="8" tone="danger" shape="full" className="ml-2"
                       type="button"
                       onClick={() => onDeleteEvent(event)}
-                      className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
                       aria-label="Delete event"
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </IconButton>
                   ) : null}
                 </div>
               )) : (
@@ -1726,14 +1725,13 @@ function LeadEventsCalendar({
                         </div>
                       </button>
                       {onDeleteEvent ? (
-                        <button
+                        <IconButton box="8" tone="danger" shape="full" className="ml-2"
                           type="button"
                           onClick={() => onDeleteEvent(event)}
-                          className="ml-2 inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-muted)] transition hover:bg-rose-500/10 hover:text-rose-500 cursor-pointer"
                           aria-label="Delete event"
                         >
                           <Trash2 size={14} />
-                        </button>
+                        </IconButton>
                       ) : null}
                     </div>
                   ))}
@@ -1782,7 +1780,7 @@ function displayValue(value, fallback = '-') {
 function DetailRow({ label, value }) {
   return (
     <div className="min-w-0 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-2)] px-3 py-2">
-      <div className="text-[9px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)]">{label}</div>
       <div className="mt-0.5 min-w-0 whitespace-normal break-words text-[13px] font-medium leading-5 text-[var(--text-main)] [overflow-wrap:anywhere] [&_a]:break-all">
         {value || '-'}
       </div>
@@ -1931,7 +1929,7 @@ function ContactModal({ open, onClose, onSave, leadId, initialValue = null, busy
                   onChange={(e) => setFormData((cur) => ({ ...cur, gender: e.target.value }))}
                   className="text-[var(--primary)] focus:ring-[var(--primary)]"
                 />
-                <span className="text-sm text-slate-700">{option}</span>
+                <span className="text-sm text-[var(--text-main)]">{option}</span>
               </label>
             ))}
           </div>
@@ -2012,7 +2010,7 @@ function NoteModal({ open, onClose, onSave, leadId, labelOptions = [], initialVa
           multiple
         />
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Color</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Color</div>
           <ColorSwatches value={formData.color} onChange={(color) => setFormData((cur) => ({ ...cur, color }))} colors={presetColors} size="lg" />
         </div>
         <AttachmentPicker
@@ -2180,13 +2178,13 @@ function TaskModal({ open, onClose, onSave, leadId, userOptions = [], labelOptio
                 className="!appearance-auto"
                 style={{ accentColor: 'var(--primary)' }}
               />
-              <span className="text-sm text-slate-700">Repeat task</span>
+              <span className="text-sm text-[var(--text-main)]">Repeat task</span>
             </label>
           </div>
         </SectionRow>
         <div className="mt-1 flex flex-wrap gap-2 pt-2">
-          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Assigned</span>
-          <span className="text-xs text-slate-600">{userLookup.get(String(formData.assignedTo)) || 'Unassigned'}</span>
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Assigned</span>
+          <span className="text-xs text-[var(--text-muted)]">{userLookup.get(String(formData.assignedTo)) || 'Unassigned'}</span>
         </div>
         <AttachmentPicker
           attachments={attachments}
@@ -2311,7 +2309,7 @@ function EventModal({ open, onClose, onSave, leadId, initialValue = null, labelO
         />
 
         <div className="space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Color</div>
+          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">Color</div>
           <ColorSwatches value={formData.color} onChange={(color) => setFormData((cur) => ({ ...cur, color }))} colors={presetColors} size="lg" />
         </div>
       </form>
@@ -2635,7 +2633,7 @@ function LeadStatusModal({ open, status, options, busy = false, onClose, onSubmi
     >
       <form id="lead-status-form" onSubmit={handleSubmit} className="space-y-4">
         <label>
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Reason</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Reason</span>
           <SearchableSelect
             value={formData.lostReason}
             onChange={(value) => setFormData((current) => ({ ...current, lostReason: value }))}
@@ -2645,7 +2643,7 @@ function LeadStatusModal({ open, status, options, busy = false, onClose, onSubmi
           />
         </label>
         <label>
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Notes</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Notes</span>
           <Textarea
             value={formData.lostReasonNotes}
             onChange={(event) => setFormData((current) => ({ ...current, lostReasonNotes: event.target.value }))}
@@ -2709,36 +2707,36 @@ function CallLogModal({ open, onClose, onSave, options, canManageRecording = fal
     >
       <form id="lead-call-form" onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <label>
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Call type</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Call type</span>
           <SearchableSelect value={formData.callType} onChange={(value) => setFormData((current) => ({ ...current, callType: value }))} options={selectOptions(options.callTypes)} allowClear={false} />
         </label>
         <label>
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Date and time</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Date and time</span>
           <Input type="datetime-local" value={formData.callDateTime} onChange={(event) => setFormData((current) => ({ ...current, callDateTime: event.target.value }))} />
         </label>
         <label>
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Caller number</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Caller number</span>
           <Input value={formData.callerNumber} onChange={(event) => setFormData((current) => ({ ...current, callerNumber: event.target.value }))} />
         </label>
         <label>
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Duration in seconds</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Duration in seconds</span>
           <Input type="number" min="0" value={formData.callDuration} onChange={(event) => setFormData((current) => ({ ...current, callDuration: event.target.value }))} />
         </label>
         <label className="md:col-span-2">
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Outcome</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Outcome</span>
           <SearchableSelect value={formData.callOutcome} onChange={(value) => setFormData((current) => ({ ...current, callOutcome: value }))} options={selectOptions(options.callOutcomes)} allowClear={false} />
         </label>
         <label className="md:col-span-2">
-          <span className="mb-1.5 block text-sm font-medium text-slate-600">Call notes</span>
+          <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Call notes</span>
           <Textarea value={formData.callNotes} onChange={(event) => setFormData((current) => ({ ...current, callNotes: event.target.value }))} rows={3} />
         </label>
         {canManageRecording ? (
           <>
             <label className="md:col-span-2">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600">Recording URL</span>
+              <span className="mb-1.5 block text-sm font-medium text-[var(--text-muted)]">Recording URL</span>
               <Input type="url" value={formData.callRecordingUrl} onChange={(event) => setFormData((current) => ({ ...current, callRecordingUrl: event.target.value }))} />
             </label>
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 md:col-span-2">
+            <label className="flex items-center gap-2 text-sm font-medium text-[var(--text-main)] md:col-span-2">
               <input type="checkbox" checked={formData.consentConfirmed} onChange={(event) => setFormData((current) => ({ ...current, consentConfirmed: event.target.checked }))} />
               Recording consent confirmed
             </label>
@@ -5082,7 +5080,7 @@ export function LeadDetailsPage() {
                       <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Client Budget</span>
                       {lead?.budgetConfirmed != null ? (
                         <span className={cn(
-                          'rounded-sm px-1 py-0.2 text-[9px] font-bold uppercase',
+                          'rounded-sm px-1 py-0.2 text-[10px] font-bold uppercase',
                           lead.budgetConfirmed ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-500/15 text-slate-500'
                         )}>
                           {lead.budgetConfirmed ? 'Confirmed' : 'Estimated'}
@@ -5347,7 +5345,7 @@ export function LeadDetailsPage() {
                               <div className="flex items-center justify-between gap-3">
                                 <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                                   <span className={cn(
-                                    'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0',
+                                    'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0',
                                     meta.bg,
                                     meta.border,
                                     meta.text
@@ -5361,7 +5359,7 @@ export function LeadDetailsPage() {
                                     </span>
                                   )}
                                   {callData?.outcome && outcomeBadge ? (
-                                    <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md border shrink-0', outcomeBadge.bg, outcomeBadge.border, outcomeBadge.text)}>
+                                    <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md border shrink-0', outcomeBadge.bg, outcomeBadge.border, outcomeBadge.text)}>
                                       {callData.outcome}
                                     </span>
                                   ) : null}
@@ -5624,7 +5622,7 @@ export function LeadDetailsPage() {
                                   }
                                 }}
                                 title="Share proposal via WhatsApp"
-                                className="h-6 w-6 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 cursor-pointer"
+                                className="h-6 w-6 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:hover:bg-emerald-950/40 cursor-pointer"
                               >
                                 <MessageCircle size={14} />
                               </Button>
@@ -5635,7 +5633,7 @@ export function LeadDetailsPage() {
                                     size="icon"
                                     onClick={() => navigate(`${leadRoute(lead, 'quotations/new')}?fromRevision=${eventRouteSegment(item.event || item)}`)}
                                     title="Duplicate / Clone as Revision"
-                                    className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer"
+                                    className="h-6 w-6 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10 dark:hover:bg-blue-950/40 cursor-pointer"
                                   >
                                     <RotateCw size={14} />
                                   </Button>
@@ -6389,7 +6387,7 @@ export function LeadDetailsPage() {
                                   ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300'
                                   : 'bg-slate-500/15 border-slate-500/30 text-slate-700 dark:text-slate-300'
                               )}>
-                                <Clock3 size={10} className={timeInfo.isUpcoming ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500'} />
+                                <Clock3 size={10} className={timeInfo.isUpcoming ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text-muted)]'} />
                                 {timeInfo.isUpcoming ? (timeInfo.relative || 'Upcoming') : 'Pending / Due'}
                               </span>
                             )}
@@ -6594,7 +6592,7 @@ export function LeadDetailsPage() {
                             <div className="flex items-center justify-between gap-3">
                               <div className="flex flex-wrap items-center gap-2 min-w-0">
                                 <span className={cn(
-                                  'text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0',
+                                  'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md border shrink-0',
                                   meta.bg,
                                   meta.border,
                                   meta.text
@@ -6608,7 +6606,7 @@ export function LeadDetailsPage() {
                                   </span>
                                 )}
                                 {callData?.outcome && outcomeBadge ? (
-                                  <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md border shrink-0', outcomeBadge.bg, outcomeBadge.border, outcomeBadge.text)}>
+                                  <span className={cn('text-[10px] font-bold px-1.5 py-0.5 rounded-md border shrink-0', outcomeBadge.bg, outcomeBadge.border, outcomeBadge.text)}>
                                     {callData.outcome}
                                   </span>
                                 ) : null}
@@ -6966,17 +6964,16 @@ export function LeadDetailsPage() {
                                 >
                                   <MessageSquare size={14} />
                                 </button>
-                                <button
+                                <IconButton box="8" variant="outline"
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setViewActivityTarget(call.rawEvent || call);
                                   }}
                                   title="View Details"
-                                  className="flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:border-[var(--primary)] transition cursor-pointer shadow-2xs"
                                 >
                                   <Eye size={14} />
-                                </button>
+                                </IconButton>
                               </div>
                             </div>
                           </div>

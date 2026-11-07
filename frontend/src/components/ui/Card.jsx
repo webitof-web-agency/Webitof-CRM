@@ -26,7 +26,7 @@ export function Card({
     <Tag
       className={cn(
         'relative transition-all duration-200 backdrop-blur-xl',
-        !hasRadius && 'rounded-[22px]',
+        !hasRadius && 'rounded-3xl',
         !hasPadding && 'p-5 sm:p-6',
         'before:absolute before:inset-x-0 before:top-0 before:h-[1px] before:bg-gradient-to-r before:from-transparent before:via-white/90 dark:before:via-white/20 before:to-transparent before:pointer-events-none',
         cardVariants[variant] || cardVariants.default,

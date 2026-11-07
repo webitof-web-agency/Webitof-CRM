@@ -333,8 +333,14 @@ function buildCommissionLedgerEntry(commission = {}, client = null, project = nu
   };
 }
 
+// Only Credit and Debit move money in or out. Transfers (between our own accounts) and Adjustments have no
+// reliable direction, so they are listed in the ledger but kept out of cash totals.
+const bankTypeOf = (transaction = {}) => String(transaction.transactionType || '').trim().toLowerCase();
+const isCashBankType = (transaction = {}) => ['credit', 'debit'].includes(bankTypeOf(transaction));
+
 function buildBankTransactionLedgerEntry(transaction = {}, client = null, project = null, invoice = null, expense = null) {
   return {
+    neutral: !isCashBankType(transaction),
     id: transaction.id,
     module: 'banking',
     entryType: 'bank-transaction',
@@ -357,6 +363,15 @@ function buildBankTransactionLedgerEntry(transaction = {}, client = null, projec
   };
 }
 
+// A Draft has not been issued to the client and a Cancelled invoice no longer counts: neither is revenue,
+// output GST or a receivable. Every report and dashboard uses this one test.
+const isIssuedInvoice = (invoice = {}) => !['Cancelled', 'Draft'].includes(String(invoice.status || '').trim());
+
+// Draft, rejected and cancelled expenses were never incurred, so they stay out of totals.
+const isVoidedExpense = (expense = {}) =>
+  ['Draft', 'Cancelled', 'Rejected'].includes(String(expense.status || '').trim()) ||
+  String(expense.approvalStatus || '').trim() === 'Rejected';
+
 function buildFinanceSummary(state = {}, filters = {}) {
   const settings = state.settings || {};
   const clientById = new Map((state.clients || []).map((client) => [String(client.id), client]));
@@ -377,11 +392,11 @@ function buildFinanceSummary(state = {}, filters = {}) {
   const validPayments = (state.payments || []).filter(p => isWithinRange(p.paymentDate || p.createdAt));
 
   const invoiceSnapshots = (state.invoices || [])
-    .filter((invoice) => invoice.status !== 'Cancelled' && isWithinRange(invoice.invoiceDate || invoice.createdAt))
+    .filter((invoice) => isIssuedInvoice(invoice) && isWithinRange(invoice.invoiceDate || invoice.createdAt))
     .map((invoice) => getInvoiceSnapshot(invoice, validPayments.filter((payment) => String(payment.invoiceId) === String(invoice.id)), settings, clientById.get(String(invoice.clientId)) || {}));
 
   const expenseImpacts = (state.expenses || [])
-    .filter(e => isWithinRange(e.expenseDate || e.createdAt) && !isSalaryExpenseRecord(e))
+    .filter(e => isWithinRange(e.expenseDate || e.createdAt) && !isSalaryExpenseRecord(e) && !isVoidedExpense(e))
     .map(calculateExpenseImpact);
     
   const outsourcingImpacts = (state.outsourcingExpenses || [])
@@ -397,8 +412,8 @@ function buildFinanceSummary(state = {}, filters = {}) {
   const payrollEmployeeCount = new Set(payrollRecords.map((record) => String(record.employeeId || '')).filter(Boolean)).size;
   
   const validBankTransactions = (state.bankTransactions || []).filter(t => isWithinRange(t.date || t.createdAt));
-  const bankTransactionCredits = validBankTransactions.filter((item) => String(item.transactionType || '').toLowerCase() !== 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
-  const bankTransactionDebits = validBankTransactions.filter((item) => String(item.transactionType || '').toLowerCase() === 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
+  const bankTransactionCredits = validBankTransactions.filter((item) => bankTypeOf(item) === 'credit').reduce((sum, item) => sum + toNumber(item.amount), 0);
+  const bankTransactionDebits = validBankTransactions.filter((item) => bankTypeOf(item) === 'debit').reduce((sum, item) => sum + toNumber(item.amount), 0);
 
   const totalReceived = sumBy(validPayments, getPaymentAppliedAmount);
   const totalOutstanding = sumBy(invoiceSnapshots, (item) => item.balanceDue);
@@ -544,12 +559,19 @@ function buildFinanceLedger(state = {}, filters = {}) {
 
   const sorted = [...searched].sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id || '').localeCompare(String(a.id || '')));
 
+  // Totals count cash movements once. An issued invoice is a receivable, not cash, and a bank row tied to an
+  // invoice or expense mirrors a payment/expense that is already in the list, so both are left out.
+  const cashEntries = sorted.filter(
+    (item) => item.module !== 'invoices' && !item.neutral && !(item.module === 'banking' && (item.invoiceId || item.expenseId))
+  );
+  const cashIn = sumBy(cashEntries.filter((item) => item.direction === 'in'), (item) => item.amount);
+  const cashOut = sumBy(cashEntries.filter((item) => item.direction === 'out'), (item) => item.amount);
   return {
     entries: sorted,
     totals: {
-      totalIn: sumBy(sorted.filter((item) => item.direction === 'in'), (item) => item.amount),
-      totalOut: sumBy(sorted.filter((item) => item.direction === 'out'), (item) => item.amount),
-      net: round2(sumBy(sorted.filter((item) => item.direction === 'in'), (item) => item.amount) - sumBy(sorted.filter((item) => item.direction === 'out'), (item) => item.amount)),
+      totalIn: cashIn,
+      totalOut: cashOut,
+      net: round2(cashIn - cashOut),
       invoices: sorted.filter((item) => item.module === 'invoices').length,
       payments: sorted.filter((item) => item.module === 'payments').length,
       expenses: sorted.filter((item) => item.module === 'expenses').length,
@@ -683,6 +705,7 @@ module.exports = {
   buildPaymentLedgerEntry,
   buildInvoiceLedgerEntry,
   getInvoiceSnapshot,
+  isIssuedInvoice,
   getPaymentAppliedAmount,
   isPaymentCounted,
   calculatePayrollExpense,

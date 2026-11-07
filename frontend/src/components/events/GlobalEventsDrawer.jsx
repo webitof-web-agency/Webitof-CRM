@@ -307,23 +307,21 @@ export function GlobalEventsDrawer({ open, onClose, token, user, sharedLabels = 
             <div className="min-h-0 overflow-y-auto border-b border-[var(--border)] bg-[var(--surface-2)]/40 p-4 lg:border-b-0 lg:border-r lg:border-[var(--border)]">
               <Card className="p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <button
+                  <IconButton box="8" variant="outline"
                     type="button"
                     onClick={() => shiftCalendar(-1)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] transition hover:text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
                     aria-label="Previous month"
                   >
                     <ChevronLeft size={16} />
-                  </button>
+                  </IconButton>
                   <div className="text-xs font-bold text-[var(--text-main)]">{monthTitle}</div>
-                  <button
+                  <IconButton box="8" variant="outline"
                     type="button"
                     onClick={() => shiftCalendar(1)}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] transition hover:text-[var(--text-main)] hover:bg-[var(--hover-bg)] cursor-pointer"
                     aria-label="Next month"
                   >
                     <ChevronRight size={16} />
-                  </button>
+                  </IconButton>
                 </div>
 
                 <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">

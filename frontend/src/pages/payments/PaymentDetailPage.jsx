@@ -134,7 +134,7 @@ export function PaymentDetailPage() {
             <button
               type="button"
               onClick={() => navigate('/app/payments')}
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 cursor-pointer"
+              className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
             >
               <ArrowLeft size={16} />
               Back to Payments
@@ -146,7 +146,7 @@ export function PaymentDetailPage() {
           </div>
           <div>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+              <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
                 {payment.paymentMode || 'Payment'}
               </span>
               <Badge tone={getPaymentStatusTone(paymentStatus)}>{paymentStatus}</Badge>
@@ -175,55 +175,55 @@ export function PaymentDetailPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card className="p-6 space-y-6">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+          <div className="flex items-center gap-3 border-b border-[var(--border)] pb-4">
+            <div className="p-3 bg-blue-500/10 text-blue-600 rounded-xl">
               <DollarSign size={24} />
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Amount Received</p>
-              <p className="text-3xl font-bold text-slate-900">{formatMoney(payment.amountReceived)}</p>
+              <p className="text-sm font-medium text-[var(--text-muted)] uppercase tracking-wider">Amount Received</p>
+              <p className="text-3xl font-bold text-[var(--text-main)]">{formatMoney(payment.amountReceived)}</p>
             </div>
           </div>
           
           <div className="space-y-4">
             <div className="flex items-start gap-3">
-              <Calendar className="mt-0.5 text-slate-400" size={18} />
+              <Calendar className="mt-0.5 text-[var(--text-muted)]" size={18} />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment Date</p>
-                <p className="text-base font-medium text-slate-900">{formatDate(payment.paymentDate)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Payment Date</p>
+                <p className="text-base font-medium text-[var(--text-main)]">{formatDate(payment.paymentDate)}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <CreditCard className="mt-0.5 text-slate-400" size={18} />
+              <CreditCard className="mt-0.5 text-[var(--text-muted)]" size={18} />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment Mode</p>
-                <p className="text-base font-medium text-slate-900">{payment.paymentMode || '-'}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Payment Mode</p>
+                <p className="text-base font-medium text-[var(--text-main)]">{payment.paymentMode || '-'}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <Activity className="mt-0.5 text-slate-400" size={18} />
+              <Activity className="mt-0.5 text-[var(--text-muted)]" size={18} />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Payment Status</p>
-                <p className="text-base font-medium text-slate-900">{paymentStatus}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Payment Status</p>
+                <p className="text-base font-medium text-[var(--text-main)]">{paymentStatus}</p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
-              <Hash className="mt-0.5 text-slate-400" size={18} />
+              <Hash className="mt-0.5 text-[var(--text-muted)]" size={18} />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Transaction ID / Reference</p>
-                <p className="text-base font-medium text-slate-900">{payment.transactionId || '-'}</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Transaction ID / Reference</p>
+                <p className="text-base font-medium text-[var(--text-main)]">{payment.transactionId || '-'}</p>
               </div>
             </div>
 
             {payment.tdsDeducted > 0 && (
               <div className="flex items-start gap-3">
-                <Activity className="mt-0.5 text-slate-400" size={18} />
+                <Activity className="mt-0.5 text-[var(--text-muted)]" size={18} />
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">TDS Deducted</p>
-                  <p className="text-base font-medium text-slate-900">{formatMoney(payment.tdsDeducted)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">TDS Deducted</p>
+                  <p className="text-base font-medium text-[var(--text-main)]">{formatMoney(payment.tdsDeducted)}</p>
                 </div>
               </div>
             )}
@@ -231,36 +231,36 @@ export function PaymentDetailPage() {
         </Card>
 
         <Card className="p-6 space-y-6 bg-slate-50/50">
-          <h3 className="text-lg font-bold text-slate-900 border-b border-slate-200 pb-2">Related Records</h3>
+          <h3 className="text-lg font-bold text-[var(--text-main)] border-b border-[var(--border)] pb-2">Related Records</h3>
           
           <div className="space-y-5">
             {client && (
               <div 
-                className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
+                className="flex items-center gap-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
                 onClick={() => navigate(clientRoute(client))}
               >
-                <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                <div className="p-2 bg-indigo-500/10 text-indigo-600 rounded-lg">
                   <Building size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase">Client</p>
-                  <p className="font-semibold text-slate-900">{client.name || client.companyName}</p>
+                  <p className="text-xs font-medium text-[var(--text-muted)] uppercase">Client</p>
+                  <p className="font-semibold text-[var(--text-main)]">{client.name || client.companyName}</p>
                 </div>
               </div>
             )}
 
             {invoice && (
               <div 
-                className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
+                className="flex items-center gap-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
                 onClick={() => navigate(invoiceRoute(invoice))}
               >
-                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                <div className="p-2 bg-emerald-500/10 text-emerald-600 rounded-lg">
                   <FileText size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase">Invoice</p>
-                  <p className="font-semibold text-slate-900">{invoice.invoiceNumber}</p>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs font-medium text-[var(--text-muted)] uppercase">Invoice</p>
+                  <p className="font-semibold text-[var(--text-main)]">{invoice.invoiceNumber}</p>
+                  <p className="text-xs text-[var(--text-muted)]">
                     {invoice.status || 'Sent'} · Balance {formatMoney(invoiceBalance)}
                   </p>
                 </div>
@@ -269,36 +269,36 @@ export function PaymentDetailPage() {
 
             {project && (
               <div 
-                className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
+                className="flex items-center gap-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
                 onClick={() => navigate(projectRoute(project))}
               >
-                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                <div className="p-2 bg-purple-500/10 text-purple-600 rounded-lg">
                   <Briefcase size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase">Project</p>
-                  <p className="font-semibold text-slate-900 truncate max-w-[200px]">{project.title}</p>
+                  <p className="text-xs font-medium text-[var(--text-muted)] uppercase">Project</p>
+                  <p className="font-semibold text-[var(--text-main)] truncate max-w-[200px]">{project.title}</p>
                 </div>
               </div>
             )}
 
             {bankAccount && (
               <div 
-                className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
+                className="flex items-center gap-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl cursor-pointer hover:border-blue-300 transition-colors"
                 onClick={() => navigate(`/app/banking`)}
               >
-                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                <div className="p-2 bg-amber-500/10 text-amber-600 rounded-lg">
                   <Activity size={20} />
                 </div>
                 <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase">Bank Account</p>
-                  <p className="font-semibold text-slate-900">{bankAccount.bankName} - {bankAccount.accountNumber?.slice(-4)}</p>
+                  <p className="text-xs font-medium text-[var(--text-muted)] uppercase">Bank Account</p>
+                  <p className="font-semibold text-[var(--text-main)]">{bankAccount.bankName} - {bankAccount.accountNumber?.slice(-4)}</p>
                 </div>
               </div>
             )}
             
             {(!client && !invoice && !project && !bankAccount) && (
-              <div className="text-sm text-slate-500 text-center py-4">
+              <div className="text-sm text-[var(--text-muted)] text-center py-4">
                 No related records found.
               </div>
             )}
@@ -329,41 +329,41 @@ export function PaymentDetailPage() {
           </div>
         )}
       >
-        <div id="payment-receipt-print" className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-6 text-slate-800">
+        <div id="payment-receipt-print" className="p-6 bg-[var(--surface-elevated)] rounded-2xl border border-[var(--border)] shadow-xs space-y-6 text-[var(--text-main)]">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+          <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
             <div>
-              <h2 className="text-lg font-black text-slate-900">{company.name || 'Webitof'}</h2>
-              <p className="text-xs text-slate-500">{company.address || company.email || ''}</p>
-              {company.gstin && <p className="text-[11px] text-slate-500 font-mono">GSTIN: {company.gstin}</p>}
+              <h2 className="text-lg font-black text-[var(--text-main)]">{company.name || 'Webitof'}</h2>
+              <p className="text-xs text-[var(--text-muted)]">{company.address || company.email || ''}</p>
+              {company.gstin && <p className="text-[11px] text-[var(--text-muted)] font-mono">GSTIN: {company.gstin}</p>}
             </div>
             <div className="text-right">
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-800 border border-emerald-500/25">
                 <CheckCircle2 size={12} className="mr-1" /> PAYMENT RECEIPT
               </span>
-              <p className="text-xs font-bold text-slate-900 mt-1.5 font-mono">{receiptNumber}</p>
-              <p className="text-xs text-slate-500">Date: {formatDate(payment.paymentDate)}</p>
+              <p className="text-xs font-bold text-[var(--text-main)] mt-1.5 font-mono">{receiptNumber}</p>
+              <p className="text-xs text-[var(--text-muted)]">Date: {formatDate(payment.paymentDate)}</p>
             </div>
           </div>
 
           {/* Body */}
           <div className="grid grid-cols-2 gap-4 text-xs">
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Received From</span>
-              <p className="font-bold text-sm text-slate-900">{client?.companyName || client?.name || 'Client'}</p>
-              {client?.email && <p className="text-slate-500">{client.email}</p>}
-              {client?.mobile && <p className="text-slate-500">{client.mobile}</p>}
+            <div className="p-3 bg-[var(--surface-2)] rounded-xl border border-[var(--border)] space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Received From</span>
+              <p className="font-bold text-sm text-[var(--text-main)]">{client?.companyName || client?.name || 'Client'}</p>
+              {client?.email && <p className="text-[var(--text-muted)]">{client.email}</p>}
+              {client?.mobile && <p className="text-[var(--text-muted)]">{client.mobile}</p>}
             </div>
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Payment Details</span>
-              <p className="font-semibold text-slate-800">Mode: <span className="font-bold">{payment.paymentMode || 'Direct'}</span></p>
-              {payment.transactionId && <p className="text-slate-600 font-mono">Txn: {payment.transactionId}</p>}
-              {invoice && <p className="text-slate-600">Against Invoice: <span className="font-bold">#{invoice.invoiceNumber}</span></p>}
+            <div className="p-3 bg-[var(--surface-2)] rounded-xl border border-[var(--border)] space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Payment Details</span>
+              <p className="font-semibold text-[var(--text-main)]">Mode: <span className="font-bold">{payment.paymentMode || 'Direct'}</span></p>
+              {payment.transactionId && <p className="text-[var(--text-muted)] font-mono">Txn: {payment.transactionId}</p>}
+              {invoice && <p className="text-[var(--text-muted)]">Against Invoice: <span className="font-bold">#{invoice.invoiceNumber}</span></p>}
             </div>
           </div>
 
           {/* Amount Box */}
-          <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl flex items-center justify-between">
+          <div className="p-4 bg-emerald-50/70 border border-emerald-500/25 rounded-2xl flex items-center justify-between">
             <div>
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800">Amount Received</span>
               <p className="text-xs text-emerald-700 font-medium mt-0.5">Payment successfully processed & verified</p>
@@ -374,16 +374,16 @@ export function PaymentDetailPage() {
           </div>
 
           {payment.notes && (
-            <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              <span className="font-bold text-slate-700">Notes: </span>{payment.notes}
+            <div className="text-xs text-[var(--text-muted)] bg-[var(--surface-2)] p-3 rounded-xl border border-[var(--border)]">
+              <span className="font-bold text-[var(--text-main)]">Notes: </span>{payment.notes}
             </div>
           )}
 
           {/* Signatures */}
-          <div className="pt-6 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-400">
+          <div className="pt-6 border-t border-[var(--border)] flex items-center justify-between text-[11px] text-[var(--text-muted)]">
             <span>Generated electronically by Webitof CRM</span>
             <div className="text-right">
-              <div className="w-32 border-b border-slate-300 pb-8 mb-1 text-center text-slate-600 font-semibold italic">
+              <div className="w-32 border-b border-[var(--border)] pb-8 mb-1 text-center text-[var(--text-muted)] font-semibold italic">
                 Authorised Signatory
               </div>
             </div>

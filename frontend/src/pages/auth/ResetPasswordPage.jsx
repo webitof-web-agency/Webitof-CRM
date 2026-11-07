@@ -67,7 +67,7 @@ export function ResetPasswordPage() {
               setForm((current) => ({ ...current, identifier: event.target.value }))
             }
             required
-            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
+            className="liquid-glass-input h-10.5 rounded-2xl text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
           />
         </div>
 
@@ -82,7 +82,7 @@ export function ResetPasswordPage() {
             placeholder="123456"
             autoFocus
             required
-            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 font-mono tracking-widest"
+            className="liquid-glass-input h-10.5 rounded-2xl text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20 font-mono tracking-widest"
           />
         </div>
 
@@ -100,7 +100,7 @@ export function ResetPasswordPage() {
               }
               placeholder="••••••••••••"
               required
-              className="liquid-glass-input h-10.5 pr-10 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
+              className="liquid-glass-input h-10.5 pr-10 rounded-2xl text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
             />
             <button
               type="button"
@@ -126,13 +126,13 @@ export function ResetPasswordPage() {
             }
             placeholder="••••••••••••"
             required
-            className="liquid-glass-input h-10.5 rounded-[14px] text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
+            className="liquid-glass-input h-10.5 rounded-2xl text-sm text-[#1d1d1f] dark:text-[#f5f5f7] placeholder:text-[#86868b] dark:placeholder:text-[#6e6e73] focus:border-[var(--primary)] focus:ring-4 focus:ring-[var(--primary)]/20"
           />
         </div>
 
         <Button
           type="submit"
-          className="w-full h-11.5 text-sm font-bold rounded-[16px] bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-xl shadow-[var(--primary)]/30 border border-white/30 transition-all duration-200 mt-2 cursor-pointer"
+          className="w-full h-11.5 text-sm font-bold rounded-2xl bg-[var(--primary)] hover:bg-[var(--primary-hover)] active:scale-[0.98] text-white shadow-xl shadow-[var(--primary)]/30 border border-white/30 transition-all duration-200 mt-2 cursor-pointer"
           loading={busy}
         >
           <span>Save New Password</span>
