@@ -355,7 +355,8 @@ export function HrmCollection({
           !["Approved", "Posted", "Processed", "Published", "Joined"].includes(
             row.status,
           ) &&
-          !["salary-history"].includes(kind) &&
+          // Timesheet PUT is the approver action; a rejected timesheet is resubmitted as a new one.
+          !["salary-history", "timesheets"].includes(kind) &&
           (!requestKinds.includes(kind) ||
             ["Draft", "Revision Requested"].includes(row.status)) && (
             <Button
@@ -381,10 +382,13 @@ export function HrmCollection({
                 variant="ghost"
                 onClick={async () => {
                   try {
-                    setEditor({
-                      work: true,
-                      initial: await hrm(token, `/work-reports/${row.id}`),
-                    });
+                    const report = await hrm(token, `/work-reports/${row.id}`);
+                    // Reports built from tracked job slots are managed from My Day, not this form.
+                    if ((report.entries || []).some((entry) => entry.source === "slot")) {
+                      toast.info("This report was built from your tracked job slots. Change its entries from My Day.");
+                      return;
+                    }
+                    setEditor({ work: true, initial: report });
                   } catch (e) {
                     toast.error(e.message);
                   }
@@ -794,7 +798,7 @@ export function HrmCollection({
           token={token}
           metadata={metadata}
           masters={masters}
-          employeeId={chosenEmployee}
+          employeeId={editor.config.self ? chosenEmployee : ""}
           initial={editor.initial}
           config={editor.config}
           can={can}

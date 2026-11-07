@@ -33,6 +33,13 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
   const lat = Number(center?.latitude);
   const lng = Number(center?.longitude);
   const valid = Number.isFinite(lat) && Number.isFinite(lng);
+  // Callers pass fresh arrays/functions every render (the clock page re-renders every second).
+  // Keep the latest in refs and key the effect on content, so the map is not rebuilt or re-panned.
+  const pickRef = useRef(onPick);
+  pickRef.current = onPick;
+  const othersRef = useRef(others);
+  othersRef.current = others;
+  const othersKey = JSON.stringify((others || []).map((o) => [o.latitude, o.longitude, o.radiusMeters, o.color]));
   useEffect(() => {
     let active = true;
     if (!KEY) return undefined;
@@ -49,7 +56,7 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
             streetViewControl: false,
             fullscreenControl: false,
           });
-          s.marker = new maps.Marker({ map: s.map, position, draggable: Boolean(onPick) });
+          s.marker = new maps.Marker({ map: s.map, position, draggable: Boolean(pickRef.current) });
           s.circle = new maps.Circle({
             map: s.map,
             center: position,
@@ -69,13 +76,15 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
           s.marker.addListener("dragend", pick);
           s.others = [];
         }
-        s.onPick = onPick;
+        s.onPick = (point) => pickRef.current?.(point);
         s.marker.setPosition(position);
         s.circle.setCenter(position);
         s.circle.setRadius(Number(radius) || 100);
-        if (valid) s.map.panTo(position);
+        const positionKey = `${lat},${lng}`;
+        if (valid && s.positionKey !== positionKey) s.map.panTo(position);
+        s.positionKey = positionKey;
         s.others.forEach((o) => o.setMap(null));
-        s.others = others
+        s.others = (othersRef.current || [])
           .filter((o) => Number.isFinite(Number(o.latitude)))
           .map(
             (o) =>
@@ -96,7 +105,7 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
     return () => {
       active = false;
     };
-  }, [lat, lng, radius, valid, onPick, others]);
+  }, [lat, lng, radius, valid, othersKey]);
   if (error)
     return (
       <div

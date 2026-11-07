@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, MapPin, Radio, RefreshCw } from "lucide-react";
 import { request } from "../../api/client";
@@ -39,11 +39,13 @@ export function HrmLive({ token, metadata, can }) {
     [alerts, setAlerts] = useState([]),
     [homes, setHomes] = useState([]),
     [error, setError] = useState(""),
+    [stale, setStale] = useState(""),
     [day, setDay] = useState(null),
     [action, setAction] = useState(null),
     [busy, setBusy] = useState(false),
     [tick, setTick] = useState(0);
   const load = useCallback(() => setTick((n) => n + 1), []);
+  const loadedOnce = useRef(false);
   useEffect(() => {
     let active = true;
     Promise.all([
@@ -57,9 +59,19 @@ export function HrmLive({ token, metadata, can }) {
         setAlerts(a);
         setHomes(h);
         setError("");
+        setStale("");
+        loadedOnce.current = true;
       })
-      .catch((e) => active && setError(e.message));
-    const timer = setInterval(load, 30000);
+      .catch((e) => {
+        if (!active) return;
+        // After the first load a failed refresh keeps the board and shows a small notice instead.
+        if (loadedOnce.current) setStale(e.message);
+        else setError(e.message);
+      });
+    // Do not poll hidden tabs.
+    const timer = setInterval(() => {
+      if (!document.hidden) load();
+    }, 30000);
     return () => {
       active = false;
       clearInterval(timer);
@@ -95,6 +107,11 @@ export function HrmLive({ token, metadata, can }) {
   };
   return (
     <div className="space-y-5">
+      {stale && (
+        <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          Could not refresh the live board ({stale}). Showing the last data; retrying every 30 seconds.
+        </p>
+      )}
       <Card className="space-y-4 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -173,7 +190,7 @@ export function HrmLive({ token, metadata, can }) {
               className: "tabular-nums",
               render: (r) => (r.summary ? `${hm(r.summary.idleMinutes)} / ${hm(r.summary.offlineMinutes)}` : "—"),
             },
-            { key: "alerts", label: "Alerts", render: (r) => (r.openAlerts ? <Pill tone="bg-amber-500/10 text-amber-700">{r.openAlerts}</Pill> : "—") },
+            { key: "alerts", label: "Alerts", render: (r) => (r.openAlerts ? <Pill tone="bg-amber-500/10 text-amber-700 dark:text-amber-400">{r.openAlerts}</Pill> : "—") },
             {
               key: "report",
               label: "Report",
@@ -313,6 +330,8 @@ export function DayReview({ token, tz, can, initial, onClose }) {
   useEffect(() => {
     let active = true;
     setData(null);
+    setEditing(null);
+    setOverride({ status: "", comment: "" });
     hrm(token, `/day?employeeId=${encodeURIComponent(initial.employeeId)}&date=${date}`)
       .then((r) => active && (setData(r), setError("")))
       .catch((e) => active && setError(e.message));
@@ -388,7 +407,7 @@ export function DayReview({ token, tz, can, initial, onClose }) {
                     </span>
                     <span className="flex gap-1">
                       <Pill>{x.source}</Pill>
-                      {x.editCount > 0 && <Pill tone="bg-amber-500/10 text-amber-700">edited {x.editCount}×</Pill>}
+                      {x.editCount > 0 && <Pill tone="bg-amber-500/10 text-amber-700 dark:text-amber-400">edited {x.editCount}×</Pill>}
                     </span>
                   </div>
                   <p className="mt-1.5">{x.description}</p>
@@ -396,7 +415,7 @@ export function DayReview({ token, tz, can, initial, onClose }) {
                 </div>
               ))}
               {can("hr_approve") && !editing && (
-                <Button size="sm" variant="secondary" onClick={() => setEditing({ comment: "", entries: data.entries.map((x) => ({ id: x.id, description: x.description, minutes: x.minutes, projectId: x.projectId || "", billable: x.billable })), remove: [] })}>
+                <Button size="sm" variant="secondary" onClick={() => setEditing({ comment: "", entries: data.entries.map((x) => ({ id: x.id, description: x.description, minutes: x.minutes, projectId: x.projectId || "", billable: x.billable, completion: x.completion, blocker: x.blocker })), remove: [] })}>
                   {data.entries.length ? "Edit report (admin)" : "Add back-dated report (admin)"}
                 </Button>
               )}

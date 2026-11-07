@@ -530,7 +530,7 @@ async function job(user, body, db = null) {
     const action = c.choice(body.action, ["start", "end"], "Action");
     if (action === "start") {
       if (att.jobStartedAt) c.fail("Job timer is already running", 409);
-      await c.update(tx, "hrm_attendance", att.id, { jobStartedAt: now, updatedAt: now });
+      await c.update(tx, "hrm_attendance", att.id, { jobStartedAt: now, lastPingAt: now, updatedAt: now });
       await event(tx, att, "job_start");
     } else {
       if (!att.jobStartedAt) c.fail("Start the job first", 409);
@@ -588,6 +588,7 @@ async function lunch(user, body, db = null) {
       const minutes = Math.max(0, Math.floor((now - new Date(att.lunchStartedAt)) / 60000));
       await c.update(tx, "hrm_attendance", att.id, {
         lunchEndedAt: now,
+        lastPingAt: now,
         lunchMinutes: minutes,
         breakMinutes: Number(att.breakMinutes || 0) + minutes,
         breakStartedAt: null,
@@ -724,7 +725,7 @@ async function ping(user, body, db = null) {
       patch.offlineMinutes = Number(att.offlineMinutes || 0) + lost;
       await event(tx, att, "online", loc, { offlineMinutes: lost });
       await tx.query(
-        "UPDATE hrm_alerts SET closed_at=now(),details=details||$2::jsonb,updated_at=now() WHERE attendance_id=$1 AND kind='offline' AND closed_at IS NULL",
+        "UPDATE hrm_alerts SET closed_at=now(),status='Resolved',details=details||$2::jsonb,updated_at=now() WHERE attendance_id=$1 AND kind='offline' AND closed_at IS NULL",
         [att.id, JSON.stringify({ backOnlineAt: now, offlineMinutes: lost })],
       );
     }
@@ -768,7 +769,7 @@ async function ping(user, body, db = null) {
           patch.outsideMinutes = Number(att.outsideMinutes || 0) + minutes;
           await event(tx, att, "return", loc, { minutes }, { inside: true, distanceMeters: distance });
           await tx.query(
-            "UPDATE hrm_alerts SET closed_at=now(),details=details||$2::jsonb,updated_at=now() WHERE attendance_id=$1 AND kind='geofence_breach' AND closed_at IS NULL",
+            "UPDATE hrm_alerts SET closed_at=now(),status='Resolved',details=details||$2::jsonb,updated_at=now() WHERE attendance_id=$1 AND kind='geofence_breach' AND closed_at IS NULL",
             [att.id, JSON.stringify({ returnedAt: now, outsideMinutes: minutes })],
           );
         }
@@ -1037,6 +1038,7 @@ async function alertAction(user, id, body, db = null) {
     c.permit(user, "approve", "hr_approve");
     const a = c.camel((await tx.query("SELECT * FROM hrm_alerts WHERE id=$1 FOR UPDATE", [id])).rows[0]);
     if (!a) c.fail("Alert not found", 404);
+    if (a.status === "Resolved") c.fail("This alert is already resolved", 409);
     const e = await c.employee(tx, user, a.employeeId, { lock: true });
     if (e.userId === user.id) c.fail("You cannot act on your own alert", 403);
     const action = c.choice(body.action, ALERT_ACTIONS, "Action");
@@ -1143,6 +1145,19 @@ async function adminReport(user, body, db = null) {
       }
       const old = entry.id && before.find((x) => x.id === entry.id);
       if (entry.id && !old) c.fail("Entry does not belong to this report");
+      if (old) {
+        // The admin form does not always resend completion/blocker; keep what the employee wrote.
+        if (entry.completion === undefined) v.completion = old.completion;
+        if (entry.blocker === undefined) v.blocker = old.blocker;
+        const unchanged =
+          v.description === old.description &&
+          v.minutes === Number(old.minutes) &&
+          (v.projectId || null) === (old.projectId || null) &&
+          Boolean(v.billable) === Boolean(old.billable) &&
+          Number(v.completion) === Number(old.completion ?? 0) &&
+          (v.blocker || "") === (old.blocker || "");
+        if (unchanged) continue;
+      }
       if (old)
         await c.update(tx, "hrm_work_entries", old.id, {
           ...v,

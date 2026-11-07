@@ -116,7 +116,7 @@ export function HrmPage() {
       ) : kind === "employees" && id ? (
         <EmployeeProfile key={id} {...props} id={id} />
       ) : ["overview", "analytics"].includes(kind) ? (
-        <HrmDashboard {...props} analytics={kind === "analytics"} />
+        <HrmDashboard key={kind} {...props} analytics={kind === "analytics"} />
       ) : kind === "settings" ? (
         <HrmSettings {...props} onReload={reload} />
       ) : kind === "my-day" && !metadata.ownEmployeeId ? (

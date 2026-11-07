@@ -86,6 +86,7 @@ export function HrmMyDay({ token }) {
   const skew = useRef(0);
   const prompted = useRef({});
   const lastFix = useRef(null);
+  const lastWarn = useRef(0);
 
   const load = useCallback(async () => {
     try {
@@ -116,12 +117,22 @@ export function HrmMyDay({ token }) {
   const onLunch = Boolean(a?.lunchStartedAt && !a?.lunchEndedAt);
 
   // Location pings while the job runs (tab open). Closing the tab shows as offline.
+  const pingIntervalMinutes = p?.pingIntervalMinutes;
   useEffect(() => {
-    if (!running || !p) return undefined;
+    if (!running || !pingIntervalMinutes) return undefined;
     const ping = async () => {
       try {
-        const fix = await locate().catch(() => lastFix.current);
-        if (!fix) return;
+        // Never re-send an old position: it would hide offline and out-of-zone alerts from reviewers.
+        let fix;
+        try {
+          fix = await locate();
+        } catch (error) {
+          if (Date.now() - lastWarn.current > 10 * MIN) {
+            lastWarn.current = Date.now();
+            toast.warning(`${error.message} Location pings are paused until it works.`);
+          }
+          return;
+        }
         lastFix.current = fix;
         const r = await hrm(token, "/me/ping", { method: "POST", body: fix });
         if (r.active === false) load();
@@ -131,9 +142,9 @@ export function HrmMyDay({ token }) {
       }
     };
     ping();
-    const id = setInterval(ping, Math.max(1, p.pingIntervalMinutes) * MIN);
+    const id = setInterval(ping, Math.max(1, pingIntervalMinutes) * MIN);
     return () => clearInterval(id);
-  }, [running, p, token, load, merge]);
+  }, [running, pingIntervalMinutes, token, load, merge]);
 
   async function act(path, body, success) {
     setBusy(true);

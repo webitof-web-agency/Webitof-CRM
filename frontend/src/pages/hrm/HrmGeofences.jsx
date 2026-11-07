@@ -16,12 +16,18 @@ export function HrmGeofences({ token, metadata, masters, can }) {
     [form, setForm] = useState(blank(metadata.policy.defaultOfficeRadiusMeters || 150)),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [refresh, setRefresh] = useState(0);
+    [refresh, setRefresh] = useState(0),
+    [homeBusy, setHomeBusy] = useState(false),
+    [loaded, setLoaded] = useState(false);
   const manage = can("manage_settings");
   useEffect(() => {
+    let active = true;
     hrm(token, "/geofences")
-      .then((r) => (setRows(r), setError("")))
-      .catch((e) => setError(e.message));
+      .then((r) => active && (setRows(r), setError(""), setLoaded(true)))
+      .catch((e) => active && setError(e.message));
+    return () => {
+      active = false;
+    };
   }, [token, refresh]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const offices = rows.filter((r) => r.kind === "office");
@@ -47,12 +53,16 @@ export function HrmGeofences({ token, metadata, masters, can }) {
   async function homeAction(row, action) {
     const comment = action === "approve" ? "" : window.prompt(action === "reject" ? "Reason for rejection" : "Reason for resetting this home location");
     if (action !== "approve" && !comment) return;
+    if (homeBusy) return;
+    setHomeBusy(true);
     try {
       await hrm(token, `/geofences/${row.id}/action`, { method: "POST", body: { action, comment: comment || undefined } });
       toast.success("Location updated");
       setRefresh((n) => n + 1);
     } catch (err) {
       toast.error(err.message);
+    } finally {
+      setHomeBusy(false);
     }
   }
   function pickMyLocation() {
@@ -119,7 +129,7 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       )}
       <Card className="space-y-3 p-5">
         <h2 className="font-semibold">Offices ({offices.length})</h2>
-        {!offices.length && <p className="text-sm text-[var(--text-muted)]">Add at least one office so employees can clock in from the app.</p>}
+        {loaded && !offices.length && <p className="text-sm text-[var(--text-muted)]">Add at least one office so employees can clock in from the app.</p>}
         <div className="grid gap-3 md:grid-cols-2">
           {offices.map((o) => (
             <div key={o.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] p-3 text-sm">
@@ -163,12 +173,12 @@ export function HrmGeofences({ token, metadata, masters, can }) {
                 <div className="flex gap-1">
                   {h.status === "Pending" && can("approve") && (
                     <>
-                      <Button size="xs" onClick={() => homeAction(h, "approve")}>Approve</Button>
-                      <Button size="xs" variant="secondary" onClick={() => homeAction(h, "reject")}>Reject</Button>
+                      <Button size="xs" disabled={homeBusy} onClick={() => homeAction(h, "approve")}>Approve</Button>
+                      <Button size="xs" variant="secondary" disabled={homeBusy} onClick={() => homeAction(h, "reject")}>Reject</Button>
                     </>
                   )}
                   {h.status === "Approved" && can("approve") && (
-                    <Button size="xs" variant="ghost" onClick={() => homeAction(h, "retire")}>Reset</Button>
+                    <Button size="xs" variant="ghost" disabled={homeBusy} onClick={() => homeAction(h, "retire")}>Reset</Button>
                   )}
                 </div>
               ),

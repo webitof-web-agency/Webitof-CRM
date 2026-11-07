@@ -277,7 +277,7 @@ async function closeDay(day, now) {
     await tx.query("SELECT pg_advisory_xact_lock(hashtext($1))", [key]);
     if ((await tx.query("SELECT 1 FROM hrm_automation_runs WHERE source_key=$1", [key])).rowCount)
       return null;
-    const result = { date: day, closed: 0, submitted: 0, absent: 0 };
+    const result = { date: day, closed: 0, submitted: 0, absent: 0, failed: 0 };
     const people = (
       await tx.query(
         "SELECT * FROM hrm_employees WHERE archived_at IS NULL AND status IN ('Active','Probation','Confirmed','Notice Period') AND joining_date<=$1 AND (exit_date IS NULL OR exit_date>=$1) ORDER BY id",
@@ -285,7 +285,7 @@ async function closeDay(day, now) {
       )
     ).rows.map(c.camel);
     const deadline = new Date(calc.localInstant(day, p.reportDeadline, p.timezone));
-    for (const e of people) {
+    const processEmployee = async (e) => {
       const available = calc.calendar(e, day, day, p, await calendarData(tx, e.id, day, day))[0];
       let att = c.camel(
         (await tx.query("SELECT * FROM hrm_attendance WHERE employee_id=$1 AND work_date=$2 FOR UPDATE", [e.id, day])).rows[0],
@@ -295,7 +295,8 @@ async function closeDay(day, now) {
         att = await wd.closeSession(tx, att, p, at, "Report deadline reached — auto clock-out");
         result.closed++;
       }
-      if (available.hours <= 0 || att?.override) continue;
+      // HR-marked days (Comp Off, WFH, Half Day...) and earlier overrides are never auto-changed.
+      if (available.hours <= 0 || att?.override || att?.source === "hr") return;
       const report = await wd.reportFor(tx, e.id, day);
       const entries = await wd.entriesFor(tx, report?.id);
       if (report && entries.length && ["Draft", "Revision Requested"].includes(report.status)) {
@@ -307,9 +308,9 @@ async function closeDay(day, now) {
         });
         await c.audit(tx, { id: null }, "work-reports", report.id, "auto-submitted", report, null, e.id);
         result.submitted++;
-        continue;
+        return;
       }
-      if (entries.length || !p.absentIfNoReport) continue;
+      if (entries.length || !p.absentIfNoReport) return;
       const saved = att
         ? await c.update(tx, "hrm_attendance", att.id, {
             status: "Absent",
@@ -335,10 +336,53 @@ async function closeDay(day, now) {
         workDate: day,
       });
       result.absent++;
+    };
+    // One employee's failure must not roll back everyone else's day.
+    for (const e of people) {
+      const hookMark = tx.afterCommit ? tx.afterCommit.length : 0;
+      await tx.query("SAVEPOINT hrm_close_employee");
+      try {
+        await processEmployee(e);
+        await tx.query("RELEASE SAVEPOINT hrm_close_employee");
+      } catch (error) {
+        await tx.query("ROLLBACK TO SAVEPOINT hrm_close_employee");
+        if (tx.afterCommit) tx.afterCommit.length = hookMark;
+        result.failed++;
+        console.error(`HRM end-of-day failed for employee ${e.id}:`, error.message);
+      }
     }
     await tx.query("INSERT INTO hrm_automation_runs(source_key,result) VALUES($1,$2)", [key, JSON.stringify(result)]);
     return result;
   });
+}
+// A session opened after its day's deadline run (late or night shift) is never reached by closeDay,
+// and an open session blocks the next clock-in. Close anything still open from an earlier day.
+async function closeStaleSessions(p, now) {
+  const wd = require("./workday");
+  const today = c.today(p, now);
+  const stale = (
+    await c.dbDefault.query(
+      "SELECT id, work_date FROM hrm_attendance WHERE check_in IS NOT NULL AND check_out IS NULL AND work_date < $1",
+      [today],
+    )
+  ).rows;
+  let closed = 0;
+  for (const row of stale) {
+    const day = String(row.work_date).slice(0, 10);
+    const deadline = new Date(calc.localInstant(day, p.reportDeadline, p.timezone));
+    if (now < deadline) continue;
+    try {
+      await c.transaction(async (tx) => {
+        const att = c.camel((await tx.query("SELECT * FROM hrm_attendance WHERE id=$1 FOR UPDATE", [row.id])).rows[0]);
+        if (!att || !att.checkIn || att.checkOut) return;
+        await wd.closeSession(tx, att, p, att.jobEndedAt || att.lastPingAt || deadline, "Report deadline reached — auto clock-out");
+        closed++;
+      });
+    } catch (error) {
+      console.error(`HRM stale session close failed for ${row.id}:`, error.message);
+    }
+  }
+  return closed;
 }
 let ticking = false;
 async function realtime(now = new Date()) {
@@ -351,13 +395,14 @@ async function realtime(now = new Date()) {
     ).rows;
     for (const s of sessions)
       await sessionTick(s.id, now).catch((e) => console.error("HRM session tick failed:", e.message));
+    const staleClosed = await closeStaleSessions(p, now);
     const today = c.today(p, now);
     const yesterday = new Date(Date.parse(today) - 86400000).toISOString().slice(0, 10);
     const closed = [];
     for (const day of [yesterday, today])
       if (now >= new Date(calc.localInstant(day, p.reportDeadline, p.timezone) + 60000))
         closed.push(await closeDay(day, now));
-    return { sessions: sessions.length, closed: closed.filter(Boolean) };
+    return { sessions: sessions.length, staleClosed, closed: closed.filter(Boolean) };
   } finally {
     ticking = false;
   }

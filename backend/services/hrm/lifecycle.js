@@ -38,8 +38,9 @@ async function record(user, kind, body, id = null, db = null) {
     const e = body.employeeId
       ? await c.employee(tx, user, body.employeeId, { lock: true })
       : null;
-    if (old?.employeeId) await c.employee(tx, user, old.employeeId);
-    const own = e?.userId === user.id;
+    const previousEmployee = old?.employeeId ? await c.employee(tx, user, old.employeeId) : null;
+    // Authorize against the record's current owner too, so re-pointing it cannot dodge the self checks.
+    const own = e?.userId === user.id || previousEmployee?.userId === user.id;
     if (!(config.self && own && c.can(user, "self_service")))
       c.permit(user, config.permission);
     if (config.sensitive) c.permit(user, "view_salary");
@@ -58,6 +59,7 @@ async function record(user, kind, body, id = null, db = null) {
         c.fail("Processed adjustments are immutable", 409);
       if (status === "Approved") {
         c.permit(user, "approve_payroll");
+        if (!old) c.fail("Save the adjustment first; a different approver must then approve it", 403);
         if (own || old?.createdBy === user.id)
           c.fail("Adjustments require an independent approver", 403);
       }
