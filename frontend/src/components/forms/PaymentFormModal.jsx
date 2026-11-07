@@ -122,10 +122,14 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
 
   const clientOptions = clients.map(c => ({ value: c.id, label: c.companyName || c.name }));
   const invoiceOptions = invoices
-    .filter(i => !draft.clientId || String(i.clientId) === String(draft.clientId))
+    .filter(i =>
+      (!draft.clientId || String(i.clientId) === String(draft.clientId)) &&
+      // Only invoices that can still take a payment; the one already selected stays visible when editing.
+      ((!['Cancelled', 'Draft'].includes(i.status) && Number(i.balanceDue ?? 1) > 0) || String(i.id) === String(draft.invoiceId))
+    )
     .map(i => ({ 
       value: i.id, 
-      label: `${i.invoiceNumber} (₹${(Number(i.totalAmount) || 0).toLocaleString('en-IN')})` 
+      label: `${i.invoiceNumber} (balance ₹${(Number(i.balanceDue ?? i.totalAmount) || 0).toLocaleString('en-IN')} of ₹${(Number(i.totalAmount) || 0).toLocaleString('en-IN')})` 
     }));
   
   const modeOptions = ['Bank Transfer', 'UPI', 'Cheque', 'Cash', 'Credit Card'].map(m => ({ value: m, label: m }));
@@ -166,7 +170,7 @@ export function PaymentFormModal({ open, onClose, onSuccess, initialData = null 
               value={draft.invoiceId}
               onChange={(val) => {
                 const inv = invoices.find(i => String(i.id) === String(val));
-                setDraft(d => ({ ...d, invoiceId: val, amountReceived: inv ? inv.totalAmount : d.amountReceived }));
+                setDraft(d => ({ ...d, invoiceId: val, amountReceived: inv ? (inv.balanceDue ?? inv.totalAmount) : d.amountReceived }));
               }}
               placeholder="Select Invoice (Optional)"
             />

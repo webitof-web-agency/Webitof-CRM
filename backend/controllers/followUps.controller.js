@@ -2,6 +2,7 @@ const { query, withTransaction } = require('../config/db');
 const { createId } = require('../utils/format');
 const { hasPermission } = require('../middlewares/auth');
 const engine = require('../services/followUpEngine.service');
+const { userHasAllPipelineAccess, getUserAllowedPipelineIds } = require('../services/leadPipelineAccess.service');
 
 function notFound(res) {
   return res.status(404).json({ success: false, message: 'Follow-up not found' });
@@ -160,9 +161,11 @@ const SEARCH_TARGETS = {
     subtitle: `coalesce(nullif(phone, ''), nullif(alternate_phone, ''), nullif(whatsapp_number, ''), nullif(email, ''), nullif(company_name, ''), '')`,
     search: `concat_ws(' ', lead_number, name, company_name, contact_person, email, phone, alternate_phone, whatsapp_number)`
   },
+  // Matches ENTITY_DEFINITIONS.Contact (client contacts); searching lead contacts here made a picked contact
+  // fail with "Related record was not found" on save.
   Contact: {
-    table: 'lead_contacts',
-    permission: 'leads.read',
+    table: 'client_contacts',
+    permission: 'clients.read',
     label: `coalesce(nullif(trim(concat_ws(' ', first_name, last_name)), ''), nullif(email, ''), id)`,
     subtitle: `coalesce(nullif(phone, ''), nullif(email, ''), nullif(job_title, ''), '')`,
     search: `concat_ws(' ', first_name, last_name, email, phone, job_title)`
@@ -251,27 +254,30 @@ const SEARCH_TARGETS = {
 async function searchRelated(req, res, next) {
   try {
     const type = engine.normalizeEntityType(req.query?.type || 'Lead');
-    const target = SEARCH_TARGETS[type] || SEARCH_TARGETS.Lead;
+    // Only the types that have a search definition. Anything else (Custom, tickets) has nothing to list;
+    // it must not silently fall back to leads.
+    const target = SEARCH_TARGETS[type];
     if (!target) return res.json({ success: true, data: [] });
-    const allowed = req.user?.isSuperAdmin
-      || hasPermission(req.user, target.permission)
-      || hasPermission(req.user, `${type.toLowerCase()}s.read`)
-      || hasPermission(req.user, `${type.toLowerCase()}s.view`)
-      || hasPermission(req.user, `${type.toLowerCase()}s.view_all`)
-      || hasPermission(req.user, 'followups.create')
-      || hasPermission(req.user, 'followups.view_all')
-      || hasPermission(req.user, 'leads.read')
-      || hasPermission(req.user, 'leads.view');
-    if (!allowed) {
+    // Searching returns names, phone numbers and emails, so it needs read access to that kind of record,
+    // not merely permission to create follow-ups.
+    if (!req.user?.isSuperAdmin && !hasPermission(req.user, target.permission)) {
       return res.status(403).json({ success: false, message: `Missing permission: ${target.permission}` });
     }
     const searchRaw = String(req.query?.search || '').trim().toLowerCase();
     const search = `%${searchRaw}%`;
+    const values = [search];
+    const clauses = [`lower(${target.search}) like $1`];
+    if (target.extra) clauses.push(target.extra);
+    // Users limited to some lead pipelines only see leads from those pipelines.
+    if (target.table === 'leads' && !userHasAllPipelineAccess(req.user)) {
+      values.push(getUserAllowedPipelineIds(req.user));
+      clauses.push(`coalesce(pipeline_id, 'pipe-default') = any($${values.length}::text[])`);
+    }
     const result = await query(
       `select id, ${target.label} as label, ${target.subtitle || "''"} as subtitle from ${target.table}
-       where lower(${target.search}) like $1 ${target.extra ? `and ${target.extra}` : ''}
+       where ${clauses.join(' and ')}
        order by label asc limit 30`,
-      [search]
+      values
     );
     res.json({
       success: true,

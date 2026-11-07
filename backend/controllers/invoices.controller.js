@@ -7,7 +7,7 @@ const masterItemModel = require('../models/masterItem.model');
 const { getSettings } = require('../models/settings.model');
 const { calculateInvoiceTotals, getDefaultInvoiceTypeForClient, getPlaceOfSupplyForClient } = require('../utils/finance');
 const { generateInvoiceNumber, getFinancialYear, normalizeInvoiceNumber } = require('../utils/invoice');
-const { getInvoiceSnapshot, syncInvoiceFinancialState } = require('../services/finance.service');
+const { getInvoiceSnapshot, syncInvoiceFinancialState, isPaymentCounted } = require('../services/finance.service');
 const { notifyBusinessEvent } = require('../services/notification.service');
 const { hasPermission } = require('../middlewares/auth');
 const { withTransaction } = require('../config/db');
@@ -339,11 +339,48 @@ invoicesController.create = async (req, res, next) => {
   }
 };
 
+// An issued invoice is a tax document. It is never deleted: a draft can go, everything else is cancelled
+// (and cancelling needs its payments reversed first), so numbers and payments stay traceable.
+invoicesController.remove = async (req, res, next) => {
+  try {
+    const current = await invoiceModel.findById(req.params.id);
+    if (!current) {
+      return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+    if (String(current.status || '') !== 'Draft') {
+      return res.status(409).json({ success: false, message: 'Only draft invoices can be deleted. Cancel an issued invoice instead.' });
+    }
+    const payments = await paymentModel.list({ where: { invoiceId: current.id } });
+    if (payments.length) {
+      return res.status(409).json({ success: false, message: 'This invoice has payments recorded against it, so it cannot be deleted.' });
+    }
+    await invoiceModel.remove(current.id);
+    res.json({ success: true, message: 'Deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 invoicesController.update = async (req, res, next) => {
   try {
     const current = await invoiceModel.findById(req.params.id);
     if (!current) {
       return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+    const currentStatus = String(current.status || '');
+    if (['Paid', 'Cancelled'].includes(currentStatus)) {
+      return res.status(409).json({
+        success: false,
+        message: currentStatus === 'Paid'
+          ? 'A paid invoice cannot be edited. Reverse its payments first if it has to change.'
+          : 'A cancelled invoice cannot be edited.'
+      });
+    }
+    if (String(req.body?.status || '') === 'Cancelled') {
+      const payments = await paymentModel.list({ where: { invoiceId: current.id } });
+      if (payments.some((payment) => isPaymentCounted(payment))) {
+        return res.status(409).json({ success: false, message: 'This invoice has payments received. Reverse or refund them before cancelling it.' });
+      }
     }
     const body = await normalizeInvoice(req.body || {}, current, req.user);
     try {
@@ -378,19 +415,39 @@ function publicClient(client) {
   return { id, name, companyName, billingAddress, address, city, state, stateCode, pincode, country, gstin };
 }
 
-// Public endpoint — no auth required
+// Fields that exist for staff and automation, not for the person holding the link.
+const INTERNAL_INVOICE_FIELDS = ['payload', 'sourceQuotationId', 'sourceAmcId', 'sourceAmcRenewalId', 'createdBy', 'updatedBy', 'internalNotes'];
+const INTERNAL_ITEM_FIELDS = ['serviceSnapshot', 'defaultPrice', 'quotedRate', 'quotedRateLocked'];
+
+function publicInvoice(snapshot = {}) {
+  const result = { ...snapshot };
+  INTERNAL_INVOICE_FIELDS.forEach((key) => delete result[key]);
+  if (Array.isArray(result.items)) {
+    result.items = result.items.map((item) => {
+      const clean = { ...item };
+      INTERNAL_ITEM_FIELDS.forEach((key) => delete clean[key]);
+      return clean;
+    });
+  }
+  return result;
+}
+
+// Public endpoint — no auth required. Looked up by exact invoice id only: ids are random, whereas the
+// invoice number is sequential and would let anyone walk every invoice (INV-001, INV-002, ...).
 invoicesController.getPublic = async (req, res, next) => {
   try {
-    const invoice = await invoiceModel.findById(req.params.id);
+    const invoice = await invoiceModel.findByExactId(req.params.id);
     if (!invoice) {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
-    const [client, settings, bankAccount] = await Promise.all([
+    const [client, settings, bankAccount, payments] = await Promise.all([
       invoice.clientId ? clientModel.findById(invoice.clientId) : Promise.resolve(null),
       getSettings(),
-      invoice.bankAccountId ? bankAccountModel.findById(invoice.bankAccountId) : Promise.resolve(null)
+      invoice.bankAccountId ? bankAccountModel.findById(invoice.bankAccountId) : Promise.resolve(null),
+      // The payments that count, so a client who has paid is not shown "Overdue" with the full balance.
+      paymentModel.list({ where: { invoiceId: invoice.id } })
     ]);
-    const snapshot = getInvoiceSnapshot(invoice, [], settings || {}, client || {});
+    const snapshot = publicInvoice(getInvoiceSnapshot(invoice, payments, settings || {}, client || {}));
     res.json({
       success: true,
       data: {

@@ -65,7 +65,7 @@ export function PaymentBuilderPage() {
           // If coming from an invoice, prefill the amount
           const inv = invoicesRes.data?.find(i => String(i.id) === String(location.state.invoiceId));
           if (inv) {
-            setDraft(d => ({ ...d, amountReceived: inv.totalAmount }));
+            setDraft(d => ({ ...d, amountReceived: inv.balanceDue ?? inv.totalAmount }));
           }
         }
       } catch (err) {
@@ -125,14 +125,14 @@ export function PaymentBuilderPage() {
           <div>
             <label className="mb-1 block text-sm font-medium text-[var(--text-main)]">Against Invoice</label>
             <Select
-              options={invoices.filter(i => !draft.clientId || String(i.clientId) === String(draft.clientId)).map(i => ({ 
+              options={invoices.filter(i => (!draft.clientId || String(i.clientId) === String(draft.clientId)) && ((!['Cancelled', 'Draft'].includes(i.status) && Number(i.balanceDue ?? 1) > 0) || String(i.id) === String(draft.invoiceId))).map(i => ({ 
                 value: i.id, 
-                label: `${i.invoiceNumber} (₹${(Number(i.totalAmount) || 0).toLocaleString('en-IN')})` 
+                label: `${i.invoiceNumber} (balance ₹${(Number(i.balanceDue ?? i.totalAmount) || 0).toLocaleString('en-IN')} of ₹${(Number(i.totalAmount) || 0).toLocaleString('en-IN')})` 
               }))}
               value={draft.invoiceId}
               onChange={(val) => {
                 const inv = invoices.find(i => String(i.id) === String(val));
-                setDraft(d => ({ ...d, invoiceId: val, amountReceived: inv ? inv.totalAmount : d.amountReceived }));
+                setDraft(d => ({ ...d, invoiceId: val, amountReceived: inv ? (inv.balanceDue ?? inv.totalAmount) : d.amountReceived }));
               }}
               placeholder="Select Invoice (Optional)"
             />

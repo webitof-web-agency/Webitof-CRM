@@ -70,7 +70,9 @@ function resolveGstType({ companyState = DEFAULT_STATE, companyCountry = 'India'
   }
 
   if (exportOrSez) {
-    if (type.includes('without payment') || type.includes('lut') || lutEnabled) {
+    // "With payment of IGST" is an explicit choice; only fall back to the LUT setting when none was made.
+    const explicitWithPayment = type.includes('with payment') && !type.includes('without payment');
+    if (type.includes('without payment') || type.includes('lut') || (lutEnabled && !explicitWithPayment)) {
       return { gstType: 'NONE', supplyType: type.includes('sez') ? 'SEZ without payment under LUT' : 'Export without payment under LUT', reason: 'Zero-rated supply without payment of IGST.' };
     }
     return { gstType: 'IGST', supplyType: type.includes('sez') ? 'SEZ with payment of IGST' : 'Export with payment of IGST', reason: 'Zero-rated supply with payment of IGST.' };
@@ -179,6 +181,8 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
     ? getDefaultInvoiceTypeForClient(client, settings)
     : invoice?.invoiceType || 'Regular';
 
+  // Rate each line was really taxed at (including the settings default), by row position.
+  const appliedRates = [];
   const rows = invoiceItems.filter((item) => !item?.hidden).map((item) => {
     const quantity = toNumber(item.quantity ?? item.qty ?? 1);
     const lineAmount = round2(quantity * toNumber(item.rate));
@@ -200,6 +204,7 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
       lutEnabled
     });
     const effectiveRate = gstEnabled && preview.gstType !== 'NONE' ? rate : 0;
+    appliedRates.push(effectiveRate);
     const base = amountType === 'GST Inclusive'
       ? calculateInclusiveTax(grossLineAmount, effectiveRate)
       : calculateExclusiveTax(grossLineAmount, effectiveRate);
@@ -242,11 +247,11 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
   const discountRatio = subtotal > 0 ? Math.min(discountAmount, subtotal) / subtotal : 0;
 
   const discountedRows = discountAmount > 0
-    ? rows.map((item) => {
+    ? rows.map((item, index) => {
         const nextTaxableAmount = round2(Math.max(0, toNumber(item.taxableAmount) - (toNumber(item.taxableAmount) * discountRatio)));
         const gst = calculateGstBreakdown({
           taxableAmount: nextTaxableAmount,
-          gstRate: item.gstRate || 0,
+          gstRate: appliedRates[index] ?? 0,
           companyState,
           companyCountry,
           companyGstin,

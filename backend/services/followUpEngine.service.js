@@ -3,6 +3,7 @@ const leadEventModel = require('../models/leadEvent.model');
 const { query, withTransaction } = require('../config/db');
 const { hasPermission } = require('../middlewares/auth');
 const { createId } = require('../utils/format');
+const { canAccessPipeline } = require('./leadPipelineAccess.service');
 
 const ACTIVE_FOLLOW_UP_STATUSES = [
   'Scheduled', 'Due Today', 'In Progress', 'Rescheduled', 'Snoozed',
@@ -303,7 +304,7 @@ async function findRelatedEntity(type, id, db = null) {
     `select id, ${definition.label} as label, ${definition.owner} as owner_user_id,
       ${definition.client || 'null'} as client_id, ${definition.project || 'null'} as project_id,
       ${definition.invoice || 'null'} as invoice_id, ${definition.lead || 'null'} as lead_id,
-      ${definition.status || `''`} as status, payload
+      ${definition.status || `''`} as status, ${definition.table === 'leads' ? 'pipeline_id' : 'null'} as pipeline_id, payload
      from ${definition.table} where id = $1 limit 1`,
     [String(id)]
   );
@@ -466,6 +467,10 @@ async function createFollowUp(input = {}, actor = null, options = {}) {
     if (!options.system) assertRelatedPermission(actor, entityType);
     const context = await findRelatedEntity(entityType, input.relatedEntityId, db);
     if (!context) throw validationError({ relatedEntityId: 'Related record was not found' });
+    // Lead-type records live in pipelines; a user restricted to some pipelines may not attach work to others.
+    if (!options.system && context.pipeline_id !== undefined && context.pipeline_id !== null && !canAccessPipeline(actor, context.pipeline_id)) {
+      throw forbidden('This record is in a lead pipeline you do not have access to');
+    }
     const data = normalizeFollowUpInput(input, context, settings);
     data.assignedTo = data.assignedTo || actor?.id || null;
     await assertActiveAssignee(data.assignedTo, db);
@@ -740,6 +745,26 @@ async function markInProgress(id, actor) {
   });
 }
 
+// Completing a follow-up may also move the related record to a new status, but only for record types where
+// that makes sense and only for someone who may edit that record. Money statuses (invoices, payments) are
+// computed by finance, and contacts, quotations and tasks have no plain status column.
+const RELATED_STATUS_WRITE_PERMISSION = {
+  Lead: 'leads.write',
+  Opportunity: 'leads.write',
+  Deal: 'leads.write',
+  Client: 'clients.write',
+  Project: 'projects.write',
+  AMC: 'amc.write',
+  Renewal: 'renewals.write'
+};
+
+function canWriteRelatedStatus(actor, entityType, value) {
+  const permission = RELATED_STATUS_WRITE_PERMISSION[normalizeEntityType(entityType)];
+  const text = String(value || '').trim();
+  if (!permission || !text || text.length > 60) return false;
+  return Boolean(actor?.isSuperAdmin || hasPermission(actor, permission));
+}
+
 function isTerminalRelatedStatus(type, status) {
   const normalized = String(status || '').trim().toLowerCase();
   if (['lead', 'opportunity', 'deal'].includes(String(type || '').toLowerCase())) return ['won', 'lost', 'not interested', 'invalid lead', 'duplicate'].includes(normalized);
@@ -766,7 +791,10 @@ async function completeFollowUp(id, payload = {}, actor = null, options = {}) {
     if (!discussionNote) errors.discussionNote = 'Discussion note is required';
     if (actualOutcome && !OUTCOMES.includes(actualOutcome) && actualOutcome !== 'Custom') errors.actualOutcome = 'Select a valid outcome';
     const related = await findRelatedEntity(current.relatedEntityType, current.relatedEntityId, db);
-    const relatedStatus = payload.relatedStatus || related?.status || '';
+    // Only a status the actor is actually allowed to set counts; otherwise it cannot be used to claim
+    // "Won" or "Paid" and so skip the required next action.
+    const relatedStatusAllowed = canWriteRelatedStatus(actor, current.relatedEntityType, payload.relatedStatus);
+    const relatedStatus = (relatedStatusAllowed ? String(payload.relatedStatus).trim() : '') || related?.status || '';
     const terminal = isTerminalRelatedStatus(current.relatedEntityType, relatedStatus);
     const settings = await getSettings(db);
     const recurringAt = current.isRecurring ? getNextRecurrenceAt(current.dueAt, current.recurrenceRule, settings) : null;
@@ -793,10 +821,10 @@ async function completeFollowUp(id, payload = {}, actor = null, options = {}) {
     await recordStatus(db, id, current.status, 'Completed', actor?.id, actualOutcome, { communicationResult });
     await recordAudit(db, id, 'completed', actor?.id, current, completed, { callRecordingReference: payload.callRecordingReference || '' });
 
-    if (payload.relatedStatus && related && ENTITY_DEFINITIONS[normalizeEntityType(current.relatedEntityType)]) {
+    if (relatedStatusAllowed && related && ENTITY_DEFINITIONS[normalizeEntityType(current.relatedEntityType)]) {
       const definition = ENTITY_DEFINITIONS[normalizeEntityType(current.relatedEntityType)];
-      if (definition.status && !definition.status.includes('payload')) {
-        await db.query(`update ${definition.table} set ${definition.status} = $2, updated_at = now() where id = $1`, [current.relatedEntityId, payload.relatedStatus]);
+      if (definition.status && /^[a-z_]+$/.test(definition.status)) {
+        await db.query(`update ${definition.table} set ${definition.status} = $2, updated_at = now() where id = $1`, [current.relatedEntityId, String(payload.relatedStatus).trim()]);
       }
     }
 
@@ -1547,6 +1575,7 @@ function createFollowUpScheduler({ schedule = process.env.FOLLOW_UP_AUTOMATION_C
 }
 
 module.exports = {
+  canWriteRelatedStatus,
   ACTIVE_FOLLOW_UP_STATUSES,
   CLOSED_FOLLOW_UP_STATUSES,
   FOLLOW_UP_TYPES,

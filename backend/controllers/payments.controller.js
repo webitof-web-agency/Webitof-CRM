@@ -2,8 +2,8 @@ const { createCrudController } = require('./crudController');
 const paymentModel = require('../models/payment.model');
 const invoiceModel = require('../models/invoice.model');
 const { withTransaction } = require('../config/db');
-const { syncInvoiceFinancialState } = require('../services/finance.service');
-const { toNumber } = require('../utils/format');
+const { syncInvoiceFinancialState, getInvoiceBalance, isPaymentCounted } = require('../services/finance.service');
+const { toNumber, round2, businessDate } = require('../utils/format');
 const { notifyBusinessEvent } = require('../services/notification.service');
 const followUpEngine = require('../services/followUpEngine.service');
 
@@ -11,33 +11,85 @@ const paymentsController = createCrudController(paymentModel, {
   defaultOrder: 'payment_date DESC'
 });
 
-async function normalizePayment(body = {}, current = null) {
+function paymentError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+const money = (value) => Number(value || 0).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+
+// `db` is the open transaction: the invoice row is locked in it, so two payments recorded at the same
+// moment cannot both pass the balance check.
+async function normalizePayment(body = {}, current = null, db = null) {
+  // After a merge, `base` already holds the saved values, so clearing a field (invoice, notes, bank) works.
   const base = current ? { ...current, ...body } : { ...body };
-  let clientId = base.clientId || current?.clientId || null;
-  let projectId = base.projectId || current?.projectId || null;
-  const invoiceId = base.invoiceId || current?.invoiceId || null;
+  let clientId = base.clientId || null;
+  let projectId = base.projectId || null;
+  const invoiceId = base.invoiceId || null;
+
+  const amountReceived = toNumber(base.amountReceived ?? 0);
+  const tdsDeducted = toNumber(base.tdsDeducted ?? 0);
+  if (!Number.isFinite(amountReceived) || amountReceived <= 0) throw paymentError('Enter an amount received greater than zero.');
+  if (!Number.isFinite(tdsDeducted) || tdsDeducted < 0) throw paymentError('TDS deducted cannot be negative.');
+
+  const paymentStatus = base.paymentStatus || 'Received';
+  const transactionId = String(base.transactionId || '').trim();
 
   if (invoiceId) {
-    const invoice = await invoiceModel.findById(invoiceId);
-    if (invoice) {
-      clientId = clientId || invoice.clientId || null;
-      projectId = projectId || invoice.projectId || null;
+    if (db) await db.query('select id from invoices where id = $1 for update', [invoiceId]);
+    const invoice = await invoiceModel.findById(invoiceId, db);
+    if (!invoice) throw paymentError('The selected invoice does not exist.', 404);
+    if (['Cancelled', 'Draft'].includes(String(invoice.status || ''))) {
+      throw paymentError(`Payments cannot be recorded against a ${String(invoice.status).toLowerCase()} invoice.`, 409);
     }
+    if (clientId && invoice.clientId && String(clientId) !== String(invoice.clientId)) {
+      throw paymentError('This payment\'s client does not match the invoice\'s client.');
+    }
+    clientId = clientId || invoice.clientId || null;
+    projectId = projectId || invoice.projectId || null;
+
+    // A payment that counts as received may not exceed what is still owed.
+    const financialChange =
+      !current ||
+      round2(current.amountReceived) !== round2(amountReceived) ||
+      round2(current.tdsDeducted) !== round2(tdsDeducted) ||
+      String(current.invoiceId || '') !== String(invoiceId) ||
+      String(current.paymentStatus || 'Received') !== String(paymentStatus);
+    if (financialChange && isPaymentCounted({ paymentStatus })) {
+      const balance = await getInvoiceBalance(invoiceId, db, { excludePaymentId: current?.id });
+      const applied = round2(amountReceived + tdsDeducted);
+      if (balance && applied > round2(balance.balanceDue) + 0.005) {
+        throw paymentError(
+          `This payment (${money(applied)} including TDS) is more than the invoice balance of ${money(balance.balanceDue)}. Record only the balance, or correct the invoice first.`,
+          409
+        );
+      }
+    }
+  }
+
+  // The same bank reference (UTR / cheque number) must not be recorded twice.
+  if (transactionId && db) {
+    const duplicate = await db.query(
+      "select id from payments where lower(transaction_id) = lower($1) and id <> $2 limit 1",
+      [transactionId, current?.id || '']
+    );
+    if (duplicate.rows[0]) throw paymentError('A payment with this transaction reference is already recorded.', 409);
   }
 
   return {
     ...base,
-    paymentDate: base.paymentDate || current?.paymentDate || new Date().toISOString().slice(0, 10),
+    paymentDate: base.paymentDate || businessDate(),
     clientId,
     projectId,
     invoiceId,
-    amountReceived: toNumber(base.amountReceived ?? current?.amountReceived ?? 0),
-    tdsDeducted: toNumber(base.tdsDeducted ?? current?.tdsDeducted ?? 0),
-    paymentStatus: base.paymentStatus || current?.paymentStatus || 'Received',
-    paymentMode: base.paymentMode || current?.paymentMode || 'Bank Transfer',
-    bankAccountId: base.bankAccountId || current?.bankAccountId || null,
-    transactionId: base.transactionId || current?.transactionId || '',
-    notes: base.notes || current?.notes || ''
+    amountReceived,
+    tdsDeducted,
+    paymentStatus,
+    paymentMode: base.paymentMode || 'Bank Transfer',
+    bankAccountId: base.bankAccountId || null,
+    transactionId,
+    notes: base.notes ?? ''
   };
 }
 
@@ -51,7 +103,7 @@ async function syncInvoicesForPaymentChange(db, before = null, after = null) {
 paymentsController.create = async (req, res, next) => {
   try {
     const record = await withTransaction(async (db) => {
-      const body = await normalizePayment(req.body || {}, null);
+      const body = await normalizePayment(req.body || {}, null, db);
       const created = await paymentModel.create(body, db);
       await syncInvoicesForPaymentChange(db, null, created);
       if (created.invoiceId) {
@@ -95,7 +147,7 @@ paymentsController.update = async (req, res, next) => {
     const record = await withTransaction(async (db) => {
       const current = await paymentModel.findById(req.params.id, db);
       if (!current) return null;
-      const body = await normalizePayment(req.body || {}, current);
+      const body = await normalizePayment(req.body || {}, current, db);
       const updated = await paymentModel.update(req.params.id, body, db);
       await syncInvoicesForPaymentChange(db, current, updated);
       if (updated.invoiceId) {
@@ -168,5 +220,8 @@ paymentsController.remove = async (req, res, next) => {
     next(error);
   }
 };
+
+// Exposed so the validation rules can be tested without a database.
+paymentsController.normalizePayment = normalizePayment;
 
 module.exports = paymentsController;

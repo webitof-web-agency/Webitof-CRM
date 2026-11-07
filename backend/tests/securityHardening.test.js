@@ -62,7 +62,9 @@ test('the public invoice link exposes only the client fields the page renders', 
   const invoiceModel = require('../models/invoice.model');
   const clientModel = require('../models/client.model');
   const settingsModel = require('../models/settings.model');
-  invoiceModel.findById = async () => ({ id: 'inv1', clientId: 'c1', invoiceNumber: 'INV-1', items: [], status: 'Sent' });
+  // The public link looks the invoice up by exact id and loads its payments to show the true status.
+  invoiceModel.findByExactId = async () => ({ id: 'inv1', clientId: 'c1', invoiceNumber: 'INV-1', items: [], status: 'Sent' });
+  require('../models/payment.model').list = async () => [];
   clientModel.findById = async () => ({
     id: 'c1', name: 'Asha', companyName: 'Asha Co', billingAddress: '1 Street', city: 'Delhi', state: 'Delhi',
     gstin: '07AAAAA0000A1Z5', email: 'private@asha.test', mobile: '9999999999', notes: 'internal note', payload: { secret: 1 }

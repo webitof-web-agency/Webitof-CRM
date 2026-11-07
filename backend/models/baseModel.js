@@ -173,6 +173,16 @@ function createRepository({
     return result.rows.map((row) => hydrateRow(row, columns));
   }
 
+  // Exact id match only. findById also resolves by public identifiers (an invoice number) and by id
+  // prefix, which is fine for logged-in lookups but must never back an unauthenticated link.
+  async function findByExactId(id, dbClient = null) {
+    const raw = String(id || '').trim();
+    if (!raw) return null;
+    const exec = dbClient?.query || query;
+    const result = await exec.call(dbClient || null, `select * from ${table} where id = $1 limit 1`, [raw]);
+    return result.rows[0] ? hydrateRow(result.rows[0], columns) : null;
+  }
+
   async function findById(id, dbClient = null) {
     if (!id) return null;
     const exec = dbClient?.query || query;
@@ -277,6 +287,7 @@ function createRepository({
     count,
     create,
     findById,
+    findByExactId,
     hydrateRow: (row) => hydrateRow(row, columns),
     list,
     remove,

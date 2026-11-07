@@ -698,7 +698,28 @@ async function syncInvoiceFinancialState(invoiceId, dbClient = null) {
   };
 }
 
+// What is still owed on an invoice, ignoring one payment (the one being edited). Used to stop a payment
+// from exceeding the balance.
+async function getInvoiceBalance(invoiceId, dbClient = null, { excludePaymentId = '' } = {}) {
+  if (!invoiceId) return null;
+  const exec = dbClient?.query || null;
+  const [invoice, paymentResult, settings] = await Promise.all([
+    invoiceModel.findById(invoiceId, dbClient),
+    exec
+      ? exec.call(dbClient, 'select * from payments where invoice_id = $1', [invoiceId])
+      : paymentModel.list({ where: { invoiceId } }),
+    getSettings()
+  ]);
+  if (!invoice) return null;
+  const payments = (Array.isArray(paymentResult?.rows) ? paymentResult.rows.map((row) => paymentModel.hydrateRow(row)) : paymentResult || [])
+    .filter((payment) => !excludePaymentId || String(payment.id) !== String(excludePaymentId));
+  const client = invoice.clientId ? await clientModel.findById(invoice.clientId, dbClient) : null;
+  const snapshot = getInvoiceSnapshot(invoice, payments, settings || {}, client || {});
+  return { invoice, balanceDue: snapshot.balanceDue, totalAmount: snapshot.totalAmount };
+}
+
 module.exports = {
+  getInvoiceBalance,
   buildBankReconciliation,
   buildFinanceLedger,
   buildFinanceSummary,
