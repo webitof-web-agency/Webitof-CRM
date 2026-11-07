@@ -393,7 +393,7 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
       <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
         <Card className="h-fit p-6">
           <div className="flex flex-col items-center text-center">
-            <div className="grid h-32 w-32 place-items-center overflow-hidden rounded-full border-4 border-emerald-100 bg-[var(--surface-2)]">
+            <div className="grid h-32 w-32 place-items-center overflow-hidden rounded-full border-4 border-emerald-500/30 bg-[var(--surface-2)]">
               {photo ? (
                 <img src={photo} alt={employee.fullName} className="h-full w-full object-cover" />
               ) : (

@@ -402,10 +402,19 @@ async function approveRequest(user, id, body, db = null) {
       "Action",
     );
     if (action === "cancel") {
-      c.permit(user, "self_service");
-      if (e.userId !== user.id) c.fail("Cancel your own request", 403);
-      if (!["Submitted", "Manager Approved"].includes(r.status))
-        c.fail("Only pending requests can be cancelled", 409);
+      if (r.kind === "leave" && r.status === "Approved") {
+        // Approved leave can be withdrawn before it starts, or by HR at any time.
+        if (e.userId === user.id) {
+          c.permit(user, "self_service");
+          if (r.startDate <= c.today(await c.policy(tx)))
+            c.fail("Leave that has already started can only be cancelled by HR", 409);
+        } else c.permit(user, "hr_approve");
+      } else {
+        c.permit(user, "self_service");
+        if (e.userId !== user.id) c.fail("Cancel your own request", 403);
+        if (!["Submitted", "Manager Approved"].includes(r.status))
+          c.fail("Only pending requests can be cancelled", 409);
+      }
     } else {
       if (e.userId === user.id)
         c.fail("You cannot approve your own request", 403);
@@ -443,11 +452,10 @@ async function approveRequest(user, id, body, db = null) {
       ["reject", "revise"].includes(action),
     );
     if (status === "Approved") {
-      const locked = await tx.query(
-        "SELECT pe.id FROM hrm_payroll_entries pe JOIN hrm_payroll_runs p ON p.id=pe.run_id WHERE pe.employee_id=$1 AND p.start_date<=$3 AND p.end_date>=$2",
-        [e.id, r.startDate, r.endDate],
-      );
-      if (["leave", "regularization"].includes(r.kind) && locked.rowCount)
+      if (
+        ["leave", "regularization"].includes(r.kind) &&
+        (await c.payrollLocked(tx, e.id, r.startDate, r.endDate))
+      )
         c.fail("This period is locked by payroll", 409);
       if (r.kind === "leave") {
         const overlaps = await tx.query(
@@ -611,6 +619,24 @@ async function approveRequest(user, id, body, db = null) {
             createdBy: user.id,
           });
       }
+    }
+    if (action === "cancel" && r.kind === "leave" && r.status === "Approved") {
+      if (await c.payrollLocked(tx, e.id, r.startDate, r.endDate)) c.fail("This period is locked by payroll", 409);
+      // Give the days back and clear the leave marks the approval wrote.
+      if (r.details.paid)
+        await c.insert(tx, "hrm_leave_ledger", {
+          employeeId: e.id,
+          leaveTypeId: r.details.leaveTypeId,
+          year: Number(r.startDate.slice(0, 4)),
+          amount: r.details.days,
+          reason: "Cancelled leave",
+          sourceKey: `leave-cancel:${r.id}`,
+          createdBy: user.id,
+        });
+      await tx.query(
+        "DELETE FROM hrm_attendance WHERE employee_id=$1 AND work_date BETWEEN $2 AND $3 AND check_in IS NULL AND locked_at IS NULL AND status IN ('Leave','Half Day')",
+        [e.id, r.startDate, r.endDate],
+      );
     }
     const saved = await c.update(tx, "hrm_requests", id, {
       status,

@@ -4,6 +4,8 @@ import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Modal } from "../../components/ui/Modal";
 import { EmptyState } from "../../components/ui/EmptyState";
+import { SimpleTable } from "../../components/ui/SimpleTable";
+import { Badge } from "../../components/ui/Badge";
 import { hrm, queryString, label } from "./hrmApi";
 export const controlClass =
   "w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]";
@@ -67,6 +69,7 @@ export function Field({
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
           required={required}
+          disabled={disabled}
         />
       ) : (
         <Input
@@ -180,64 +183,23 @@ export function HrmTable({
     );
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-[var(--surface-2)]">
-            <tr>
-              {columns.map((col) => (
-                <th
-                  key={col.key}
-                  className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-[var(--text-muted)]"
-                >
-                  {col.title || label(col.key)}
-                </th>
-              ))}
-              {actions && <th className="px-4 py-3">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {loading
-              ? Array.from({ length: 5 }, (_, i) => (
-                  <tr key={i}>
-                    <td
-                      colSpan={columns.length + (actions ? 1 : 0)}
-                      className="p-4"
-                    >
-                      <div className="h-5 animate-pulse rounded bg-[var(--surface-2)]" />
-                    </td>
-                  </tr>
-                ))
-              : rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-t border-[var(--border)] hover:bg-[var(--hover-bg)]"
-                  >
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className="max-w-xs px-4 py-3 text-[var(--text-main)]"
-                      >
-                        {col.render
-                          ? col.render(row)
-                          : typeof row[col.key] === "boolean"
-                            ? row[col.key]
-                              ? "Yes"
-                              : "No"
-                            : (row[col.key] ?? "—")}
-                      </td>
-                    ))}
-                    {actions && (
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {actions(row)}
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-          </tbody>
-        </table>
-      </div>
+      <SimpleTable
+        bordered={false}
+        roomy
+        textSize="sm"
+        loading={loading}
+        rows={rows}
+        rowActions={actions}
+        columns={columns.map((col) => ({
+          key: col.key,
+          label: col.title || label(col.key),
+          className: "max-w-xs",
+          render:
+            col.render ||
+            ((row) =>
+              typeof row[col.key] === "boolean" ? (row[col.key] ? "Yes" : "No") : (row[col.key] ?? "—")),
+        }))}
+      />
       {!loading && !rows.length && (
         <EmptyState
           title="No records yet"
@@ -270,13 +232,14 @@ export function HrmTable({
     </Card>
   );
 }
+const STATUS_SUCCESS = ["Approved", "Active", "Done", "Completed", "Verified", "Posted", "Confirmed"];
+const STATUS_DANGER = ["Rejected", "Missing", "Overloaded"];
 export function Status({ value }) {
+  const tone = STATUS_SUCCESS.includes(value) ? "success" : STATUS_DANGER.includes(value) ? "danger" : "primary";
   return (
-    <span
-      className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold ${["Approved", "Active", "Done", "Completed", "Verified", "Posted", "Confirmed"].includes(value) ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : ["Rejected", "Missing", "Overloaded"].includes(value) ? "bg-rose-500/10 text-rose-700 dark:text-rose-400" : "bg-[var(--primary-subtle)] text-[var(--primary)]"}`}
-    >
+    <Badge tone={tone} className="whitespace-nowrap">
       {value || "Draft"}
-    </span>
+    </Badge>
   );
 }
 export function ActionDialog({ action, onClose, onConfirm, busy }) {

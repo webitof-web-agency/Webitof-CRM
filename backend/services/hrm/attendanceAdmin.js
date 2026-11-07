@@ -14,11 +14,7 @@ async function mark(user, body, db = null) {
       (e.exitDate && date > e.exitDate)
     )
       c.fail("Attendance date is outside employment or in the future");
-    const locked = await tx.query(
-      "SELECT pe.id FROM hrm_payroll_entries pe JOIN hrm_payroll_runs r ON r.id=pe.run_id WHERE pe.employee_id=$1 AND r.start_date<=$2 AND r.end_date>=$2",
-      [e.id, date],
-    );
-    if (locked.rowCount) c.fail("Payroll has locked this date", 409);
+    if (await c.payrollLocked(tx, e.id, date)) c.fail("Payroll has locked this date", 409);
     const leave = await tx.query(
       "SELECT id FROM hrm_requests WHERE employee_id=$1 AND kind='leave' AND status='Approved' AND start_date<=$2 AND end_date>=$2",
       [e.id, date],

@@ -19,6 +19,7 @@ import { Field, Status, controlClass } from "./HrmShared";
 import { GeoMap } from "./GeoMap";
 import { hrm } from "./hrmApi";
 import { hm, clock, EVENT_LABELS } from "./hrmTime";
+import { ConfirmModal } from "../../components/ui/ConfirmModal";
 
 // The employee workday on the web — same server rules as the mobile app:
 // location-verified clock-in, job timer, hourly reports, lunch, pings, summary.
@@ -438,20 +439,17 @@ export function HrmMyDay({ token }) {
         <EntryModal token={token} {...modal} minChars={p.minSlotReportChars} onClose={() => setModal(null)} />
       )}
       {modal?.type === "confirm" && (
-        <Modal open title={modal.title} onClose={() => setModal(null)} width="min(480px,95vw)">
-          <p className="text-sm text-[var(--text-muted)]">{modal.message}</p>
-          <div className="mt-5 flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setModal(null)}>Cancel</Button>
-            <Button
-              onClick={async () => {
-                setModal(null);
-                await modal.onOk();
-              }}
-            >
-              {modal.ok}
-            </Button>
-          </div>
-        </Modal>
+        <ConfirmModal
+          open
+          title={modal.title}
+          description={modal.message}
+          confirmText={modal.ok}
+          onCancel={() => setModal(null)}
+          onConfirm={async () => {
+            setModal(null);
+            await modal.onOk();
+          }}
+        />
       )}
       {modal?.type === "summary" && (
         <SummaryModal

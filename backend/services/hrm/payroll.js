@@ -243,15 +243,11 @@ async function draft(user, body, db = null) {
 async function action(user, id, body, db = null) {
   c.allow(body, ["action"]);
   return c.transaction(async (tx) => {
-    const action = c.choice(body.action, ["review", "approve", "post"]);
-    c.permit(
-      user,
-      action === "post"
-        ? "finance"
-        : action === "approve"
-          ? "approve_payroll"
-          : "payroll",
-    );
+    const action = c.choice(body.action, ["review", "approve", "post", "void"]);
+    if (action === "post") c.permit(user, "finance");
+    else if (action === "approve") c.permit(user, "approve_payroll");
+    else if (action === "void") c.permit(user, "payroll", "approve_payroll");
+    else c.permit(user, "payroll");
     c.permit(user, "view_salary");
     const run = c.camel(
       (
@@ -265,8 +261,20 @@ async function action(user, id, body, db = null) {
     const entries = (
       await tx.query("SELECT * FROM hrm_payroll_entries WHERE run_id=$1", [id])
     ).rows.map(c.camel);
+    // Load the run's employees directly. Going through the scoped c.employee() here made one archived
+    // or out-of-scope employee fail review/approve/post for the whole run.
+    const people = new Map(
+      (
+        await tx.query("SELECT * FROM hrm_employees WHERE id=ANY($1::text[])", [
+          [...new Set(entries.map((x) => x.employeeId))],
+        ])
+      ).rows
+        .map(c.camel)
+        .map((x) => [x.id, x]),
+    );
+    const person = (row) => people.get(row.employeeId) || c.fail("Employee record is missing", 409);
     for (const row of entries) {
-      const e = await c.employee(tx, user, row.employeeId);
+      const e = person(row);
       if (action === "approve" && e.userId === user.id)
         c.fail(
           "An approver cannot approve payroll containing their own pay",
@@ -276,15 +284,39 @@ async function action(user, id, body, db = null) {
     if (
       (action === "review" && run.status !== "Draft") ||
       (action === "approve" && run.status !== "Reviewed") ||
-      (action === "post" && run.status !== "Approved")
+      (action === "post" && run.status !== "Approved") ||
+      (action === "void" && !["Draft", "Reviewed"].includes(run.status))
     )
       c.fail("Invalid payroll transition or already processed", 409);
     if (action === "approve" && run.createdBy === user.id)
       c.fail("Payroll must be approved by a different authorized user", 403);
+    if (action === "void") {
+      // Only before approval: nothing is posted yet, so deleting the entries and unlocking the month
+      // fully undoes the draft. The run stays as Voided with its totals in the audit trail.
+      for (const entry of entries)
+        await tx.query(
+          "UPDATE hrm_attendance SET locked_at=NULL WHERE employee_id=$1 AND work_date BETWEEN $2 AND $3",
+          [entry.employeeId, run.startDate, run.endDate],
+        );
+      await tx.query("DELETE FROM hrm_payroll_entries WHERE run_id=$1", [id]);
+      const voided = await c.update(tx, "hrm_payroll_runs", id, { status: "Voided" });
+      await c.audit(
+        tx,
+        user,
+        "payroll",
+        id,
+        "voided",
+        { run, employeeCount: entries.length, gross: calc.round(entries.reduce((n, x) => n + Number(x.gross || 0), 0)) },
+        voided,
+        null,
+        true,
+      );
+      return voided;
+    }
     if (action === "post")
       for (const entry of entries) {
         if (entry.expenseId) continue;
-        const e = await c.employee(tx, user, entry.employeeId);
+        const e = person(entry);
         const expense = await c.insert(tx, "expenses", {
           expenseDate: run.endDate,
           vendor: e.fullName,
@@ -327,7 +359,7 @@ async function action(user, id, body, db = null) {
             "UPDATE hrm_records SET status='Processed',updated_at=now() WHERE id=ANY($1::text[])",
             [entry.calculation.adjustmentIds],
           );
-        const e = await c.employee(tx, user, entry.employeeId);
+        const e = person(entry);
         await c.notify(tx, e.userId, "Payslip available", entry.id, user.id);
       }
     await c.audit(tx, user, "payroll", id, action, run, saved, null, true);

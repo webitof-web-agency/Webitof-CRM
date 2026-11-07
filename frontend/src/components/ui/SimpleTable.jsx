@@ -11,14 +11,18 @@ export function SimpleTable({
   onRowClick,
   rowClassName,
   emptyText = '',
+  loading = false,
+  rowActions,
   compact = false,
+  roomy = false,
   stickyHeader = false,
   bordered = true,
   textSize = 'xs',
   headerClassName = '',
   className = ''
 }) {
-  const cell = compact ? 'px-2 py-1.5' : 'px-3 py-2';
+  const cell = compact ? 'px-2 py-1.5' : roomy ? 'px-4 py-3' : 'px-3 py-2';
+  const columnCount = columns.length + (rowActions ? 1 : 0);
   const getKey = (row, index) => (typeof rowKey === 'function' ? rowKey(row, index) : row?.[rowKey] ?? index);
 
   return (
@@ -36,7 +40,7 @@ export function SimpleTable({
                 key={col.key ?? i}
                 className={cn(
                   cell,
-                  'whitespace-nowrap font-semibold',
+                  'whitespace-nowrap text-xs font-semibold',
                   col.align === 'right' && 'text-right',
                   headerClassName,
                   col.headerClassName
@@ -45,17 +49,27 @@ export function SimpleTable({
                 {col.label}
               </th>
             ))}
+            {rowActions ? <th className={cn(cell, 'whitespace-nowrap text-xs font-semibold')}>Actions</th> : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--border)]">
-          {rows.length === 0 && emptyText ? (
+          {loading
+            ? Array.from({ length: 5 }, (_, i) => (
+                <tr key={`loading-${i}`}>
+                  <td colSpan={columnCount} className={cell}>
+                    <div className="h-5 animate-pulse rounded bg-[var(--surface-2)]" />
+                  </td>
+                </tr>
+              ))
+            : null}
+          {!loading && rows.length === 0 && emptyText ? (
             <tr>
-              <td colSpan={columns.length} className={cn(cell, 'py-6 text-center text-[var(--text-muted)]')}>
+              <td colSpan={columnCount} className={cn(cell, 'py-6 text-center text-[var(--text-muted)]')}>
                 {emptyText}
               </td>
             </tr>
           ) : null}
-          {rows.map((row, index) => {
+          {(loading ? [] : rows).map((row, index) => {
             const clickable = typeof onRowClick === 'function';
             return (
               <tr
@@ -87,6 +101,11 @@ export function SimpleTable({
                     {col.render ? col.render(row, index) : (row?.[col.key] ?? '-')}
                   </td>
                 ))}
+                {rowActions ? (
+                  <td className={cell} onClick={(event) => event.stopPropagation()}>
+                    <div className="flex flex-wrap gap-1">{rowActions(row, index)}</div>
+                  </td>
+                ) : null}
               </tr>
             );
           })}

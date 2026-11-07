@@ -256,6 +256,30 @@ async function notifyReviewers(db, employee, title, entityId, actorId, options =
   for (const id of await reviewers(db, employee))
     await notify(db, id, title, entityId, actorId, options);
 }
+// Side effects (push notifications) run after commit with bounded concurrency, so a job that
+// notifies hundreds of people does not open hundreds of simultaneous outbound requests.
+async function runHooks(hooks, limit = 8) {
+  let next = 0;
+  const worker = async () => {
+    while (next < hooks.length) {
+      const hook = hooks[next++];
+      try {
+        await hook();
+      } catch (e) {
+        console.error("HRM side effect failed:", e.message);
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, hooks.length) }, worker));
+}
+// True when a payroll run already covers any part of [start, end] for the employee.
+async function payrollLocked(db, employeeId, start, end = start) {
+  const r = await db.query(
+    "SELECT 1 FROM hrm_payroll_entries pe JOIN hrm_payroll_runs p ON p.id=pe.run_id WHERE pe.employee_id=$1 AND p.start_date<=$3 AND p.end_date>=$2 LIMIT 1",
+    [employeeId, start, end],
+  );
+  return r.rowCount > 0;
+}
 async function transaction(work, db) {
   if (db) return work(db);
   const hooks = [];
@@ -268,10 +292,7 @@ async function transaction(work, db) {
       delete tx.afterCommit;
     }
   });
-  for (const hook of hooks)
-    Promise.resolve()
-      .then(hook)
-      .catch((e) => console.error("HRM side effect failed:", e.message));
+  if (hooks.length) runHooks(hooks).catch((e) => console.error("HRM side effects failed:", e.message));
   return result;
 }
 function page(q) {
@@ -285,6 +306,8 @@ function optimistic(current, body) {
     fail("This record has changed. Refresh and try again.", 409);
 }
 module.exports = {
+  payrollLocked,
+  runHooks,
   dbDefault,
   fail,
   permit,

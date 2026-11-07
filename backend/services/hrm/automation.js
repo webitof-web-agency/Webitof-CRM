@@ -184,7 +184,7 @@ async function hasEvent(tx, attendanceId, kind, key) {
     )
   ).rowCount;
 }
-async function sessionTick(attendanceId, now) {
+async function sessionTick(attendanceId, now, tickPolicy = null) {
   const wd = require("./workday");
   return c.transaction(async (tx) => {
     const att = c.camel(
@@ -197,7 +197,7 @@ async function sessionTick(attendanceId, now) {
     );
     if (!att) return;
     const e = c.camel((await tx.query("SELECT * FROM hrm_employees WHERE id=$1", [att.employeeId])).rows[0]);
-    const p = await c.policy(tx);
+    const p = tickPolicy || (await c.policy(tx));
     if (att.autoCheckoutAt && new Date(att.autoCheckoutAt) <= now) {
       await wd.closeSession(tx, att, p, att.autoCheckoutAt, "Half-day leave start time reached");
       await c.notify(tx, e.userId, "Half-day leave started — you were clocked out", att.id, null, {
@@ -394,7 +394,7 @@ async function realtime(now = new Date()) {
       await c.dbDefault.query("SELECT id FROM hrm_attendance WHERE check_in IS NOT NULL AND check_out IS NULL")
     ).rows;
     for (const s of sessions)
-      await sessionTick(s.id, now).catch((e) => console.error("HRM session tick failed:", e.message));
+      await sessionTick(s.id, now, p).catch((e) => console.error("HRM session tick failed:", e.message));
     const staleClosed = await closeStaleSessions(p, now);
     const today = c.today(p, now);
     const yesterday = new Date(Date.parse(today) - 86400000).toISOString().slice(0, 10);

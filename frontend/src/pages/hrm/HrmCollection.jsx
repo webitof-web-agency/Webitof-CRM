@@ -492,6 +492,27 @@ export function HrmCollection({
             Cancel
           </Button>
         )}
+        {kind === "leave" &&
+          row.status === "Approved" &&
+          (own
+            ? row.startDate > localDay(metadata.policy.timezone)
+            : can("hr_approve")) && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() =>
+                act(
+                  "Cancel approved leave",
+                  `/requests/${row.id}/action`,
+                  { action: "cancel" },
+                  true,
+                  "The leave balance is refunded and the leave marks on the calendar are removed. Payroll-locked periods cannot be cancelled.",
+                )
+              }
+            >
+              Cancel leave
+            </Button>
+          )}
         {kind === "timesheets" &&
           row.status === "Submitted" &&
           !own &&
@@ -604,6 +625,26 @@ export function HrmCollection({
                 : row.status === "Reviewed"
                   ? "Approve run"
                   : "Post run"}
+            </Button>
+          )}
+        {kind === "payroll" &&
+          ["Draft", "Reviewed"].includes(row.status) &&
+          (can("payroll") || can("approve_payroll")) && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-rose-600"
+              onClick={() =>
+                act(
+                  "Void payroll run",
+                  `/payroll/${row.runId}/action`,
+                  { action: "void" },
+                  false,
+                  "This discards the whole draft run and unlocks attendance for the month so it can be corrected and prepared again. It cannot be done after approval.",
+                )
+              }
+            >
+              Void run
             </Button>
           )}
         {kind === "candidate" &&
@@ -912,28 +953,83 @@ function DocumentForm({ token, employeeId, onClose, onSaved }) {
     </Modal>
   );
 }
+const PAYROLL_STATUSES = ["Active", "Probation", "Confirmed", "Notice Period"];
+function lastCompletedMonth() {
+  const today = localDay();
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7));
+  return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
+}
+function monthRange(month) {
+  if (!/^\d{4}-\d{2}$/.test(month)) return null;
+  const end = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0));
+  return { start: `${month}-01`, end: end.toISOString().slice(0, 10) };
+}
 function PayrollForm({ token, employeeId, onClose, onSaved }) {
+  const maxMonth = lastCompletedMonth();
   const [ids, setIds] = useState(employeeId ? [employeeId] : []),
+    [names, setNames] = useState({}),
     [selected, setSelected] = useState(""),
-    [start, setStart] = useState(""),
-    [end, setEnd] = useState(""),
+    [month, setMonth] = useState(maxMonth),
+    [confirming, setConfirming] = useState(false),
+    [loadingAll, setLoadingAll] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const range = monthRange(month);
+  // Look up names for the selected ids so the list shows people, not raw ids.
+  useEffect(() => {
+    let active = true;
+    ids
+      .filter((id) => !names[id])
+      .forEach((id) =>
+        hrm(token, `/employees?${queryString({ id, limit: 1 })}`)
+          .then((r) => {
+            const row = (r.rows || [])[0];
+            if (active && row) setNames((n) => ({ ...n, [id]: `${row.fullName} · ${row.employeeNumber}` }));
+          })
+          .catch(() => {}),
+      );
+    return () => {
+      active = false;
+    };
+  }, [ids, names, token]);
+  async function addAllActive() {
+    setLoadingAll(true);
+    try {
+      const found = [];
+      for (let page = 1; page <= 10; page++) {
+        const r = await hrm(token, `/employees?${queryString({ page, limit: 100 })}`);
+        found.push(...(r.rows || []));
+        if (!(r.rows || []).length || found.length >= r.total) break;
+      }
+      const active = found.filter((x) => PAYROLL_STATUSES.includes(x.status));
+      setNames((n) => ({ ...n, ...Object.fromEntries(active.map((x) => [x.id, `${x.fullName} · ${x.employeeNumber}`])) }));
+      setIds((current) => [...new Set([...current, ...active.map((x) => x.id)])].slice(0, 500));
+      setConfirming(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoadingAll(false);
+    }
+  }
   return (
     <Modal open title="Prepare payroll" onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
+          if (!range) return setError("Choose a month");
+          if (!confirming) return setConfirming(true);
           setBusy(true);
           try {
             await hrm(token, "/payroll", {
               method: "POST",
-              body: { startDate: start, endDate: end, employeeIds: ids },
+              body: { startDate: range.start, endDate: range.end, employeeIds: ids },
             });
             onSaved();
           } catch (e) {
             setError(e.message);
+            setConfirming(false);
           } finally {
             setBusy(false);
           }
@@ -945,27 +1041,21 @@ function PayrollForm({ token, employeeId, onClose, onSaved }) {
           </p>
         )}
         <p className="text-sm text-[var(--text-muted)]">
-          Select a completed month. Attendance, leave and effective salaries
-          must be resolved before the payroll snapshot can be locked.
+          Pick a completed month. Attendance, leave and effective salaries must be resolved first. Creating the draft
+          locks that month's attendance; you can void the draft until it is approved.
         </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field
-            name="payrollStart"
-            title="Month start"
-            type="date"
-            required
-            value={start}
-            onChange={setStart}
-          />
-          <Field
-            name="payrollEnd"
-            title="Month end"
-            type="date"
-            required
-            value={end}
-            onChange={setEnd}
-          />
-        </div>
+        <Field
+          name="payrollMonth"
+          title="Payroll month"
+          type="month"
+          required
+          max={maxMonth}
+          value={month}
+          onChange={(v) => {
+            setMonth(v);
+            setConfirming(false);
+          }}
+        />
         <Lookup
           token={token}
           name="payrollEmployee"
@@ -973,25 +1063,57 @@ function PayrollForm({ token, employeeId, onClose, onSaved }) {
           value={selected}
           onChange={(v) => {
             setSelected(v);
+            setConfirming(false);
             if (v) setIds((a) => [...new Set([...a, v])]);
           }}
         />
-        <p className="text-sm">{ids.length} employees selected</p>
-        {ids.map((id) => (
-          <div key={id} className="flex items-center justify-between text-xs">
-            <span>{id}</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              type="button"
-              onClick={() => setIds((a) => a.filter((x) => x !== id))}
-            >
-              Remove
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm">{ids.length} employees selected</p>
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="secondary" loading={loadingAll} onClick={addAllActive}>
+              Add all active employees
             </Button>
+            {ids.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setIds([]);
+                  setConfirming(false);
+                }}
+              >
+                Clear
+              </Button>
+            )}
           </div>
-        ))}
-        <Button type="submit" loading={busy} disabled={!ids.length}>
-          Lock attendance & create draft
+        </div>
+        <div className="max-h-48 space-y-1 overflow-y-auto">
+          {ids.map((id) => (
+            <div key={id} className="flex items-center justify-between text-xs">
+              <span>{names[id] || id}</span>
+              <Button
+                size="sm"
+                variant="ghost"
+                type="button"
+                onClick={() => {
+                  setIds((a) => a.filter((x) => x !== id));
+                  setConfirming(false);
+                }}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+        {confirming && range && (
+          <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+            This locks attendance for {ids.length} employee{ids.length === 1 ? "" : "s"} from {range.start} to {range.end}.
+            You can void the run later if something is wrong.
+          </p>
+        )}
+        <Button type="submit" loading={busy} disabled={!ids.length || !range}>
+          {confirming ? "Confirm: lock attendance and create draft" : "Review and create draft"}
         </Button>
       </form>
     </Modal>

@@ -61,18 +61,35 @@ async function analytics(user, q = {}, db = c.dbDefault) {
       [ids, start, end],
     ),
   ]);
+  // Group each fetched result by employee once, instead of camel-casing and filtering every row
+  // again for every employee.
+  const groups = new Map();
+  const relevantFor = (e) => (result) => {
+    let byEmployee = groups.get(result);
+    if (!byEmployee) {
+      byEmployee = new Map();
+      for (const row of result.rows) {
+        const item = c.camel(row);
+        if (!byEmployee.has(item.employeeId)) byEmployee.set(item.employeeId, []);
+        byEmployee.get(item.employeeId).push(item);
+      }
+      groups.set(result, byEmployee);
+    }
+    return byEmployee.get(e.id) || [];
+  };
+  const holidayRows = h.rows.map(c.camel);
+  const masterRows = m.rows.map(c.camel);
   const rows = employees.rows.map((e) => {
-    const relevant = (r) =>
-      r.rows.map(c.camel).filter((i) => i.employeeId === e.id);
+    const relevant = relevantFor(e);
     const att = relevant(a),
       work = relevant(w),
       leaves = relevant(l),
       history = relevant(x),
       allocations = relevant(alloc);
     const context = {
-      holidays: h.rows.map(c.camel),
+      holidays: holidayRows,
       leave: leaves,
-      masters: m.rows.map(c.camel),
+      masters: masterRows,
       history,
     };
     const cal = calc.calendar(e, start, end, p, context);
@@ -205,6 +222,8 @@ async function analytics(user, q = {}, db = c.dbDefault) {
     };
     if (c.can(user, "view_salary")) {
       const hist = relevant(salary);
+      // Available hours per calendar month, computed once per employee instead of once per entry.
+      const monthlyHoursCache = new Map();
       let cost = 0;
       const uncosted = [];
       for (const entry of logged.filter(
@@ -216,15 +235,20 @@ async function analytics(user, q = {}, db = c.dbDefault) {
           continue;
         }
         const bounds = require("./payroll").monthBounds(entry.workDate);
-        const monthly = calc
-          .calendar(
-            { ...e, joiningDate: bounds.start, exitDate: null },
+        if (!monthlyHoursCache.has(bounds.start))
+          monthlyHoursCache.set(
             bounds.start,
-            bounds.end,
-            p,
-            { ...context, leave: [] },
-          )
-          .reduce((n, d) => n + d.hours, 0);
+            calc
+              .calendar(
+                { ...e, joiningDate: bounds.start, exitDate: null },
+                bounds.start,
+                bounds.end,
+                p,
+                { ...context, leave: [] },
+              )
+              .reduce((n, d) => n + d.hours, 0),
+          );
+        const monthly = monthlyHoursCache.get(bounds.start);
         const entryCost = monthly
           ? (Number(s.monthlyCost) * Number(entry.minutes || 0)) / 60 / monthly
           : 0;

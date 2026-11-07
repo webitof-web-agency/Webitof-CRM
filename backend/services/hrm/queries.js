@@ -112,7 +112,7 @@ async function list(user, kind, q = {}, db = c.dbDefault) {
         : "r.*";
   const rows = (
     await db.query(
-      `SELECT ${columns},e.full_name AS employee_name ${kind === "work-reports" ? ",(SELECT coalesce(sum(minutes),0)::int FROM hrm_work_entries w WHERE w.report_id=r.id) AS minutes" : ""} ${from} WHERE ${where} ORDER BY r.created_at DESC,r.id LIMIT $${values.length - 1} OFFSET $${values.length}`,
+      `SELECT ${columns},e.full_name AS employee_name ${kind === "work-reports" ? ",(SELECT coalesce(sum(minutes),0)::int FROM hrm_work_entries w WHERE w.report_id=r.id) AS minutes" : ""} ${from} WHERE ${where} ORDER BY ${kind === "attendance" ? "r.work_date DESC" : "r.created_at DESC"},r.id LIMIT $${values.length - 1} OFFSET $${values.length}`,
       values,
     )
   ).rows.map(c.camel);

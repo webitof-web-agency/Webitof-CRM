@@ -1002,11 +1002,7 @@ async function listAlerts(user, q = {}, db = c.dbDefault) {
   ).rows.map(c.camel);
 }
 async function overrideDay(tx, user, e, workDate, status, comment, p) {
-  const locked = await tx.query(
-    "SELECT pe.id FROM hrm_payroll_entries pe JOIN hrm_payroll_runs r ON r.id=pe.run_id WHERE pe.employee_id=$1 AND r.start_date<=$2 AND r.end_date>=$2",
-    [e.id, workDate],
-  );
-  if (locked.rowCount) c.fail("Payroll has locked this date", 409);
+  if (await c.payrollLocked(tx, e.id, workDate)) c.fail("Payroll has locked this date", 409);
   const old = c.camel(
     (
       await tx.query("SELECT * FROM hrm_attendance WHERE employee_id=$1 AND work_date=$2 FOR UPDATE", [
@@ -1219,10 +1215,35 @@ async function live(user, db = c.dbDefault) {
       values,
     )
   ).rows.map(c.camel);
+  // One query each for the board's work entries and events, instead of one per employee.
+  const reportIds = rows.map((r) => r.reportId).filter(Boolean);
+  const attendanceIds = rows.filter((r) => r.id).map((r) => r.id);
+  const entriesByReport = new Map();
+  if (reportIds.length)
+    for (const entry of (
+      await db.query(
+        "SELECT w.*,p.title AS project_title FROM hrm_work_entries w LEFT JOIN projects p ON p.id=w.project_id WHERE w.report_id=ANY($1::text[]) ORDER BY coalesce(w.slot_start,w.created_at),w.id",
+        [reportIds],
+      )
+    ).rows.map(c.camel)) {
+      if (!entriesByReport.has(entry.reportId)) entriesByReport.set(entry.reportId, []);
+      entriesByReport.get(entry.reportId).push(entry);
+    }
+  const eventsByAttendance = new Map();
+  if (attendanceIds.length)
+    for (const event of (
+      await db.query(
+        "SELECT attendance_id,kind FROM hrm_attendance_events WHERE attendance_id=ANY($1::text[]) AND kind IN ('slot_missed','exit')",
+        [attendanceIds],
+      )
+    ).rows.map(c.camel)) {
+      if (!eventsByAttendance.has(event.attendanceId)) eventsByAttendance.set(event.attendanceId, []);
+      eventsByAttendance.get(event.attendanceId).push(event);
+    }
   const out = [];
   for (const r of rows) {
     const att = r.id ? r : null;
-    const entries = r.reportId ? await entriesFor(db, r.reportId) : [];
+    const entries = (r.reportId && entriesByReport.get(r.reportId)) || [];
     const lastPing = att?.lastPingAt ? new Date(att.lastPingAt) : null;
     const offline =
       Boolean(att?.jobStartedAt && !att.jobEndedAt && !(att.lunchStartedAt && !att.lunchEndedAt)) &&
@@ -1255,7 +1276,7 @@ async function live(user, db = c.dbDefault) {
       reportStatus: r.reportStatus,
       reportEdits: r.reportEdits || 0,
       slot: att?.checkIn && !att.checkOut ? d.slotState(att, entries, p, now) : null,
-      summary: att ? d.summarize(att, entries, [], p, now) : null,
+      summary: att ? d.summarize(att, entries, eventsByAttendance.get(att.id) || [], p, now) : null,
     });
   }
   return { date: dayKey, serverTime: now.toISOString(), policy: publicPolicy(p), rows: out };

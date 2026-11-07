@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { Field, Lookup } from "./HrmShared";
@@ -277,6 +277,8 @@ export function WorkReportForm({
   onClose,
   onSaved,
 }) {
+  // Tasks per employee + project are fetched once per form, not once per entry row.
+  const taskCache = useRef(new Map());
   const [data, setData] = useState(
     initial || {
       employeeId: employeeId || "",
@@ -395,6 +397,7 @@ export function WorkReportForm({
             index={i}
             token={token}
             employeeId={data.employeeId}
+            taskCache={taskCache}
             masters={masters}
             onChange={(k, v) => setEntry(i, k, v)}
             onRemove={() =>
@@ -448,6 +451,7 @@ function WorkEntry({
   index,
   token,
   employeeId,
+  taskCache,
   masters,
   onChange,
   onRemove,
@@ -456,18 +460,24 @@ function WorkEntry({
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     let active = true;
-    if (employeeId && entry.projectId)
-      hrm(
-        token,
-        `/tasks?employeeId=${encodeURIComponent(employeeId)}&projectId=${encodeURIComponent(entry.projectId)}`,
-      )
-        .then((r) => active && setTasks(r))
-        .catch(() => active && setTasks([]));
-    else setTasks([]);
+    if (employeeId && entry.projectId) {
+      const key = `${employeeId}|${entry.projectId}`;
+      let pending = taskCache?.current.get(key);
+      if (!pending) {
+        pending = hrm(
+          token,
+          `/tasks?employeeId=${encodeURIComponent(employeeId)}&projectId=${encodeURIComponent(entry.projectId)}`,
+        );
+        taskCache?.current.set(key, pending);
+        // Do not cache failures, so the next entry can retry.
+        pending.catch(() => taskCache?.current.delete(key));
+      }
+      pending.then((r) => active && setTasks(r)).catch(() => active && setTasks([]));
+    } else setTasks([]);
     return () => {
       active = false;
     };
-  }, [token, employeeId, entry.projectId]);
+  }, [token, employeeId, entry.projectId, taskCache]);
   return (
     <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
       <div className="flex justify-between">

@@ -36,3 +36,10 @@ INSERT INTO role_permissions (role_id, permission_id)
 SELECT r.id, p.id FROM roles r JOIN permissions p ON p.code IN ('hrm.view_own', 'hrm.self_service')
 WHERE r.code = 'employee'
 ON CONFLICT DO NOTHING;
+
+-- Indexes for list/sort paths that previously scanned and sorted whole tables.
+CREATE INDEX IF NOT EXISTS hrm_audit_created ON hrm_audit(created_at DESC);
+CREATE INDEX IF NOT EXISTS hrm_request_created ON hrm_requests(kind, created_at DESC);
+CREATE INDEX IF NOT EXISTS hrm_record_created ON hrm_records(kind, created_at DESC) WHERE archived_at IS NULL;
+-- The ping handler closes open offline/geofence alerts per attendance row.
+CREATE INDEX IF NOT EXISTS hrm_alert_open ON hrm_alerts(attendance_id, kind) WHERE closed_at IS NULL;
