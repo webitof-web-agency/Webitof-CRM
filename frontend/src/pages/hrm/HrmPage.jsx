@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -48,6 +48,8 @@ export function HrmPage() {
   const { token, user, hasPermission } = useAuth();
   const navigate = useNavigate();
   const params = useParams();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const path = params["*"] || "overview";
   const [kind, id, sub] = path.split("/");
   const [metadata, setMetadata] = useState(null),
@@ -103,6 +105,8 @@ export function HrmPage() {
       {kind === "employees" && id === "new" && can("manage_employees") ? (
         <EmployeeWizard
           {...props}
+          candidateId={searchParams.get("candidate") || ""}
+          candidate={location.state?.candidate || null}
           onDone={(employeeId) => navigate(`/app/hrm/employees/${employeeId}`)}
           onCancel={() => navigate("/app/hrm/employees")}
         />

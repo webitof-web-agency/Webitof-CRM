@@ -12,57 +12,6 @@ const dates = [
   f("startDate", "Start date", "date", { required: true }),
   f("endDate", "End / due date", "date"),
 ];
-export const employeeFields = [
-  f("userId", "Existing ERP login", "lookup", {
-    lookup: "users",
-    section: "Identity",
-  }),
-  f("fullName", "Full name", "text", { required: true, section: "Identity" }),
-  f("companyEmail", "Company email", "email", { section: "Identity" }),
-  f("phone", "Mobile", "text", { section: "Identity" }),
-  ...[
-    ["departmentId", "Department", "department"],
-    ["designationId", "Designation", "designation"],
-    ["teamId", "Team", "team"],
-    ["employmentTypeId", "Employment type", "employment_type"],
-    ["locationId", "Office location", "location"],
-    ["shiftId", "Shift", "shift"],
-  ].map(([name, title, master]) =>
-    f(name, title, "master", { master, section: "Employment" }),
-  ),
-  f("managerId", "Reporting manager", "lookup", {
-    lookup: "employees",
-    section: "Employment",
-  }),
-  f("workMode", "Work mode", "select", {
-    options: ["Office", "Remote", "Hybrid"],
-    section: "Employment",
-  }),
-  f("status", "Employment status", "select", {
-    options: [
-      "Draft",
-      "Upcoming Joining",
-      "Active",
-      "Probation",
-      "Confirmed",
-      "Notice Period",
-      "Suspended",
-      "Relieved",
-      "Terminated",
-      "Inactive",
-    ],
-    section: "Dates",
-  }),
-  f("joiningDate", "Joining date", "date", {
-    required: true,
-    section: "Dates",
-  }),
-  f("probationEnd", "Probation end", "date", { section: "Dates" }),
-  f("contractEnd", "Contract end", "date", { section: "Dates" }),
-  f("exitDate", "Last working date", "date", { section: "Dates" }),
-  f("effectiveDate", "Change effective date", "date", { section: "Dates" }),
-  f("reason", "Reason / employment change", "textarea", { section: "Dates" }),
-];
 export const forms = {
   "attendance-mark": {
     title: "Attendance decision",
@@ -87,11 +36,11 @@ export const forms = {
       f("reason", "Reason", "textarea", { required: true }),
     ],
   },
+  // Employees are created and edited in EmployeeWizard; this entry only carries the permission and
+  // title the directory page needs for its "New employee" button.
   employees: {
     title: "Employee",
-    endpoint: "/employees",
     permission: "manage_employees",
-    fields: employeeFields,
   },
   leave: {
     title: "Leave request",

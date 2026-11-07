@@ -696,12 +696,8 @@ export function HrmCollection({
             <Button
               size="sm"
               onClick={() =>
-                setEditor({
-                  config: {
-                    ...forms.employees,
-                    title: "Employee from candidate",
-                    endpoint: `/candidates/${row.id}/convert`,
-                  },
+                navigate(`/app/hrm/employees/new?candidate=${encodeURIComponent(row.id)}`, {
+                  state: { candidate: row },
                 })
               }
             >

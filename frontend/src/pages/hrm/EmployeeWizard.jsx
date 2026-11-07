@@ -78,8 +78,11 @@ const newRow = (typeId = "") => ({ key: ++rowKey, typeId, file: null, expiresOn:
 // Create / edit an employee in five steps. Fixed lists (gender, status, relationship) are in
 // code; branch, department, designation, employment type, shift, attendance policy and
 // document types come from HRM masters.
-export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDone, onCancel }) {
+export function EmployeeWizard({ token, metadata, masters, can, employeeId, candidateId = "", candidate = null, onDone, onCancel }) {
   const editing = Boolean(employeeId);
+  // Joining a candidate: same form, but it saves through the candidate conversion endpoint so the
+  // candidate record is marked Joined and linked to the new employee.
+  const converting = !editing && Boolean(candidateId);
   const lists = useMemo(() => masterLists(masters), [masters]);
   const canPrivate = can("manage_private");
   const canSalary = can("manage_salary");
@@ -97,9 +100,9 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
   const [errors, setErrors] = useState({});
   const [original, setOriginal] = useState(null);
   const [form, setForm] = useState({
-    fullName: "",
-    companyEmail: "",
-    phone: "",
+    fullName: candidate?.title || "",
+    companyEmail: candidate?.details?.email || "",
+    phone: candidate?.details?.phone || "",
     employeeCode: "",
     password: "",
     userId: "",
@@ -346,7 +349,10 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
         if (photo && original.photoDocumentId && photoDocumentId !== original.photoDocumentId)
           hrm(token, `/documents/${original.photoDocumentId}`, { method: "DELETE" }).catch(() => {});
       } else {
-        saved = await hrm(token, "/employees", { method: "POST", body });
+        saved = await hrm(token, converting ? `/candidates/${encodeURIComponent(candidateId)}/convert` : "/employees", {
+          method: "POST",
+          body,
+        });
         if (photo) {
           try {
             const doc = await upload(photo, saved.id, PHOTO_CATEGORY, PHOTO_CATEGORY);
@@ -376,7 +382,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
         toast.warning(`Employee saved, but some files were not uploaded: ${failures.join("; ")}`, {
           duration: 10000,
         });
-      else toast.success(editing ? "Employee updated" : "Employee created");
+      else toast.success(editing ? "Employee updated" : converting ? "Candidate joined as an employee" : "Employee created");
       onDone(saved.id);
     } catch (e) {
       toast.error(e.message);
@@ -416,7 +422,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
     <div className="space-y-5">
       <PageHeader
         eyebrow="Employees"
-        title={editing ? `Edit ${original?.fullName || "employee"}` : "Create Employee"}
+        title={editing ? `Edit ${original?.fullName || "employee"}` : converting ? "Employee from candidate" : "Create Employee"}
         description={editing ? "Update the employee's details." : "Add a new employee to your organization."}
       >
         <Button variant="secondary" onClick={onCancel}>
@@ -473,7 +479,14 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, onDo
           <div className="space-y-5 p-5">
             {current === "Personal" && (
               <div className="grid gap-5 md:grid-cols-2">
-                <F k="fullName" title="Full Name" value={form.fullName} onChange={set("fullName")} required />
+                <F
+                  k="fullName"
+                  title="Full Name"
+                  value={form.fullName}
+                  onChange={set("fullName")}
+                  required
+                  disabled={converting && Boolean(candidate?.title)}
+                />
                 <div>
                   <Field
                     name="employeeNumber"
