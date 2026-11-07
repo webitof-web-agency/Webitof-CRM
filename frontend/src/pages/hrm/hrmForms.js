@@ -224,7 +224,8 @@ export const forms = {
         max: 100,
         required: true,
       }),
-      ...dates,
+      f("startDate", "Start date", "date", { required: true }),
+      f("endDate", "End date", "date", { required: true, help: "Up to 5 years. Create a follow-on allocation for longer work." }),
       f("plannedHours", "Planned hours", "number", { min: 0 }),
       f("billable", "Billable", "checkbox"),
       f("billingRate", "Hourly billing rate", "number", {

@@ -460,7 +460,13 @@ async function allocation(user, body, id = null, db = null) {
   return c.transaction(async (tx) => {
     const e = await c.employee(tx, user, body.employeeId, { lock: true });
     const p = await c.policy(tx);
-    const { start, end } = c.range(body, p);
+    // Explicit dates only. c.range() is for report queries: it defaults a missing end to today and
+    // caps the span at a year, which made open-ended or long allocations impossible.
+    const start = c.date(body.startDate, "Start date");
+    const end = c.date(body.endDate, "End date");
+    if (end < start) c.fail("End date cannot be before the start date");
+    if ((Date.parse(end) - Date.parse(start)) / 86400000 > 1826)
+      c.fail("An allocation can span at most 5 years; create a follow-on allocation for longer work");
     if (start < e.joiningDate || (e.exitDate && end > e.exitDate))
       c.fail("Allocation is outside employment dates");
     const project = (
@@ -476,18 +482,26 @@ async function allocation(user, body, id = null, db = null) {
       "SELECT id,percent,start_date,end_date FROM hrm_allocations WHERE employee_id=$1 AND start_date<=$3 AND end_date>=$2 AND archived_at IS NULL AND id<>$4",
       [e.id, start, end, id || ""],
     );
+    // The load only changes where another allocation starts or ends, so check those days instead of
+    // every calendar day in the range.
+    const dayAfter = (d) => new Date(Date.parse(d) + 86400000).toISOString().slice(0, 10);
+    const checkDays = new Set([start]);
+    for (const a of overlaps.rows) {
+      const aStart = String(a.start_date).slice(0, 10);
+      const aAfter = dayAfter(String(a.end_date).slice(0, 10));
+      if (aStart > start && aStart <= end) checkDays.add(aStart);
+      if (aAfter > start && aAfter <= end) checkDays.add(aAfter);
+    }
     if (
       !p.allowOverAllocation &&
-      c
-        .days(start, end)
-        .some(
-          (d) =>
-            percent +
-              overlaps.rows
-                .filter((a) => a.start_date <= d && a.end_date >= d)
-                .reduce((s, a) => s + Number(a.percent), 0) >
-            100,
-        )
+      [...checkDays].some(
+        (d) =>
+          percent +
+            overlaps.rows
+              .filter((a) => String(a.start_date).slice(0, 10) <= d && String(a.end_date).slice(0, 10) >= d)
+              .reduce((s, a) => s + Number(a.percent), 0) >
+          100,
+      )
     )
       c.fail("Allocation exceeds available percentage on one or more days");
     const values = {

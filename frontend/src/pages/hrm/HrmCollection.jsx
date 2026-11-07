@@ -4,7 +4,16 @@ import { toast } from "sonner";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Modal } from "../../components/ui/Modal";
-import { formatDateTime } from "../../lib/format";
+import { formatDate, formatDateTime } from "../../lib/format";
+function payrollMoney(value, currency = "INR") {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "—";
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 2 }).format(amount);
+  } catch {
+    return `${currency} ${amount.toFixed(2)}`;
+  }
+}
 import {
   Field,
   HrmTable,
@@ -254,12 +263,11 @@ export function HrmCollection({
             : kind === "payroll"
               ? [
                   { key: "employeeName" },
-                  { key: "startDate" },
-                  { key: "endDate" },
-                  { key: "gross" },
-                  { key: "deductions" },
-                  { key: "net" },
-                  { key: "currency" },
+                  { key: "startDate", render: (r) => formatDate(r.startDate) },
+                  { key: "endDate", render: (r) => formatDate(r.endDate) },
+                  { key: "gross", render: (r) => payrollMoney(r.gross, r.currency) },
+                  { key: "deductions", render: (r) => payrollMoney(r.deductions, r.currency) },
+                  { key: "net", render: (r) => <span className="font-semibold">{payrollMoney(r.net, r.currency)}</span> },
                   { key: "status", render: (r) => <Status value={r.status} /> },
                 ]
               : kind === "salary-history"
@@ -887,12 +895,20 @@ export function HrmCollection({
         />
       ) : null}
       {detail && (
-        <Modal open title="HR record details" onClose={() => setDetail(null)}>
-          <DetailValues data={detail} />
+        <Modal
+          open
+          title={kind === "payroll" && detail.calculation ? "Payslip" : "HR record details"}
+          onClose={() => setDetail(null)}
+        >
+          {kind === "payroll" && detail.calculation ? (
+            <PayslipView data={detail} />
+          ) : (
+            <DetailValues data={detail} />
+          )}
           {kind === "payroll" && (
             <Button
               className="mt-4"
-              onClick={() => exportPdf("Payslip", detail)}
+              onClick={() => (detail.calculation ? exportPayslipPdf(detail) : exportPdf("Payslip", detail))}
             >
               Download PDF
             </Button>
@@ -911,6 +927,7 @@ export function HrmCollection({
   );
 }
 import { Lookup } from "./HrmShared";
+import { PayslipView, exportPayslipPdf } from "./PayslipView";
 function DocumentForm({ token, employeeId, onClose, onSaved }) {
   const [data, setData] = useState({
     employeeId,
