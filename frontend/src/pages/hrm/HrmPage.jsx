@@ -113,6 +113,8 @@ export function HrmPage() {
           onDone={(employeeId) => navigate(`/app/hrm/employees/${employeeId}`)}
           onCancel={() => navigate(`/app/hrm/employees/${id}`)}
         />
+      ) : kind === "employees" && id === "new" ? (
+        <Card className="p-5">You do not have permission to add employees.</Card>
       ) : kind === "employees" && id ? (
         <EmployeeProfile key={id} {...props} id={id} />
       ) : ["overview", "analytics"].includes(kind) ? (

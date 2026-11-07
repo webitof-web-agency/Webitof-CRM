@@ -126,7 +126,8 @@ async function saveSalary(tx, user, employee, salary, p, onboarding) {
   c.permit(user, "manage_salary");
   c.allow(salary, ["monthlyCost", "currency"]);
   const monthlyCost = c.number(salary.monthlyCost, "Base salary", 0, 1e9);
-  const currency = c.text(salary.currency || "INR", "Currency", 3, true);
+  const currency = c.text(salary.currency || "INR", "Currency", 3, true).toUpperCase();
+  if (!/^[A-Z]{3}$/.test(currency)) c.fail("Currency must be a 3-letter code such as INR");
   const latest = (
     await tx.query(
       "SELECT id,effective_date::text AS date,monthly_cost FROM hrm_salary_history WHERE employee_id=$1 ORDER BY effective_date DESC LIMIT 1",

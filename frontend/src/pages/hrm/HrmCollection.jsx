@@ -478,6 +478,21 @@ export function HrmCollection({
               >
                 Reject
               </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  act(
+                    "Request revision",
+                    `/requests/${row.id}/action`,
+                    { action: "revise" },
+                    true,
+                    "The employee can edit and resubmit this request. Say what needs to change.",
+                  )
+                }
+              >
+                Revision
+              </Button>
             </>
           )}
         {requestKinds.includes(kind) && pending && own && (

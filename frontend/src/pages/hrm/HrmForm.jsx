@@ -4,6 +4,14 @@ import { Modal } from "../../components/ui/Modal";
 import { Field, Lookup } from "./HrmShared";
 import { hrm, localDay } from "./hrmApi";
 const get = (obj, key) => key.split(".").reduce((v, k) => v?.[k], obj);
+// Saved instants are ISO strings in UTC; a datetime-local input shows blank unless it gets local "YYYY-MM-DDTHH:mm".
+function toLocalInput(value) {
+  if (!value || !/[zZ]|[+-]\d\d:?\d\d$/.test(String(value))) return value;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 function set(obj, key, value) {
   const parts = key.split(".");
   if (parts.length === 1) return { ...obj, [key]: value };
@@ -32,6 +40,7 @@ export function HrmForm({
   const [section, setSection] = useState("Identity");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const grantKey = useRef(null);
   const fields = config.fields.filter(
     (f) => !f.permission || can(f.permission),
   );
@@ -48,7 +57,7 @@ export function HrmForm({
         let value = get(data, f.name);
         if (value === "" || value == null) {
           if (f.type === "checkbox") value = false;
-          else if (initial && ["lookup", "master", "date"].includes(f.type))
+          else if (initial && ["lookup", "master", "date", "datetime-local", "text", "textarea"].includes(f.type))
             value = null;
           else continue;
         }
@@ -57,8 +66,12 @@ export function HrmForm({
         body = set(body, f.name, value);
       }
       if (initial?.version) body.version = initial.version;
-      if (config.endpoint === "/leave-grants" && !body.sourceKey)
-        body.sourceKey = crypto.randomUUID();
+      if (config.endpoint === "/leave-grants" && !body.sourceKey) {
+        // crypto.randomUUID needs a secure context; fall back so plain-HTTP deployments still work.
+        grantKey.current ||=
+          globalThis.crypto?.randomUUID?.() || `grant-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+        body.sourceKey = grantKey.current;
+      }
       if (config.endpoint === "/allocations") delete body.version;
       if (config.endpoint === "/salary-history")
         body.components = data.components || [];
@@ -139,7 +152,7 @@ export function HrmForm({
                           .map((m) => ({ value: m.id, label: m.name }))
                       : f.options
                   }
-                  value={get(data, f.name)}
+                  value={f.type === "datetime-local" ? toLocalInput(get(data, f.name)) : get(data, f.name)}
                   onChange={(v) => setData((d) => set(d, f.name, v))}
                 />
               ),

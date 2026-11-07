@@ -302,7 +302,7 @@ async function masters(user, type, body, id = null, db = null) {
     const values = {
       type: `hrm_${type}`,
       name: c.text(body.name, "Name", 160, true),
-      isActive: c.boolean(body.isActive ?? true),
+      isActive: c.boolean(body.isActive ?? old?.isActive ?? true),
       payload: JSON.stringify(payload),
     };
     const saved = id

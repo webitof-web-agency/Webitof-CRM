@@ -10,14 +10,18 @@ export async function downloadHrm(token, path, name) {
     { headers: { Authorization: `Bearer ${token}` } },
   );
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Download failed");
+    if (response.status === 401) window.dispatchEvent(new CustomEvent("auth:unauthorized"));
+    // Error bodies are not always JSON (a proxy 502, for example).
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || `Download failed (${response.status})`);
   }
   const url = URL.createObjectURL(await response.blob());
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
+  document.body.appendChild(a);
   a.click();
+  a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 export function queryString(values) {

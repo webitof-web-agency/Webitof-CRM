@@ -205,8 +205,10 @@ function Documents({ token, employeeId, can }) {
       await hrm(token, path, options);
       toast.success(message);
       setRefresh((n) => n + 1);
+      return true;
     } catch (e) {
       toast.error(e.message);
+      return false;
     }
   };
   if (error)
@@ -282,9 +284,9 @@ function Documents({ token, employeeId, can }) {
           onClose={() => setRejecting(null)}
           onConfirm={async (comment) => {
             setBusy(true);
-            await act(`/documents/${rejecting.id}/reject`, { method: "POST", body: { comment } }, "Document rejected");
+            const ok = await act(`/documents/${rejecting.id}/reject`, { method: "POST", body: { comment } }, "Document rejected");
             setBusy(false);
-            setRejecting(null);
+            if (ok) setRejecting(null);
           }}
         />
       )}
