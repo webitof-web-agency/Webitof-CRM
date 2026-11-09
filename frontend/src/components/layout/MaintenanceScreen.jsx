@@ -42,6 +42,7 @@ export function MaintenanceScreen() {
   const { token, hasPermission } = useAuth();
   const [state, setState] = useState(null);
   const [clearing, setClearing] = useState(false);
+  const [details, setDetails] = useState('');
   const shownRef = useRef(false);
 
   const finish = useCallback((result) => {
@@ -103,10 +104,18 @@ export function MaintenanceScreen() {
     }
   };
 
-  if (!state?.active) return null;
-
-  const stopped = STOPPED.has(state.outcome);
+  const stopped = Boolean(state?.active) && STOPPED.has(state?.outcome);
   const canExit = stopped && Boolean(token) && hasPermission('backups.restore');
+
+  // The public status only says that it failed; admins get the real error.
+  useEffect(() => {
+    if (!canExit) return;
+    api.maintenance.details(token)
+      .then((response) => setDetails(response.data?.error || ''))
+      .catch(() => {});
+  }, [canExit, token, state?.outcome]);
+
+  if (!state?.active) return null;
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-50/95 dark:bg-slate-950/95 px-4 backdrop-blur-sm" role="alertdialog" aria-live="polite" aria-label="Under maintenance">
@@ -140,8 +149,8 @@ export function MaintenanceScreen() {
           ) : null}
         </dl>
 
-        {stopped && state.error ? (
-          <p className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200 break-words">{state.error}</p>
+        {stopped && (details || state.error) ? (
+          <p className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200 break-words">{details || state.error}</p>
         ) : null}
 
         {!stopped ? (
@@ -155,7 +164,9 @@ export function MaintenanceScreen() {
           </Button>
         ) : null}
         {stopped && !canExit ? (
-          <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">An administrator needs to check the data and reopen the site.</p>
+          <p className="mt-5 text-xs text-slate-500 dark:text-slate-400">
+            An administrator needs to check the data and reopen the site.{token ? '' : ' Administrators can sign in again from the login page.'}
+          </p>
         ) : null}
       </div>
     </div>

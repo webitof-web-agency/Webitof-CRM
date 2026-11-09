@@ -9,6 +9,11 @@ router.get('/status', (req, res) => {
   res.json({ success: true, data: maintenance.publicState() });
 });
 
+// Full state including the raw error, for the people who can act on it.
+router.get('/details', requireAuth, requirePermission('backups.restore'), (req, res) => {
+  res.json({ success: true, data: maintenance.get() });
+});
+
 // Leave maintenance after an interrupted or failed restore has been checked.
 router.post('/clear', requireAuth, requirePermission('backups.restore'), (req, res, next) => {
   try {

@@ -16,11 +16,32 @@ function httpError(message, statusCode) {
   return error;
 }
 
-function persist() {
+function writeState(next) {
   fs.mkdirSync(path.dirname(stateFile), { recursive: true });
   const tmp = `${stateFile}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(state, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(next, null, 2));
   fs.renameSync(tmp, stateFile);
+}
+
+// Leaving or progressing must never fail because the disk is unhappy: memory wins, the file is best effort.
+function persist() {
+  try {
+    writeState(state);
+  } catch (error) {
+    console.error('Maintenance state could not be saved:', error.message);
+  }
+}
+
+// Short, safe text for the public status and 503 bodies; the full error stays private.
+const PUBLIC_ERRORS = {
+  failed: 'The restore failed. The database was not changed.',
+  aborted: 'The safety backup failed, so the restore did not start. Nothing was changed.',
+  'restored-with-warnings': 'The backup was restored, with warnings for the administrator.',
+  interrupted: 'The server stopped during the restore. An administrator needs to check the data and exit maintenance.'
+};
+
+function stateDir() {
+  return path.dirname(stateFile);
 }
 
 function setStateFileForTests(file) {
@@ -30,7 +51,7 @@ function setStateFileForTests(file) {
 
 function enter({ reason = 'restore', startedBy = null, backupFile = null } = {}) {
   if (state.active) throw httpError('The site is already in maintenance.', 409);
-  state = {
+  const next = {
     active: true,
     reason,
     phase: 'enter-maintenance',
@@ -41,7 +62,9 @@ function enter({ reason = 'restore', startedBy = null, backupFile = null } = {})
     error: null,
     finishedAt: null
   };
-  persist();
+  // Saved before it takes effect: if the file cannot be written, maintenance never starts.
+  writeState(next);
+  state = next;
   return get();
 }
 
@@ -57,11 +80,12 @@ function finish(outcome, error = '') {
   return get();
 }
 
-function clear(actor = null) {
-  if (state.active && !state.outcome) {
+// force: from the server shell (npm run maintenance:clear) for a restore that is truly stuck.
+function clear(actor = null, { force = false } = {}) {
+  if (state.active && !state.outcome && !force) {
     throw httpError('A restore is still running. Wait for it to finish.', 409);
   }
-  state = { ...state, active: false, clearedAt: new Date().toISOString(), clearedBy: actor?.id || null };
+  state = { ...state, active: false, outcome: state.outcome || 'cleared', clearedAt: new Date().toISOString(), clearedBy: actor?.id || null };
   persist();
   return get();
 }
@@ -102,8 +126,13 @@ function publicState() {
     startedAt: startedAt || null,
     finishedAt: finishedAt || null,
     outcome: outcome || null,
-    error: error || null
+    error: error ? PUBLIC_ERRORS[outcome] || 'See the server log for details.' : null
   };
+}
+
+// A restore has stopped (any outcome) but the site may still be closed: nothing is running.
+function isStopped() {
+  return Boolean(state.active && state.outcome);
 }
 
 function isActive() {
@@ -123,9 +152,11 @@ module.exports = {
   finish,
   get,
   isActive,
+  isStopped,
   loadOnStartup,
   publicState,
   setPhase,
   setStateFileForTests,
-  skipDuringMaintenance
+  skipDuringMaintenance,
+  stateDir
 };

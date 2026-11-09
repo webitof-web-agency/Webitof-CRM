@@ -100,8 +100,16 @@ Settings → Storage & Backup. Paste the parent folder id or link; the app creat
      empties the app's objects in `public`, then the backup is replayed. Any error rolls everything back.
   4. `ensureDatabase()` adds tables/columns newer than the backup; the Drive connection and storage
      settings keep their current values; maintenance ends.
-- If the server stops mid-restore it starts again **in maintenance** with outcome `interrupted`; an
-  admin checks the data and presses "Exit maintenance" (`POST /api/maintenance/clear`).
+- The chosen backup is downloaded **before** the safety backup, and a safety backup never prunes
+  old ones, so restoring the oldest of the 15 is safe.
+- If the server stops mid-restore it starts again **in maintenance** with outcome `interrupted`; the
+  Drive settings saved in `uploads/.state/restore-settings.json` are put back automatically. While a
+  restore has stopped, sign-in still works, so an admin can read the error and press "Exit maintenance"
+  (`POST /api/maintenance/clear`). Public status shows only a short message; the full error is at
+  `GET /api/maintenance/details` (`backups.restore`) and in the server log.
+- Locked out with nobody able to sign in, or a restore truly stuck: on the server run
+  `npm run maintenance:clear`, then `pm2 restart WebitofCRM-backend`.
+- Every step has a time limit (`RESTORE_TIMEOUT_MINUTES`, default 30).
 - Server setup: `pg_restore` and `psql` installed (same major version as the database or newer) and
   `BACKUP_DATABASE_URL` set to the Supabase session pooler (port 5432) or the direct connection.
 - Tests: `npm run test:storage`; the real dump/restore test needs a throwaway local database:

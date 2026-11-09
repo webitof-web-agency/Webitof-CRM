@@ -182,3 +182,50 @@ test('over HTTP: status is public, other API calls get 503 while active, and nor
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+// ─── final-review fixes ──────────────────────────────────────────────────────
+
+test('I2a: once a restore has stopped, login and the profile call get through so an admin can exit', () => {
+  const file = freshState();
+  maintenance.enter(START);
+  for (const [method, urlPath] of [['POST', '/auth/login'], ['GET', '/auth/me']]) {
+    const res = mockRes();
+    maintenanceGate(mockReq(method, urlPath), res, () => assert.fail('blocked while running'));
+    assert.equal(res.statusCode, 503);
+  }
+  maintenance.setStateFileForTests(file);
+  maintenance.loadOnStartup();
+  for (const [method, urlPath] of [['POST', '/auth/login'], ['GET', '/auth/me'], ['GET', '/maintenance/details']]) {
+    let ok = false;
+    const res = mockRes();
+    maintenanceGate(mockReq(method, urlPath), res, () => { ok = true; });
+    res.emit('finish');
+    assert.ok(ok, `${method} ${urlPath} must pass once stopped`);
+  }
+});
+
+test('I2a: the server-side clear can force its way out, for a stuck restore', () => {
+  freshState();
+  maintenance.enter(START);
+  assert.throws(() => maintenance.clear({ id: 'cli' }), { statusCode: 409 });
+  maintenance.clear({ id: 'cli' }, { force: true });
+  assert.equal(maintenance.isActive(), false);
+});
+
+test('I2c: a state file that cannot be written leaves maintenance off instead of half on', () => {
+  const blocker = path.join(TMP, `blocker-${Date.now()}`);
+  fs.writeFileSync(blocker, 'not a directory');
+  maintenance.setStateFileForTests(path.join(blocker, 'maintenance.json'));
+  assert.throws(() => maintenance.enter(START));
+  assert.equal(maintenance.isActive(), false);
+});
+
+test('I2c: finish always leaves maintenance even when the state file cannot be written', () => {
+  const dir = path.join(TMP, `vanish-${Date.now()}`);
+  maintenance.setStateFileForTests(path.join(dir, 'maintenance.json'));
+  maintenance.enter(START);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.writeFileSync(dir, 'now a file');
+  assert.doesNotThrow(() => maintenance.finish('failed', 'x'));
+  assert.equal(maintenance.isActive(), false);
+});

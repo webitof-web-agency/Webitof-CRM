@@ -323,6 +323,7 @@ export const api = {
   },
   maintenance: {
     status: () => request('/maintenance/status', { skipCache: true }),
+    details: (token) => request('/maintenance/details', { token, skipCache: true }),
     clear: (token) => request('/maintenance/clear', { method: 'POST', token })
   },
   callLogs: {

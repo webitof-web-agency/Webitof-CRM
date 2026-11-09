@@ -9,9 +9,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const readline = require('readline');
 const { spawn } = require('child_process');
-const { Readable } = require('stream');
+const { Readable, Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const { getSetting, setSetting } = require('../../models/systemSetting.model');
 const maintenance = require('../maintenance.service');
@@ -79,6 +78,36 @@ function keepSqlLine(line) {
   return !/^SET transaction_timeout\b/.test(line);
 }
 
+// Streams pg_restore's SQL into a file without the lines old servers reject. Errors (disk full,
+// unwritable path) reject the promise instead of crashing the process.
+function writeFilteredSql(input, sqlPath) {
+  let carry = '';
+  const filter = new Transform({
+    transform(chunk, encoding, done) {
+      const lines = (carry + chunk.toString()).split('\n');
+      carry = lines.pop();
+      done(null, lines.filter(keepSqlLine).map((line) => `${line}\n`).join(''));
+    },
+    flush(done) {
+      done(null, carry && keepSqlLine(carry) ? carry : '');
+    }
+  });
+  return pipeline(input, filter, fs.createWriteStream(sqlPath));
+}
+
+// A step that never settles (a stalled Drive download, a hung pg_dump) must not keep the
+// site in maintenance forever. The late result is ignored; the next steps never run.
+function withTimeout(promise, label) {
+  let timer;
+  const limit = timeoutMs();
+  return Promise.race([
+    promise,
+    new Promise((resolve, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(limit / 1000)}s (RESTORE_TIMEOUT_MINUTES).`)), limit);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
 function toolPath(name) {
   return name === 'psql' ? (process.env.PSQL_PATH || 'psql') : (process.env.PG_RESTORE_PATH || 'pg_restore');
 }
@@ -126,13 +155,8 @@ async function defaultRestoreRunner(dumpPath) {
   let written = Promise.resolve();
   await runTool('pg_restore', commands.pgRestoreArgs, {
     stdout: (stream) => {
-      written = (async () => {
-        const out = fs.createWriteStream(sqlPath);
-        for await (const line of readline.createInterface({ input: stream, crlfDelay: Infinity })) {
-          if (keepSqlLine(line) && !out.write(`${line}\n`)) await new Promise((resolve) => out.once('drain', resolve));
-        }
-        await new Promise((resolve, reject) => out.end((error) => (error ? reject(error) : resolve())));
-      })();
+      written = writeFilteredSql(stream, sqlPath);
+      written.catch(() => {});
     }
   });
   await written;
@@ -175,6 +199,27 @@ const DEFAULT_DEPS = {
 let deps = DEFAULT_DEPS;
 let current = null;
 
+// The Drive connection rows, kept on disk (the token is already encrypted) for the window
+// between the restore committing and the rows being put back. A crash there is repaired on startup.
+function savedSettingsFile() {
+  return path.join(maintenance.stateDir(), 'restore-settings.json');
+}
+
+async function reapplySavedSettings() {
+  let saved;
+  try {
+    saved = JSON.parse(await fs.promises.readFile(savedSettingsFile(), 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') console.error('Saved Drive settings could not be read:', error.message);
+    return false;
+  }
+  for (const key of PRESERVED_SETTINGS) {
+    if (saved[key] !== null && saved[key] !== undefined) await setSetting(key, saved[key]);
+  }
+  await fs.promises.rm(savedSettingsFile(), { force: true });
+  return true;
+}
+
 function setRestoreDepsForTests(overrides) {
   deps = overrides ? { ...DEFAULT_DEPS, ...overrides } : DEFAULT_DEPS;
 }
@@ -205,10 +250,16 @@ async function startRestore({ fileId, confirm, user } = {}) {
     throw error;
   }
   console.warn(`Restore of ${file.name} started by ${user?.id || 'unknown'}: site is in maintenance`);
-  deps.broadcast(maintenance.publicState());
-  current = run(file, user, release).finally(() => {
-    current = null;
-  });
+  try {
+    deps.broadcast(maintenance.publicState());
+  } catch (error) {
+    console.error('Maintenance broadcast failed (tabs will notice on their next request):', error.message);
+  }
+  current = run(file, user, release)
+    .catch((error) => console.error('Restore crashed:', error))
+    .finally(() => {
+      current = null;
+    });
   return { started: true, backup: file, maintenance: maintenance.publicState() };
 }
 
@@ -223,8 +274,26 @@ async function run(file, user, release) {
     maintenance.setPhase('drain');
     await deps.drain(DRAIN_MS);
 
+    // Download first: the safety backup must never push the chosen (oldest) backup out of Drive.
+    maintenance.setPhase('download');
+    try {
+      await withTimeout(Promise.resolve().then(() => deps.downloadTo(file.id, dumpPath)), 'Downloading the backup');
+    } catch (downloadError) {
+      outcome = 'failed';
+      error = `${downloadError.message} The database was not changed.`;
+      return;
+    }
+
     maintenance.setPhase('safety-backup');
-    const safety = await deps.backup({ trigger: 'restore', kind: 'pre-restore', userId: user?.id || null, lockHeld: true });
+    let safety;
+    try {
+      safety = await withTimeout(
+        Promise.resolve().then(() => deps.backup({ trigger: 'restore', kind: 'pre-restore', userId: user?.id || null, lockHeld: true })),
+        'The safety backup'
+      );
+    } catch (backupError) {
+      safety = { status: 'FAILED', error: backupError.message };
+    }
     if (safety?.status !== 'SUCCESS') {
       outcome = 'aborted';
       error = `Safety backup failed: ${safety?.error || safety?.status || 'unknown error'}. Nothing was changed.`;
@@ -234,10 +303,10 @@ async function run(file, user, release) {
     maintenance.setPhase('preserve-settings');
     const saved = {};
     for (const key of PRESERVED_SETTINGS) saved[key] = await getSetting(key, null);
+    await fs.promises.mkdir(maintenance.stateDir(), { recursive: true });
+    await fs.promises.writeFile(savedSettingsFile(), JSON.stringify(saved), { mode: 0o600 });
 
     try {
-      maintenance.setPhase('download');
-      await deps.downloadTo(file.id, dumpPath);
       maintenance.setPhase('restore');
       await deps.restoreRunner(dumpPath);
     } catch (restoreError) {
@@ -258,6 +327,7 @@ async function run(file, user, release) {
       for (const key of PRESERVED_SETTINGS) {
         if (saved[key] !== null) await setSetting(key, saved[key]);
       }
+      await fs.promises.rm(savedSettingsFile(), { force: true });
       await deps.resetCaches();
     } catch (settingsError) {
       warnings.push(`Drive settings could not be put back: ${settingsError.message}`);
@@ -272,6 +342,8 @@ async function run(file, user, release) {
     error = unexpected.message;
   } finally {
     await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
+    // Not restored (aborted/failed): the database still has the current rows.
+    if (outcome === 'failed' || outcome === 'aborted') await fs.promises.rm(savedSettingsFile(), { force: true }).catch(() => {});
     await Promise.resolve(release()).catch(() => {});
     maintenance.finish(outcome, error);
     const seconds = Math.round((Date.now() - startedAt) / 1000);
@@ -292,8 +364,11 @@ module.exports = {
   buildRestoreCommands,
   filterToc,
   keepSqlLine,
+  reapplySavedSettings,
   restoreFile: defaultRestoreRunner,
+  savedSettingsFile,
   setRestoreDepsForTests,
   startRestore,
-  waitForCurrentRun
+  waitForCurrentRun,
+  writeFilteredSql
 };

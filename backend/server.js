@@ -66,6 +66,10 @@ async function start() {
   } else {
     await ensureDatabase();
   }
+  // A restore that crashed after committing left the backup's Drive rows in place; put the current ones back.
+  await require('./services/googleDrive/restore.service').reapplySavedSettings()
+    .then((applied) => applied && console.warn('Drive connection settings from before an interrupted restore were put back.'))
+    .catch((error) => console.error('Could not put back Drive settings after an interrupted restore:', error.message));
   const server = http.createServer(app);
   registerSocketHub(server, {
     origin: process.env.CORS_ORIGIN || true

@@ -4,6 +4,9 @@
 const maintenance = require('../services/maintenance.service');
 
 const ALLOWED = new Set(['GET /health', 'GET /maintenance/status', 'POST /maintenance/clear']);
+// Once a restore has stopped (nothing is running), an admin must be able to sign in, possibly on
+// another device or after the session expired, to read the error and exit maintenance.
+const ALLOWED_WHEN_STOPPED = new Set(['POST /auth/login', 'GET /auth/me', 'GET /maintenance/details']);
 
 let active = 0;
 
@@ -22,6 +25,7 @@ function trackRequest(res) {
 function maintenanceGate(req, res, next) {
   const route = `${req.method} ${String(req.path || '').replace(/\/+$/, '') || '/'}`;
   if (ALLOWED.has(route)) return next();
+  if (maintenance.isStopped() && ALLOWED_WHEN_STOPPED.has(route)) return next();
   if (maintenance.isActive()) {
     return res.status(503).json({
       success: false,

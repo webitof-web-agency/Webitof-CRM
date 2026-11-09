@@ -219,7 +219,8 @@ async function performBackup({ trigger, userId, kind }) {
     let removed = 0;
     let retentionError = '';
     try {
-      removed = await applyRetention(client, folderId, getGoogleDriveConfig().backupKeep);
+      // A safety copy taken before a restore never prunes: the oldest backup may be the one being restored.
+      if (kind !== 'pre-restore') removed = await applyRetention(client, folderId, getGoogleDriveConfig().backupKeep);
     } catch (error) {
       // The new backup is already safe; record the problem without failing the run.
       retentionError = error.message;

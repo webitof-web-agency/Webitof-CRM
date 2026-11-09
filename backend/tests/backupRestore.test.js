@@ -86,8 +86,8 @@ test('a restore runs every step in order and leaves maintenance with success', a
     'lock',
     'broadcast',
     'drain@drain',
-    'backup:pre-restore:lockHeld=true@safety-backup',
     'download:f-backup@download',
+    'backup:pre-restore:lockHeld=true@safety-backup',
     'restore:true@restore',
     'migrate@migrate',
     'reset-caches'
@@ -144,13 +144,14 @@ test('a second restore while one runs is refused with 409', async () => {
   assert.equal((await restore.waitForCurrentRun()).outcome, 'success');
 });
 
-test('a failed safety backup aborts before anything is downloaded or restored', async () => {
+test('a failed safety backup aborts before anything is restored', async () => {
   setup({ backup: async () => ({ status: 'FAILED', error: 'Drive quota exceeded' }) });
   await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
   const run = await restore.waitForCurrentRun();
   assert.equal(run.outcome, 'aborted');
   assert.match(run.error, /Safety backup failed: Drive quota exceeded/);
-  assert.ok(!events.some((event) => event.startsWith('download') || event.startsWith('restore')));
+  assert.ok(!events.some((event) => event.startsWith('restore')));
+  assert.equal(fs.existsSync(restore.savedSettingsFile()), false);
   assert.equal(maintenance.isActive(), false);
   assert.equal(released, 1);
 });
@@ -230,4 +231,84 @@ test('POST /google-drive/backups/:fileId/restore answers 202 and requires backup
   const denied = { statusCode: 200, status(code) { this.statusCode = code; return this; }, json() { return this; } };
   guard({ user: { permissions: ['settings.write'] } }, denied, () => assert.fail('settings.write alone must not restore'));
   assert.equal(denied.statusCode, 403);
+});
+
+// ─── final-review fixes ──────────────────────────────────────────────────────
+
+test('C1: the chosen backup is downloaded before the safety backup, so retention cannot delete it first', async () => {
+  let deleted = false;
+  setup({
+    backup: async () => { deleted = true; return { status: 'SUCCESS' }; },
+    downloadTo: async (fileId, filePath) => {
+      if (deleted) throw new Error('Google Drive: File not found');
+      fs.writeFileSync(filePath, 'PGDMP');
+    }
+  });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  assert.equal((await restore.waitForCurrentRun()).outcome, 'success');
+});
+
+test('I1: the public state carries a generic message; the full error is only in the private state', async () => {
+  setup({ restoreRunner: async () => { throw new Error('psql exited with code 3: DETAIL: Key (email)=(ceo@client.com) already exists, host db.abcd.supabase.co'); } });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  await restore.waitForCurrentRun();
+  const pub = JSON.stringify(maintenance.publicState());
+  assert.ok(!pub.includes('ceo@client.com') && !pub.includes('supabase.co'), pub);
+  assert.match(maintenance.publicState().error, /restore failed.*not changed/i);
+  assert.match(maintenance.get().error, /ceo@client\.com/);
+});
+
+test('I2b: a step that hangs is timed out, so the site never stays in maintenance forever', async () => {
+  process.env.RESTORE_TIMEOUT_MINUTES = '0.002';
+  try {
+    setup({ downloadTo: () => new Promise(() => {}) });
+    await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+    const run = await restore.waitForCurrentRun();
+    assert.equal(run.outcome, 'failed');
+    assert.match(run.error, /timed out/i);
+    assert.equal(maintenance.isActive(), false);
+  } finally {
+    delete process.env.RESTORE_TIMEOUT_MINUTES;
+  }
+});
+
+test('I2c: a broadcast that throws does not leave the lock held or maintenance on', async () => {
+  setup({ broadcast: () => { throw new Error('socket hub down'); } });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  const run = await restore.waitForCurrentRun();
+  assert.equal(run.outcome, 'success');
+  assert.equal(released, 1);
+});
+
+test('I3: writing the SQL to a path that cannot be written rejects instead of crashing the process', async () => {
+  const { Readable: ReadableStream } = require('stream');
+  await assert.rejects(
+    () => restore.writeFilteredSql(ReadableStream.from(['SET transaction_timeout = 0;\nselect 1;\n']), path.join(TMP, 'no-such-dir', 'restore.sql')),
+    { code: 'ENOENT' }
+  );
+  const ok = path.join(TMP, 'ok.sql');
+  await restore.writeFilteredSql(ReadableStream.from(['SET transaction_timeout = 0;\nselect 1;\n']), ok);
+  assert.equal(fs.readFileSync(ok, 'utf8'), 'select 1;\n');
+});
+
+test('I4: preserved settings are saved to disk during the restore and put back after a crash', async () => {
+  let savedDuringRestore = null;
+  setup({
+    restoreRunner: async () => {
+      savedDuringRestore = JSON.parse(fs.readFileSync(restore.savedSettingsFile(), 'utf8'));
+      await settingsStore.setSetting('google_drive', { token: 'OLD-token' });
+    }
+  });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  await restore.waitForCurrentRun();
+  assert.deepEqual(savedDuringRestore.google_drive, { token: 'current-token' });
+  assert.equal(fs.existsSync(restore.savedSettingsFile()), false, 'removed once put back');
+
+  // Simulate a crash after the restore committed: the file is still there on startup.
+  fs.writeFileSync(restore.savedSettingsFile(), JSON.stringify({ google_drive: { token: 'current-token' }, storage_settings: null }));
+  await settingsStore.setSetting('google_drive', { token: 'OLD-token' });
+  assert.equal(await restore.reapplySavedSettings(), true);
+  assert.deepEqual(await settingsStore.getSetting('google_drive'), { token: 'current-token' });
+  assert.equal(fs.existsSync(restore.savedSettingsFile()), false);
+  assert.equal(await restore.reapplySavedSettings(), false, 'nothing to do without the file');
 });

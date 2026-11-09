@@ -679,3 +679,15 @@ test('the backup hour saved in Settings drives the schedule', async () => {
   assert.equal((await backups.runScheduledBackupIfDue(new Date('2026-10-04T23:00:00Z'))).reason, 'before hour');
   assert.equal((await backups.runScheduledBackupIfDue(new Date('2026-10-04T23:45:00Z'))).status, 'SUCCESS');
 });
+
+test('C1: a pre-restore safety backup never prunes older backups', async () => {
+  setup();
+  await connect();
+  const folderId = await connection.ensureFolder('backup');
+  for (let day = 1; day <= 15; day += 1) {
+    fake.addFile({ name: `crm-backup-crm-2026-09-${String(day).padStart(2, '0')}_02-00-00-IST.dump`, parents: [folderId] });
+  }
+  const result = await backups.runBackup({ trigger: 'restore', kind: 'pre-restore' });
+  assert.equal(result.removed, 0);
+  assert.equal((await backups.listBackups()).length, 16);
+});
