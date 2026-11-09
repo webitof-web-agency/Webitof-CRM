@@ -83,6 +83,10 @@ export function NotificationProvider({ children }) {
       auth: { token }
     });
 
+    socket.on('system:maintenance', (state) => {
+      window.dispatchEvent(new CustomEvent('system:maintenance', { detail: state || { active: true } }));
+    });
+
     socket.on('notification:created', (notification) => {
       if (!notification?.id) return;
       setNotifications((current) => mergeNotifications(current, notification));

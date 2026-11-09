@@ -9,6 +9,7 @@ import { PermissionRoute } from './components/guards/PermissionRoute';
 import { HomeRedirect } from './components/guards/HomeRedirect';
 import { ConfirmHost } from './components/overlays/ConfirmHost';
 import { AppLayout } from './components/layout/AppLayout';
+import { MaintenanceScreen } from './components/layout/MaintenanceScreen';
 import { schemaRegistry } from './config/resourceSchemas';
 
 const resourceSchemas = [
@@ -583,6 +584,7 @@ export default function App() {
             </Suspense>
             <Toaster richColors position="top-right" closeButton />
             <ConfirmHost />
+            <MaintenanceScreen />
           </NotificationProvider>
         </HashRouter>
       </AuthProvider>

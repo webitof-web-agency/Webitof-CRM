@@ -83,6 +83,11 @@ async function parseResponse(response) {
     }
   }
 
+  if (response.status === 503 && data.code === 'MAINTENANCE' && isBrowser()) {
+    // A restore is running: MaintenanceScreen takes over the whole app.
+    window.dispatchEvent(new CustomEvent('system:maintenance', { detail: data.maintenance || { active: true } }));
+  }
+
   if (!response.ok || data.success === false) {
     // A 5xx without a JSON message means the API never answered (down, restarting, or the dev proxy failed).
     const fallback = response.status >= 500
@@ -95,6 +100,12 @@ async function parseResponse(response) {
   }
 
   return data;
+}
+
+// After a restore every cached response is stale.
+export function clearApiCache() {
+  memoryCache.clear();
+  invalidateStoredCache('');
 }
 
 export async function request(path, { method = 'GET', body, token, headers = {}, formData = null, skipCache = false } = {}) {
@@ -306,7 +317,13 @@ export const api = {
     connect: (token) => request('/google-drive/connect', { method: 'POST', token }),
     disconnect: (token) => request('/google-drive/disconnect', { method: 'POST', token }),
     backups: (token) => request('/google-drive/backups', { token, skipCache: true }),
-    runBackup: (token) => request('/google-drive/backups/run', { method: 'POST', token })
+    runBackup: (token) => request('/google-drive/backups/run', { method: 'POST', token }),
+    restore: (token, fileId) =>
+      request(`/google-drive/backups/${encodeURIComponent(fileId)}/restore`, { method: 'POST', token, body: { confirm: 'RESTORE' } })
+  },
+  maintenance: {
+    status: () => request('/maintenance/status', { skipCache: true }),
+    clear: (token) => request('/maintenance/clear', { method: 'POST', token })
   },
   callLogs: {
     list: (token, query = {}) => {

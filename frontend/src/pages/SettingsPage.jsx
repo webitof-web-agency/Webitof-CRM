@@ -2492,6 +2492,7 @@ export function SettingsPage() {
             <StorageSettingsPanel
               token={token}
               canWrite={hasPermission('settings.write')}
+              canRestore={hasPermission('backups.restore')}
               oauthResult={oauthResult}
               onOauthResultShown={clearOauthResult}
             />

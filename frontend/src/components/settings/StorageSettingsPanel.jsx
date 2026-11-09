@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CloudUpload, DatabaseBackup, Download, ExternalLink, HardDrive, Link2, RefreshCw, Settings2, Unplug } from 'lucide-react';
+import { AlertTriangle, CloudUpload, DatabaseBackup, Download, ExternalLink, HardDrive, History, Link2, RefreshCw, Settings2, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, downloadWithAuth } from '../../api/client';
 import { Card } from '../ui/Card';
@@ -8,6 +8,8 @@ import { Badge } from '../ui/Badge';
 import { ConfirmDialog } from '../overlays/ConfirmDialog';
 import { DriveConfigForm } from './DriveConfigForm';
 import { SimpleTable } from '../ui/SimpleTable';
+import { Modal } from '../ui/Modal';
+import { Input } from '../ui/Input';
 
 const PROVIDERS = [
   { id: 'local', label: 'Local server', description: 'Files are saved on the CRM server disk.', icon: HardDrive },
@@ -27,6 +29,12 @@ function formatDate(value) {
   return new Date(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+const BACKUP_KINDS = {
+  scheduled: { label: 'Daily', tone: 'neutral' },
+  manual: { label: 'Manual', tone: 'info' },
+  'pre-restore': { label: 'Before restore', tone: 'warning' }
+};
+
 function SectionHeader({ icon: Icon, title, description }) {
   return (
     <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
@@ -39,13 +47,15 @@ function SectionHeader({ icon: Icon, title, description }) {
   );
 }
 
-export function StorageSettingsPanel({ token, canWrite, oauthResult = null, onOauthResultShown }) {
+export function StorageSettingsPanel({ token, canWrite, canRestore = false, oauthResult = null, onOauthResultShown }) {
   const [status, setStatus] = useState(null);
   const [backups, setBackups] = useState([]);
   const [backupsError, setBackupsError] = useState('');
   const [selectedProvider, setSelectedProvider] = useState('local');
   const [busy, setBusy] = useState('');
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const [restoreTarget, setRestoreTarget] = useState(null);
+  const [restoreConfirm, setRestoreConfirm] = useState('');
 
   const drive = status?.drive;
   const backup = status?.backup;
@@ -144,6 +154,18 @@ export function StorageSettingsPanel({ token, canWrite, oauthResult = null, onOa
   const downloadDriveBackup = (file) => run(`download-${file.id}`, () =>
     downloadWithAuth(`/google-drive/backups/${encodeURIComponent(file.id)}/download`, token, file.name)
   );
+
+  const openRestore = (file) => {
+    setRestoreConfirm('');
+    setRestoreTarget(file);
+  };
+
+  const startRestore = () => run('restore', async () => {
+    const response = await api.googleDrive.restore(token, restoreTarget.id);
+    setRestoreTarget(null);
+    // The person restoring sees the maintenance screen too, without waiting for the socket.
+    window.dispatchEvent(new CustomEvent('system:maintenance', { detail: response.data?.maintenance || { active: true } }));
+  });
 
   const downloadFreshBackup = () => run('fresh', () =>
     downloadWithAuth('/backup/download', token, 'crm-backup.dump')
@@ -263,7 +285,7 @@ export function StorageSettingsPanel({ token, canWrite, oauthResult = null, onOa
           </div>
         </div>
 
-        {canWrite ? (
+        {canWrite || canRestore ? (
           <div className="mt-5 flex flex-wrap gap-2">
             <Button size="sm" onClick={connect} loading={busy === 'connect'} disabled={Boolean(busy) || Boolean(drive.problems?.length)}>
               <Link2 size={14} />
@@ -313,14 +335,16 @@ export function StorageSettingsPanel({ token, canWrite, oauthResult = null, onOa
                 Back up now to Drive
               </Button>
             ) : null}
-            <Button size="sm" variant="outline" onClick={downloadFreshBackup} loading={busy === 'fresh'} disabled={Boolean(busy)}>
-              <Download size={14} />
-              Download backup
-            </Button>
+            {canWrite ? (
+              <Button size="sm" variant="outline" onClick={downloadFreshBackup} loading={busy === 'fresh'} disabled={Boolean(busy)}>
+                <Download size={14} />
+                Download backup
+              </Button>
+            ) : null}
           </div>
         ) : null}
         <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-          Download backup makes a fresh dump and saves it to this computer; nothing is sent to Drive. Restore with <code>pg_restore --clean --if-exists --no-owner --no-privileges -d &lt;database&gt; &lt;file&gt;.dump</code>.
+          Download backup makes a fresh dump and saves it to this computer; nothing is sent to Drive. Backups in Drive are kept for {backup.keep} days and can be restored from the list below.
         </p>
 
         {driveUsable ? (
@@ -339,18 +363,37 @@ export function StorageSettingsPanel({ token, canWrite, oauthResult = null, onOa
                 rows={backups}
                 columns={[
                   { key: 'name', label: 'File', className: 'font-medium break-all', render: (file) => file.name },
+                  {
+                    key: 'kind',
+                    label: 'Type',
+                    nowrap: true,
+                    render: (file) => {
+                      const kind = BACKUP_KINDS[file.kind] || BACKUP_KINDS.scheduled;
+                      return <Badge tone={kind.tone}>{kind.label}</Badge>;
+                    }
+                  },
                   { key: 'created', label: 'Created', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatDate(file.createdTime) },
                   { key: 'size', label: 'Size', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatBytes(file.size) },
-                  ...(canWrite
+                  ...(canWrite || canRestore
                     ? [{
                         key: 'actions',
                         label: '',
                         align: 'right',
                         render: (file) => (
-                          <Button size="xs" variant="outline" onClick={() => downloadDriveBackup(file)} loading={busy === `download-${file.id}`} disabled={Boolean(busy)}>
-                            <Download size={12} />
-                            Download
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            {canWrite ? (
+                              <Button size="xs" variant="outline" onClick={() => downloadDriveBackup(file)} loading={busy === `download-${file.id}`} disabled={Boolean(busy)}>
+                                <Download size={12} />
+                                Download
+                              </Button>
+                            ) : null}
+                            {canRestore ? (
+                              <Button size="xs" variant="danger" onClick={() => openRestore(file)} disabled={Boolean(busy) || backup.running}>
+                                <History size={12} />
+                                Restore
+                              </Button>
+                            ) : null}
+                          </div>
                         )
                       }]
                     : [])
@@ -360,6 +403,49 @@ export function StorageSettingsPanel({ token, canWrite, oauthResult = null, onOa
           </div>
         ) : null}
       </Card>
+
+      <Modal
+        open={Boolean(restoreTarget)}
+        onClose={() => (busy === 'restore' ? null : setRestoreTarget(null))}
+        title="Restore this backup?"
+        subtitle={restoreTarget ? `${restoreTarget.name} · ${formatDate(restoreTarget.createdTime)}` : ''}
+        width="min(520px, 95vw)"
+        footer={(
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setRestoreTarget(null)} disabled={busy === 'restore'}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={startRestore} loading={busy === 'restore'} disabled={restoreConfirm !== 'RESTORE' || busy === 'restore'}>
+              <History size={14} />
+              Restore
+            </Button>
+          </div>
+        )}
+      >
+        <div className="space-y-3 text-sm text-slate-700 dark:text-slate-200">
+          <p className="flex gap-2 rounded-lg bg-rose-50 dark:bg-rose-500/10 p-3 text-rose-800 dark:text-rose-200">
+            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+            <span>
+              The whole database goes back to {restoreTarget ? formatDate(restoreTarget.createdTime) : 'this backup'}. Everything entered after that time is lost.
+            </span>
+          </p>
+          <ul className="list-disc space-y-1 pl-5 text-xs text-slate-500 dark:text-slate-400">
+            <li>The site goes into maintenance and everyone is locked out until the restore finishes.</li>
+            <li>A safety backup of the current data is taken first, so this can be undone.</li>
+            <li>The Google Drive connection and storage settings stay as they are now.</li>
+          </ul>
+          <label className="block text-xs font-medium text-slate-600 dark:text-slate-300" htmlFor="restore-confirm">
+            Type RESTORE to confirm
+          </label>
+          <Input
+            id="restore-confirm"
+            value={restoreConfirm}
+            onChange={(event) => setRestoreConfirm(event.target.value)}
+            placeholder="RESTORE"
+            autoComplete="off"
+          />
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={confirmDisconnect}
