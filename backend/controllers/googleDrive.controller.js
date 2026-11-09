@@ -5,6 +5,7 @@ const { getGoogleDriveConfig, refreshDriveSettings } = require('../config/google
 const driveSettings = require('../services/googleDrive/driveSettings.service');
 const connection = require('../services/googleDrive/driveConnection.service');
 const backups = require('../services/googleDrive/backup.service');
+const restore = require('../services/googleDrive/restore.service');
 const storage = require('../services/storage/storage.service');
 
 function settingsRedirect(params) {
@@ -91,6 +92,16 @@ const downloadBackup = asyncHandler(async (req, res) => {
   Readable.fromWeb(response.body).pipe(res);
 });
 
+// Starts the restore and returns at once; progress is read from GET /maintenance/status.
+const restoreBackup = asyncHandler(async (req, res) => {
+  const result = await restore.startRestore({
+    fileId: req.params.fileId,
+    confirm: req.body?.confirm,
+    user: req.user
+  });
+  res.status(202).json({ success: true, message: 'Restore started. The site is in maintenance until it finishes.', data: result });
+});
+
 // A fresh dump straight to the browser; nothing goes to Drive.
 const downloadLocalBackup = asyncHandler(async (req, res) => {
   const dump = await backups.makeDump().catch((error) => {
@@ -127,6 +138,7 @@ module.exports = {
   downloadLocalBackup,
   listBackups,
   oauthCallback,
+  restoreBackup,
   runBackupNow,
   status
 };

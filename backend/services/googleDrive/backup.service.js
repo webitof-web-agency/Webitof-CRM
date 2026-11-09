@@ -256,13 +256,16 @@ async function performBackup({ trigger, userId, kind }) {
 }
 
 // Never throws; always resolves to a result object.
-async function runBackup({ trigger = 'manual', userId = null, kind = kindFor(trigger) } = {}) {
+// lockHeld: the caller (a restore) already holds the backup lock for the whole operation.
+async function runBackup({ trigger = 'manual', userId = null, kind = kindFor(trigger), lockHeld = false } = {}) {
   if (running) return { status: 'ALREADY_RUNNING' };
   running = (async () => {
     let release = null;
     try {
-      release = await acquireLock();
-      if (!release) return { status: 'ALREADY_RUNNING' };
+      if (!lockHeld) {
+        release = await acquireLock();
+        if (!release) return { status: 'ALREADY_RUNNING' };
+      }
       return await performBackup({ trigger, userId, kind });
     } catch (error) {
       return { status: 'FAILED', trigger, error: error.message };

@@ -12,6 +12,8 @@ router.post('/disconnect', requirePermission('settings.write'), controller.disco
 router.get('/backups', requirePermission('settings.read'), controller.listBackups);
 router.post('/backups/run', requirePermission('settings.write'), controller.runBackupNow);
 // A backup holds the whole database, so downloading needs write permission.
+// Replaces the whole database (behind maintenance mode); only for the Restore Backups permission.
+router.post('/backups/:fileId/restore', requirePermission('backups.restore'), controller.restoreBackup);
 router.get('/backups/:fileId/download', requirePermission('settings.write'), controller.downloadBackup);
 
 module.exports = router;
