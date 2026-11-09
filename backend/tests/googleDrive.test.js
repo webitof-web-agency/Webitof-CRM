@@ -244,7 +244,7 @@ test('a backup uploads the dump and records the result', async () => {
   await connect();
   const result = await backups.runBackup({ trigger: 'manual' });
   assert.equal(result.status, 'SUCCESS');
-  assert.match(result.fileName, /^crm-backup-crm-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-IST\.dump$/);
+  assert.match(result.fileName, /^crm-backup-crm-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-IST-manual\.dump$/);
   const uploaded = fake.files.get(result.fileId);
   assert.equal(uploaded.content.toString(), 'PGDMP fake dump');
   const status = await backups.getBackupStatus();
@@ -252,12 +252,13 @@ test('a backup uploads the dump and records the result', async () => {
   assert.equal(status.lastSuccess.fileId, result.fileId);
 });
 
-test('retention keeps the newest 7 of this database and never touches other files', async () => {
+test('retention keeps the newest 15 of this database and never touches other files', async () => {
   setup();
   await connect();
   const folderId = await connection.ensureFolder('backup');
-  for (let day = 1; day <= 9; day += 1) {
-    fake.addFile({ name: `crm-backup-crm-2026-09-0${day}_02-00-00-IST.dump`, parents: [folderId] });
+  for (let day = 1; day <= 17; day += 1) {
+    const dd = String(day).padStart(2, '0');
+    fake.addFile({ name: `crm-backup-crm-2026-09-${dd}_02-00-00-IST.dump`, parents: [folderId], createdTime: `2026-09-${dd}T00:00:00Z` });
   }
   const others = [
     fake.addFile({ name: 'crm-backup-crm_test-2026-09-01_02-00-00-IST.dump', parents: [folderId] }),
@@ -265,13 +266,66 @@ test('retention keeps the newest 7 of this database and never touches other file
     fake.addFile({ name: 'notes.txt', parents: [folderId] })
   ];
 
+  assert.equal(getGoogleDriveConfig().backupKeep, 15);
   const result = await backups.runBackup({ trigger: 'schedule' });
   assert.equal(result.status, 'SUCCESS');
   assert.equal(result.removed, 3);
   const own = (await backups.listBackups()).map((file) => file.name);
-  assert.equal(own.length, 7);
+  assert.equal(own.length, 15);
   assert.equal(own[0], result.fileName);
   for (const other of others) assert.ok(fake.files.has(other.id), `${other.name} must be kept`);
+});
+
+test('a pre-restore backup is named and listed as its own kind and counts toward retention', async () => {
+  setup();
+  await connect();
+  const scheduled = await backups.runBackup({ trigger: 'schedule' });
+  const safety = await backups.runBackup({ trigger: 'restore', kind: 'pre-restore' });
+  assert.equal(safety.status, 'SUCCESS');
+  assert.match(safety.fileName, /^crm-backup-crm-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-IST-pre-restore\.dump$/);
+  assert.ok(backups.isOwnBackupName(safety.fileName));
+  assert.ok(!backups.isOwnBackupName('crm-backup-crm-2026-09-01_02-00-00-IST-other.dump'));
+  const listed = await backups.listBackups();
+  const kinds = Object.fromEntries(listed.map((file) => [file.id, file.kind]));
+  assert.equal(kinds[safety.fileId], 'pre-restore');
+  assert.equal(kinds[scheduled.fileId], 'scheduled');
+  const manual = await backups.runBackup({ trigger: 'manual' });
+  assert.equal((await backups.listBackups()).find((file) => file.id === manual.fileId).kind, 'manual');
+});
+
+test('pg_dump only dumps the public schema', async () => {
+  setup();
+  await connect();
+  const argsFile = path.join(TMP, 'pg-dump-args.txt');
+  const script = path.join(TMP, 'fake-pg-dump-args.sh');
+  fs.writeFileSync(script, `#!/bin/sh\necho "$@" > "${argsFile}"\nexit 1\n`, { mode: 0o755 });
+  backups.setDumpRunnerForTests(null);
+  process.env.PG_DUMP_PATH = script;
+  try {
+    await backups.runBackup({ trigger: 'manual' });
+    const args = fs.readFileSync(argsFile, 'utf8');
+    assert.match(args, /--schema=public/);
+    assert.match(args, /--no-owner/);
+    assert.ok(!args.includes('s3cret-pass'));
+  } finally {
+    delete process.env.PG_DUMP_PATH;
+  }
+});
+
+test('Back up now is allowed in production only for users with backups.restore', async () => {
+  setup();
+  const saved = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  try {
+    assert.equal((await backups.getBackupStatus()).manualAllowed, false);
+    assert.equal((await backups.getBackupStatus({ user: { permissions: ['settings.write'] } })).manualAllowed, false);
+    assert.equal((await backups.getBackupStatus({ user: { permissions: ['backups.restore'] } })).manualAllowed, true);
+    assert.equal((await backups.getBackupStatus({ user: { isSuperAdmin: true } })).manualAllowed, true);
+  } finally {
+    process.env.NODE_ENV = saved;
+  }
+  const { PERMISSIONS } = require('../config/rbac');
+  assert.ok(PERMISSIONS.some((permission) => permission.code === 'backups.restore'));
 });
 
 test('a pg_dump failure is recorded as FAILED without showing the password', async () => {

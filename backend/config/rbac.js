@@ -68,6 +68,7 @@ const PERMISSIONS = [
   { code: 'masters.delete', name: 'Delete Masters', module: 'masters', action: 'delete', description: 'Delete master data.' },
   { code: 'settings.read', name: 'Read Settings', module: 'settings', action: 'read', description: 'View settings.' },
   { code: 'settings.write', name: 'Write Settings', module: 'settings', action: 'write', description: 'Change settings.' },
+  { code: 'backups.restore', name: 'Restore Backups', module: 'settings', action: 'restore', description: 'Take a Drive backup at any time and restore the whole database from one (puts the site in maintenance).' },
   { code: 'reports.view', name: 'View Reports', module: 'reports', action: 'view', description: 'View dashboard and reports.' },
   { code: 'files.read', name: 'Read Files', module: 'files', action: 'read', description: 'View uploaded files.' },
   { code: 'files.write', name: 'Write Files', module: 'files', action: 'write', description: 'Upload and archive files.' },

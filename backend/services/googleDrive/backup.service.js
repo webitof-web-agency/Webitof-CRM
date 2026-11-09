@@ -52,16 +52,30 @@ function databaseLabel() {
   return getConnectionParams().database.replace(/[^A-Za-z0-9_-]+/g, '-') || 'db';
 }
 
-function buildFileName(now = new Date()) {
-  return `${FILE_PREFIX}${databaseLabel()}-${istParts(now).stamp}-IST.dump`;
+// The kind is part of the file name, so Drive alone tells a safety copy from a daily one.
+const KIND_SUFFIX = { scheduled: '', manual: '-manual', 'pre-restore': '-pre-restore' };
+const OWN_TAIL = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}-IST(-manual|-pre-restore)?\.dump$/;
+
+function kindFor(trigger) {
+  return trigger === 'manual' ? 'manual' : 'scheduled';
 }
 
-// Only this server's own files: "crm-backup-<this database>-<date>…dump".
+function buildFileName(now = new Date(), kind = 'scheduled') {
+  return `${FILE_PREFIX}${databaseLabel()}-${istParts(now).stamp}-IST${KIND_SUFFIX[kind] || ''}.dump`;
+}
+
+// Only this server's own files: "crm-backup-<this database>-<date>-IST[-kind].dump".
 // The date after the name keeps "crm" from matching "crm_test-…".
 function isOwnBackupName(name) {
   const prefix = `${FILE_PREFIX}${databaseLabel()}-`;
-  if (!/^crm-backup-.+\.dump$/.test(name) || !name.startsWith(prefix)) return false;
-  return /^\d{4}-\d{2}-\d{2}_/.test(name.slice(prefix.length));
+  if (!String(name).startsWith(prefix)) return false;
+  return OWN_TAIL.test(name.slice(prefix.length));
+}
+
+function kindOf(name) {
+  if (String(name).endsWith('-pre-restore.dump')) return 'pre-restore';
+  if (String(name).endsWith('-manual.dump')) return 'manual';
+  return 'scheduled';
 }
 
 function redact(text, secret) {
@@ -84,6 +98,8 @@ function defaultDumpRunner(filePath) {
     '--compress=6',
     '--no-owner',
     '--no-privileges',
+    // Only the app's own tables: Supabase's auth/storage/… schemas cannot be restored by this role.
+    '--schema=public',
     `--host=${params.host}`,
     `--port=${params.port}`,
     `--username=${params.user}`,
@@ -145,9 +161,9 @@ function setLockForTests(fn) {
   acquireLock = fn || defaultAcquireLock;
 }
 
-async function makeDump() {
+async function makeDump({ kind = 'scheduled' } = {}) {
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'crm-backup-'));
-  const fileName = buildFileName();
+  const fileName = buildFileName(new Date(), kind);
   const filePath = path.join(dir, fileName);
   const cleanup = () => fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
   try {
@@ -181,7 +197,7 @@ async function applyRetention(client, folderId, keep) {
   return toRemove.length;
 }
 
-async function performBackup({ trigger, userId }) {
+async function performBackup({ trigger, userId, kind }) {
   const startedAt = new Date().toISOString();
   const previous = await getSetting(STATE_KEY, {});
   await setSetting(STATE_KEY, { ...previous, state: 'RUNNING', runningSince: startedAt, last: { status: 'RUNNING', trigger, startedAt, userId } });
@@ -190,7 +206,7 @@ async function performBackup({ trigger, userId }) {
   try {
     const client = await connection.getClient();
     const folderId = await connection.ensureFolder('backup');
-    dump = await makeDump();
+    dump = await makeDump({ kind });
     const buffer = await fs.promises.readFile(dump.filePath);
     const uploaded = await client.uploadFile({
       name: dump.fileName,
@@ -216,6 +232,7 @@ async function performBackup({ trigger, userId }) {
       finishedAt: new Date().toISOString(),
       fileId: uploaded.id,
       fileName: dump.fileName,
+      kind,
       size: dump.size,
       removed,
       ...(retentionError ? { retentionError } : {})
@@ -239,14 +256,14 @@ async function performBackup({ trigger, userId }) {
 }
 
 // Never throws; always resolves to a result object.
-async function runBackup({ trigger = 'manual', userId = null } = {}) {
+async function runBackup({ trigger = 'manual', userId = null, kind = kindFor(trigger) } = {}) {
   if (running) return { status: 'ALREADY_RUNNING' };
   running = (async () => {
     let release = null;
     try {
       release = await acquireLock();
       if (!release) return { status: 'ALREADY_RUNNING' };
-      return await performBackup({ trigger, userId });
+      return await performBackup({ trigger, userId, kind });
     } catch (error) {
       return { status: 'FAILED', trigger, error: error.message };
     } finally {
@@ -290,7 +307,12 @@ function scheduleLabel(hour) {
   return `Daily at ${String(hour).padStart(2, '0')}:00 IST`;
 }
 
-async function getBackupStatus() {
+function canBackUpManually(user) {
+  if (process.env.NODE_ENV !== 'production') return true;
+  return Boolean(user && (user.isSuperAdmin || (Array.isArray(user.permissions) && user.permissions.includes('backups.restore'))));
+}
+
+async function getBackupStatus({ user = null } = {}) {
   const config = getGoogleDriveConfig();
   const state = await getSetting(STATE_KEY, {});
   const since = Date.parse(state.runningSince || state.last?.startedAt || '');
@@ -305,7 +327,7 @@ async function getBackupStatus() {
     },
     last: state.last || null,
     lastSuccess: state.lastSuccess || null,
-    manualAllowed: process.env.NODE_ENV !== 'production'
+    manualAllowed: canBackUpManually(user)
   };
 }
 
@@ -317,7 +339,8 @@ async function listBackups() {
     id: file.id,
     name: file.name,
     size: Number(file.size || 0),
-    createdTime: file.createdTime
+    createdTime: file.createdTime,
+    kind: kindOf(file.name)
   }));
 }
 
@@ -333,6 +356,10 @@ async function openBackup(fileId) {
 
 module.exports = {
   buildFileName,
+  canBackUpManually,
+  getConnectionParams,
+  kindOf,
+  redact,
   getBackupStatus,
   isOwnBackupName,
   listBackups,
@@ -341,6 +368,7 @@ module.exports = {
   runBackup,
   runScheduledBackupIfDue,
   setDumpRunnerForTests,
+  acquireBackupLock: () => acquireLock(),
   setLockForTests,
   startBackupInBackground
 };

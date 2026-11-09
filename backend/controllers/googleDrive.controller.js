@@ -17,7 +17,7 @@ const status = asyncHandler(async (req, res) => {
   await refreshDriveSettings();
   const [drive, backup, storageSettings] = await Promise.all([
     connection.getStatus(),
-    backups.getBackupStatus(),
+    backups.getBackupStatus({ user: req.user }),
     storage.getStorageSettings()
   ]);
   res.json({
@@ -63,10 +63,10 @@ const listBackups = asyncHandler(async (req, res) => {
 });
 
 const runBackupNow = asyncHandler(async (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (!backups.canBackUpManually(req.user)) {
     return res.status(403).json({
       success: false,
-      message: 'Manual Drive backups are disabled in production; the daily schedule handles them.'
+      message: 'Manual Drive backups in production need the Restore Backups permission; the daily schedule handles the rest.'
     });
   }
   if (!(await connection.isConnected())) {
@@ -76,7 +76,7 @@ const runBackupNow = asyncHandler(async (req, res) => {
   res.status(202).json({
     success: true,
     message: started ? 'Backup started' : 'A backup is already running',
-    data: await backups.getBackupStatus()
+    data: await backups.getBackupStatus({ user: req.user })
   });
 });
 
