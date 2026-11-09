@@ -413,15 +413,18 @@ function schedule() {
   const cron = require("node-cron");
   cron.schedule(
     process.env.HRM_REALTIME_CRON || "*/5 * * * *",
-    () =>
+    () => {
+      if (require("../maintenance.service").skipDuringMaintenance("HRM realtime")) return;
       realtime().catch((error) =>
         console.error("HRM realtime automation failed:", error.message),
-      ),
+      );
+    },
     { timezone: process.env.HRM_TIMEZONE || "Asia/Kolkata" },
   );
   cron.schedule(
     process.env.HRM_AUTOMATION_CRON || "30 1 * * *",
     async () => {
+      if (require("../maintenance.service").skipDuringMaintenance("HRM daily")) return;
       try {
         const p = await c.policy();
         if (!p.automationEnabled) return;

@@ -391,6 +391,7 @@ function scheduleOutsourcingAutomation({ schedule = process.env.OUTSOURCING_AUTO
   }
 
   return cron.schedule(schedule, () => {
+    if (require('./maintenance.service').skipDuringMaintenance('Outsourcing')) return;
     console.log('\n[Outsourcing] Scheduled automation triggered...');
     runOutsourcingAutomation({ runSource: 'cron' })
       .then((result) => {

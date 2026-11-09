@@ -406,6 +406,7 @@ function scheduleRenewalAutomation({ schedule = process.env.RENEWAL_AUTOMATION_C
   }
 
   return cron.schedule(schedule, () => {
+    if (require('./maintenance.service').skipDuringMaintenance('Renewals')) return;
     console.log('\n[Renewals] Scheduled automation triggered...');
     runRenewalAutomation({ runSource: 'cron' })
       .then((result) => {

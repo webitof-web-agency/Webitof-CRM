@@ -20,6 +20,8 @@ const { registerSocketHub } = require('./services/socketHub.service');
 const { createFollowUpScheduler } = require('./services/followUpEngine.service');
 const { runScheduledBackupIfDue } = require('./services/googleDrive/backup.service');
 const googleDriveController = require('./controllers/googleDrive.controller');
+const maintenance = require('./services/maintenance.service');
+const { maintenanceGate } = require('./middlewares/maintenance');
 
 const app = express();
 const PORT = Number(process.env.PORT || 5000);
@@ -41,6 +43,8 @@ app.get('/', (req, res) => {
   });
 });
 
+// Restores put the site in maintenance: every API call except status/health answers 503.
+app.use(API_PREFIX, maintenanceGate);
 app.use(API_PREFIX, apiRoutes);
 
 // Kept for older clients; same behaviour as POST /api/google-drive/backups/run.
@@ -56,6 +60,7 @@ const skipDbSetup = String(process.env.SKIP_DB_SETUP || '').toLowerCase() === 't
 const disableSchedulers = String(process.env.DISABLE_SCHEDULERS || '').toLowerCase() === 'true';
 
 async function start() {
+  maintenance.loadOnStartup();
   if (skipDbSetup) {
     console.log('SKIP_DB_SETUP=true: schema setup and seeding skipped');
   } else {
@@ -88,6 +93,7 @@ async function start() {
   // ─── Daily Database Backup ──────────────────────────────────────────────────
   // Checked every 15 minutes; runs once per IST date at or after GDRIVE_BACKUP_HOUR_IST.
   const backupCycle = () => {
+    if (maintenance.skipDuringMaintenance('Backup')) return;
     runScheduledBackupIfDue()
       .then((result) => {
         if (result.status === 'FAILED') console.error('Scheduled backup failed:', result.error);

@@ -25,6 +25,8 @@ function registerSocketHub(httpServer, options = {}) {
   });
 
   io.use((socket, next) => {
+    // No live connections while a restore replaces the database.
+    if (require('./maintenance.service').isActive()) return next(new Error('Under maintenance'));
     try {
       const token = parseAuthToken(socket.handshake);
       if (!token) {
@@ -106,7 +108,15 @@ function emitToUsers(userIds = [], eventName, payload) {
   });
 }
 
+// Tell every open tab the site is going into maintenance, then drop the connections.
+function broadcastMaintenance(state) {
+  if (!io) return;
+  io.emit('system:maintenance', state);
+  setTimeout(() => io && io.disconnectSockets(true), 250).unref?.();
+}
+
 module.exports = {
+  broadcastMaintenance,
   emitToPermission,
   emitToUser,
   emitToUsers,

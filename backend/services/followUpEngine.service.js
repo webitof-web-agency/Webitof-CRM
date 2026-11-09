@@ -1683,6 +1683,7 @@ function createFollowUpScheduler({ schedule = process.env.FOLLOW_UP_AUTOMATION_C
   if (!cron.validate(schedule)) throw new Error(`Invalid follow-up automation cron schedule: ${schedule}`);
   let running = false;
   return cron.schedule(schedule, () => {
+    if (require('./maintenance.service').skipDuringMaintenance('Follow-ups')) return;
     // Skip a tick while the previous cycle is still running in this process.
     if (running) return;
     running = true;

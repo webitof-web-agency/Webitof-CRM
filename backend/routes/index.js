@@ -52,6 +52,7 @@ router.get('/files/drive/:driveFileId/view', filesController.viewLegacyDriveFile
 // Google redirects the browser here; the signed OAuth state is what authorizes it.
 router.get('/google-drive/oauth/callback', googleDriveController.oauthCallback);
 
+router.use('/maintenance', require('./maintenance.routes'));
 router.use('/auth', authRoutes);
 
 // Public routes (no auth required)

@@ -505,6 +505,7 @@ function scheduleAmcAutomation({ schedule = process.env.AMC_AUTOMATION_CRON || '
   }
 
   return cron.schedule(schedule, () => {
+    if (require('./maintenance.service').skipDuringMaintenance('AMC')) return;
     console.log('\n[AMC] Scheduled automation triggered...');
     runAmcAutomation({ runSource: 'cron' })
       .then((result) => {
