@@ -1,6 +1,8 @@
 // Storage key layout, deterministic and browsable:
 //   site/<file>                                   logos, watermarks, branding
 //   <year>/<mon>/<section>/<record>/<file>        everything else (record optional)
+// <record> is "<Readable-Name>-<last 4 of id>" when the record's name is known, else the id.
+// The name is fixed at upload time; renaming the record later does not move old files.
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 const IST_OFFSET_MS = 330 * 60 * 1000;
 
@@ -53,20 +55,29 @@ function isSiteModule(moduleName) {
   return SITE_MODULES.has(String(moduleName || '').trim().toLowerCase());
 }
 
-function buildFolderPath({ moduleName = 'general', entityId = '', date = new Date() } = {}) {
-  if (isSiteModule(moduleName)) return 'site';
-  const { year, month } = istParts(date);
-  const record = sanitizeSegment(entityId);
-  return [year, month, sectionFor(moduleName), record].filter(Boolean).join('/');
+function recordFolder(entityId, entityLabel) {
+  const id = sanitizeSegment(entityId);
+  if (!id) return '';
+  const label = sanitizeSegment(entityLabel).slice(0, 50).replace(/[.-]+$/, '');
+  if (!label) return id;
+  const shortId = String(entityId).replace(/[^A-Za-z0-9]/g, '').slice(-4);
+  return shortId ? `${label}-${shortId}` : label;
 }
 
-function buildStorageKey({ moduleName, entityId, storedName, date } = {}) {
-  return `${buildFolderPath({ moduleName, entityId, date })}/${storedName}`;
+function buildFolderPath({ moduleName = 'general', entityId = '', entityLabel = '', date = new Date() } = {}) {
+  if (isSiteModule(moduleName)) return 'site';
+  const { year, month } = istParts(date);
+  return [year, month, sectionFor(moduleName), recordFolder(entityId, entityLabel)].filter(Boolean).join('/');
+}
+
+function buildStorageKey({ moduleName, entityId, entityLabel, storedName, date } = {}) {
+  return `${buildFolderPath({ moduleName, entityId, entityLabel, date })}/${storedName}`;
 }
 
 module.exports = {
   buildFolderPath,
   buildStorageKey,
+  isSiteModule,
   istParts,
   sanitizeSegment,
   sectionFor

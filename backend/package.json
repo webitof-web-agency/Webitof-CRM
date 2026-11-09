@@ -11,7 +11,7 @@
     "seed:hrm-demo": "node database/seed-hrm-demo.js --yes-seed-hrm",
     "seed:hrm-it": "node database/seed-hrm-it-masters.js --yes",
     "test:finance": "node --test tests/financeReports.test.js tests/paymentStatusCounting.test.js tests/paymentValidation.test.js tests/invoiceGst.test.js tests/invoiceGuards.test.js tests/invoiceNumbering.test.js tests/invoicePreview.test.js tests/reportPeriod.test.js tests/creditNoteMaths.test.js tests/creditNotes.test.js tests/paymentMilestoneEngine.test.js",
-    "test:storage": "node --test tests/googleDrive.test.js tests/fileAccess.test.js",
+    "test:storage": "node --test tests/googleDrive.test.js tests/fileAccess.test.js tests/uploadFolders.test.js",
     "test:security": "node --test tests/securityHardening.test.js tests/outsourcingAutomation.test.js tests/quotationApprovalPermission.test.js tests/followUpUpserts.test.js tests/followUpSecurity.test.js tests/publicInvoice.test.js tests/fileAccess.test.js",
     "start": "node server.js",
     "predev": "node scripts/ensure-dev-db.js",

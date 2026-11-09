@@ -4,7 +4,8 @@ const path = require('path');
 const { randomUUID } = require('crypto');
 const fileAssetModel = require('../models/fileAsset.model');
 const storage = require('./storage/storage.service');
-const { buildFolderPath } = require('../utils/uploadPath');
+const { buildFolderPath, isSiteModule } = require('../utils/uploadPath');
+const { resolveEntityLabel } = require('./storage/entityLabel.service');
 const { createId } = require('../utils/format');
 
 // Extension → stored and served MIME type. The browser's Content-Type is never trusted,
@@ -116,7 +117,8 @@ async function saveUpload({
   const cleanName = cleanOriginalName(originalName);
   const { extension, mimeType } = resolveType(cleanName, types);
   const storedName = buildStoredName(cleanName, extension);
-  const folderPath = buildFolderPath({ moduleName, entityId });
+  const entityLabel = entityId && !isSiteModule(moduleName) ? await resolveEntityLabel(moduleName, entityId) : null;
+  const folderPath = buildFolderPath({ moduleName, entityId, entityLabel });
   const locator = await storage.upload(buffer, `${folderPath}/${storedName}`, { mimeType });
 
   try {

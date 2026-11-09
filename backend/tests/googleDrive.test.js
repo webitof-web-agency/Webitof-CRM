@@ -31,6 +31,7 @@ const googleDriveController = require('../controllers/googleDrive.controller');
 const fileService = require('../services/file.service');
 const fileAssetModel = require('../models/fileAsset.model');
 const { requireAuth } = require('../middlewares/auth');
+const entityLabels = require('../services/storage/entityLabel.service');
 
 // Loading config/db pulls in backend/.env; drop anything from it that would reach real Google.
 for (const name of [
@@ -65,6 +66,8 @@ function setup(options) {
   connection.setDriveFileCounterForTests(async () => driveFileCount);
   connection._resetForTests();
   clearFolderCache();
+  // Upload folder names are looked up in the database; never reach a real one from here.
+  entityLabels.setLabelLookupForTests(async () => null);
   backups.setLockForTests(async () => async () => {});
   backups.setDumpRunnerForTests(async (filePath) => {
     fs.writeFileSync(filePath, Buffer.from('PGDMP fake dump'));
