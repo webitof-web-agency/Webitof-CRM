@@ -186,6 +186,9 @@ export const api = {
     payroll: (token) => request('/reports/payroll', { token, skipCache: true }),
     renewalDashboard: (token) => request('/reports/renewals', { token, skipCache: true })
   },
+  invoices: {
+    previewTotals: (token, payload) => request('/invoices/preview-totals', { method: 'POST', token, body: payload, skipCache: true })
+  },
   creditNotes: {
     list: (token, query = {}) => request(`/credit-notes${reportQuery(query)}`, { token, skipCache: true }),
     create: (token, payload) => request('/credit-notes', { method: 'POST', token, body: payload }),

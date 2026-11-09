@@ -73,7 +73,7 @@ test('the public invoice link exposes only the client fields the page renders', 
   settingsModel.getSettings = async () => ({ company: {}, logos: {}, branding: {}, invoice: {}, gst: {}, tds: {} });
 
   const { getPublic } = require('../controllers/invoices.controller').default || require('../controllers/invoices.controller');
-  const res = { json(body) { this.body = body; return this; }, status() { return this; } };
+  const res = { json(body) { this.body = body; return this; }, status() { return this; }, set() { return this; } };
   await getPublic({ params: { id: 'inv1' } }, res, (err) => { throw err; });
 
   const client = res.body.data.client;

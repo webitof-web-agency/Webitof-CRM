@@ -687,6 +687,38 @@ export function InvoiceBuilderPage() {
     };
   }, [draft.items, draft.taxRate, draft.discountType, draft.discountValue, draft.advanceAmount, taxType, showDiscount, showAdvance, showGST, serviceLookup]);
 
+  // The server prices invoices (place of supply, export type, GST-inclusive, per-line rounding), so the preview asks it
+  // and shows its figures; the local estimate above only covers the moment before the answer arrives or if it fails.
+  const [serverTotals, setServerTotals] = useState(null);
+  useEffect(() => {
+    if (!token || !draft.clientId) { setServerTotals(null); return undefined; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await api.invoices.previewTotals(token, {
+          clientId: draft.clientId,
+          placeOfSupply: draft.placeOfSupply,
+          invoiceType: draft.invoiceType,
+          amountType: showGST ? (draft.amountType || 'GST Extra') : 'No Tax',
+          discountType: draft.discountType || 'percent',
+          discountValue: showDiscount ? draft.discountValue : 0,
+          advanceAmount: showAdvance ? draft.advanceAmount : 0,
+          items: (draft.items || []).map(({ _id, ...rest }) => {
+            const service = serviceLookup.get(String(rest.serviceId || '')) || null;
+            const gstRate = resolveItemGstRate(rest, draft.taxRate, service);
+            return { ...rest, rate: resolveItemRate(rest, service?.defaultPrice ?? 0, service), gstRate, taxRate: gstRate };
+          })
+        });
+        if (!cancelled) setServerTotals(response.data || null);
+      } catch {
+        if (!cancelled) setServerTotals(null);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [token, draft, showGST, showDiscount, showAdvance, serviceLookup]);
+  const shownTotals = serverTotals ? { ...totals, ...serverTotals, totalTax: serverTotals.gstAmount } : totals;
+  const shownTaxType = serverTotals ? serverTotals.taxType : taxType;
+
   const addItem = () => setDraft(d => ({ ...d, items: [...d.items, DEFAULT_ITEM()] }));
   const removeItem = (index) => setDraft(d => ({ ...d, items: d.items.filter((_, i) => i !== index) }));
   const updateItem = (index, field, value) => setDraft(d => {
@@ -1048,23 +1080,25 @@ export function InvoiceBuilderPage() {
                     className="px-2.5 py-1.5 rounded-lg text-xs font-semibold"
                     style={{ color: uiColor, backgroundColor: `${uiColor}15` }}
                   >
-                    {getTaxLabel(taxType)}
+                    {getTaxLabel(shownTaxType)}
                   </div>
                 </div>
                 <div className="col-span-2 rounded-xl bg-white border border-slate-200 shadow-sm px-4 py-3 space-y-2">
-                  <div className="flex justify-between text-xs text-slate-600"><span>Subtotal</span><span className="font-medium">₹{fmt(totals.taxableAmount)}</span></div>
-                  {taxType === 'cgst_sgst' && <>
-                    <div className="flex justify-between text-xs text-slate-600"><span>CGST ({totals.taxRate / 2}%)</span><span>₹{fmt(totals.cgst)}</span></div>
-                    <div className="flex justify-between text-xs text-slate-600"><span>SGST ({totals.taxRate / 2}%)</span><span>₹{fmt(totals.sgst)}</span></div>
+                  <div className="flex justify-between text-xs text-slate-600"><span>Subtotal</span><span className="font-medium">₹{fmt(shownTotals.taxableAmount)}</span></div>
+                  {shownTaxType === 'cgst_sgst' && <>
+                    <div className="flex justify-between text-xs text-slate-600"><span>CGST ({shownTotals.taxRate / 2}%)</span><span>₹{fmt(shownTotals.cgst)}</span></div>
+                    {Number(shownTotals.utgst) > 0
+                      ? <div className="flex justify-between text-xs text-slate-600"><span>UTGST ({shownTotals.taxRate / 2}%)</span><span>₹{fmt(shownTotals.utgst)}</span></div>
+                      : <div className="flex justify-between text-xs text-slate-600"><span>SGST ({shownTotals.taxRate / 2}%)</span><span>₹{fmt(shownTotals.sgst)}</span></div>}
                   </>}
-                  {taxType === 'igst' && <div className="flex justify-between text-xs text-slate-600"><span>IGST ({totals.taxRate}%)</span><span>₹{fmt(totals.igst)}</span></div>}
-                  <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-2 mt-1 text-slate-800"><span>Total</span><span>₹{fmt(totals.totalAmount)}</span></div>
+                  {shownTaxType === 'igst' && <div className="flex justify-between text-xs text-slate-600"><span>IGST ({shownTotals.taxRate}%)</span><span>₹{fmt(shownTotals.igst)}</span></div>}
+                  <div className="flex justify-between text-sm font-bold border-t border-slate-200 pt-2 mt-1 text-slate-800"><span>Total</span><span>₹{fmt(shownTotals.totalAmount)}</span></div>
                 </div>
               </div>
             )}
             {!showGST && (
               <div className="rounded-xl bg-white shadow-sm border border-slate-200 px-4 py-3">
-                <div className="flex justify-between text-sm font-bold text-slate-800"><span>Total (No Tax)</span><span>₹{fmt(totals.taxableAmount)}</span></div>
+                <div className="flex justify-between text-sm font-bold text-slate-800"><span>Total (No Tax)</span><span>₹{fmt(shownTotals.taxableAmount)}</span></div>
               </div>
             )}
           </div>
@@ -1084,7 +1118,7 @@ export function InvoiceBuilderPage() {
               <div className="flex items-center gap-2">
                 <SearchableSelect options={[{ value: 'percent', label: 'Percent (%)' }, { value: 'flat', label: 'Flat (₹)' }]} value={draft.discountType} onChange={val => setDraft(d => ({ ...d, discountType: val }))} className="w-36" />
                 <Input type="number" min="0" value={draft.discountValue} onChange={e => setDraft(d => ({ ...d, discountValue: e.target.value }))} className="w-28 text-sm" />
-                {Number(totals.discountAmount) > 0 && <span className="text-xs text-emerald-600 font-semibold">-₹{fmt(totals.discountAmount)}</span>}
+                {Number(shownTotals.discountAmount) > 0 && <span className="text-xs text-emerald-600 font-semibold">-₹{fmt(shownTotals.discountAmount)}</span>}
               </div>
             )}
           </div>

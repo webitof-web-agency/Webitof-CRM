@@ -37,8 +37,9 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Syntax check
         run: find . -name "*.js" -not -path "./node_modules/*" -print0 | xargs -0 -n1 node --check
+      # Every *.test.js runs: none need a database (models are stubbed). *.integration.js and the smoke scripts do,
+      # and googleDrive.test.js shells out to pg_dump, so those stay out of CI.
       - name: Unit tests (no database)
         run: >
-          node --test tests/hrm.test.js tests/hrm.workday.test.js tests/followUpEngine.test.js
-          tests/leadManagement.test.js tests/invoiceFinance.test.js tests/paymentMilestoneEngine.test.js
-          tests/quotationInvoice.test.js tests/taxCalculationEngine.test.js
+          find tests -maxdepth 1 -name "*.test.js" -not -name "googleDrive.test.js" -print0
+          | xargs -0 node --test

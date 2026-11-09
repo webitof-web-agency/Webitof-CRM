@@ -247,6 +247,40 @@ const invoicesController = createCrudController(invoiceModel, {
   defaultOrder: 'invoice_date DESC'
 });
 
+// Prices a draft with exactly the code that prices a saved invoice, so the builder's preview cannot drift from it.
+invoicesController.previewTotals = async (req, res, next) => {
+  try {
+    const body = req.body || {};
+    const items = Array.isArray(body.items) ? body.items.slice(0, 200) : [];
+    const settings = (await getSettings()) || {};
+    const client = body.clientId ? await clientModel.findById(body.clientId) : null;
+    const serviceMap = await loadServiceCatalog();
+    const normalizedItems = normalizeInvoiceItems(items, serviceMap, req.user);
+    const totals = calculateInvoiceTotals(body, normalizedItems, settings, client || {});
+    res.json({
+      success: true,
+      data: {
+        taxType: totals.taxType,
+        gstType: totals.gstType,
+        taxRate: totals.taxRate,
+        placeOfSupply: totals.placeOfSupply,
+        subtotal: totals.taxableAmount + totals.discountAmount,
+        discountAmount: totals.discountAmount,
+        advanceAmount: totals.advanceAmount,
+        taxableAmount: totals.taxableAmount,
+        cgst: totals.cgst,
+        sgst: totals.sgst,
+        utgst: totals.utgst,
+        igst: totals.igst,
+        gstAmount: totals.gstAmount,
+        totalAmount: totals.totalAmount
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 invoicesController.list = async (req, res, next) => {
   try {
     const { search, limit, offset, orderBy, ...filters } = req.query || {};
@@ -450,15 +484,41 @@ function publicInvoice(snapshot = {}) {
 
 // Public endpoint — no auth required. Looked up by exact invoice id only: ids are random, whereas the
 // invoice number is sequential and would let anyone walk every invoice (INV-001, INV-002, ...).
+const DEFAULT_PUBLIC_LINK_DAYS = 180;
+
+/**
+ * A shared link stops working this many days after the later of the invoice date and due date, so an old link in
+ * someone's inbox is not a permanent window onto the invoice. Settings > invoice.publicLinkExpiryDays overrides it;
+ * 0 means never.
+ */
+function publicLinkExpired(invoice, settings, now = new Date()) {
+  const configured = Number(settings?.invoice?.publicLinkExpiryDays);
+  const days = Number.isFinite(configured) && configured >= 0 ? configured : DEFAULT_PUBLIC_LINK_DAYS;
+  if (days === 0) return false;
+  const anchors = [invoice.invoiceDate, invoice.dueDate]
+    .map((value) => (value ? new Date(String(value).slice(0, 10)) : null))
+    .filter((date) => date && !Number.isNaN(date.getTime()));
+  if (!anchors.length) return false;
+  const latest = Math.max(...anchors.map((date) => date.getTime()));
+  return now.getTime() > latest + days * 86400000;
+}
+
 invoicesController.getPublic = async (req, res, next) => {
   try {
+    // Never cached or indexed: the page is private to whoever holds the link.
+    res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
     const invoice = await invoiceModel.findByExactId(req.params.id);
-    if (!invoice) {
+    // A draft is not yet issued to the client, so it has no public face.
+    if (!invoice || invoice.status === 'Draft') {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
+    }
+    const settingsForExpiry = (await getSettings()) || {};
+    if (publicLinkExpired(invoice, settingsForExpiry)) {
+      return res.status(410).json({ success: false, message: 'This invoice link has expired. Please ask the sender for a fresh copy.' });
     }
     const [client, settings, bankAccount, payments, creditNotes] = await Promise.all([
       invoice.clientId ? clientModel.findById(invoice.clientId) : Promise.resolve(null),
-      getSettings(),
+      Promise.resolve(settingsForExpiry),
       invoice.bankAccountId ? bankAccountModel.findById(invoice.bankAccountId) : Promise.resolve(null),
       // The payments that count, so a client who has paid is not shown "Overdue" with the full balance.
       paymentModel.list({ where: { invoiceId: invoice.id } }),

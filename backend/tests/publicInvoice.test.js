@@ -14,8 +14,8 @@ const invoice = {
   clientId: 'c1',
   status: 'Paid',
   amountType: 'No Tax',
-  invoiceDate: '2020-01-01',
-  dueDate: '2020-01-31',
+  invoiceDate: new Date(Date.now() - 20 * 86400000).toISOString().slice(0, 10),
+  dueDate: new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 10),
   sourceQuotationId: 'evt_secret',
   payload: { internal: 'do not show' },
   items: [{ description: 'Work', quantity: 1, rate: 1000, gstRate: 0, serviceSnapshot: { defaultPrice: 400 }, quotedRate: 400 }]
@@ -34,7 +34,8 @@ clientModel.findById = async () => ({ id: 'c1', companyName: 'Acme', phone: '999
 bankAccountModel.findById = async () => null;
 paymentModel.list = async () => [{ invoiceId: invoice.id, amountReceived: 1000, tdsDeducted: 0, paymentStatus: 'Received' }];
 require('../models/creditNote.model').list = async () => [];
-settingsModel.getSettings = async () => ({ company: { name: 'Webitof' }, invoice: {}, gst: {}, tds: {} });
+let settingsStub = { company: { name: 'Webitof' }, invoice: {}, gst: {}, tds: {} };
+settingsModel.getSettings = async () => settingsStub;
 
 const { getPublic } = require('../controllers/invoices.controller');
 
@@ -42,12 +43,17 @@ function run(id) {
   return new Promise((resolve, reject) => {
     const res = {
       statusCode: 200,
+      headers: {},
+      set(values) {
+        Object.assign(this.headers, values);
+        return this;
+      },
       status(code) {
         this.statusCode = code;
         return this;
       },
       json(body) {
-        resolve({ status: this.statusCode, body });
+        resolve({ status: this.statusCode, body, headers: this.headers });
       }
     };
     getPublic({ params: { id } }, res, reject);
@@ -80,4 +86,50 @@ test('internal fields and client contact details do not leave through the link',
   assert.equal(shown.items[0].description, 'Work');
   assert.equal('phone' in body.data.client, false);
   assert.equal('notes' in body.data.client, false);
+});
+
+test('the public page is never cached or indexed', async () => {
+  const { headers } = await run(invoice.id);
+  assert.equal(headers['Cache-Control'], 'no-store');
+  assert.match(headers['X-Robots-Tag'], /noindex/);
+});
+
+test('a draft invoice has no public page', async () => {
+  const original = invoice.status;
+  invoice.status = 'Draft';
+  try {
+    assert.equal((await run(invoice.id)).status, 404);
+  } finally {
+    invoice.status = original;
+  }
+});
+
+test('the link expires 180 days after the invoice / due date, unless settings say otherwise', async () => {
+  const saved = { invoiceDate: invoice.invoiceDate, dueDate: invoice.dueDate };
+  const daysAgo = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+  try {
+    invoice.invoiceDate = daysAgo(400);
+    invoice.dueDate = daysAgo(370);
+    const expired = await run(invoice.id);
+    assert.equal(expired.status, 410);
+    assert.match(expired.body.message, /expired/i);
+
+    // a later due date keeps it alive: expiry counts from the later of the two
+    invoice.dueDate = daysAgo(100);
+    assert.equal((await run(invoice.id)).status, 200);
+
+    // configurable, and 0 means never
+    invoice.invoiceDate = daysAgo(400);
+    invoice.dueDate = daysAgo(370);
+    const original = settingsStub;
+    settingsStub = { ...original, invoice: { publicLinkExpiryDays: 0 } };
+    assert.equal((await run(invoice.id)).status, 200);
+    settingsStub = { ...original, invoice: { publicLinkExpiryDays: 30 } };
+    invoice.invoiceDate = daysAgo(60);
+    invoice.dueDate = daysAgo(45);
+    assert.equal((await run(invoice.id)).status, 410);
+    settingsStub = original;
+  } finally {
+    Object.assign(invoice, saved);
+  }
 });

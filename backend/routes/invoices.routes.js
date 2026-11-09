@@ -9,6 +9,7 @@ router.get('/public/:id', controller.getPublic);
 
 router.get('/', requirePermission('invoices.read'), controller.list);
 router.get('/service-catalog', requirePermission('invoices.read'), controller.listServiceCatalog);
+router.post('/preview-totals', requirePermission('invoices.write'), controller.previewTotals);
 router.post('/', requirePermission('invoices.write'), controller.create);
 router.get('/:id', requirePermission('invoices.read'), controller.getById);
 router.put('/:id', requirePermission('invoices.write'), controller.update);

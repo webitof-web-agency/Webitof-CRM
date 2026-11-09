@@ -61,8 +61,29 @@ jobs:
           echo "Deploy backend: $BACKEND"
           echo "Deploy frontend: $FRONTEND"
 
+  # Nothing is deployed unless the same checks CI runs pass on this exact commit.
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      JWT_SECRET: ci-only-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Backend tests
+        working-directory: backend
+        run: |
+          npm ci --no-audit --no-fund
+          find tests -maxdepth 1 -name "*.test.js" -not -name "googleDrive.test.js" -print0 | xargs -0 node --test
+      - name: Frontend lint
+        working-directory: frontend
+        run: |
+          npm ci --no-audit --no-fund
+          npm run lint
+
   backend:
-    needs: changes
+    needs: [changes, verify]
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
 
@@ -157,7 +178,7 @@ jobs:
           EOF
 
   frontend:
-    needs: changes
+    needs: [changes, verify]
     if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
 

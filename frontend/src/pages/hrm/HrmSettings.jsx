@@ -280,6 +280,7 @@ export function HrmSettings({ token, metadata, masters, can, onReload }) {
           token={token}
           masters={masters}
           masterTypes={metadata.masterTypes}
+          metadata={metadata}
           onReload={onReload}
         />
       )}
@@ -355,7 +356,7 @@ async function deleteMaster(token, type, master) {
   }
 }
 
-function MastersBoard({ token, masters, masterTypes, onReload }) {
+function MastersBoard({ token, masters, masterTypes, metadata, onReload }) {
   const [editing, setEditing] = useState(null),
     [search, setSearch] = useState("");
   const types = [
