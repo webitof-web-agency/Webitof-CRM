@@ -81,3 +81,28 @@ Form data:
 - `isPublic=true` if you want the uploaded file to be publicly readable
 
 The backend stores only metadata in PostgreSQL. The actual binary stays in Google Drive, so you avoid local disk loss risk.
+
+## Google Drive backups and restore
+
+Settings → Storage & Backup. Paste the parent folder id or link; the app creates the
+"Uploads" and "DB Backups" folders inside it when they are missing.
+
+- **Uploads** go to `Uploads/<year>/<mon>/<section>/<Record-Name>-<id4>/` (India time). The record
+  name is fixed at upload time; logos and branding go to `Uploads/site/`.
+- **Backups**: a `pg_dump` of the `public` schema every day at `GDRIVE_BACKUP_HOUR_IST` (02:00), newest
+  15 kept. Files are named `crm-backup-<db>-<date>-IST[-manual|-pre-restore].dump`.
+- **Restore** (permission `backups.restore`, Admin only by default; type `RESTORE` to confirm):
+  1. The site goes into maintenance: every API call answers 503 except `/health` and
+     `/maintenance/status`; sockets are closed; all crons skip. The state is kept in
+     `uploads/.state/maintenance.json` so it survives a restart.
+  2. A `-pre-restore` safety backup of the current data is uploaded. If it fails, nothing is changed.
+  3. The backup is loaded with `psql --single-transaction`: `services/googleDrive/restore-preamble.sql`
+     empties the app's objects in `public`, then the backup is replayed. Any error rolls everything back.
+  4. `ensureDatabase()` adds tables/columns newer than the backup; the Drive connection and storage
+     settings keep their current values; maintenance ends.
+- If the server stops mid-restore it starts again **in maintenance** with outcome `interrupted`; an
+  admin checks the data and presses "Exit maintenance" (`POST /api/maintenance/clear`).
+- Server setup: `pg_restore` and `psql` installed (same major version as the database or newer) and
+  `BACKUP_DATABASE_URL` set to the Supabase session pooler (port 5432) or the direct connection.
+- Tests: `npm run test:storage`; the real dump/restore test needs a throwaway local database:
+  `TEST_DATABASE_URL=postgres://…@127.0.0.1:…/crm_restore_test node --test tests/backupRestore.integration.js`.
