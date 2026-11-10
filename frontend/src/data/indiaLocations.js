@@ -181,8 +181,13 @@ export function getStateCode(stateName) {
   return found ? found.code : null;
 }
 
-export const INDIA_STATE_OPTIONS = INDIA_STATES.map((s) => ({
+// INDIA_STATES stays in GST code order; pick lists show states alphabetically.
+const byName = (a, b) => a.label.localeCompare(b.label, 'en', { sensitivity: 'base' });
+
+export const INDIA_STATE_OPTIONS = [...INDIA_STATES].sort(byName).map((s) => ({
   value: s.value,
   label: s.label,
   description: `State Code: ${s.code}`
 }));
+
+export const INDIA_STATE_NAMES = INDIA_STATE_OPTIONS.map((s) => s.value);

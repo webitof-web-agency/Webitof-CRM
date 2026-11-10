@@ -7,7 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
-import { INDIA_STATES, getCitiesByState } from "../../data/indiaLocations";
+import { INDIA_STATE_NAMES, getCitiesByState } from "../../data/indiaLocations";
 import { hrm, localDay } from "./hrmApi";
 import {
   EMPLOYEE_STATUSES,
@@ -215,8 +215,8 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   // saved earlier in another spelling stays selectable instead of being dropped.
   const inIndia = profile.country.trim().toLowerCase() === "india";
   const stateOptions = [
-    ...INDIA_STATES.map((s) => s.value),
-    ...(profile.state && !INDIA_STATES.some((s) => s.value === profile.state) ? [profile.state] : []),
+    ...INDIA_STATE_NAMES,
+    ...(profile.state && !INDIA_STATE_NAMES.includes(profile.state) ? [profile.state] : []),
   ];
   const pickState = (state) =>
     setProfile((p) => ({
