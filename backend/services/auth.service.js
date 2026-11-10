@@ -124,47 +124,46 @@ async function findUserByLogin(identifier) {
   return result.rows[0] ? userModel.hydrateRow(result.rows[0]) : null;
 }
 
-async function getUserRoles(userId) {
-  const result = await query(
-    `select r.*
-     from roles r
-     inner join user_roles ur on ur.role_id = r.id
-     where ur.user_id = $1
-     order by r.name asc`,
-    [userId]
-  );
-  return result.rows.map((row) => roleModel.hydrateRow(row));
+// User, roles, permissions and HRM employee in one round trip: this runs on every API request,
+// and four sequential queries cost four network round trips to the database.
+function accessProfileSql(withHrm) {
+  return `select u.*,
+      coalesce((select json_agg(r order by r.name asc)
+                from roles r join user_roles ur on ur.role_id = r.id
+                where ur.user_id = u.id), '[]'::json) as access_roles,
+      coalesce((select json_agg(p order by p.module asc, p.action asc, p.name asc)
+                from permissions p
+                where p.id in (select rp.permission_id from role_permissions rp
+                               join user_roles ur on ur.role_id = rp.role_id
+                               where ur.user_id = u.id)), '[]'::json) as access_permissions
+      ${withHrm ? ', (select e.id from hrm_employees e where e.user_id = u.id and e.archived_at is null limit 1) as access_hrm_employee_id' : ''}
+    from users u where u.id = $1`;
 }
 
-async function getRolePermissions(roleIds = []) {
-  if (!roleIds.length) return [];
-  const result = await query(
-    `select distinct p.*
-     from permissions p
-     inner join role_permissions rp on rp.permission_id = p.id
-     where rp.role_id = any($1::text[])
-     order by p.module asc, p.action asc, p.name asc`,
-    [roleIds]
-  );
-  return result.rows.map((row) => permissionModel.hydrateRow(row));
-}
-
-// The UI hides self-service HRM from logins that have no employee profile yet.
-async function findHrmEmployeeId(userId) {
+async function loadAccessRow(userId) {
   try {
-    const result = await query('select id from hrm_employees where user_id = $1 and archived_at is null limit 1', [userId]);
-    return result.rows[0]?.id || null;
-  } catch {
-    return null; // HRM migration not applied on this install
+    return (await query(accessProfileSql(true), [userId])).rows[0] || null;
+  } catch (error) {
+    if (error.code !== '42P01') throw error; // HRM migration not applied on this install
+    return (await query(accessProfileSql(false), [userId])).rows[0] || null;
   }
 }
 
 async function getUserAccessProfile(userId) {
-  const user = await userModel.findById(userId);
-  if (!user) return null;
+  if (!userId) return null;
+  const row = await loadAccessRow(String(userId));
+  if (!row) {
+    // Legacy or public-token identifiers resolve through the model, then load by real id.
+    const legacy = await userModel.findById(userId);
+    return legacy && legacy.id !== userId ? getUserAccessProfile(legacy.id) : null;
+  }
+  const user = userModel.hydrateRow(row);
+  const roles = (row.access_roles || []).map((role) => roleModel.hydrateRow(role));
+  const permissions = (row.access_permissions || []).map((permission) => permissionModel.hydrateRow(permission));
+  return buildAccessProfile(user, roles, permissions, row.access_hrm_employee_id || null);
+}
 
-  const roles = await getUserRoles(userId);
-  const permissions = await getRolePermissions(roles.map((role) => role.id));
+function buildAccessProfile(user, roles, permissions, hrmEmployeeId) {
   const uniquePermissions = [...new Map(permissions.map((permission) => [permission.code, permission])).values()];
   const isSuperAdmin = roles.some((role) => role.code === 'admin');
 
@@ -203,7 +202,7 @@ async function getUserAccessProfile(userId) {
       description: permission.description
     })),
     isSuperAdmin,
-    hrmEmployeeId: await findHrmEmployeeId(userId)
+    hrmEmployeeId
   };
 }
 

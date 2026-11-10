@@ -113,6 +113,8 @@ const COLLECTION_TABS = new Set([
   "history",
   "audit",
 ]);
+// Tabs that need only the employee id: their data loads alongside the profile, not after it.
+const ID_TABS = new Set([...COLLECTION_TABS, "documents", "certifications", "tasks", "leave-balances", "analytics"]);
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // "2026-11-02" -> "02 Nov 2026"
@@ -768,19 +770,69 @@ export function EmployeeProfile({ id, tab: tabParam = "", token, metadata, maste
       navigate(employeePath(employee, tabParam ? `/${tabParam}` : ""), { replace: true });
   }, [employee, location.pathname, navigate, tabParam]);
 
+  const reload = () => setRefresh((n) => n + 1);
+  // Same elements before and after the profile arrives, so a tab that started loading early
+  // is kept (not mounted twice).
+  const idTabContent = (key) => {
+    if (key === "documents")
+      return (
+        <Section
+          title="Documents"
+          action={
+            employee &&
+            can("manage_employees") && (
+              <Button size="sm" variant="secondary" onClick={() => navigate(employeePath(employee, "/edit"))}>
+                <BadgeCheck size={15} /> Add documents
+              </Button>
+            )
+          }
+        >
+          <Documents token={token} employeeId={id} can={can} onChange={reload} />
+        </Section>
+      );
+    if (key === "certifications")
+      return (
+        <Section title="Certificates & letters">
+          <Certificates token={token} employeeId={id} letters={lists.letters} />
+        </Section>
+      );
+    if (key === "tasks") return <ProfileData token={token} path={`/tasks?employeeId=${id}`} title="Assigned ERP tasks" />;
+    if (key === "leave-balances")
+      return <LeaveBalances token={token} employeeId={id} year={localDay(timezone).slice(0, 4)} />;
+    if (key === "analytics")
+      return <HrmDashboard token={token} metadata={metadata} masters={masters} can={can} analytics employeeId={id} />;
+    if (COLLECTION_TABS.has(key))
+      return (
+        <HrmCollection key={key} token={token} metadata={metadata} masters={masters} can={can} kind={key} employeeId={id} onChange={reload} />
+      );
+    return null;
+  };
+
   if (error)
     return (
       <p role="alert" className="text-rose-600">
         {error}
       </p>
     );
-  if (!employee) return <Card className="h-40 animate-pulse" />;
+  if (!employee)
+    return (
+      <div className="space-y-4" ref={topRef}>
+        <Card className="h-28 animate-pulse" />
+        <div className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]">
+          <div className="hidden lg:block">
+            <Card className="h-96 animate-pulse" />
+          </div>
+          <div className="min-w-0">
+            {(ID_TABS.has(tabParam) && idTabContent(tabParam)) || <Card className="h-40 animate-pulse" />}
+          </div>
+        </div>
+      </div>
+    );
 
   const open = (key) => {
     navigate(employeePath(employee, key === "overview" ? "" : `/${key}`));
     if (window.innerWidth < 1024) topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-  const reload = () => setRefresh((n) => n + 1);
 
   const p = employee.profile || {};
   const name = lists.name;
@@ -943,36 +995,7 @@ export function EmployeeProfile({ id, tab: tabParam = "", token, metadata, maste
         </Section>
       </div>
     );
-  else if (tab === "documents")
-    content = (
-      <Section
-        title="Documents"
-        action={
-          can("manage_employees") && (
-            <Button size="sm" variant="secondary" onClick={() => navigate(employeePath(employee, "/edit"))}>
-              <BadgeCheck size={15} /> Add documents
-            </Button>
-          )
-        }
-      >
-        <Documents token={token} employeeId={id} can={can} onChange={reload} />
-      </Section>
-    );
-  else if (tab === "certifications")
-    content = (
-      <Section title="Certificates & letters">
-        <Certificates token={token} employeeId={id} letters={lists.letters} />
-      </Section>
-    );
-  else if (tab === "tasks") content = <ProfileData token={token} path={`/tasks?employeeId=${id}`} title="Assigned ERP tasks" />;
-  else if (tab === "leave-balances")
-    content = <LeaveBalances token={token} employeeId={id} year={localDay(timezone).slice(0, 4)} />;
-  else if (tab === "analytics")
-    content = <HrmDashboard token={token} metadata={metadata} masters={masters} can={can} analytics employeeId={id} />;
-  else if (COLLECTION_TABS.has(tab))
-    content = (
-      <HrmCollection key={tab} token={token} metadata={metadata} masters={masters} can={can} kind={tab} employeeId={id} onChange={reload} />
-    );
+  else content = idTabContent(tab);
 
   return (
     <div className="space-y-4" ref={topRef}>

@@ -97,12 +97,7 @@ async function list(user, kind, q = {}, db = c.dbDefault) {
   const { page, limit } = c.page(q);
   const where = clauses.join(" AND ");
   const from = `FROM ${table} r LEFT JOIN hrm_employees e ON e.id=r.employee_id`;
-  const total = (
-    await db.query(
-      `SELECT count(*)::int AS total ${from} WHERE ${where}`,
-      values,
-    )
-  ).rows[0].total;
+  const filterValues = [...values];
   values.push(limit, (page - 1) * limit);
   const columns =
     kind === "documents"
@@ -110,12 +105,20 @@ async function list(user, kind, q = {}, db = c.dbDefault) {
       : kind === "allocations" && !c.can(user, "view_salary")
         ? "r.id,r.employee_id,r.project_id,r.role,r.percent,r.start_date,r.end_date,r.planned_hours,r.billable,r.created_at"
         : "r.*";
-  const rows = (
+  // The total comes with the page (window count) instead of a second round trip; only a page
+  // past the end, which has no rows to carry it, needs its own count.
+  const raw = (
     await db.query(
-      `SELECT ${columns},e.full_name AS employee_name ${kind === "work-reports" ? ",(SELECT coalesce(sum(minutes),0)::int FROM hrm_work_entries w WHERE w.report_id=r.id) AS minutes" : ""} ${from} WHERE ${where} ORDER BY ${kind === "attendance" ? "r.work_date DESC" : "r.created_at DESC"},r.id LIMIT $${values.length - 1} OFFSET $${values.length}`,
+      `SELECT ${columns},e.full_name AS employee_name,count(*) OVER()::int AS list_total ${kind === "work-reports" ? ",(SELECT coalesce(sum(minutes),0)::int FROM hrm_work_entries w WHERE w.report_id=r.id) AS minutes" : ""} ${from} WHERE ${where} ORDER BY ${kind === "attendance" ? "r.work_date DESC" : "r.created_at DESC"},r.id LIMIT $${values.length - 1} OFFSET $${values.length}`,
       values,
     )
-  ).rows.map(c.camel);
+  ).rows;
+  const total = raw.length
+    ? raw[0].list_total
+    : page > 1
+      ? (await db.query(`SELECT count(*)::int AS total ${from} WHERE ${where}`, filterValues)).rows[0].total
+      : 0;
+  const rows = raw.map(({ list_total: _total, ...row }) => c.camel(row));
   return { rows, total, page, limit };
 }
 async function lookups(user, q = {}, db = c.dbDefault) {
