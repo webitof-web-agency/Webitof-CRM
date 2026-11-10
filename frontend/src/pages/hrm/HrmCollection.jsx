@@ -24,7 +24,7 @@ import {
 import { HrmForm, WorkReportForm } from "./HrmForm";
 import { forms, recordForm } from "./hrmForms";
 import { hrm, queryString, downloadHrm, label, localDay } from "./hrmApi";
-import { employeePath } from "./employeeShared";
+import { documentSides, employeePath, masterLists } from "./employeeShared";
 const titles = {
   employees: "Employee directory",
   attendance: "Attendance",
@@ -857,6 +857,7 @@ export function HrmCollection({
       ) : editor?.document ? (
         <DocumentForm
           token={token}
+          masters={masters}
           employeeId={chosenEmployee}
           onClose={() => setEditor(null)}
           onSaved={() => {
@@ -925,30 +926,42 @@ export function HrmCollection({
 }
 import { Lookup } from "./HrmShared";
 import { PayslipView, exportPayslipPdf } from "./PayslipView";
-function DocumentForm({ token, employeeId, onClose, onSaved }) {
-  const [data, setData] = useState({
-    employeeId,
-    title: "",
-    category: "",
-    expiresOn: "",
-  });
-  const [file, setFile] = useState(null),
+const OTHER_DOCUMENT = "__other__";
+// Upload one document for an employee. The document type comes from the HRM masters (as in
+// the employee form); two-sided types such as Aadhaar need a front and a back file, stored as
+// "<Type> Front" and "<Type> Back". "Other" keeps a free title for anything not listed.
+function DocumentForm({ token, employeeId, masters = [], onClose, onSaved }) {
+  const documentTypes = masterLists(masters).documentTypes;
+  const [data, setData] = useState({ employeeId, typeId: "", title: "", expiresOn: "" });
+  const [files, setFiles] = useState({ file: null, back: null }),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const type = documentTypes.find((t) => t.id === data.typeId) || null;
+  const sides = documentSides(type);
   return (
     <Modal open title="Upload private document" onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
+          const name = data.typeId === OTHER_DOCUMENT ? data.title.trim() : type?.name || "";
+          if (!name) return setError("Choose a document type");
           setBusy(true);
+          setError("");
           try {
-            const formData = new FormData();
-            for (const [k, v] of Object.entries(data))
-              formData.append(k, v || "");
-            formData.append("file", file);
-            await hrm(token, "/documents", { method: "POST", formData });
-            toast.success("Document uploaded");
+            const parts = sides
+              ? [[files.file, `${name} Front`], [files.back, `${name} Back`]]
+              : [[files.file, name]];
+            for (const [file, title] of parts) {
+              const formData = new FormData();
+              formData.append("employeeId", data.employeeId || "");
+              formData.append("title", title);
+              formData.append("category", name);
+              formData.append("expiresOn", data.expiresOn || "");
+              formData.append("file", file);
+              await hrm(token, "/documents", { method: "POST", formData });
+            }
+            toast.success(sides ? "Front and back uploaded" : "Document uploaded");
             onSaved();
           } catch (e) {
             setError(e.message);
@@ -970,31 +983,52 @@ function DocumentForm({ token, employeeId, onClose, onSaved }) {
           onChange={(v) => setData((d) => ({ ...d, employeeId: v }))}
           required
         />
-        {[
-          ["title", "Title", "text"],
-          ["category", "Category", "text"],
-          ["expiresOn", "Expiry date", "date"],
-        ].map(([name, title, type]) => (
+        <Field
+          name="documentType"
+          title="Document type"
+          type="select"
+          options={[
+            ...documentTypes.map((t) => ({ value: t.id, label: t.name })),
+            { value: OTHER_DOCUMENT, label: "Other (type a title)" },
+          ]}
+          value={data.typeId}
+          required
+          onChange={(v) => {
+            setData((d) => ({ ...d, typeId: v }));
+            setFiles({ file: null, back: null });
+          }}
+        />
+        {data.typeId === OTHER_DOCUMENT && (
           <Field
-            key={name}
-            name={name}
-            title={title}
-            type={type}
-            value={data[name]}
-            required={name !== "expiresOn"}
-            onChange={(v) => setData((d) => ({ ...d, [name]: v }))}
-          />
-        ))}
-        <label className="block text-sm">
-          PDF, PNG or JPEG · up to 10 MB
-          <input
-            className="mt-2 block w-full text-sm"
-            type="file"
-            accept="application/pdf,image/png,image/jpeg"
+            name="documentTitle"
+            title="Title"
+            value={data.title}
             required
-            onChange={(e) => setFile(e.target.files[0])}
+            onChange={(v) => setData((d) => ({ ...d, title: v }))}
           />
-        </label>
+        )}
+        <Field
+          name="expiresOn"
+          title="Expiry date"
+          type="date"
+          value={data.expiresOn}
+          onChange={(v) => setData((d) => ({ ...d, expiresOn: v }))}
+        />
+        <p className="text-xs text-[var(--text-muted)]">PDF, PNG or JPEG · up to 10 MB each</p>
+        <div className={sides ? "grid gap-3 sm:grid-cols-2" : ""}>
+          {(sides ? [["file", "Front side"], ["back", "Back side"]] : [["file", "File"]]).map(([field, caption]) => (
+            <label key={`${data.typeId}-${field}`} className="block text-xs font-semibold">
+              {caption} *
+              <input
+                className="mt-1.5 block w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-normal"
+                type="file"
+                accept="application/pdf,image/png,image/jpeg"
+                required
+                onChange={(e) => setFiles((f) => ({ ...f, [field]: e.target.files?.[0] || null }))}
+              />
+            </label>
+          ))}
+        </div>
         <Button type="submit" loading={busy}>
           Upload
         </Button>

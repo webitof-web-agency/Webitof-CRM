@@ -126,7 +126,7 @@ const documentTypes = [
   item("document_type", "Educational Certificates", { defaultOnCreate: true }, "hrm-doc-education"),
   item("document_type", "PAN Card", {}, "hrm-doc-pan"),
   item("document_type", "Previous Experience Letter", {}, "hrm-doc-experience"),
-  item("document_type", "Aadhaar Card", {}),
+  item("document_type", "Aadhaar Card", { frontBack: true }),
   item("document_type", "Relieving Letter", {}),
   item("document_type", "Last 3 Months Salary Slips", {}),
   item("document_type", "Bank Proof (Cancelled Cheque / Passbook)", {}),

@@ -70,3 +70,10 @@ test('an edit that does not mention isActive keeps the record deactivated', asyn
   const write = tx.calls.find((c) => /^UPDATE master_items/.test(c.sql));
   assert.ok(write.params.includes(false), 'is_active stays false');
 });
+
+test('a document type can require front and back uploads (Aadhaar)', async () => {
+  const tx = fakeTx();
+  await save('document_type', { name: 'Voter ID', payload: { frontBack: true, hasExpiry: false } }, null, tx);
+  assert.equal(savedPayload(tx).frontBack, true);
+  await assert.rejects(save('document_type', { name: 'Voter ID', payload: { frontBack: 'yes' } }, null, fakeTx()), /frontBack/);
+});

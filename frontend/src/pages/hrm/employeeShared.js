@@ -27,6 +27,14 @@ export const EMPLOYEE_STATUSES = [
 export const WORK_MODES = ["Office", "Remote", "Hybrid"];
 export const PHOTO_CATEGORY = "Profile Photo";
 
+// Two-sided ID cards (Aadhaar by default) are uploaded as separate Front and Back files.
+// The document type's "frontBack" setting decides; without it, an Aadhaar type is two-sided.
+export function documentSides(type) {
+  const flag = type?.payload?.frontBack;
+  const twoSided = flag == null ? /aadhaa?r/i.test(type?.name || "") : Boolean(flag);
+  return twoSided ? ["Front", "Back"] : null;
+}
+
 // Readable profile link: /app/hrm/employees/mallika-paik-EMP-12 (the server resolves the
 // trailing employee number). Falls back to the id when the number is not known yet.
 export function employeeRef(e) {

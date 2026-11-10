@@ -18,6 +18,7 @@ import {
   WORK_MODES,
   departmentsFor,
   designationsFor,
+  documentSides,
   hourlyRate,
   masterLists,
   money,
@@ -76,7 +77,8 @@ function F({ k, error = k, ...props }) {
     </div>
   );
 }
-const newRow = (typeId = "") => ({ key: ++rowKey, typeId, file: null, expiresOn: "" });
+// `back` is used only for two-sided documents (Aadhaar): `file` is then the front side.
+const newRow = (typeId = "") => ({ key: ++rowKey, typeId, file: null, back: null, expiresOn: "" });
 
 // Create / edit an employee in five steps. Fixed lists (gender, status, relationship) are in
 // code; branch, department, designation, employment type, shift, attendance policy and
@@ -306,11 +308,17 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
         e.daysPerWeek = "1 to 7";
     }
     if (name === "Documents") {
+      const checkFile = (file, key, what) => {
+        if (!file) e[key] = `Choose the ${what} or remove this row`;
+        else if (file.size > DOC_MAX) e[key] = "File must be 5 MB or smaller";
+        else if (!DOC_TYPES.includes(file.type)) e[key] = "Only PDF, JPG or PNG";
+      };
       rows.forEach((r) => {
         if (!r.typeId) e[`doc-type-${r.key}`] = "Choose a document type";
-        if (!r.file) e[`doc-file-${r.key}`] = "Choose a file or remove this row";
-        else if (r.file.size > DOC_MAX) e[`doc-file-${r.key}`] = "File must be 5 MB or smaller";
-        else if (!DOC_TYPES.includes(r.file.type)) e[`doc-file-${r.key}`] = "Only PDF, JPG or PNG";
+        if (documentSides(lists.find(r.typeId))) {
+          checkFile(r.file, `doc-file-${r.key}`, "front side");
+          checkFile(r.back, `doc-back-${r.key}`, "back side");
+        } else checkFile(r.file, `doc-file-${r.key}`, "file");
       });
     }
     setErrors(e);
@@ -433,10 +441,17 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
       }
       for (const r of rows) {
         const type = lists.find(r.typeId);
-        try {
-          await upload(r.file, saved.id, type?.name || "Document", type?.name || "Document", r.expiresOn);
-        } catch (e) {
-          failures.push(`${type?.name || "Document"}: ${e.message}`);
+        const name = type?.name || "Document";
+        // Two-sided documents become two files: "Aadhaar Card Front" and "Aadhaar Card Back".
+        const parts = documentSides(type)
+          ? [[r.file, `${name} Front`], [r.back, `${name} Back`]]
+          : [[r.file, name]];
+        for (const [file, title] of parts) {
+          try {
+            await upload(file, saved.id, title, name, r.expiresOn);
+          } catch (e) {
+            failures.push(`${title}: ${e.message}`);
+          }
         }
       }
       if (failures.length)
@@ -910,22 +925,30 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                         onChange={(v) => setRows((list) => list.map((x) => (x.key === r.key ? { ...x, typeId: v } : x)))}
                         required
                       />
-                      <div>
-                        <label className="mb-1.5 block text-xs font-semibold" htmlFor={`doc-file-${r.key}`}>
-                          File *
-                        </label>
-                        <input
-                          id={`doc-file-${r.key}`}
-                          type="file"
-                          accept="application/pdf,image/png,image/jpeg"
-                          className="block w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm"
-                          onChange={(e) =>
-                            setRows((list) =>
-                              list.map((x) => (x.key === r.key ? { ...x, file: e.target.files?.[0] || null } : x)),
-                            )
-                          }
-                        />
-                        {err(`doc-file-${r.key}`)}
+                      {/* Two-sided documents (Aadhaar) ask for the front and the back separately. */}
+                      <div className={documentSides(lists.find(r.typeId)) ? "grid gap-3 sm:grid-cols-2" : ""}>
+                        {(documentSides(lists.find(r.typeId))
+                          ? [["file", "doc-file", "Front side"], ["back", "doc-back", "Back side"]]
+                          : [["file", "doc-file", "File"]]
+                        ).map(([field, prefix, caption]) => (
+                          <div key={field}>
+                            <label className="mb-1.5 block text-xs font-semibold" htmlFor={`${prefix}-${r.key}`}>
+                              {caption} *
+                            </label>
+                            <input
+                              id={`${prefix}-${r.key}`}
+                              type="file"
+                              accept="application/pdf,image/png,image/jpeg"
+                              className="block w-full rounded-xl border border-[var(--border)] px-3 py-2 text-sm"
+                              onChange={(e) =>
+                                setRows((list) =>
+                                  list.map((x) => (x.key === r.key ? { ...x, [field]: e.target.files?.[0] || null } : x)),
+                                )
+                              }
+                            />
+                            {err(`${prefix}-${r.key}`)}
+                          </div>
+                        ))}
                       </div>
                       <Field
                         name={`doc-expiry-${r.key}`}

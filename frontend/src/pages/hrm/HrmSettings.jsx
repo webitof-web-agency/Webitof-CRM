@@ -9,6 +9,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { Field, DetailValues, Lookup } from "./HrmShared";
 import { SalaryComponents } from "./SalaryComponents";
 import { hrm, label } from "./hrmApi";
+import { documentSides } from "./employeeShared";
 import { IconButton } from '../../components/ui/IconButton';
 // Display names: "location" is the Branch used on the employee form.
 const masterTypeLabels = {
@@ -34,6 +35,8 @@ const masterFields = {
   document_type: [
     ["defaultOnCreate", "Ask for this document on every new employee", "checkbox"],
     ["hasExpiry", "Document has an expiry date", "checkbox"],
+    // Unset means: Aadhaar types are two-sided, others are not (see documentSides).
+    ["frontBack", "Upload front and back separately (e.g. Aadhaar)", "checkbox"],
   ],
   team: [
     ["departmentId", "Department", "department"],
@@ -631,7 +634,8 @@ function MasterEditor({ token, metadata, masters, type, initial, onClose, onSave
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-[var(--primary)]"
-                    checked={Boolean(record.payload[key])}
+                    // frontBack shows the effective value: unset Aadhaar types are two-sided.
+                    checked={key === "frontBack" ? Boolean(documentSides(record)) : Boolean(record.payload[key])}
                     onChange={(e) => setPayload(key, e.target.checked)}
                   />
                   {fieldTitle}

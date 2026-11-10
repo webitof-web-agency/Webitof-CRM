@@ -235,7 +235,7 @@ async function masters(user, type, body, id = null, db = null) {
         "geofenceRequired",
         "description",
       ],
-      document_type: ["defaultOnCreate", "hasExpiry", "required"],
+      document_type: ["defaultOnCreate", "hasExpiry", "required", "frontBack"],
     };
     c.allow(payload, keys[type]);
     for (const k of [
@@ -260,6 +260,7 @@ async function masters(user, type, body, id = null, db = null) {
       "defaultOnCreate",
       "hasExpiry",
       "required",
+      "frontBack",
     ])
       if (payload[k] != null) c.boolean(payload[k], k);
     if (payload.hoursPerDay != null) c.number(payload.hoursPerDay, "Hours per day", 1, 24);
