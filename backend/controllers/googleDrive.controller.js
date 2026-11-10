@@ -1,18 +1,12 @@
 const fs = require('fs');
 const { Readable } = require('stream');
 const asyncHandler = require('../middlewares/asyncHandler');
-const { getGoogleDriveConfig, refreshDriveSettings } = require('../config/googleDrive');
+const { refreshDriveSettings } = require('../config/googleDrive');
 const driveSettings = require('../services/googleDrive/driveSettings.service');
 const connection = require('../services/googleDrive/driveConnection.service');
 const backups = require('../services/googleDrive/backup.service');
 const restore = require('../services/googleDrive/restore.service');
 const storage = require('../services/storage/storage.service');
-
-function settingsRedirect(params) {
-  const base = getGoogleDriveConfig().frontendUrl;
-  const query = new URLSearchParams({ tab: 'storage', ...params }).toString();
-  return `${base}/#/settings?${query}`;
-}
 
 const status = asyncHandler(async (req, res) => {
   await refreshDriveSettings();
@@ -34,25 +28,11 @@ const status = asyncHandler(async (req, res) => {
   });
 });
 
-const connect = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: { url: await connection.getAuthUrl(req.user.id) } });
+// Applies the saved credentials and proves the account and folders work (no Google sign-in page).
+const check = asyncHandler(async (req, res) => {
+  const result = await connection.checkConnection({ userId: req.user?.id || null });
+  res.json({ success: true, data: { ...result, status: await connection.getStatus() } });
 });
-
-// Public: Google redirects the browser here. The signed state proves an admin started it.
-async function oauthCallback(req, res) {
-  try {
-    await connection.completeOAuth({
-      code: req.query.code,
-      state: req.query.state,
-      error: req.query.error
-    });
-    res.redirect(settingsRedirect({ gdrive: 'connected' }));
-  } catch (error) {
-    const message = error.expose ? error.message : 'Google Drive could not be connected.';
-    if (!error.expose) console.error('Google Drive connect failed:', error);
-    res.redirect(settingsRedirect({ gdrive: 'error', message: message.slice(0, 300) }));
-  }
-}
 
 const disconnect = asyncHandler(async (req, res) => {
   await connection.disconnect({ activeProvider: await storage.getActiveProviderName() });
@@ -130,14 +110,13 @@ const saveConfig = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
-  connect,
+  check,
   getConfig,
   saveConfig,
   disconnect,
   downloadBackup,
   downloadLocalBackup,
   listBackups,
-  oauthCallback,
   restoreBackup,
   runBackupNow,
   status

@@ -15,8 +15,6 @@ const connection = require('./driveConnection.service');
 
 const ENV_ONLY = [
   { name: 'SETTINGS_ENCRYPTION_KEY', reason: 'Encrypts the secrets saved here, so it cannot be stored with them.' },
-  { name: 'JWT_SECRET', reason: 'Signs logins and the Google sign-in state.' },
-  { name: 'FRONTEND_URL', reason: 'Where Google sends the browser back after sign-in.' },
   { name: 'PG_DUMP_PATH', reason: 'A program the server runs; never set from the browser.' },
   { name: 'BACKUP_DATABASE_URL', reason: 'Database credentials for pg_dump stay on the server.' }
 ];
@@ -36,8 +34,6 @@ async function getConfigView() {
     values: {
       clientId: config.clientId,
       clientSecretSet: Boolean(config.clientSecret),
-      redirectUri: config.redirectUri,
-      defaultRedirectUri: config.defaultRedirectUri,
       refreshTokenSet: Boolean(config.envRefreshToken),
       parentFolderId: config.parentFolderId,
       uploadsFolderName: config.uploadsFolderName,
@@ -64,20 +60,6 @@ function normalizeField(field, value) {
   const label = FIELDS[field].label;
   if (value === '' || value === null) return '';
   switch (field) {
-    case 'redirectUri': {
-      const text = cleanText(value, label);
-      let url;
-      try {
-        url = new URL(text);
-      } catch {
-        throw httpError('Redirect URI must be a full URL, e.g. https://crmapi.example.com/api/google-drive/oauth/callback');
-      }
-      if (!['http:', 'https:'].includes(url.protocol)) throw httpError('Redirect URI must start with http:// or https://');
-      if (!url.pathname.endsWith('/google-drive/oauth/callback')) {
-        throw httpError('Redirect URI must end with /google-drive/oauth/callback');
-      }
-      return text;
-    }
     case 'parentFolderId': {
       const id = parseFolderId(value);
       if (!id) throw httpError('Parent folder must be a Google Drive folder id or folder link');

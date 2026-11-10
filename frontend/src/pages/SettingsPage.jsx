@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { confirmAction } from '../lib/confirm';
 import { useSearchParams } from 'react-router-dom';
 import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key, PenTool, FileCheck2, ExternalLink, Eye, Download, Pencil, EyeOff, HardDrive } from 'lucide-react';
@@ -103,16 +103,11 @@ const COMPANY_CERTIFICATE_TYPES = [
 
 export function SettingsPage() {
   const { token, hasPermission } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'company');
-  // Google Drive sign-in redirects back with ?tab=storage&gdrive=connected|error&message=…
-  const [oauthResult] = useState(() => (searchParams.get('gdrive')
-    ? { gdrive: searchParams.get('gdrive'), message: searchParams.get('message') || '' }
-    : null));
-  const clearOauthResult = useCallback(() => setSearchParams({}, { replace: true }), [setSearchParams]);
   const [uploadingLogo, setUploadingLogo] = useState(null);
   const [pendingLogos, setPendingLogos] = useState({});
   const [browserOpenKey, setBrowserOpenKey] = useState(null);
@@ -2494,8 +2489,6 @@ export function SettingsPage() {
               token={token}
               canWrite={hasPermission('settings.write')}
               canRestore={hasPermission('backups.restore')}
-              oauthResult={oauthResult}
-              onOauthResultShown={clearOauthResult}
             />
           )}
 

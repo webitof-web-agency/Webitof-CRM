@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/status', requirePermission('settings.read'), controller.status);
 router.get('/config', requirePermission('settings.read'), controller.getConfig);
 router.put('/config', requirePermission('settings.write'), controller.saveConfig);
-router.post('/connect', requirePermission('settings.write'), controller.connect);
+router.post('/check', requirePermission('settings.write'), controller.check);
 router.post('/disconnect', requirePermission('settings.write'), controller.disconnect);
 router.get('/backups', requirePermission('settings.read'), controller.listBackups);
 router.post('/backups/run', requirePermission('settings.write'), controller.runBackupNow);

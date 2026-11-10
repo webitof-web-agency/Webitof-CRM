@@ -13,7 +13,6 @@ const REFRESH_TTL_MS = 10_000;
 const FIELDS = {
   clientId: { env: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_DRIVE_CLIENT_ID'], label: 'Client ID' },
   clientSecret: { env: ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_DRIVE_CLIENT_SECRET'], label: 'Client secret', secret: true },
-  redirectUri: { env: ['GOOGLE_OAUTH_REDIRECT_URI'], label: 'Redirect URI' },
   refreshToken: { env: ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GOOGLE_DRIVE_REFRESH_TOKEN'], label: 'Refresh token', secret: true },
   parentFolderId: { env: ['GDRIVE_PARENT_FOLDER_ID'], label: 'Parent folder' },
   uploadsFolderName: { env: ['GDRIVE_UPLOADS_FOLDER_NAME'], label: 'Uploads folder name' },
@@ -114,14 +113,12 @@ async function refreshDriveSettings({ force = false } = {}) {
   await refreshing;
 }
 
+// Connected the same way as the JCB Exchange project: client id + secret + a refresh token made in
+// the OAuth 2.0 Playground. There is no Google sign-in redirect through this app.
 function getGoogleDriveConfig() {
-  const port = Number(process.env.PORT || 5000);
-  const apiPrefix = (process.env.API_PREFIX || '/api').replace(/\/+$/, '');
   return {
     clientId: raw('clientId'),
     clientSecret: raw('clientSecret'),
-    defaultRedirectUri: `http://localhost:${port}${apiPrefix}/google-drive/oauth/callback`,
-    redirectUri: raw('redirectUri') || `http://localhost:${port}${apiPrefix}/google-drive/oauth/callback`,
     // Applied once per value (see connectFromEnvToken), whether it comes from settings or env.
     envRefreshToken: raw('refreshToken'),
     parentFolderId: parseFolderId(raw('parentFolderId')),
@@ -142,8 +139,6 @@ function getGoogleDriveConfigProblems(config = getGoogleDriveConfig()) {
   if (!config.clientId) problems.push('Client ID is not set (Settings or GOOGLE_OAUTH_CLIENT_ID)');
   if (!config.clientSecret) problems.push('Client secret is not set (Settings or GOOGLE_OAUTH_CLIENT_SECRET)');
   if (!hasEncryptionKey()) problems.push('SETTINGS_ENCRYPTION_KEY is not set on the server (64 hex characters)');
-  if (!process.env.JWT_SECRET) problems.push('JWT_SECRET is not set on the server');
-  if (!config.frontendUrl) problems.push('FRONTEND_URL is not set on the server');
   if (raw('parentFolderId') && !config.parentFolderId) problems.push('Parent folder is not a folder id or link');
   return problems;
 }

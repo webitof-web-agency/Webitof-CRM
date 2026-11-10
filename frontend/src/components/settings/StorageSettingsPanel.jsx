@@ -47,7 +47,7 @@ function SectionHeader({ icon: Icon, title, description }) {
   );
 }
 
-export function StorageSettingsPanel({ token, canWrite, canRestore = false, oauthResult = null, onOauthResultShown }) {
+export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
   const [status, setStatus] = useState(null);
   const [backups, setBackups] = useState([]);
   const [backupsError, setBackupsError] = useState('');
@@ -56,6 +56,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const [restoreTarget, setRestoreTarget] = useState(null);
   const [restoreConfirm, setRestoreConfirm] = useState('');
+  const [checkResult, setCheckResult] = useState(null);
 
   const drive = status?.drive;
   const backup = status?.backup;
@@ -88,14 +89,6 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
       .catch((error) => toast.error(error.message || 'Storage status could not be loaded'));
   }, [loadStatus, loadBackups]);
 
-  // Result of the Google sign-in redirect (?gdrive=connected|error&message=…).
-  useEffect(() => {
-    if (!oauthResult?.gdrive) return;
-    if (oauthResult.gdrive === 'connected') toast.success('Google Drive connected');
-    else toast.error(oauthResult.message || 'Google Drive could not be connected');
-    onOauthResultShown?.();
-  }, [oauthResult, onOauthResultShown]);
-
   // Poll while a backup runs.
   useEffect(() => {
     if (!backup?.running) return undefined;
@@ -121,9 +114,20 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
     }
   }
 
-  const connect = () => run('connect', async () => {
-    const response = await api.googleDrive.connect(token);
-    window.location.assign(response.data.url);
+  // Applies the saved client id, secret and refresh token, and proves the account and folders work.
+  const check = () => run('check', async () => {
+    setCheckResult(null);
+    try {
+      const { data } = await api.googleDrive.check(token);
+      setCheckResult({
+        ok: true,
+        message: `Connected to ${data.accountEmail || 'Google Drive'}. Folders ready: "${data.uploadsFolder?.name}" and "${data.backupFolder?.name}".`
+      });
+      loadBackups();
+    } catch (error) {
+      setCheckResult({ ok: false, message: error.message || 'Google Drive could not be reached' });
+    }
+    await loadStatus().catch(() => {});
   });
 
   const disconnect = () => run('disconnect', async () => {
@@ -229,7 +233,11 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
       </Card>
 
       <Card className="p-6">
-        <SectionHeader icon={Settings2} title="Google Drive settings" description="OAuth app, folders and backup schedule. Create the OAuth client (type Web application, Drive API enabled) in Google Cloud." />
+        <SectionHeader
+          icon={Settings2}
+          title="Google Drive settings"
+          description="Client ID, client secret and a refresh token from the Google OAuth 2.0 Playground, plus folders and the backup schedule. Save, then click Check connection below."
+        />
         <DriveConfigForm token={token} canWrite={canWrite} onSaved={() => loadStatus().catch(() => {})} />
       </Card>
 
@@ -248,7 +256,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
         {drive.needsReconnect ? (
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            Google access was revoked or expired. Uploads to Drive and backups are paused until you reconnect the same account.
+            Google access was revoked or expired. Uploads to Drive and backups are paused: paste a new refresh token (same
+            Google account) in the settings above and click Check connection.
           </div>
         ) : null}
 
@@ -256,8 +265,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <span>
-              The refresh token in the server env was not accepted: {drive.envTokenError}. It is retried every 15
-              minutes; or use Connect Google Drive below.
+              The saved refresh token was not accepted: {drive.envTokenError}. Paste a new one in the settings above
+              and click Check connection.
             </span>
           </div>
         ) : null}
@@ -297,9 +306,9 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
 
         {canWrite || canRestore ? (
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button size="sm" onClick={connect} loading={busy === 'connect'} disabled={Boolean(busy) || Boolean(drive.problems?.length)}>
+            <Button size="sm" onClick={check} loading={busy === 'check'} disabled={Boolean(busy)}>
               <Link2 size={14} />
-              {drive.connected ? 'Reconnect Google Drive' : 'Connect Google Drive'}
+              Check connection
             </Button>
             {drive.connected ? (
               <Button size="sm" variant="outline" onClick={() => setConfirmDisconnect(true)} disabled={Boolean(busy)}>
@@ -309,9 +318,18 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
             ) : null}
           </div>
         ) : null}
-        <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
-          Google redirect URI to register: <code className="break-all">{drive.redirectUri}</code>
-        </p>
+        {checkResult ? (
+          <div
+            role={checkResult.ok ? 'status' : 'alert'}
+            className={`mt-3 rounded-xl border p-3 text-xs ${
+              checkResult.ok
+                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
+                : 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
+            }`}
+          >
+            {checkResult.message}
+          </div>
+        ) : null}
       </Card>
 
       <Card className="p-6">
@@ -460,7 +478,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
       <ConfirmDialog
         open={confirmDisconnect}
         title="Disconnect Google Drive?"
-        description="Automatic backups stop until you connect again. Backups already in Drive are kept."
+        description="Automatic backups stop and the refresh token is revoked at Google; to connect again, create a new one in the OAuth Playground. Backups already in Drive are kept."
         confirmLabel={busy === 'disconnect' ? 'Disconnecting...' : 'Disconnect'}
         onConfirm={disconnect}
         onClose={() => setConfirmDisconnect(false)}

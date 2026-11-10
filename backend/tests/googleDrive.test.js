@@ -27,7 +27,6 @@ const { localProvider, parseRange } = require('../services/storage/providers/loc
 const { _resetDriveSettingsForTests, getGoogleDriveConfig, getGoogleDriveConfigProblems, parseFolderId } = require('../config/googleDrive');
 const driveSettings = require('../services/googleDrive/driveSettings.service');
 const { buildFolderPath } = require('../utils/uploadPath');
-const googleDriveController = require('../controllers/googleDrive.controller');
 const fileService = require('../services/file.service');
 const fileAssetModel = require('../models/fileAsset.model');
 const { requireAuth } = require('../middlewares/auth');
@@ -78,84 +77,39 @@ async function connect() {
   return connection.saveConnection('refresh-1', { userId: 'user_admin' });
 }
 
-function mockRes() {
-  return {
-    redirectedTo: '',
-    redirect(url) {
-      this.redirectedTo = url;
-    }
-  };
-}
-
 test.after(() => {
   driveClient.setFetchForTests(null);
   settingsStore.setStoreForTests(null);
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 
-test('config problems are listed by name and connect is refused', async () => {
+test('config problems are listed by name and Check connection is refused', async () => {
   setup();
   const saved = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   try {
     const problems = getGoogleDriveConfigProblems();
     assert.deepEqual(problems, ['Client secret is not set (Settings or GOOGLE_OAUTH_CLIENT_SECRET)']);
-    await assert.rejects(() => connection.getAuthUrl('user_admin'), { statusCode: 400 });
+    await assert.rejects(() => connection.checkConnection(), { statusCode: 400 });
   } finally {
     process.env.GOOGLE_OAUTH_CLIENT_SECRET = saved;
   }
 });
 
-test('auth URL asks for drive.file, offline access and consent, with a signed state', async () => {
+test('without a refresh token the status says so and Check connection asks for it', async () => {
   setup();
-  const url = new URL(await connection.getAuthUrl('user_admin'));
-  assert.equal(url.searchParams.get('scope'), 'https://www.googleapis.com/auth/drive.file');
-  assert.equal(url.searchParams.get('access_type'), 'offline');
-  assert.equal(url.searchParams.get('prompt'), 'consent');
-  const state = jwt.verify(url.searchParams.get('state'), process.env.JWT_SECRET);
-  assert.equal(state.purpose, 'gdrive-connect');
-  assert.equal(state.uid, 'user_admin');
+  const status = await connection.getStatus();
+  assert.equal(status.connected, false);
+  assert.ok(status.problems.some((p) => /Refresh token is not set/.test(p)));
+  await assert.rejects(() => connection.checkConnection(), { statusCode: 400, message: /Add the refresh token/ });
 });
 
-test('callback rejects a bad state, a denial and a bad code, always redirecting back', async () => {
+test('Check connection applies the saved refresh token encrypted, creates both folders, and status has no secrets', async () => {
   setup();
-  const goodState = new URL(await connection.getAuthUrl('user_admin')).searchParams.get('state');
-  const expired = jwt.sign({ purpose: 'gdrive-connect', uid: 'u', exp: Math.floor(Date.now() / 1000) - 10 }, process.env.JWT_SECRET);
-  const wrongPurpose = jwt.sign({ purpose: 'other', uid: 'u' }, process.env.JWT_SECRET);
-
-  for (const query of [
-    { code: 'good-code', state: 'garbage' },
-    { code: 'good-code', state: expired },
-    { code: 'good-code', state: wrongPurpose },
-    { error: 'access_denied', state: goodState },
-    { code: 'bad-code', state: goodState }
-  ]) {
-    const res = mockRes();
-    await googleDriveController.oauthCallback({ query }, res);
-    const redirect = new URL(res.redirectedTo.replace('/#/', '/'));
-    assert.equal(redirect.origin, 'https://crm.example.com');
-    assert.equal(redirect.searchParams.get('gdrive'), 'error');
-    assert.ok(redirect.searchParams.get('message').length <= 300);
-  }
-  assert.equal((await connection.getStatus()).connected, false);
-});
-
-test('callback fails clearly when Google sends no refresh token', async () => {
-  setup();
-  fake.state.returnRefreshToken = false;
-  const state = new URL(await connection.getAuthUrl('user_admin')).searchParams.get('state');
-  const res = mockRes();
-  await googleDriveController.oauthCallback({ query: { code: 'good-code', state } }, res);
-  const message = new URLSearchParams(res.redirectedTo.split('?')[1]).get('message');
-  assert.match(message, /did not return a refresh token/);
-});
-
-test('a successful connect stores the token encrypted, creates both folders, and status has no secrets', async () => {
-  setup();
-  const state = new URL(await connection.getAuthUrl('user_admin')).searchParams.get('state');
-  const res = mockRes();
-  await googleDriveController.oauthCallback({ query: { code: 'good-code', state } }, res);
-  assert.equal(res.redirectedTo, 'https://crm.example.com/#/settings?tab=storage&gdrive=connected');
+  await driveSettings.saveConfig({ refreshToken: 'refresh-1' });
+  const result = await connection.checkConnection({ userId: 'user_admin' });
+  assert.equal(result.accountEmail, 'owner@example.com');
+  assert.match(result.uploadsFolder.link, /^https:\/\/drive\.google\.com\/drive\/folders\//);
 
   const raw = JSON.stringify(Object.fromEntries(memory.data));
   assert.ok(!raw.includes('refresh-1'), 'refresh token must not be stored in plain text');
@@ -164,11 +118,34 @@ test('a successful connect stores the token encrypted, creates both folders, and
 
   const status = await connection.getStatus();
   assert.equal(status.connected, true);
-  assert.equal(status.accountEmail, 'owner@example.com');
+  assert.deepEqual(status.problems, []);
   assert.match(status.backupFolder.link, /^https:\/\/drive\.google\.com\/drive\/folders\//);
   const serialized = JSON.stringify(status);
   assert.ok(!serialized.includes('refresh-1') && !serialized.includes('ciphertext'));
 });
+
+test('a rejected refresh token fails Check connection clearly, and a new token fixes it', async () => {
+  setup();
+  await driveSettings.saveConfig({ refreshToken: 'not-a-valid-token' });
+  await assert.rejects(() => connection.checkConnection(), { statusCode: 400, message: /did not accept these credentials/ });
+  assert.equal((await connection.getStatus()).connected, false);
+  await driveSettings.saveConfig({ refreshToken: 'refresh-1' });
+  assert.equal((await connection.checkConnection()).accountEmail, 'owner@example.com');
+});
+
+test('Check connection reconnects after a disconnect when the token still works', async () => {
+  setup();
+  await driveSettings.saveConfig({ refreshToken: 'refresh-1' });
+  await connection.checkConnection();
+  await connection.disconnect({ activeProvider: 'local' });
+  // The disconnect revoked it at Google, so the same token is refused with a clear message.
+  fake.state.validRefreshTokens.delete('refresh-1');
+  await assert.rejects(() => connection.checkConnection(), { statusCode: 400 });
+  fake.state.validRefreshTokens.add('refresh-2');
+  await driveSettings.saveConfig({ refreshToken: 'refresh-2' });
+  assert.equal((await connection.checkConnection()).accountEmail, 'owner@example.com');
+});
+
 
 test('invalid_grant marks the connection as needing a reconnect', async () => {
   setup();
@@ -619,7 +596,6 @@ test('Drive settings saved in Settings win over env, and secrets never come back
   const view = await driveSettings.saveConfig({
     clientId: 'client-from-settings',
     clientSecret: 'secret-from-settings',
-    redirectUri: 'https://crmapi.example.com/api/google-drive/oauth/callback',
     parentFolderId: 'https://drive.google.com/drive/folders/PARENT_1',
     uploadsFolderName: 'CRM Uploads',
     backupKeep: '12',
@@ -638,9 +614,6 @@ test('Drive settings saved in Settings win over env, and secrets never come back
   const config = getGoogleDriveConfig();
   assert.equal(config.clientSecret, 'secret-from-settings');
   assert.equal(config.uploadsFolderName, 'CRM Uploads');
-  const url = new URL(await connection.getAuthUrl('user_admin'));
-  assert.equal(url.searchParams.get('client_id'), 'client-from-settings');
-  assert.equal(url.searchParams.get('redirect_uri'), 'https://crmapi.example.com/api/google-drive/oauth/callback');
 
   // Clearing a field falls back to the env var; leaving a secret out keeps it.
   const cleared = await driveSettings.saveConfig({ clientId: '' });
@@ -652,8 +625,6 @@ test('Drive settings saved in Settings win over env, and secrets never come back
 
 test('Drive settings are validated', async () => {
   setup();
-  await assert.rejects(() => driveSettings.saveConfig({ redirectUri: 'not a url' }), { statusCode: 400 });
-  await assert.rejects(() => driveSettings.saveConfig({ redirectUri: 'https://x.example.com/other' }), { statusCode: 400 });
   await assert.rejects(() => driveSettings.saveConfig({ parentFolderId: 'not a folder!' }), { statusCode: 400 });
   await assert.rejects(() => driveSettings.saveConfig({ backupKeep: 500 }), { statusCode: 400 });
   await assert.rejects(() => driveSettings.saveConfig({ backupHourIst: 24 }), { statusCode: 400 });

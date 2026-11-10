@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Copy, KeyRound, Server } from 'lucide-react';
+import { KeyRound, Server } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { Input } from '../ui/Input';
@@ -9,16 +9,20 @@ import { Badge } from '../ui/Badge';
 import { ThemedSelect } from '../ui/ThemedSelect';
 
 const TEXT_FIELDS = [
-  { key: 'clientId', label: 'OAuth client ID', placeholder: '1234567890-abc.apps.googleusercontent.com' },
-  { key: 'redirectUri', label: 'Redirect URI', placeholder: '', help: 'Add this exact URL under "Authorized redirect URIs" in Google Cloud.' },
-  { key: 'parentFolderId', label: 'Parent folder (optional)', placeholder: 'Folder id or https://drive.google.com/drive/folders/…', help: 'Both app folders are created inside it. Leave empty for My Drive. With the drive.file scope only folders this app created are visible.' },
+  { key: 'clientId', label: 'Google client ID', placeholder: '1234567890-abc.apps.googleusercontent.com' },
+  { key: 'parentFolderId', label: 'Drive folder (optional)', placeholder: 'Folder id or https://drive.google.com/drive/folders/…', help: 'The uploads and backup folders are created inside it. Leave empty for My Drive. The refresh token needs the full Drive scope to use a folder you created.' },
   { key: 'uploadsFolderName', label: 'Uploads folder name' },
   { key: 'backupFolderName', label: 'Backup folder name' }
 ];
 
 const SECRET_FIELDS = [
-  { key: 'clientSecret', setKey: 'clientSecretSet', label: 'OAuth client secret' },
-  { key: 'refreshToken', setKey: 'refreshTokenSet', label: 'Refresh token (optional)', help: 'Connects without the Google sign-in screen. Usually you use Connect Google Drive instead.' }
+  { key: 'clientSecret', setKey: 'clientSecretSet', label: 'Google client secret' },
+  {
+    key: 'refreshToken',
+    setKey: 'refreshTokenSet',
+    label: 'Refresh token (from OAuth 2.0 Playground)',
+    help: 'developers.google.com/oauthplayground → ⚙ "Use your own OAuth credentials" (this client ID and secret) → scope https://www.googleapis.com/auth/drive → Authorize APIs → Exchange authorization code for tokens → copy the refresh token. In Google Cloud, add https://developers.google.com/oauthplayground as an authorized redirect URI of the client, and publish the consent screen so the token does not expire after 7 days.'
+  }
 ];
 
 const HOURS = [{ value: '-1', label: 'Off (manual only)' }].concat(
@@ -34,7 +38,6 @@ function SourceBadge({ source }) {
 function toForm(values) {
   return {
     clientId: values.clientId || '',
-    redirectUri: values.redirectUri || '',
     parentFolderId: values.parentFolderId || '',
     uploadsFolderName: values.uploadsFolderName || '',
     backupFolderName: values.backupFolderName || '',
@@ -73,7 +76,7 @@ export function DriveConfigForm({ token, canWrite, onSaved }) {
   // Only fields that were changed are sent, so values coming from the server env are not copied into settings.
   function buildPatch() {
     const patch = {};
-    for (const key of ['clientId', 'redirectUri', 'parentFolderId', 'uploadsFolderName', 'backupFolderName', 'backupKeep', 'backupHourIst']) {
+    for (const key of ['clientId', 'parentFolderId', 'uploadsFolderName', 'backupFolderName', 'backupKeep', 'backupHourIst']) {
       if (form[key] !== initial[key]) patch[key] = form[key].trim();
     }
     for (const { key } of SECRET_FIELDS) {
@@ -100,39 +103,24 @@ export function DriveConfigForm({ token, canWrite, onSaved }) {
     }
   }
 
-  async function copyRedirect() {
-    try {
-      await navigator.clipboard.writeText(form.redirectUri || config.values.defaultRedirectUri);
-      toast.success('Redirect URI copied');
-    } catch {
-      toast.error('Copy failed');
-    }
-  }
-
   const disabled = !canWrite || saving;
 
   return (
     <div className="space-y-5">
       <div className="grid gap-5 md:grid-cols-2">
         {TEXT_FIELDS.map((field) => (
-          <div key={field.key} className={field.key === 'redirectUri' || field.key === 'parentFolderId' ? 'md:col-span-2' : ''}>
+          <div key={field.key} className={field.key === 'parentFolderId' ? 'md:col-span-2' : ''}>
             <div className="mb-1.5 flex items-center gap-2">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">{field.label}</label>
               <SourceBadge source={config.sources[field.key]} />
             </div>
-            <div className="flex gap-2">
-              <Input
-                value={form[field.key]}
-                onChange={(event) => set(field.key, event.target.value)}
-                placeholder={field.key === 'redirectUri' ? config.values.defaultRedirectUri : field.placeholder}
-                disabled={disabled}
-              />
-              {field.key === 'redirectUri' ? (
-                <Button type="button" size="icon" variant="outline" onClick={copyRedirect} title="Copy redirect URI">
-                  <Copy size={14} />
-                </Button>
-              ) : null}
-            </div>
+            <Input
+              value={form[field.key]}
+              // Ids never contain spaces; folder names may.
+              onChange={(event) => set(field.key, ['clientId', 'parentFolderId'].includes(field.key) ? event.target.value.trim() : event.target.value)}
+              placeholder={field.placeholder}
+              disabled={disabled}
+            />
             {field.help ? <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{field.help}</p> : null}
           </div>
         ))}
@@ -209,7 +197,7 @@ export function DriveConfigForm({ token, canWrite, onSaved }) {
 
       <p className="text-[11px] text-slate-500 dark:text-slate-400">
         Values saved here override the server env. Empty a field and save to go back to the env value or default.
-        Changing the client ID disconnects the current Google account until you reconnect.
+        Changing the client ID needs a new refresh token made with that client.
       </p>
 
       {canWrite ? (
