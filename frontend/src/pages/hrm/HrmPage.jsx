@@ -131,7 +131,7 @@ export function HrmPage() {
       ) : kind === "employees" && id === "new" ? (
         <Card className="p-5">You do not have permission to add employees.</Card>
       ) : kind === "employees" && id ? (
-        <EmployeeProfile key={employee.id} {...props} id={employee.id} />
+        <EmployeeProfile key={employee.id} {...props} id={employee.id} tab={sub || ""} />
       ) : ["overview", "analytics"].includes(kind) ? (
         <HrmDashboard key={kind} {...props} analytics={kind === "analytics"} />
       ) : kind === "settings" ? (

@@ -27,6 +27,7 @@ router.get("/employees/resolve/:ref", c.resolveEmployee);
 router.get("/employees/:id", c.employee);
 router.put("/employees/:id", c.saveEmployee);
 router.delete("/employees/:id", c.archiveEmployee);
+router.get("/employees/:id/summary", c.employeeSummary);
 router.get("/employees/:id/private", c.privateProfile);
 router.put("/employees/:id/private", c.privateProfile);
 router.get("/employees/:id/leave-balances", c.leaveBalance);

@@ -142,3 +142,21 @@ test("login message tells a suspended or exited employee to contact HR", () => {
 });
 
 test.after(() => pool.end());
+
+test("profile summary gives the Overview numbers and tab counts", { skip }, () =>
+  inRollback(async (db) => {
+    const summary = require("../services/hrm/profileSummary");
+    const hr = await actor(db);
+    const { e } = await hire(db, hr);
+    const s = await summary.summary(hr, e.id, db);
+    assert.equal(s.today, null);
+    assert.equal(typeof s.month.present, "number");
+    assert.ok(Array.isArray(s.leave.types));
+    assert.equal(s.documents.total, 0);
+    assert.ok(s.onboarding.total > 0); // the joining checklist
+    assert.equal(s.badges.onboarding.attention, true);
+    assert.ok(Array.isArray(s.activity)); // super admin can read the audit
+    const detail = await employees.detail(hr, e.id, db);
+    assert.equal(detail.managerName, null);
+    assert.equal(detail.login.active, true);
+  }));

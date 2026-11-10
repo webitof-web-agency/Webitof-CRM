@@ -531,8 +531,13 @@ async function detail(user, id, db = c.dbDefault) {
         )
       ).rows[0]
     : null;
+  const manager = e.managerId
+    ? (await db.query("SELECT full_name,employee_number FROM hrm_employees WHERE id=$1", [e.managerId])).rows[0]
+    : null;
   return {
     ...publicEmployee(e),
+    managerName: manager?.full_name || null,
+    managerNumber: manager?.employee_number || null,
     login: u ? { active: u.is_active, blockedByHr: u.hr_blocked } : null,
     ...(e.userId === user.id || c.can(user, "view_private")
       ? { profile: e.profile }

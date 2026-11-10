@@ -7,7 +7,7 @@
   "type": "commonjs",
   "scripts": {
     "migrate:hrm": "node database/migrate-hrm.js",
-    "test:hrm": "node --test tests/hrm.test.js tests/hrm.workday.test.js tests/hrmPayroll.test.js tests/hrmLeaveCancel.test.js tests/hrmLiveBoard.test.js tests/hrmCore.test.js tests/hrmGeofenceDebounce.test.js tests/hrmHolidayDelete.test.js tests/hrmAllocation.test.js tests/hrmMasters.test.js tests/hrmAlertHistory.test.js tests/hrmRecruitment.test.js tests/hrmValidators.test.js tests/hrm.integration.js tests/hrmLinkLogin.integration.js tests/hrmAccess.integration.js",
+    "test:hrm": "node --test --test-concurrency=1 tests/hrm.test.js tests/hrm.workday.test.js tests/hrmPayroll.test.js tests/hrmLeaveCancel.test.js tests/hrmLiveBoard.test.js tests/hrmCore.test.js tests/hrmGeofenceDebounce.test.js tests/hrmHolidayDelete.test.js tests/hrmAllocation.test.js tests/hrmMasters.test.js tests/hrmAlertHistory.test.js tests/hrmRecruitment.test.js tests/hrmValidators.test.js tests/hrm.integration.js tests/hrmLinkLogin.integration.js tests/hrmAccess.integration.js",
     "seed:hrm-demo": "node database/seed-hrm-demo.js --yes-seed-hrm",
     "seed:hrm-it": "node database/seed-hrm-it-masters.js --yes",
     "test:finance": "node --test tests/financeReports.test.js tests/paymentStatusCounting.test.js tests/paymentValidation.test.js tests/invoiceGst.test.js tests/invoiceGuards.test.js tests/invoiceNumbering.test.js tests/invoicePreview.test.js tests/reportPeriod.test.js tests/creditNoteMaths.test.js tests/creditNotes.test.js tests/paymentMilestoneEngine.test.js",
