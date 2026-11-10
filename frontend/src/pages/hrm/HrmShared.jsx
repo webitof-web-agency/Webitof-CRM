@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+import { PasswordInput } from "../../components/ui/PasswordInput";
 import { SearchableSelect } from "../../components/forms/SearchableSelect";
 import { clean } from "../../lib/fieldRules";
 import { Modal } from "../../components/ui/Modal";
@@ -73,6 +74,16 @@ export function Field({
           rows={4}
           value={value ?? ""}
           onChange={(e) => onChange(e.target.value)}
+          required={required}
+          disabled={disabled}
+        />
+      ) : type === "password" ? (
+        <PasswordInput
+          id={id}
+          value={value ?? ""}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete="new-password"
+          maxLength={maxLength}
           required={required}
           disabled={disabled}
         />

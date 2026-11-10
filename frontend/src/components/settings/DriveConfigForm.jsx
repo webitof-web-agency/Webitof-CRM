@@ -3,6 +3,7 @@ import { Copy, KeyRound, Server } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { Input } from '../ui/Input';
+import { PasswordInput } from '../ui/PasswordInput';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { ThemedSelect } from '../ui/ThemedSelect';
@@ -147,8 +148,7 @@ export function DriveConfigForm({ token, canWrite, onSaved }) {
                 {isSet ? <SourceBadge source={config.sources[field.key]} /> : null}
               </div>
               <div className="flex gap-2">
-                <Input
-                  type="password"
+                <PasswordInput
                   autoComplete="off"
                   value={form[field.key]}
                   onChange={(event) => {

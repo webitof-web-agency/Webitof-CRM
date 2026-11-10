@@ -3,6 +3,7 @@ import { ChevronDown, Info } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Checkbox } from '../ui/Checkbox';
 import { Input, Textarea } from '../ui/Input';
+import { PasswordInput } from '../ui/PasswordInput';
 import { SearchableSelect } from './SearchableSelect';
 import { PhoneInput } from './PhoneInput';
 import { AttachmentPicker } from '../ui/AttachmentPicker';
@@ -646,10 +647,23 @@ export function ResourceForm({
         );
       }
 
+      if (field.type === 'password') {
+        return (
+          <PasswordInput
+            {...commonProps}
+            autoComplete="new-password"
+            value={value}
+            onChange={(event) => updateField(field.name, event.target.value)}
+            placeholder={field.placeholder || field.label}
+            className={cn(compact && '!h-8 !py-1 !px-2.5 !text-xs', field.inputClassName)}
+          />
+        );
+      }
+
       return (
         <Input
           {...commonProps}
-          type={field.type === 'number' || field.type === 'money' ? 'number' : field.type === 'date' ? 'date' : field.type === 'password' ? 'password' : field.type || 'text'}
+          type={field.type === 'number' || field.type === 'money' ? 'number' : field.type === 'date' ? 'date' : field.type || 'text'}
           step={field.step}
           value={value}
           onChange={(event) => updateField(field.name, event.target.value)}

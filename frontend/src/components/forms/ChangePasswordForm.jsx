@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
+import { PasswordInput } from '../ui/PasswordInput';
 
 const EMPTY = { currentPassword: '', newPassword: '', confirmPassword: '' };
 
@@ -39,15 +39,15 @@ export function ChangePasswordForm() {
       </div>
       <label className="block space-y-1.5">
         <span className="text-xs font-semibold text-[var(--text-muted)]">Current password</span>
-        <Input type="password" autoComplete="current-password" value={values.currentPassword} onChange={set('currentPassword')} required />
+        <PasswordInput autoComplete="current-password" value={values.currentPassword} onChange={set('currentPassword')} required />
       </label>
       <label className="block space-y-1.5">
         <span className="text-xs font-semibold text-[var(--text-muted)]">New password</span>
-        <Input type="password" autoComplete="new-password" value={values.newPassword} onChange={set('newPassword')} required minLength={8} />
+        <PasswordInput autoComplete="new-password" value={values.newPassword} onChange={set('newPassword')} required minLength={8} />
       </label>
       <label className="block space-y-1.5">
         <span className="text-xs font-semibold text-[var(--text-muted)]">Confirm new password</span>
-        <Input type="password" autoComplete="new-password" value={values.confirmPassword} onChange={set('confirmPassword')} required minLength={8} />
+        <PasswordInput autoComplete="new-password" value={values.confirmPassword} onChange={set('confirmPassword')} required minLength={8} />
       </label>
       <Button type="submit" size="sm" loading={saving}>Change password</Button>
     </form>
