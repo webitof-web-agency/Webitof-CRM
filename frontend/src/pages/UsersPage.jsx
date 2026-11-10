@@ -8,7 +8,7 @@ import { Input } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
 import { DataTable } from '../components/ui/Table';
 import { Modal } from '../components/ui/Modal';
-import { ResourceForm } from '../components/forms/ResourceForm';
+import { UserForm } from '../components/users/UserForm';
 import { ConfirmDialog } from '../components/overlays/ConfirmDialog';
 import { UserAvatar } from '../components/ui/UserAvatar';
 import { useNavigate } from 'react-router-dom';
@@ -17,19 +17,6 @@ import { mapUserForForm } from '../lib/rbac';
 import { sortRows } from '../lib/resource';
 import { IconButton } from '../components/ui/IconButton';
 
-const userFields = [
-  { name: 'fullName', label: 'Full Name', type: 'text', required: true },
-  { name: 'username', label: 'Username', type: 'text', required: true },
-  { name: 'email', label: 'Email', type: 'email', required: true },
-  { name: 'phone', label: 'Phone', type: 'phone', placeholder: '+91 98765 43210' },
-  { name: 'address', label: 'Address', type: 'textarea', rows: 3, placeholder: 'Address' },
-  { name: 'gender', label: 'Gender', type: 'radio', options: ['Male', 'Female', 'Other'], defaultValue: 'Other' },
-  { name: 'salary', label: 'Salary', type: 'money', description: 'Monthly salary used for office expense tracking.' },
-  { name: 'password', label: 'Password', type: 'password', description: 'Leave blank while editing if you do not want to change it.' },
-  { name: 'isActive', label: 'Active', type: 'checkbox', defaultValue: true },
-  { name: 'roleIds', label: 'Roles', type: 'multiselect' },
-  { name: 'allowedLeadPipelineIds', label: 'Lead Pipelines', type: 'multiselect', description: 'Leave blank to allow all lead pipelines.' }
-];
 
 function formatRoleNames(roles) {
   return (roles || []).map((role) => role.name).filter(Boolean).join(', ') || '-';
@@ -40,7 +27,6 @@ export function UsersPage() {
   const { token, hasPermission } = useAuth();
   const [rows, setRows] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [leadPipelines, setLeadPipelines] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState('updatedAt');
@@ -65,16 +51,14 @@ export function UsersPage() {
       setLoading(true);
       try {
         // Roles need roles.manage; a user manager without it still gets the user list.
-        const [usersResponse, rolesResponse, pipelinesResponse] = await Promise.all([
+        const [usersResponse, rolesResponse] = await Promise.all([
           api.resources.list('/users', token, debouncedSearch),
-          api.resources.list('/roles', token).catch(() => ({ data: [] })),
-          api.resources.list('/lead-pipelines', token).catch(() => ({ data: [] }))
+          api.resources.list('/roles', token).catch(() => ({ data: [] }))
         ]);
         if (!mounted) return;
         const filteredUsers = (usersResponse.data || []).filter(u => u && u.email !== 'admin@webitof.com');
         setRows(filteredUsers);
         setRoles(rolesResponse.data || []);
-        setLeadPipelines(pipelinesResponse.data || []);
       } catch (error) {
         if (!mounted) return;
         toast.error(error.message || 'Unable to load users');
@@ -270,26 +254,39 @@ export function UsersPage() {
       <Modal
         open={editorOpen}
         title={`${activeRecord ? 'Edit' : 'Add'} User`}
-        subtitle=""
         onClose={() => {
           setEditorOpen(false);
           setActiveRecord(null);
         }}
-        width="min(1120px, 96vw)"
+        width="min(680px, 96vw)"
+        bodyClassName="!py-4"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => {
+                setEditorOpen(false);
+                setActiveRecord(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" form="user-form" size="sm" loading={busy}>
+              {activeRecord ? 'Update User' : 'Create User'}
+            </Button>
+          </>
+        }
       >
-        <ResourceForm
+        <UserForm
           key={`user:${activeRecord?.id || 'new'}`}
-          fields={userFields}
+          id="user-form"
           record={activeRecord}
-          lookups={{ roles, leadPipelines }}
-          onSubmit={saveRecord}
-          onCancel={() => {
-            setEditorOpen(false);
-            setActiveRecord(null);
-          }}
-          submitLabel={activeRecord ? 'Update User' : 'Create User'}
+          roles={roles}
           busy={busy}
-          labelPlacement="left"
+          onSubmit={saveRecord}
         />
       </Modal>
 
