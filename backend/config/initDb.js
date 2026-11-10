@@ -66,6 +66,11 @@ async function ensureDatabase() {
   const seedDefaults = String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true';
   if (seedDefaults) {
     await seedDefaultData();
+  }
+  // Demo clients/projects/AMCs/renewals/notifications refill whenever those tables are empty,
+  // so on a live install they would come back after every cleanup. Opt in explicitly.
+  const seedDemo = String(process.env.SEED_DEMO_DATA || 'false').toLowerCase() === 'true';
+  if (seedDemo) {
     await seedAutomationDemoData();
     await seedNotificationDemoData();
   }
@@ -583,7 +588,8 @@ async function seedDefaultData() {
     ...DEFAULT_EXPENSE_CATEGORIES,
     ...DEFAULT_TAX_RATES,
     ...DEFAULT_QUOTATION_MASTERS,
-    ...DEFAULT_VENDORS,
+    // Sample vendors (fake GSTIN/PAN) are demo data only; they would reappear on every start.
+    ...DEFAULT_VENDORS.filter((vendor) => !String(vendor.id).endsWith('-sample')),
     ...DEFAULT_RENEWAL_PROVIDERS,
     ...DEFAULT_AMC_TYPES,
     ...DEFAULT_BILLING_CYCLES,
