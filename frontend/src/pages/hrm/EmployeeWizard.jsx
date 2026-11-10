@@ -25,6 +25,8 @@ import {
 } from "./employeeShared";
 
 const OTHER_CITY = "__other__";
+// Every employee address is in India; the field is shown read-only and always saved as India.
+const COUNTRY = "India";
 const EMPTY_PROFILE = {
   dob: "",
   gender: "",
@@ -32,7 +34,7 @@ const EMPTY_PROFILE = {
   addressLine2: "",
   city: "",
   state: "",
-  country: "India",
+  country: COUNTRY,
   postalCode: "",
   emergencyName: "",
   emergencyRelationship: "",
@@ -173,7 +175,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
           userId: employee.userId || "",
         }));
         const savedProfile = { ...EMPTY_PROFILE, ...(priv?.profile || employee.profile || {}) };
-        setProfile({ ...savedProfile, country: savedProfile.country || EMPTY_PROFILE.country });
+        setProfile({ ...savedProfile, country: COUNTRY });
         setFinancial({ ...EMPTY_FINANCIAL, ...(priv?.financial || {}) });
         const latest = (salaries?.rows || []).sort((a, b) =>
           String(b.effectiveDate).localeCompare(String(a.effectiveDate)),
@@ -213,9 +215,8 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   const departmentFirst = lists.departments.length > 0 && !form.departmentId;
   const options = (items) => items.map((m) => ({ value: m.id, label: m.name }));
   const hasLogin = Boolean(original?.userId || form.userId);
-  // Indian addresses pick the state from a list and get city suggestions for it; a state
-  // saved earlier in another spelling stays selectable instead of being dropped.
-  const inIndia = profile.country.trim().toLowerCase() === "india";
+  // Addresses are Indian (country is fixed): the state comes from a list and a state saved
+  // earlier in another spelling stays selectable instead of being dropped.
   const stateOptions = [
     ...INDIA_STATE_NAMES,
     ...(profile.state && !INDIA_STATE_NAMES.includes(profile.state) ? [profile.state] : []),
@@ -230,9 +231,8 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   };
   // City is a list of the state's cities with an "Other" choice that opens a text box. A city
   // saved earlier that is not in the list opens in the text box so it is not lost.
-  const profileCities = inIndia ? getCitiesByState(profile.state) : [];
+  const profileCities = getCitiesByState(profile.state);
   const cityAsText =
-    !inIndia ||
     customCity ||
     (Boolean(profile.state) && profileCities.length === 0) ||
     (Boolean(profile.city) && !profileCities.includes(profile.city));
@@ -282,9 +282,8 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
       need("addressLine1", profile.addressLine1, "Address line 1");
       need("city", profile.city, "City");
       need("state", profile.state, "State");
-      need("country", profile.country, "Country");
       need("postalCode", profile.postalCode, "PIN code");
-      if (profile.country?.trim().toLowerCase() === "india" && profile.postalCode && !/^\d{6}$/.test(profile.postalCode))
+      if (profile.postalCode && !/^\d{6}$/.test(profile.postalCode))
         e.postalCode = "PIN code must be 6 digits";
       need("emergencyName", profile.emergencyName, "Emergency contact name");
       need("emergencyRelationship", profile.emergencyRelationship, "Relationship");
@@ -753,28 +752,23 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
 
             {current === "Contact" && (
               <>
-                <div className="grid gap-5 md:grid-cols-2">
-                  <F k="addressLine1" title="Address Line 1" value={profile.addressLine1} onChange={setP("addressLine1")} required />
-                  <F k="addressLine2" title="Address Line 2" value={profile.addressLine2} onChange={setP("addressLine2")} />
-                  <F k="country" title="Country" value={profile.country} onChange={setP("country")} required />
-                  {inIndia ? (
-                    <F
-                      k="state"
-                      title="State"
-                      type="select"
-                      options={stateOptions}
-                      value={profile.state}
-                      onChange={pickState}
-                      searchable
-                      required
-                    />
-                  ) : (
-                    <F k="state" title="State" value={profile.state} onChange={setP("state")} required />
-                  )}
+                {/* Location first (country → state → city → PIN), then the street address. */}
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <F k="country" title="Country" value={COUNTRY} onChange={() => {}} disabled required />
+                  <F
+                    k="state"
+                    title="State"
+                    type="select"
+                    options={stateOptions}
+                    value={profile.state}
+                    onChange={pickState}
+                    searchable
+                    required
+                  />
                   {cityAsText ? (
                     <div>
                       <F k="city" title="City" value={profile.city} onChange={setP("city")} required />
-                      {inIndia && profileCities.length > 0 && (
+                      {profileCities.length > 0 && (
                         <button
                           type="button"
                           className="mt-1 text-xs font-semibold text-[var(--primary)] hover:underline"
@@ -801,10 +795,14 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                       required
                     />
                   )}
-                  <F k="postalCode" title="PIN / Postal Code" value={profile.postalCode} onChange={setP("postalCode")} required />
+                  <F k="postalCode" title="PIN Code" value={profile.postalCode} onChange={setP("postalCode")} required />
                 </div>
-                <h3 className="border-t border-[var(--border)] pt-5 font-semibold">Emergency Contact</h3>
-                <div className="grid gap-5 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <F k="addressLine1" title="Address Line 1" value={profile.addressLine1} onChange={setP("addressLine1")} required />
+                  <F k="addressLine2" title="Address Line 2" value={profile.addressLine2} onChange={setP("addressLine2")} />
+                </div>
+                <h3 className="border-t border-[var(--border)] pt-4 font-semibold">Emergency Contact</h3>
+                <div className="grid gap-4 md:grid-cols-3">
                   <F k="emergencyName" title="Name" value={profile.emergencyName} onChange={setP("emergencyName")} required />
                   <F
                     k="emergencyRelationship"
