@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
+import { DocumentPreview } from "./DocumentPreview";
 import { INDIA_STATE_NAMES, getCitiesByState } from "../../data/indiaLocations";
 import { clean, valid, latestBirthDate } from "../../lib/fieldRules";
 import { hrm, localDay } from "./hrmApi";
@@ -22,7 +23,6 @@ import {
   hourlyRate,
   masterLists,
   money,
-  openDocument,
   useDocumentImage,
 } from "./employeeShared";
 
@@ -136,6 +136,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   const [photo, setPhoto] = useState(null);
   const [photoPreview, setPhotoPreview] = useState("");
   const [documents, setDocuments] = useState([]);
+  const [previewDoc, setPreviewDoc] = useState(null);
   const [rows, setRows] = useState(() =>
     editing
       ? []
@@ -876,7 +877,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                       {documents.map((d) => (
                         <div key={d.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] p-3">
                           <div>
-                            <p className="font-medium">{d.category}</p>
+                            <p className="font-medium">{d.title || d.category}</p>
                             <p className="text-xs text-[var(--text-muted)]">
                               {d.expiresOn ? `Expires ${d.expiresOn}` : "No expiry date"}
                             </p>
@@ -885,7 +886,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                             </div>
                           </div>
                           <div className="flex gap-1">
-                            <Button size="sm" variant="secondary" aria-label={`View ${d.category}`} onClick={() => openDocument(token, d).catch((e) => toast.error(e.message))}>
+                            <Button size="sm" variant="secondary" aria-label={`View ${d.title || d.category}`} onClick={() => setPreviewDoc(d)}>
                               <Eye size={15} />
                             </Button>
                             <Button
@@ -909,6 +910,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                         </div>
                       ))}
                     </div>
+                    {previewDoc && <DocumentPreview token={token} doc={previewDoc} onClose={() => setPreviewDoc(null)} />}
                     <h3 className="pt-2 font-semibold">Add New Documents</h3>
                   </>
                 )}

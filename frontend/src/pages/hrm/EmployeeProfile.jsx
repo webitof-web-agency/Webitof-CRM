@@ -27,6 +27,7 @@ import { ActionDialog, DetailValues, Status } from "./HrmShared";
 import { hrm, label, localDay } from "./hrmApi";
 import { HrmCollection } from "./HrmCollection";
 import { HrmDashboard } from "./HrmDashboard";
+import { DocumentPreview } from "./DocumentPreview";
 import {
   PHOTO_CATEGORY,
   downloadLetter,
@@ -34,7 +35,6 @@ import {
   hourlyRate,
   masterLists,
   money,
-  openDocument,
   useDocumentImage,
 } from "./employeeShared";
 import { ThemedSelect } from "../../components/ui/ThemedSelect";
@@ -192,7 +192,8 @@ function Documents({ token, employeeId, can }) {
     [error, setError] = useState(""),
     [rejecting, setRejecting] = useState(null),
     [busy, setBusy] = useState(false),
-    [refresh, setRefresh] = useState(0);
+    [refresh, setRefresh] = useState(0),
+    [preview, setPreview] = useState(null);
   useEffect(() => {
     let active = true;
     hrm(token, `/resources/documents?employeeId=${employeeId}&limit=100`)
@@ -230,7 +231,8 @@ function Documents({ token, employeeId, can }) {
             <div className="flex min-w-0 gap-3">
               <FileText className="mt-0.5 shrink-0 text-[var(--text-muted)]" size={22} />
               <div className="min-w-0">
-                <p className="font-semibold">{d.category}</p>
+                {/* The title tells two-sided documents apart ("Aadhaar Card Front" / "… Back"). */}
+                <p className="font-semibold">{d.title || d.category}</p>
                 <p className="text-xs text-[var(--text-muted)]">
                   {d.expiresOn ? `Expires ${d.expiresOn}` : "No expiry date"}
                 </p>
@@ -243,16 +245,16 @@ function Documents({ token, employeeId, can }) {
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
-              <Button size="sm" variant="secondary" aria-label={`View ${d.category}`} onClick={() => openDocument(token, d).catch((e) => toast.error(e.message))}>
+              <Button size="sm" variant="secondary" aria-label={`View ${d.title || d.category}`} onClick={() => setPreview(d)}>
                 <Eye size={15} />
               </Button>
               {(can("manage_employees") || can("documents")) && (
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`Delete ${d.category}`}
+                  aria-label={`Delete ${d.title || d.category}`}
                   onClick={async () => {
-                    if (await confirmAction({ title: 'Delete document?', description: `${d.category} will be removed.`, confirmText: 'Delete', type: 'danger' })) {
+                    if (await confirmAction({ title: 'Delete document?', description: `${d.title || d.category} will be removed.`, confirmText: 'Delete', type: 'danger' })) {
                       act(`/documents/${d.id}`, { method: "DELETE" }, "Document deleted");
                     }
                   }}
@@ -278,7 +280,7 @@ function Documents({ token, employeeId, can }) {
         <ActionDialog
           action={{
             title: "Reject document",
-            description: `Tell the employee why "${rejecting.category}" was rejected.`,
+            description: `Tell the employee why "${rejecting.title || rejecting.category}" was rejected.`,
             comment: true,
             required: true,
           }}
@@ -292,6 +294,7 @@ function Documents({ token, employeeId, can }) {
           }}
         />
       )}
+      {preview && <DocumentPreview token={token} doc={preview} onClose={() => setPreview(null)} />}
     </>
   );
 }
