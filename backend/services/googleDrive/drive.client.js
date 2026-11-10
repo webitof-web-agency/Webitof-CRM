@@ -135,7 +135,7 @@ class DriveClient {
         } catch (error) {
           if (error.reason === 'invalid_grant') {
             if (this.onInvalidGrant) await this.onInvalidGrant();
-            throw new DriveError('Google Drive access was revoked or expired. Paste a new refresh token in Settings → Storage & Backup.', {
+            throw new DriveError('Google Drive access was revoked or expired. Put a new refresh token in GOOGLE_OAUTH_REFRESH_TOKEN on the server and restart it.', {
               statusCode: 409,
               reason: 'invalid_grant'
             });

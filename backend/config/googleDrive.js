@@ -1,30 +1,32 @@
-const { decrypt, hasEncryptionKey } = require('../utils/encryption');
+const { hasEncryptionKey } = require('../utils/encryption');
 const { getSetting } = require('../models/systemSetting.model');
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
-const DEFAULT_BACKUP_FOLDER_NAME = 'Webitof CRM – DB Backups';
-const DEFAULT_UPLOADS_FOLDER_NAME = 'Webitof CRM – Uploads';
+const DEFAULT_BACKUP_FOLDER_NAME = 'Webitof Backups';
+const DEFAULT_UPLOADS_FOLDER_NAME = 'Webitof Uploads';
 const DEFAULT_BACKUP_KEEP = 15;
 const DEFAULT_BACKUP_HOUR_IST = 2;
 const SETTINGS_KEY = 'google_drive_config';
 const REFRESH_TTL_MS = 10_000;
 
-// Settings editable from Settings → Storage & Backup. A value saved there wins over the env var.
+// Drive settings. `envOnly` ones (the Google credentials and the folders) come from the server env
+// alone: an admin cannot set or override them from the browser, and values saved there by older
+// versions are ignored. The others can be changed in Settings → Storage & Backup, where a saved
+// value wins over the env var.
 const FIELDS = {
-  clientId: { env: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_DRIVE_CLIENT_ID'], label: 'Client ID' },
-  clientSecret: { env: ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_DRIVE_CLIENT_SECRET'], label: 'Client secret', secret: true },
-  refreshToken: { env: ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GOOGLE_DRIVE_REFRESH_TOKEN'], label: 'Refresh token', secret: true },
-  parentFolderId: { env: ['GDRIVE_PARENT_FOLDER_ID'], label: 'Parent folder' },
-  uploadsFolderName: { env: ['GDRIVE_UPLOADS_FOLDER_NAME'], label: 'Uploads folder name' },
-  backupFolderName: { env: ['GDRIVE_BACKUP_FOLDER_NAME'], label: 'Backup folder name' },
+  clientId: { env: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_DRIVE_CLIENT_ID'], label: 'Client ID', envOnly: true },
+  clientSecret: { env: ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_DRIVE_CLIENT_SECRET'], label: 'Client secret', secret: true, envOnly: true },
+  refreshToken: { env: ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GOOGLE_DRIVE_REFRESH_TOKEN'], label: 'Refresh token', secret: true, envOnly: true },
+  parentFolderId: { env: ['GDRIVE_PARENT_FOLDER_ID'], label: 'Parent folder', envOnly: true },
+  uploadsFolderName: { env: ['GDRIVE_UPLOADS_FOLDER_NAME'], label: 'Uploads folder name', envOnly: true },
+  backupFolderName: { env: ['GDRIVE_BACKUP_FOLDER_NAME'], label: 'Backup folder name', envOnly: true },
   backupKeep: { env: ['GDRIVE_BACKUP_KEEP'], label: 'Backups to keep' },
   backupHourIst: { env: ['GDRIVE_BACKUP_HOUR_IST'], label: 'Backup hour' }
 };
 
-// Saved values, secrets already decrypted. Refreshed from the DB on a short TTL so
+// Values saved in Settings (never the envOnly fields). Refreshed from the DB on a short TTL so
 // getGoogleDriveConfig() can stay synchronous.
 let saved = {};
-let savedProblems = [];
 let refreshedAt = 0;
 let refreshing = null;
 
@@ -68,14 +70,24 @@ function hasValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== '';
 }
 
+function savedValue(field) {
+  return !FIELDS[field].envOnly && hasValue(saved[field]) ? String(saved[field]).trim() : '';
+}
+
 // Where each field's value comes from: 'settings', 'environment' or 'default'.
 function sourceOf(field) {
-  if (hasValue(saved[field])) return 'settings';
+  if (savedValue(field)) return 'settings';
   return env(...FIELDS[field].env) ? 'environment' : 'default';
 }
 
+// The env var that holds the field: the first one that is set, else the preferred name.
+function envNameOf(field) {
+  const names = FIELDS[field].env;
+  return names.find((name) => String(process.env[name] || '').trim()) || names[0];
+}
+
 function raw(field) {
-  return hasValue(saved[field]) ? String(saved[field]).trim() : env(...FIELDS[field].env);
+  return savedValue(field) || env(...FIELDS[field].env);
 }
 
 async function refreshDriveSettings({ force = false } = {}) {
@@ -85,22 +97,10 @@ async function refreshDriveSettings({ force = false } = {}) {
       try {
         const stored = await getSetting(SETTINGS_KEY, {});
         const next = {};
-        const problems = [];
         for (const [field, definition] of Object.entries(FIELDS)) {
-          const value = stored[field];
-          if (!hasValue(value) && !(definition.secret && value && typeof value === 'object')) continue;
-          if (definition.secret) {
-            try {
-              next[field] = decrypt(value);
-            } catch {
-              problems.push(`The saved ${definition.label.toLowerCase()} could not be decrypted (SETTINGS_ENCRYPTION_KEY changed?). Enter it again.`);
-            }
-          } else {
-            next[field] = value;
-          }
+          if (!definition.envOnly && hasValue(stored[field])) next[field] = stored[field];
         }
         saved = next;
-        savedProblems = problems;
         refreshedAt = Date.now();
       } catch (error) {
         // Table missing before the first migration, or DB unreachable: keep the last known values.
@@ -135,17 +135,16 @@ function getGoogleDriveConfig() {
 
 // Names only, never values.
 function getGoogleDriveConfigProblems(config = getGoogleDriveConfig()) {
-  const problems = [...savedProblems];
-  if (!config.clientId) problems.push('Client ID is not set (Settings or GOOGLE_OAUTH_CLIENT_ID)');
-  if (!config.clientSecret) problems.push('Client secret is not set (Settings or GOOGLE_OAUTH_CLIENT_SECRET)');
+  const problems = [];
+  if (!config.clientId) problems.push('Client ID is not set (GOOGLE_OAUTH_CLIENT_ID in the server env)');
+  if (!config.clientSecret) problems.push('Client secret is not set (GOOGLE_OAUTH_CLIENT_SECRET in the server env)');
   if (!hasEncryptionKey()) problems.push('SETTINGS_ENCRYPTION_KEY is not set on the server (64 hex characters)');
-  if (raw('parentFolderId') && !config.parentFolderId) problems.push('Parent folder is not a folder id or link');
+  if (raw('parentFolderId') && !config.parentFolderId) problems.push('GDRIVE_PARENT_FOLDER_ID is not a folder id or link');
   return problems;
 }
 
 function _resetDriveSettingsForTests() {
   saved = {};
-  savedProblems = [];
   refreshedAt = 0;
 }
 
@@ -156,6 +155,7 @@ module.exports = {
   SETTINGS_KEY,
   getGoogleDriveConfig,
   getGoogleDriveConfigProblems,
+  envNameOf,
   parseFolderId,
   parseHour,
   parseKeep,

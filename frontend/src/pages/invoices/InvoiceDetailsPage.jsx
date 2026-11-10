@@ -268,7 +268,6 @@ export function InvoiceDetailsPage() {
             <InvoiceDocument draft={displayInvoice}
               client={client}
               company={settings?.company || {}}
-              logos={settings?.logos || {}}
               template={template}
               bankAccount={displayInvoice.bankAccount || null}
               bankSettings={settings?.bank || {}}

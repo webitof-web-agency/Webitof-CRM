@@ -1,3 +1,5 @@
+const { PIPELINE_SOURCES } = require('./pipelineFields');
+
 const LEAD_STATUSES = [
   'New',
   'Contacted',
@@ -18,28 +20,11 @@ const LEAD_STATUSES = [
   'Duplicate'
 ];
 
-const LEAD_SOURCES = [
-  'Website',
-  'Google Ads',
-  'Facebook Ads',
-  'Instagram Ads',
-  'WhatsApp',
-  'Phone Call',
-  'Email',
-  'Referral',
-  'Existing Client',
-  'IndiaMART',
-  'Justdial',
-  'LinkedIn',
-  'Freelancer',
-  'Upwork',
-  'Walk-in',
-  'Employee Reference',
-  'Partner',
-  'Other'
-];
+// One list for the whole app: the built-in lead sources in config/pipelineFields.js.
+const LEAD_SOURCES = [...PIPELINE_SOURCES.leads];
 
-const REFERRAL_SOURCES = ['Referral', 'Partner', 'Employee Reference', 'Existing Client'];
+// Sources that ask who referred the lead.
+const REFERRAL_SOURCES = ['Referral', 'Partner', 'Employee Reference', 'Existing Client', 'Channel Partner', 'Reseller', 'Affiliate'];
 
 const SERVICE_OPTIONS = [
   'Website Development',

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Printer, CheckCircle2, Clock, XCircle, Send } from 'lucide-react';
 import { InvoicePreview as InvoiceDocument } from '../../components/invoices/InvoicePreview';
 import { normalizeInvoiceNumber } from '../../lib/invoiceNumber';
+import { BRAND_LOGOS } from '../../config/brandAssets';
 
 const STATUS_COLORS = {
   Paid: { bg: 'bg-emerald-100', text: 'text-emerald-700' },
@@ -63,7 +64,7 @@ export function InvoicePublicPage() {
     );
   }
 
-  const { invoice, client, company, logos, branding, template, bank, bankAccount, invoiceSettings } = data;
+  const { invoice, client, company, branding, template, bank, bankAccount, invoiceSettings } = data;
   const displayInvoice = { ...invoice, invoiceNumber: normalizeInvoiceNumber(invoice.invoiceNumber) };
   const resolvedTemplate = template || (branding ? { primaryColor: branding.primaryColor || '#3b82f6', footerText: 'Thank you for your business!' } : null);
   const statusInfo = STATUS_COLORS[invoice.status] || STATUS_COLORS.Draft;
@@ -78,8 +79,8 @@ export function InvoicePublicPage() {
       <div className="print:hidden bg-white border-b border-slate-200 shadow-xs px-4 py-3 sticky top-0 z-20">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {logos?.primary ? (
-              <img src={logos.primary} alt="Logo" className="h-8 object-contain" />
+            {BRAND_LOGOS.primary ? (
+              <img src={BRAND_LOGOS.primary} alt="Logo" className="h-8 object-contain" />
             ) : (
               <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: branding?.primaryColor || '#3b82f6' }}>
                 {(company?.name || 'C').charAt(0)}
@@ -144,11 +145,10 @@ export function InvoicePublicPage() {
             draft={displayInvoice}
             client={client}
             company={company}
-            logos={logos}
             template={resolvedTemplate}
             bankAccount={bankAccount || null}
             bankSettings={bank || {}}
-            invoiceSettings={invoiceSettings || {}}
+            invoiceSettings={{ ...(invoiceSettings || {}), branding: branding || {} }}
           />
         </div>
 

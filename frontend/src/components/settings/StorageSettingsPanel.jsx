@@ -37,12 +37,12 @@ const BACKUP_KINDS = {
 
 function SectionHeader({ icon: Icon, title, description }) {
   return (
-    <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+    <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
       <div className="flex items-center gap-2">
-        <Icon size={20} className="text-slate-800 dark:text-slate-100" />
-        <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+        <Icon size={17} className="text-slate-800 dark:text-slate-100" />
+        <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
       </div>
-      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{description}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>
     </div>
   );
 }
@@ -114,7 +114,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
     }
   }
 
-  // Applies the saved client id, secret and refresh token, and proves the account and folders work.
+  // Applies the client id, secret and refresh token from the server env, and proves the account and folders work.
   const check = () => run('check', async () => {
     setCheckResult(null);
     try {
@@ -186,8 +186,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
   const last = backup?.last;
 
   return (
-    <div className="space-y-6">
-      <Card className="p-6">
+    <div className="grid items-start gap-4 xl:grid-cols-2">
+      <Card className="p-4 sm:p-5 xl:order-1">
         <SectionHeader icon={HardDrive} title="Upload storage" description="Where new uploads are saved. Files already uploaded keep opening from where they are." />
         <div className="grid gap-3 md:grid-cols-2">
           {PROVIDERS.map((provider) => {
@@ -232,16 +232,16 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
         ) : null}
       </Card>
 
-      <Card className="p-6">
+      <Card className="p-4 sm:p-5 xl:order-3">
         <SectionHeader
           icon={Settings2}
           title="Google Drive settings"
-          description="Client ID, client secret and a refresh token from the Google OAuth 2.0 Playground, plus folders and the backup schedule. Save, then click Check connection below."
+          description="The Google account and folders come from the server env and cannot be changed here. Only the backup schedule can be changed."
         />
         <DriveConfigForm token={token} canWrite={canWrite} onSaved={() => loadStatus().catch(() => {})} />
       </Card>
 
-      <Card className="p-6">
+      <Card className="p-4 sm:p-5 xl:order-2">
         <SectionHeader icon={CloudUpload} title="Google Drive connection" description="One Google account holds uploaded files (when selected above) and the daily database backups." />
 
         {drive.problems?.length ? (
@@ -256,8 +256,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
         {drive.needsReconnect ? (
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            Google access was revoked or expired. Uploads to Drive and backups are paused: paste a new refresh token (same
-            Google account) in the settings above and click Check connection.
+            Google access was revoked or expired. Uploads to Drive and backups are paused: put a new refresh token (same
+            Google account) in GOOGLE_OAUTH_REFRESH_TOKEN on the server, restart it and click Check connection.
           </div>
         ) : null}
 
@@ -265,8 +265,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <span>
-              The saved refresh token was not accepted: {drive.envTokenError}. Paste a new one in the settings above
-              and click Check connection.
+              The refresh token in the server env was not accepted: {drive.envTokenError}. Put a new one in
+              GOOGLE_OAUTH_REFRESH_TOKEN on the server, restart it and click Check connection.
             </span>
           </div>
         ) : null}
@@ -332,7 +332,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
         ) : null}
       </Card>
 
-      <Card className="p-6">
+      <Card className="p-4 sm:p-5 xl:order-4">
         <SectionHeader icon={DatabaseBackup} title="Database backups" description={`${backup.schedule.label} to the Google Drive backup folder, keeping the newest ${backup.keep}.`} />
 
         <div className="grid gap-4 text-sm md:grid-cols-2">

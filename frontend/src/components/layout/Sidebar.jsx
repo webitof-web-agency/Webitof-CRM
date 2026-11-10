@@ -4,7 +4,7 @@ import { ChevronRight, Menu, X } from 'lucide-react';
 import { navigationGroups } from '../../config/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/cn';
-import { fetchPublicSettings } from '../../api/client';
+import { BRAND_LOGOS } from '../../config/brandAssets';
 
 function SidebarLink({ item, onNavigate, open, isChild = false }) {
   const location = useLocation();
@@ -213,50 +213,11 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
 export function Sidebar({ open = false, onClose }) {
   const { user } = useAuth();
   const location = useLocation();
-  const [logos, setLogos] = useState(() => {
-    try {
-      const raw = window.localStorage.getItem('webitof-logos');
-      if (raw) return JSON.parse(raw);
-    } catch (e) {}
-    return {
-      primary: '/assets/images/horizontal-logo.png',
-      primaryDark: '/assets/images/horizontal-white-logo.png',
-      sidebar: '/assets/images/horizontal-logo.png',
-      sidebarDark: '/assets/images/horizontal-white-logo.png',
-      sidebarCollapsed: '/assets/images/round-logo.png',
-      sidebarCollapsedDark: '/assets/images/webitof-icon-white.png',
-      favicon: '/assets/images/round-logo.png',
-      loginLight: '/assets/images/webitof-icon.png',
-      loginDark: '/assets/images/webitof-icon-white.png'
-    };
-  });
+
+  const logos = BRAND_LOGOS;
   const [collapsedGroups, setCollapsedGroups] = useState({});
   const [expandedItems, setExpandedItems] = useState({});
 
-  useEffect(() => {
-    const loadLogos = () => {
-      try {
-        const raw = window.localStorage.getItem('webitof-logos');
-        if (raw) setLogos(JSON.parse(raw));
-      } catch (e) {}
-    };
-    loadLogos();
-
-    // Fetch live public settings so unauthenticated / fresh browsers get updated logos
-    fetchPublicSettings()
-      .then((data) => {
-        if (data?.data?.logos) {
-          setLogos(data.data.logos);
-          try {
-            window.localStorage.setItem('webitof-logos', JSON.stringify(data.data.logos));
-          } catch (e) {}
-        }
-      })
-      .catch(() => {});
-
-    window.addEventListener('logos-updated', loadLogos);
-    return () => window.removeEventListener('logos-updated', loadLogos);
-  }, []);
 
   const visibleGroups = useMemo(
     () =>

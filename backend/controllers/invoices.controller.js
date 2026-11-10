@@ -531,7 +531,6 @@ invoicesController.getPublic = async (req, res, next) => {
         invoice: snapshot,
         client: publicClient(client),
         company: settings?.company || {},
-        logos: settings?.logos || {},
         branding: settings?.branding || {},
         // Public link: only what the invoice template renders, never SMTP or role settings.
         invoiceSettings: {

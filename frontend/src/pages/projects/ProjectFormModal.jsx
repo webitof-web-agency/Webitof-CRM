@@ -182,8 +182,10 @@ export function ProjectFormModal({
       { label: 'On Hold', color: '#f59e0b' }
     ];
     const values = configured.map((item) => (typeof item === 'string' ? item : item.label));
-    return Array.from(new Set(values.concat(['Active', 'Paused', 'Cancelled', 'Archived']))).map((value) => ({ value, label: value }));
-  }, [settings]);
+    // A project saved with an older status keeps it selectable.
+    if (formData.status && !values.includes(formData.status)) values.push(formData.status);
+    return values.map((value) => ({ value, label: value }));
+  }, [settings, formData.status]);
 
   const billingOptions = [
     { value: 'Fixed', label: 'Fixed' },

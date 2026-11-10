@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { ShieldCheck, Lock } from 'lucide-react';
 import { cn } from '../../lib/cn';
-import { fetchPublicSettings } from '../../api/client';
+import { BRAND_LOGOS } from '../../config/brandAssets';
 
 export function AuthLayout({
   title,
@@ -11,59 +10,7 @@ export function AuthLayout({
   isAuthenticating = false,
   children
 }) {
-  const [logos, setLogos] = useState(() => {
-    try {
-      const raw = window.localStorage.getItem('webitof-logos');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return {
-          loginLight: parsed.loginLight || parsed.primary || '/assets/images/webitof-icon.png',
-          loginDark: parsed.loginDark || '/assets/images/webitof-icon-white.png'
-        };
-      }
-    } catch (e) {}
-    return {
-      loginLight: '/assets/images/webitof-icon.png',
-      loginDark: '/assets/images/webitof-icon-white.png'
-    };
-  });
-
-  useEffect(() => {
-    const loadLogos = () => {
-      try {
-        const raw = window.localStorage.getItem('webitof-logos');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          setLogos({
-            loginLight: parsed.loginLight || parsed.primary || '/assets/images/webitof-icon.png',
-            loginDark: parsed.loginDark || '/assets/images/webitof-icon-white.png'
-          });
-        }
-      } catch (e) {}
-    };
-    loadLogos();
-
-    // Fetch live public settings so unauthenticated / fresh browsers get updated logos
-    fetchPublicSettings()
-      .then((data) => {
-        if (data?.data?.logos) {
-          const l = data.data.logos;
-          const updated = {
-            loginLight: l.loginLight || l.primary || '/assets/images/webitof-icon.png',
-            loginDark: l.loginDark || '/assets/images/webitof-icon-white.png'
-          };
-          setLogos(updated);
-          try {
-            const current = JSON.parse(window.localStorage.getItem('webitof-logos') || '{}');
-            window.localStorage.setItem('webitof-logos', JSON.stringify({ ...current, ...l }));
-          } catch (e) {}
-        }
-      })
-      .catch(() => {});
-
-    window.addEventListener('logos-updated', loadLogos);
-    return () => window.removeEventListener('logos-updated', loadLogos);
-  }, []);
+  const logos = BRAND_LOGOS;
 
   return (
     <div className="relative h-screen max-h-screen w-full flex flex-col justify-between items-center bg-[#f4f7fb] dark:bg-[#07090e] text-slate-900 dark:text-[#f5f5f7] transition-colors duration-300 overflow-hidden px-4 py-3 sm:px-6 sm:py-4 font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Display','Plus_Jakarta_Sans',sans-serif] selection:bg-blue-500/25 selection:text-blue-600 dark:selection:text-blue-300">

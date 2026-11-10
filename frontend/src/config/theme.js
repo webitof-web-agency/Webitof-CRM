@@ -139,10 +139,6 @@ export function persistAndApplyThemeSettings(settings = {}) {
     applyTheme(settings.branding.primaryColor);
   }
 
-  if (settings.logos) {
-    window.localStorage.setItem('webitof-logos', JSON.stringify(settings.logos));
-    window.dispatchEvent(new Event('logos-updated'));
-  }
 }
 
 // Auto-apply on module load

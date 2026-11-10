@@ -1,6 +1,7 @@
 import React from 'react';
 import { normalizeInvoiceNumber } from '../../lib/invoiceNumber';
 import watermarkImage from '../../../assets/images/invoicewatermark.png';
+import { BRAND_LOGOS } from '../../config/brandAssets';
 
 function fmt(n) {
   return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -64,7 +65,6 @@ export function InvoicePreview({
   draft = {},
   client = {},
   company = {},
-  logos = {},
   template = {},
   totals: propTotals,
   bankAccount = null,
@@ -84,8 +84,9 @@ export function InvoicePreview({
     totalAmount: draft.totalAmount
   };
 
-  const primaryColor = invoiceSettings?.invoiceTheme?.primaryColor || template?.primaryColor || '#4361EE';
-  const logoUrl = template?.showLogo === false ? '' : (logos?.primary || logos?.sidebar || company?.logoUrl || '');
+  // One colour for the whole system: Settings → Appearance (branding.primaryColor).
+  const primaryColor = invoiceSettings?.branding?.primaryColor || '#4361EE';
+  const logoUrl = template?.showLogo === false ? '' : BRAND_LOGOS.primary;
   const watermarkText = template?.watermarkText || extractInitials(company?.legalName || company?.name || 'Invoice');
   const customWatermarkUrl = invoiceSettings?.invoiceTheme?.watermarkUrl || null;
   const visibleItems = (draft.items || []).filter((item) => !item.hidden && (item.description || item.serviceName || item.serviceId || Number(item.rate) > 0));

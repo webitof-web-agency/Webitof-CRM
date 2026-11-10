@@ -98,7 +98,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
         formData.append('file', uploadFile);
       }
       
-      // The backend places files by module and record (year/month/section/record).
+      // The backend places files by category, section and record (CRM/Leads/<record>, HRM/Employees/<name>...).
       formData.append('moduleName', uploadModule || 'general');
       if (uploadModule && uploadEntityId) formData.append('entityId', uploadEntityId);
 

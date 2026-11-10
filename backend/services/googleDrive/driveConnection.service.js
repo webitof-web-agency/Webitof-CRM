@@ -85,7 +85,7 @@ function clientFor(state) {
   } catch {
     // Key changed, or the DB came from another environment.
     void markNeedsReconnect();
-    throw httpError('Stored Google Drive credentials could not be decrypted. Reconnect Google Drive in Settings.', 409);
+    throw httpError('Stored Google Drive credentials could not be decrypted (SETTINGS_ENCRYPTION_KEY changed?). Click Check connection in Settings → Storage & Backup.', 409);
   }
 
   cachedClient = new DriveClient({
@@ -204,7 +204,7 @@ async function saveConnection(refreshToken, { userId = null, source = 'oauth' } 
   return getState();
 }
 
-// "Check connection": applies the refresh token from Settings or env right away (also one that
+// "Check connection": applies the refresh token from the server env right away (also one that
 // failed before or was disconnected), then proves the account and both app folders work.
 // Errors go back to the admin as they are.
 async function checkConnection({ userId = null } = {}) {
@@ -231,7 +231,7 @@ async function checkConnection({ userId = null } = {}) {
     }
   }
   const state = await getState();
-  if (!state.encryptedRefreshToken) throw httpError('Add the refresh token first, then check again.', 400);
+  if (!state.encryptedRefreshToken) throw httpError('Set GOOGLE_OAUTH_REFRESH_TOKEN in the server env and restart it, then check again.', 400);
   const client = clientFor(state);
   const account = await client.about();
   await ensureFolder('uploads', { client });
@@ -247,7 +247,7 @@ async function checkConnection({ userId = null } = {}) {
 
 // Applies GOOGLE_OAUTH_REFRESH_TOKEN once per token value, so a later disconnect is not undone on restart.
 // A token Google rejected (or a network error) is retried after a pause instead of being
-// marked as applied, and the reason is shown in Settings.
+// marked as applied, and the reason is shown in Settings → Storage & Backup.
 const ENV_TOKEN_RETRY_MS = 15 * 60 * 1000;
 
 async function connectFromEnvToken() {
@@ -287,10 +287,10 @@ async function getClient() {
   await connectFromEnvToken();
   const state = await getState();
   if (!state.encryptedRefreshToken) {
-    throw httpError('Google Drive is not connected. Add the credentials in Settings → Storage & Backup and check the connection.', 409);
+    throw httpError('Google Drive is not connected. Set the Google credentials in the server env, then click Check connection in Settings → Storage & Backup.', 409);
   }
   if (state.needsReconnect) {
-    throw httpError('Google Drive access expired. Paste a new refresh token in Settings → Storage & Backup and check the connection.', 409);
+    throw httpError('Google Drive access expired. Put a new refresh token in GOOGLE_OAUTH_REFRESH_TOKEN on the server, restart it and check the connection.', 409);
   }
   return clientFor(state);
 }
@@ -328,7 +328,7 @@ async function getStatus() {
   const state = await getState();
   const problems = getGoogleDriveConfigProblems(config);
   if (!config.envRefreshToken && !state.encryptedRefreshToken)
-    problems.push('Refresh token is not set (Settings or GOOGLE_OAUTH_REFRESH_TOKEN)');
+    problems.push('Refresh token is not set (GOOGLE_OAUTH_REFRESH_TOKEN in the server env)');
   return {
     configured: problems.length === 0,
     problems,

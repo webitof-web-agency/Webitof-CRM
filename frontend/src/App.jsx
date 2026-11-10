@@ -434,7 +434,7 @@ function AppRoutes() {
           }
         />
         <Route
-          path="settings"
+          path="settings/:tab?"
           element={
             <PermissionRoute permission="settings.read">
               <SettingsPage />
@@ -550,28 +550,14 @@ function TitleUpdater() {
 }
 
 export default function App() {
+  // Logos (favicon included) are static files: see config/brandAssets.js and index.html.
+  // Drop the copy older versions cached from the database.
   useEffect(() => {
-    const updateFavicon = () => {
-      try {
-        const raw = window.localStorage.getItem('webitof-logos');
-        if (raw) {
-          const logos = JSON.parse(raw);
-          if (logos.favicon) {
-            let link = document.querySelector("link[rel~='icon']");
-            if (!link) {
-              link = document.createElement('link');
-              link.rel = 'icon';
-              document.head.appendChild(link);
-            }
-            link.href = logos.favicon;
-          }
-        }
-      } catch (e) {}
-    };
-
-    updateFavicon();
-    window.addEventListener('logos-updated', updateFavicon);
-    return () => window.removeEventListener('logos-updated', updateFavicon);
+    try {
+      window.localStorage.removeItem('webitof-logos');
+    } catch {
+      // Storage blocked: nothing to clean.
+    }
   }, []);
 
   return (

@@ -1,7 +1,7 @@
 const c = require("./core");
 const fileAssetModel = require("../../models/fileAsset.model");
 const { readFileBuffer, removeFile, saveUpload } = require("../file.service");
-const { employeeFolder } = require("../../utils/uploadPath");
+const { EMPLOYEE_FOLDER_ROOT, employeeFolder } = require("../../utils/uploadPath");
 const rules = require("./validators");
 const access = require("./access");
 const HRM_DOCUMENT_TYPES = {
@@ -427,12 +427,13 @@ async function uploadDocument(user, body, file, db = null) {
     const expiresOn = c.date(body.expiresOn, "Expiry date", true);
     // Stored through the active storage provider (local disk or Google Drive), all in one
     // folder per employee and named after the document and the person, e.g.
-    // hrm/employees/Mallika-Paik-EMP-12/aadhaar-card-mallika-paik.pdf. Later uploads reuse the
-    // employee's first folder, so a renamed employee's documents stay together.
+    // HRM/Employees/Mallika-Paik-EMP-12/aadhaar-card-mallika-paik.pdf. Later uploads reuse the
+    // employee's first folder, so a renamed employee's documents stay together. Folders of the
+    // older hrm/employees/... layout are not reused: new documents go to the current one.
     const existingFolder = (
       await tx.query(
-        "SELECT folder_key FROM file_assets WHERE module_name='hrm' AND entity_id=$1 AND folder_key LIKE 'hrm/employees/%' ORDER BY created_at LIMIT 1",
-        [e.id],
+        "SELECT folder_key FROM file_assets WHERE module_name='hrm' AND entity_id=$1 AND folder_key LIKE $2 ORDER BY created_at LIMIT 1",
+        [e.id, `${EMPLOYEE_FOLDER_ROOT}/%`],
       )
     ).rows[0]?.folder_key;
     const stored = await saveUpload({

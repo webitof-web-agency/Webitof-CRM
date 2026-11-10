@@ -1,4 +1,4 @@
-// Readable Drive upload folders: <year>/<mon>/<section>/<Name>-<shortId>. No database: the label lookup is stubbed.
+// Readable upload folders: <Category>/<Section>/<Name>-<shortId>. No database: the label lookup is stubbed.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -24,28 +24,28 @@ test.after(() => {
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 
-test('a record label becomes <Name>-<last 4 of id> under year/month/section', () => {
+test('a record label becomes <Name>-<last 4 of id> under category/section', () => {
   assert.equal(
     buildFolderPath({ moduleName: 'project', entityId: 'proj_x8k2', entityLabel: 'Acme Website!', date: NOV }),
-    '2026/nov/projects/Acme-Website-x8k2'
+    'CRM/Projects/Acme-Website-x8k2'
   );
 });
 
 test('a label with no usable characters falls back to the id folder', () => {
   assert.equal(
     buildFolderPath({ moduleName: 'projects', entityId: 'proj_x8k2', entityLabel: '★★★', date: NOV }),
-    '2026/nov/projects/proj_x8k2'
+    'CRM/Projects/proj_x8k2'
   );
 });
 
 test('long labels are cut to 50 characters before the short id', () => {
   const folder = buildFolderPath({ moduleName: 'clients', entityId: 'client_c91d', entityLabel: 'A'.repeat(120), date: NOV });
-  assert.equal(folder, `2026/nov/clients/${'A'.repeat(50)}-c91d`);
+  assert.equal(folder, `CRM/Clients/${'A'.repeat(50)}-c91d`);
 });
 
-test('no label keeps the id folder and site uploads still go to site/', () => {
-  assert.equal(buildFolderPath({ moduleName: 'projects', entityId: 'proj_x8k2', date: NOV }), '2026/nov/projects/proj_x8k2');
-  assert.equal(buildFolderPath({ moduleName: 'settings', entityId: 'company-profile', entityLabel: 'Webitof' }), 'site');
+test('no label keeps the id folder and site uploads go to Site/', () => {
+  assert.equal(buildFolderPath({ moduleName: 'projects', entityId: 'proj_x8k2', date: NOV }), 'CRM/Projects/proj_x8k2');
+  assert.equal(buildFolderPath({ moduleName: 'settings', entityId: 'company-profile', entityLabel: 'Webitof' }), 'Site');
 });
 
 test('labels come from fixed tables and columns per section', async () => {
@@ -82,7 +82,7 @@ test('saveUpload files the upload under the readable record folder', async () =>
   };
   try {
     await fileService.saveUpload({ buffer: Buffer.from('%PDF-1.4'), originalName: 'spec.pdf', moduleName: 'projects', entityId: 'proj_x8k2' });
-    assert.match(created[0].folderKey, /^\d{4}\/[a-z]{3}\/projects\/Acme-Website-x8k2$/);
+    assert.equal(created[0].folderKey, 'CRM/Projects/Acme-Website-x8k2');
     assert.ok(created[0].storageKey.startsWith(`${created[0].folderKey}/spec-`));
   } finally {
     fileAssetModel.create = originalCreate;
@@ -97,7 +97,7 @@ test('saveUpload still works in the id folder when the lookup fails', async () =
   fileAssetModel.create = async (data) => ({ id: 'file_t2', ...data });
   try {
     const saved = await fileService.saveUpload({ buffer: Buffer.from('%PDF-1.4'), originalName: 'a.pdf', moduleName: 'projects', entityId: 'proj_x8k2' });
-    assert.match(saved.folderKey, /\/projects\/proj_x8k2$/);
+    assert.equal(saved.folderKey, 'CRM/Projects/proj_x8k2');
   } finally {
     fileAssetModel.create = originalCreate;
   }
@@ -107,9 +107,9 @@ test('saveUpload still works in the id folder when the lookup fails', async () =
 const { employeeFolder } = require('../utils/uploadPath');
 
 test('an employee gets one folder named after them and their employee number', () => {
-  assert.equal(employeeFolder({ fullName: 'Mallika Paik', employeeNumber: 'EMP-12' }), 'hrm/employees/Mallika-Paik-EMP-12');
-  assert.equal(employeeFolder({ fullName: '  Ravi  K. Sahu ', employeeNumber: 'EMP-3' }), 'hrm/employees/Ravi-K.-Sahu-EMP-3');
-  assert.equal(employeeFolder({ fullName: '★', employeeNumber: 'EMP-4' }), 'hrm/employees/EMP-4');
+  assert.equal(employeeFolder({ fullName: 'Mallika Paik', employeeNumber: 'EMP-12' }), 'HRM/Employees/Mallika-Paik-EMP-12');
+  assert.equal(employeeFolder({ fullName: '  Ravi  K. Sahu ', employeeNumber: 'EMP-3' }), 'HRM/Employees/Ravi-K.-Sahu-EMP-3');
+  assert.equal(employeeFolder({ fullName: '★', employeeNumber: 'EMP-4' }), 'HRM/Employees/EMP-4');
 });
 
 test('document names read <document>-<employee>', () => {
@@ -119,7 +119,7 @@ test('document names read <document>-<employee>', () => {
 });
 
 test('saveUpload with a fixed folder and readable name never overwrites: -2, -3 follow', async () => {
-  const taken = new Set(['hrm/employees/Mallika-Paik-EMP-12/pan-card-mallika-paik.pdf']);
+  const taken = new Set(['HRM/Employees/Mallika-Paik-EMP-12/pan-card-mallika-paik.pdf']);
   const db = {
     query: async (sql, [folder, name]) => ({ rowCount: taken.has(`${folder}/${name}`) ? 1 : 0, rows: [] })
   };
@@ -131,12 +131,12 @@ test('saveUpload with a fixed folder and readable name never overwrites: -2, -3 
     moduleName: 'hrm',
     entityId: 'hrm_1',
     dbClient: db,
-    folderPath: 'hrm/employees/Mallika-Paik-EMP-12',
+    folderPath: 'HRM/Employees/Mallika-Paik-EMP-12',
     fileBaseName: `${title} Mallika Paik`
   });
   try {
     const first = await upload('Aadhaar Card');
-    assert.equal(first.folderKey, 'hrm/employees/Mallika-Paik-EMP-12');
+    assert.equal(first.folderKey, 'HRM/Employees/Mallika-Paik-EMP-12');
     assert.equal(first.storedName, 'aadhaar-card-mallika-paik.pdf');
     assert.equal(first.originalName, 'IMG_2031.pdf');
     // Same document again: the first file is on disk (EEXIST) though the fake DB does not know it.

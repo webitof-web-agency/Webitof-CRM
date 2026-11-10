@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { confirmAction } from '../lib/confirm';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key, PenTool, FileCheck2, ExternalLink, Eye, Download, Pencil, EyeOff, HardDrive } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../data/indiaLocations';
@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { api, API_BASE_URL, request } from '../api/client';
 import { getFileViewUrl } from '../lib/fileUpload';
 import { StorageSettingsPanel } from '../components/settings/StorageSettingsPanel';
+import { CustomFieldsPanel } from '../components/settings/CustomFieldsPanel';
+import { BRAND_LOGOS, BRAND_LOGO_SLOTS } from '../config/brandAssets';
 import { Card } from '../components/ui/Card';
 import { Input, Textarea } from '../components/ui/Input';
 import { Button } from '../components/ui/Button';
@@ -101,31 +103,48 @@ const COMPANY_CERTIFICATE_TYPES = [
   { type: 'iso', label: 'ISO / Quality Certification', defaultNumber: '', desc: 'Quality Management' }
 ];
 
+// Each tab has its own URL: /app/settings/<slug>.
+const SETTINGS_TABS = [
+  { id: 'company', slug: 'company', label: 'Company', icon: Building2 },
+  { id: 'branding', slug: 'branding', label: 'Branding', icon: Image },
+  { id: 'ui', slug: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'email', slug: 'email', label: 'SMTP & Email', icon: Mail },
+  { id: 'invoice', slug: 'invoices', label: 'Invoices', icon: FileText },
+  { id: 'taxes', slug: 'taxes', label: 'Taxes', icon: Calculator },
+  { id: 'custom_fields', slug: 'custom-fields', label: 'Custom Fields', icon: ListTodo },
+  { id: 'followups', slug: 'follow-ups', label: 'Follow-ups & SLA', icon: Clock3 },
+  { id: 'integrations', slug: 'integrations', label: 'Webhooks & API', icon: Globe },
+  { id: 'storage', slug: 'storage', label: 'Storage & Backup', icon: HardDrive }
+];
+
+// Accepts a slug or an old ?tab= id (e.g. "ui", "custom_fields").
+function findSettingsTab(value) {
+  const key = String(value || '').toLowerCase();
+  return SETTINGS_TABS.find((tab) => tab.slug === key || tab.id === key) || null;
+}
+
 export function SettingsPage() {
   const { token, hasPermission } = useAuth();
   const [searchParams] = useSearchParams();
+  const { tab: tabParam } = useParams();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'company');
-  const [uploadingLogo, setUploadingLogo] = useState(null);
-  const [pendingLogos, setPendingLogos] = useState({});
-  const [browserOpenKey, setBrowserOpenKey] = useState(null);
-  const [activeModuleTab, setActiveModuleTab] = useState('leads');
+  const currentTab = findSettingsTab(tabParam) || findSettingsTab(searchParams.get('tab')) || SETTINGS_TABS[0];
+  const activeTab = currentTab.id;
+  const setActiveTab = (id) => navigate(`/app/settings/${findSettingsTab(id)?.slug || 'company'}`);
+
+  // /app/settings, an old ?tab= link or an unknown slug → the canonical tab URL.
+  useEffect(() => {
+    if (tabParam !== currentTab.slug) navigate(`/app/settings/${currentTab.slug}`, { replace: true });
+  }, [tabParam, currentTab.slug, navigate]);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const DEFAULT_LAYOUT_ORDER = ['header', 'billTo', 'table', 'totals', 'notes', 'bank'];
-  const [templateDraft, setTemplateDraft] = useState({ name: '', primaryColor: '#3b82f6', layout: 'modern', showLogo: true, footerText: 'Thank you for your business!', isDefault: false, layoutOrder: DEFAULT_LAYOUT_ORDER });
+  const [templateDraft, setTemplateDraft] = useState({ name: '', layout: 'modern', showLogo: true, footerText: 'Thank you for your business!', isDefault: false, layoutOrder: DEFAULT_LAYOUT_ORDER });
   const [tplDragIndex, setTplDragIndex] = useState(null);
   const [tplDragOverIndex, setTplDragOverIndex] = useState(null);
-  const [fieldEditorOpen, setFieldEditorOpen] = useState(false);
-  const [fieldEditorType, setFieldEditorType] = useState('statuses');
-  const [fieldEditorData, setFieldEditorData] = useState({ index: -1, value: '' });
-  const [fieldEditorValue, setFieldEditorValue] = useState('');
-  const [fieldEditorColor, setFieldEditorColor] = useState('#3b82f6');
-  const [fieldEditorState, setFieldEditorState] = useState('open');
-  const presetColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#64748b','#06b6d4','#f97316'];
-  const invoicePresetColors = ['#4361EE', '#7C3AED', '#0D9488', '#DC2626'];
   const [pendingWatermark, setPendingWatermark] = useState(null);
   const [watermarkBrowserOpen, setWatermarkBrowserOpen] = useState(false);
   const [uploadingWatermark, setUploadingWatermark] = useState(false);
@@ -259,7 +278,6 @@ export function SettingsPage() {
       setEditingTemplate(null);
       setTemplateDraft({
         name: '',
-        primaryColor: settings.branding?.primaryColor || '#3b82f6',
         layout: 'modern',
         showLogo: true,
         footerText: 'Thank you for your business!',
@@ -283,7 +301,8 @@ export function SettingsPage() {
       ...templateDraft,
       id: templateId,
       name,
-      primaryColor: templateDraft.primaryColor || settings.branding?.primaryColor || '#3b82f6',
+      // Invoices use the system theme colour (Appearance), not a per-template one.
+      primaryColor: undefined,
       layout: templateDraft.layout || 'modern',
       showLogo: Boolean(templateDraft.showLogo),
       footerText: String(templateDraft.footerText || '').trim(),
@@ -315,30 +334,9 @@ export function SettingsPage() {
   async function handleSaveSection(sectionKeys, successMessage) {
     setSaving(true);
     try {
-      let finalLogos = { ...(settings.logos || {}) };
-      if (sectionKeys.includes('logos') && Object.keys(pendingLogos).length > 0) {
-        setUploadingLogo('all');
-        for (const [key, data] of Object.entries(pendingLogos)) {
-          if (data.driveUrl) { finalLogos[key] = data.driveUrl; continue; }
-          if (data.file) {
-            const formData = new FormData();
-            formData.append('file', data.file);
-            formData.append('moduleName', 'settings');
-            formData.append('isPublic', 'true');
-            const fileRes = await api.files.upload(token, formData);
-            const uploadedFile = fileRes.data?.[0];
-            if (uploadedFile?.id) {
-              finalLogos[key] = getFileViewUrl(uploadedFile);
-            }
-          }
-        }
-        setPendingLogos({});
-        setUploadingLogo(null);
-      }
       const payload = {};
       sectionKeys.forEach(key => {
-        if (key === 'logos') { payload.logos = finalLogos; }
-        else { payload[key] = key in settings ? settings[key] : null; }
+        payload[key] = key in settings ? settings[key] : null;
       });
       const saveRes = await api.settings.save(token, payload);
       const merged = mergeDeep(settings, saveRes.data || payload);
@@ -495,19 +493,6 @@ export function SettingsPage() {
   }
 
 
-  const tabs = [
-    { id: 'company', label: 'Company Profile', icon: Building2 },
-    { id: 'branding', label: 'Branding', icon: Image },
-    { id: 'ui', label: 'UI Settings', icon: Palette },
-    { id: 'email', label: 'SMTP & Email', icon: Mail },
-    { id: 'invoice', label: 'Invoices', icon: FileText },
-    { id: 'taxes', label: 'Taxes & Compliance', icon: Calculator },
-    { id: 'custom_fields', label: 'Custom Fields', icon: ListTodo },
-    { id: 'followups', label: 'Follow-ups & SLA', icon: Clock3 },
-    { id: 'integrations', label: 'Webhooks & API', icon: Globe },
-    { id: 'storage', label: 'Storage & Backup', icon: HardDrive },
-  ];
-
   if (loading) {
     return (
       <div className="flex h-40 items-center justify-center">
@@ -517,35 +502,48 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-[var(--text-main)]">Settings</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">Manage your system configurations.</p>
-      </div>
-      <div className="flex flex-col md:flex-row gap-8 items-start">
-        <Card className="w-full md:w-64 shrink-0 flex flex-col gap-1 p-3 sticky top-24 shadow-sm h-fit">
-          {tabs.map((tab) => {
+    <div className="w-full space-y-4 animate-in fade-in duration-300">
+      {/* Same look as the shared Tabs "pills" variant (components/ui/Tabs.jsx), so it follows the theme. */}
+      <div className="sticky top-16 z-20 py-2">
+        <nav
+          role="tablist"
+          aria-label="Settings sections"
+          className="flex w-full gap-1 overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1 shadow-xs backdrop-blur-xl hide-scrollbar"
+        >
+          {SETTINGS_TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             const Icon = tab.icon;
             return (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}
-                className={cn("flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all text-left cursor-pointer group", isActive ? "bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)]" : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--primary)_5%,transparent)] hover:text-[var(--primary)]")}>
-                <Icon size={18} strokeWidth={isActive ? 2 : 1.5} />
+              <Link
+                key={tab.id}
+                to={`/app/settings/${tab.slug}`}
+                role="tab"
+                aria-selected={isActive}
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border px-3.5 py-1.5 text-xs font-semibold transition-all duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
+                  isActive
+                    ? 'border-[var(--border-muted)] bg-[var(--surface)] text-[var(--text-main)] shadow-xs'
+                    : 'border-transparent text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)]'
+                )}
+              >
+                <Icon size={14} className={isActive ? 'text-[var(--primary)]' : ''} />
                 {tab.label}
-              </button>
+              </Link>
             );
           })}
-        </Card>
-        <div className="flex-1 min-w-0 space-y-6">
+        </nav>
+      </div>
+      <div>
+        <div className="min-w-0 space-y-4">
           {activeTab === 'company' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="grid items-start gap-4 xl:grid-cols-2 animate-in fade-in duration-200">
               {/* Card 1: Business Identity & Legal Information */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-[var(--border)] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <Card className="space-y-3 p-4 sm:p-5 xl:col-span-2">
+                <div className="mb-3 border-b border-[var(--border)] pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <div className="flex items-center gap-2">
                       <Building2 size={20} className="text-[var(--text-main)]" />
-                      <h3 className="text-lg font-semibold text-[var(--text-main)]">Business Identity & Legal Details</h3>
+                      <h3 className="text-base font-semibold text-[var(--text-main)]">Business Identity & Legal Details</h3>
                     </div>
                     <p className="text-sm text-[var(--text-muted)] mt-1">Official corporate, tax, and registration information of Webitof.</p>
                   </div>
@@ -729,11 +727,11 @@ export function SettingsPage() {
               </Card>
 
               {/* Card 2: Registered & Corporate Office Addresses */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <Building2 size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Office Addresses</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Office Addresses</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Official registered office and commercial headquarters addresses.</p>
                 </div>
@@ -830,18 +828,18 @@ export function SettingsPage() {
               </Card>
 
               {/* Card 3: Authorized Signature & Seal */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <PenTool size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Authorized Signature & Signatory</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Authorized Signature & Signatory</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                     Signature image and authorized signatory details applied to invoices, quotation PDFs, and receipts.
                   </p>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2 items-start">
+                <div className="grid gap-4 md:grid-cols-2 items-start">
                   {/* Signature Preview & Actions */}
                   <div className="flex flex-col gap-3">
                     <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">Signature Image</label>
@@ -964,12 +962,12 @@ export function SettingsPage() {
               </Card>
 
               {/* Card 4: Statutory Certificates & Corporate Documents */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <Card className="space-y-3 p-4 sm:p-5 xl:col-span-2">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <FileCheck2 size={20} className="text-slate-800 dark:text-slate-100" />
-                      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Company Certificates & Statutory Documents</h3>
+                      <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Company Certificates & Statutory Documents</h3>
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                       Upload and manage all statutory registration certificates (COI, MSME Udyam, GST, PAN, TAN, ISO).
@@ -1206,7 +1204,7 @@ export function SettingsPage() {
               </Card>
 
               {/* Save Button Bar */}
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 xl:col-span-2">
                 <Button onClick={() => handleSaveSection(['company'], 'Company details saved successfully')} disabled={saving}>
                   {saving ? (
                     <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
@@ -1219,191 +1217,61 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'branding' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="space-y-4 animate-in fade-in duration-200">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
-                    <Image size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Logos & Assets</h3>
+                    <Image size={18} className="text-slate-800 dark:text-slate-100" />
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Logos & Assets</h3>
                   </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Company branding images used across invoices, sidebar, and app headers.</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Static files shipped with the app, nothing is stored in the database. To change one, replace the file at the
+                    path shown (same name) in <code>frontend/public</code>, or edit <code>src/config/brandAssets.js</code>, then deploy.
+                  </p>
                 </div>
-                <div className="grid gap-6 md:grid-cols-2">
-                  {[
-                    ['primary', 'Primary Logo (Light Mode)', '1000×250px (Default: horizontal-logo.png)'],
-                    ['primaryDark', 'Primary Logo (Dark Mode)', '1000×250px (Default: horizontal-white-logo.png)'],
-                    ['sidebar', 'Sidebar Expanded (Light Mode)', '1000×250px (Default: horizontal-logo.png)'],
-                    ['sidebarDark', 'Sidebar Expanded (Dark Mode)', '1000×250px (Default: horizontal-white-logo.png)'],
-                    ['sidebarCollapsed', 'Sidebar Collapsed (Light Mode)', '250×250px (Default: round-logo.png)'],
-                    ['sidebarCollapsedDark', 'Sidebar Collapsed (Dark Mode)', '250×250px (Default: webitof-icon-white.png)'],
-                    ['quotation', 'Quotation / Proposal Logo', 'Commercial Proposals & SOW (Default: main-logo.png)'],
-                    ['favicon', 'Favicon', '64×64px (Default: round-logo.png)'],
-                    ['loginLight', 'Login Screen Logo (Light Mode)', 'Icon / Logo (Default: webitof-icon.png)'],
-                    ['loginDark', 'Login Screen Logo (Dark Mode)', 'Icon / Logo (Default: webitof-icon-white.png)']
-                  ].map(([key, label, desc]) => (
-                    <div 
-                      key={key} 
-                      className="flex flex-col p-4 border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-50 dark:hover:bg-slate-900/60 transition-colors"
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                  {BRAND_LOGO_SLOTS.map((slot) => (
+                    <div
+                      key={slot.key}
+                      className="flex flex-col gap-2 border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 p-3"
                       style={{ borderRadius: 'var(--radius-card, 0.75rem)' }}
                     >
-                      <div className="mb-3 flex items-center justify-between">
-                        <label className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</label>
-                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{desc}</span>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">{slot.label}</span>
+                        <span className="shrink-0 text-[10px] text-slate-400 dark:text-slate-500">{slot.size}</span>
                       </div>
-
-                      <div className="flex flex-col gap-3 mt-auto">
-                        {/* Preview Box */}
-                        <div 
-                          className={cn(
-                            "flex h-32 items-center justify-center border border-slate-200 dark:border-slate-800 p-4 shadow-sm overflow-hidden",
-                            ['primaryDark', 'sidebarDark', 'sidebarCollapsedDark', 'loginDark'].includes(key)
-                              ? "bg-slate-950 border-slate-800"
-                              : "bg-white dark:bg-slate-900/80"
-                          )}
-                          style={{ borderRadius: 'calc(var(--radius-card, 0.75rem) - 4px)' }}
-                        >
-                          {(pendingLogos[key] || settings.logos?.[key]) ? (
-                            <img
-                              src={pendingLogos[key]?.previewUrl || (() => {
-                                let url = settings.logos[key];
-                                if (url && url.includes('drive.google.com')) {
-                                  const match = url.match(/[?&]id=([^&]+)/);
-                                  if (match) return `${API_BASE_URL}/files/drive/${match[1]}/view`;
-                                }
-                                return url;
-                              })()}
-                              alt="preview"
-                              className="max-h-full max-w-full object-contain"
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center text-slate-400 dark:text-slate-500">
-                              <Image size={32} className="mb-2 opacity-50" />
-                              <span className="text-xs font-medium">No image uploaded</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Input Row */}
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="flex-1 flex items-center h-9 px-3 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-600 dark:text-slate-300 overflow-hidden shadow-sm"
-                            style={{ borderRadius: 'var(--radius-input, 0.5rem)' }}
-                          >
-                            <span className="truncate">
-                              {pendingLogos[key] ? (pendingLogos[key].name || 'logo.png') : (settings.logos?.[key] ? 'uploaded_logo.png' : 'Choose file...')}
-                            </span>
-                          </div>
-
-                          <input
-                            type="file"
-                            id={`logo-upload-${key}`}
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setPendingLogos((prev) => ({
-                                  ...prev,
-                                  [key]: {
-                                    file,
-                                    previewUrl: URL.createObjectURL(file),
-                                    name: file.name
-                                  }
-                                }));
-                              }
-                              e.target.value = '';
-                            }}
-                          />
-                          <label
-                            htmlFor={`logo-upload-${key}`}
-                            className="inline-flex items-center justify-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 h-9 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm cursor-pointer shrink-0"
-                            style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}
-                            title="Upload from computer"
-                          >
-                            <Upload size={13} className="mr-1" />
-                            Upload
-                          </label>
-
-                          <button
-                            type="button"
-                            disabled={uploadingLogo !== null}
-                            onClick={() => setBrowserOpenKey(key)}
-                            className="inline-flex items-center justify-center border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 h-9 px-2.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm disabled:opacity-50 shrink-0 cursor-pointer"
-                            style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}
-                            title="Browse from CRM Drive"
-                          >
-                            <Image size={13} className="mr-1" />
-                            Drive
-                          </button>
-
-                          {(pendingLogos[key] || settings.logos?.[key]) && (
-                            <IconButton box="9" tone="danger" variant="outline"
-                              type="button"
-                              onClick={() => {
-                                if (pendingLogos[key]) {
-                                  setPendingLogos((prev) => {
-                                    const next = { ...prev };
-                                    delete next[key];
-                                    return next;
-                                  });
-                                } else {
-                                  updateSection(setSettings, 'logos', key, '');
-                                }
-                              }}
-                              style={{ borderRadius: 'var(--radius-button, 0.5rem)' }}
-                              title="Remove logo"
-                            >
-                              <X size={15} />
-                            </IconButton>
-                          )}
-                        </div>
+                      <div
+                        className={cn(
+                          'flex h-20 items-center justify-center border p-3 overflow-hidden',
+                          slot.dark ? 'bg-slate-950 border-slate-800' : 'bg-white border-slate-200 dark:bg-slate-900/80 dark:border-slate-800'
+                        )}
+                        style={{ borderRadius: 'calc(var(--radius-card, 0.75rem) - 4px)' }}
+                      >
+                        <img src={BRAND_LOGOS[slot.key]} alt={slot.label} className="max-h-full max-w-full object-contain" />
                       </div>
+                      <a
+                        href={BRAND_LOGOS[slot.key]}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate font-mono text-[11px] text-[var(--primary)] hover:underline"
+                        title={BRAND_LOGOS[slot.key]}
+                      >
+                        {BRAND_LOGOS[slot.key]}
+                      </a>
                     </div>
                   ))}
                 </div>
               </Card>
-
-              <div className="flex justify-end pt-2">
-                <Button onClick={() => handleSaveSection(['logos', 'branding'], 'Branding settings saved')} disabled={saving || uploadingLogo !== null}>
-                  {saving || uploadingLogo !== null ? (
-                    <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
-                  ) : (
-                    <><Save size={16} className="mr-2" /> Save Branding</>
-                  )}
-                </Button>
-              </div>
-
-              <FileBrowserModal
-                open={browserOpenKey !== null}
-                onClose={() => setBrowserOpenKey(null)}
-                uploadModule="settings"
-                uploadEntityId="logos"
-                onSelect={(file) => {
-                  if (browserOpenKey && getFileViewUrl(file)) {
-                    const url = getFileViewUrl(file);
-                    setPendingLogos(prev => ({
-                      ...prev,
-                      [browserOpenKey]: {
-                        file: null,
-                        previewUrl: url,
-                        driveUrl: url,
-                        name: file.originalName || file.name
-                      }
-                    }));
-                  }
-                  setBrowserOpenKey(null);
-                }}
-              />
             </div>
           )}
 
           {activeTab === 'ui' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="grid items-start gap-4 xl:grid-cols-2 animate-in fade-in duration-200">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <AppWindow size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Browser & Document Title</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Browser & Document Title</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Customize the application title displayed in the browser tab.</p>
                 </div>
@@ -1420,12 +1288,12 @@ export function SettingsPage() {
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">This changes the text in the top browser tab (e.g., Settings - Your Title).</p>
                 </div>
               </Card>
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="space-y-4 p-6 lg:col-span-2">
-                  <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 xl:col-span-2 xl:order-last">
+                <Card className="space-y-3 p-4 sm:p-5 lg:col-span-2">
+                  <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                     <div className="flex items-center gap-2">
                       <Palette size={20} className="text-[var(--text-main)]" />
-                      <h3 className="text-lg font-semibold text-[var(--text-main)]">Theme & Appearance</h3>
+                      <h3 className="text-base font-semibold text-[var(--text-main)]">Theme & Appearance</h3>
                     </div>
                     <p className="text-sm text-[var(--text-muted)] mt-1">Interface mode and primary brand colors.</p>
                   </div>
@@ -1487,10 +1355,10 @@ export function SettingsPage() {
                   </div>
                 </Card>
 
-                <Card className="space-y-4 p-6 lg:col-span-1">
-                  <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center gap-2">
+                <Card className="space-y-3 p-4 sm:p-5 lg:col-span-1">
+                  <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
                     <Palette size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Live Preview</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Live Preview</h3>
                   </div>
 
                   <div
@@ -1546,15 +1414,15 @@ export function SettingsPage() {
                 </Card>
               </div>
 
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <Box size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">UI Elements</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">UI Elements</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Adjust the border radius of components.</p>
                 </div>
-                <div className="grid gap-8 md:grid-cols-3">
+                <div className="grid gap-5 md:grid-cols-3">
                   {[
                     ['inputRadius', 'Input Radius', '0.75rem'],
                     ['buttonRadius', 'Button Radius', '0.5rem'],
@@ -1581,7 +1449,7 @@ export function SettingsPage() {
                 </div>
               </Card>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 xl:col-span-2 xl:order-last">
                 <Button onClick={() => handleSaveSection(['branding', 'ui'], 'UI settings saved')} disabled={saving}>
                   {saving ? (
                     <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
@@ -1594,12 +1462,12 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'email' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="grid items-start gap-4 xl:grid-cols-2 animate-in fade-in duration-200">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <Mail size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">SMTP Server</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">SMTP Server</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configuration for sending emails.</p>
                 </div>
@@ -1656,11 +1524,11 @@ export function SettingsPage() {
                 </div>
               </Card>
 
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <FileText size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Automated messages</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Automated messages</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Default templates for outgoing emails.</p>
                 </div>
@@ -1678,7 +1546,7 @@ export function SettingsPage() {
                 </div>
               </Card>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 xl:col-span-2">
                 <Button onClick={() => handleSaveSection(['smtp', 'emailTemplates'], 'SMTP & Email settings saved')} disabled={saving}>
                   {saving ? (
                     <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
@@ -1691,12 +1559,12 @@ export function SettingsPage() {
           )}
 
                     {activeTab === 'invoice' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+            <div className="grid items-start gap-4 xl:grid-cols-2 animate-in fade-in duration-200">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <FileText size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Invoice defaults</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Invoice defaults</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configure formatting and default terms for invoices.</p>
                 </div>
@@ -1735,58 +1603,12 @@ export function SettingsPage() {
                 </div>
               </Card>
 
-              {/* Invoice Theme Color */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-                  <div className="flex items-center gap-2">
-                    <Palette size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Invoice Theme Color</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">This color controls the header, table header, and accents of your invoices.</p>
-                </div>
-                <div className="flex items-center gap-4 flex-wrap">
-                  {invoicePresetColors.map(color => {
-                    const isActive = (settings.invoiceTheme?.primaryColor || '#4361EE').toLowerCase() === color.toLowerCase();
-                    return (
-                      <button
-                        key={color}
-                        type="button"
-                        className={cn(
-                          "relative flex items-center justify-center h-10 w-10 rounded-full shadow-sm border border-black/10 transition-all hover:scale-110",
-                          isActive ? "scale-110 ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-500" : "hover:ring-2 hover:ring-offset-2 hover:ring-[var(--border)] dark:hover:ring-slate-600"
-                        )}
-                        style={{ backgroundColor: color, '--tw-ring-color': color }}
-                        onClick={() => updateSection(setSettings, 'invoiceTheme', 'primaryColor', color)}
-                      >
-                        {isActive && <Check size={18} className="text-white drop-shadow-md" />}
-                      </button>
-                    );
-                  })}
-                  <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1" />
-                  <div className="relative h-10 w-10 rounded-full shadow-sm border border-black/10 overflow-hidden hover:scale-110 transition-all hover:ring-2 hover:ring-offset-2 hover:ring-[var(--border)] dark:hover:ring-slate-600 group" title="Custom Color">
-                    <input
-                      type="color"
-                      className="absolute inset-[-50%] w-[200%] h-[200%] cursor-pointer p-0 m-0 border-0"
-                      value={settings.invoiceTheme?.primaryColor || '#4361EE'}
-                      onChange={(e) => updateSection(setSettings, 'invoiceTheme', 'primaryColor', e.target.value)}
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-full">
-                      <Palette size={15} className="text-white" />
-                    </div>
-                  </div>
-                  <div className="ml-4 flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg border border-black/10 shadow-sm" style={{ backgroundColor: settings.invoiceTheme?.primaryColor || '#4361EE' }} />
-                    <span className="text-xs font-mono text-slate-500 dark:text-slate-400">{settings.invoiceTheme?.primaryColor || '#4361EE'}</span>
-                  </div>
-                </div>
-              </Card>
-
               {/* Watermark Image */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <Image size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Invoice Watermark</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Invoice Watermark</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">This watermark will appear behind the content of every invoice (preview, print, public page).</p>
                 </div>
@@ -1841,7 +1663,7 @@ export function SettingsPage() {
                 </div>
               </Card>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 xl:col-span-2 xl:order-last">
                 <Button onClick={async () => {
                   if (pendingWatermark?.file) {
                     setUploadingWatermark(true);
@@ -1877,12 +1699,12 @@ export function SettingsPage() {
               </div>
 
               {/* Invoice Templates */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-4 border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center justify-between">
+              <Card className="space-y-3 p-4 sm:p-5 xl:col-span-2">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
                       <Receipt size={20} className="text-slate-800 dark:text-slate-100" />
-                      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Invoice Templates</h3>
+                      <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Invoice Templates</h3>
                     </div>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Create and manage reusable invoice templates with branding.</p>
                   </div>
@@ -1899,7 +1721,7 @@ export function SettingsPage() {
                     {(settings.invoiceTemplates || []).map((tpl) => (
                       <div key={tpl.id} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 p-4 flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="h-10 w-10 rounded-lg shrink-0 flex items-center justify-center text-white font-bold text-base shadow-xs" style={{ backgroundColor: tpl.primaryColor || '#3b82f6' }}>
+                          <div className="h-10 w-10 rounded-lg shrink-0 flex items-center justify-center text-white font-bold text-base shadow-xs" style={{ backgroundColor: settings.branding?.primaryColor || '#4361ee' }}>
                             {(tpl.name || 'T').charAt(0).toUpperCase()}
                           </div>
                           <div className="min-w-0">
@@ -1967,227 +1789,25 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'custom_fields' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
-              <Card className="space-y-4 p-6">
-                <div className="mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-                  <div className="flex items-center gap-2">
-                    <ListTodo size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Custom Fields Builder</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage pipeline statuses, acquisition sources, and custom lifecycle fields.</p>
-                </div>
-                
-                <div className="flex gap-4 border-b border-slate-200 dark:border-slate-800 mb-6">
-                  {[
-                    { id: 'leads', label: 'Lead Fields' },
-                    { id: 'clients', label: 'Client Fields' },
-                    { id: 'projects', label: 'Project Fields' }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveModuleTab(tab.id)}
-                      className={cn(
-                        "pb-3 text-sm font-medium transition-colors relative cursor-pointer",
-                        activeModuleTab === tab.id 
-                          ? "text-[var(--primary)]" 
-                          : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                      )}
-                    >
-                      {tab.label}
-                      {activeModuleTab === tab.id && (
-                        <span className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--primary)] rounded-t-full" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Statuses Section */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Statuses</h4>
-                      <Button 
-                        size="sm" 
-                        variant="secondary"
-                        onClick={() => {
-                          setFieldEditorType('statuses');
-                          setFieldEditorData({ index: -1, value: '' });
-                          setFieldEditorValue('');
-                          setFieldEditorColor(presetColors[0]);
-                          setFieldEditorState('open');
-                          setFieldEditorOpen(true);
-                        }}
-                      >
-                        <Plus size={14} className="mr-1.5" /> Add Status
-                      </Button>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      {(settings.statuses?.[activeModuleTab] || []).map((statusItem, index) => {
-                        const statusObj = typeof statusItem === 'string' ? { label: statusItem, color: '#64748b' } : statusItem;
-                        return (
-                          <div key={index} className="flex items-center justify-between px-3 py-2.5 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors group" style={{ borderRadius: 'var(--radius-input, 0.75rem)' }}>
-                            <div className="flex items-center gap-2.5">
-                              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: statusObj.color }} />
-                              <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{statusObj.label}</span>
-                            </div>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <IconButton tone="primary" size="sm"
-                                type="button"
-                                onClick={() => {
-                                  setFieldEditorType('statuses');
-                                  setFieldEditorData({ index, value: statusObj.label });
-                                  setFieldEditorValue(statusObj.label);
-                                  setFieldEditorColor(statusObj.color);
-                                  setFieldEditorState(statusObj.state || 'open');
-                                  setFieldEditorOpen(true);
-                                }}
-                                title="Edit Status"
-                              >
-                                <Pencil size={14} />
-                              </IconButton>
-                              <IconButton tone="danger" size="sm"
-                                type="button"
-                                onClick={async () => {
-                                  const newArr = (settings.statuses?.[activeModuleTab] || []).filter((_, i) => i !== index);
-                                  updateSection(setSettings, 'statuses', activeModuleTab, newArr);
-                                  try {
-                                    await api.settings.save(token, { statuses: { ...settings.statuses, [activeModuleTab]: newArr } });
-                                    toast.success('Status deleted');
-                                  } catch (e) {
-                                    toast.error('Failed to delete status');
-                                  }
-                                }}
-                                title="Delete Status"
-                              >
-                                <Trash2 size={14} />
-                              </IconButton>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {!(settings.statuses?.[activeModuleTab] || []).length && (
-                        <div className="px-4 py-8 text-center border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20" style={{ borderRadius: 'var(--radius-input, 0.75rem)' }}>
-                          <p className="text-sm text-slate-500 dark:text-slate-400">No custom statuses added yet.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Sources Section for Leads OR Guidance Card for Clients/Projects */}
-                  {activeModuleTab === 'leads' ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Sources</h4>
-                        <Button 
-                          size="sm" 
-                          variant="secondary"
-                          onClick={() => {
-                            setFieldEditorType('sources');
-                            setFieldEditorData({ index: -1, value: '' });
-                            setFieldEditorValue('');
-                            setFieldEditorOpen(true);
-                          }}
-                        >
-                          <Plus size={14} className="mr-1.5" /> Add Source
-                        </Button>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        {(settings.sources?.[activeModuleTab] || []).map((source, index) => (
-                          <div key={index} className="flex items-center justify-between px-3 py-2.5 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors group" style={{ borderRadius: 'var(--radius-input, 0.75rem)' }}>
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{source}</span>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <IconButton tone="primary" size="sm"
-                                type="button"
-                                onClick={() => {
-                                  setFieldEditorType('sources');
-                                  setFieldEditorData({ index, value: source });
-                                  setFieldEditorValue(source);
-                                  setFieldEditorOpen(true);
-                                }}
-                                title="Edit Source"
-                              >
-                                <Pencil size={14} />
-                              </IconButton>
-                              <IconButton tone="danger" size="sm"
-                                type="button"
-                                onClick={async () => {
-                                  const newArr = (settings.sources?.[activeModuleTab] || []).filter((_, i) => i !== index);
-                                  updateSection(setSettings, 'sources', activeModuleTab, newArr);
-                                  try {
-                                    await api.settings.save(token, { sources: { ...settings.sources, [activeModuleTab]: newArr } });
-                                    toast.success('Source deleted');
-                                  } catch (e) {
-                                    toast.error('Failed to delete source');
-                                  }
-                                }}
-                                title="Delete Source"
-                              >
-                                <Trash2 size={14} />
-                              </IconButton>
-                            </div>
-                          </div>
-                        ))}
-                        {!(settings.sources?.[activeModuleTab] || []).length && (
-                          <div className="px-4 py-8 text-center border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20" style={{ borderRadius: 'var(--radius-input, 0.75rem)' }}>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">No custom sources added yet.</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                          {activeModuleTab === 'clients' ? 'Client Pipeline Guide' : 'Project Workflow Guide'}
-                        </h4>
-                      </div>
-                      <div className="p-4 rounded-xl border border-blue-100 dark:border-blue-900/40 bg-blue-50/60 dark:bg-blue-950/20 text-xs text-blue-900 dark:text-blue-300 space-y-2">
-                        <p className="font-semibold text-blue-950 dark:text-blue-200">
-                          {activeModuleTab === 'clients' ? 'Client Account Lifecycle' : 'Project Stage Pipeline'}
-                        </p>
-                        <p className="leading-relaxed">
-                          {activeModuleTab === 'clients' 
-                            ? 'Statuses categorize clients through onboarding, active servicing, retention, or churn. You can define custom statuses on the left to match your company account management process.'
-                            : 'Project stages track deliverables from requirements and development through QA and launch. Reorder or add milestones to align with your project delivery cycle.'}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="md:col-span-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100 uppercase tracking-wider">Shared labels</h4>
-                        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                          Labels are managed from the table headers and shared across leads, clients, tasks, notes, and reminders.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
-              <div className="flex justify-end pt-2">
-                <Button onClick={() => handleSaveSection(['statuses', 'sources'], 'Custom fields saved')} disabled={saving}>
-                  {saving ? (
-                    <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
-                  ) : (
-                    <><Save size={16} className="mr-2" /> Save Custom Fields</>
-                  )}
-                </Button>
-              </div>
+            <div className="animate-in fade-in duration-200">
+              <CustomFieldsPanel
+                token={token}
+                canWrite={hasPermission('settings.write')}
+                settings={settings}
+                onSaved={(lists) => setSettings((current) => ({ ...current, ...lists }))}
+              />
             </div>
           )}
 
           {activeTab === 'taxes' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="grid items-start gap-4 xl:grid-cols-2 animate-in fade-in duration-200">
 
               {/* Master GST Switches */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-4 border-b border-slate-100 dark:border-slate-800 pb-4 flex items-center gap-2">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center gap-2">
                   <Receipt size={20} className="text-slate-800 dark:text-slate-100" />
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">GST Configuration</h3>
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">GST Configuration</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Control how GST is applied across invoices.</p>
                   </div>
                 </div>
@@ -2215,8 +1835,8 @@ export function SettingsPage() {
               </Card>
 
               {/* Tax Rate Defaults */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="space-y-3 p-4 sm:p-5">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Default Tax Rates</h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">These are used when no rate is specified on a line item.</p>
                 </div>
@@ -2260,8 +1880,8 @@ export function SettingsPage() {
               </Card>
 
               {/* TDS Settings */}
-              <Card className="space-y-4 p-6">
-                <div className="mb-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="space-y-3 p-4 sm:p-5 xl:col-span-2">
+                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">TDS Configuration</h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Tax Deducted at Source settings for payments received from clients.</p>
                 </div>
@@ -2292,7 +1912,7 @@ export function SettingsPage() {
                 </div>
               </Card>
 
-              <div className="flex justify-end pt-2">
+              <div className="flex justify-end pt-2 xl:col-span-2">
                 <Button onClick={() => handleSaveSection(['gst', 'tds'], 'Tax settings saved')} disabled={saving}>
                   {saving ? (
                     <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
@@ -2305,9 +1925,9 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'followups' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="space-y-4 animate-in fade-in duration-200">
               {/* Top Action Card */}
-              <Card className="p-6">
+              <Card className="p-4 sm:p-5">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] text-[var(--primary)] shrink-0">
@@ -2333,9 +1953,9 @@ export function SettingsPage() {
                 </div>
               </Card>
 
-              <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+              <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
                 {/* Left Column: Protection Thresholds */}
-                <Card className="p-6 space-y-5">
+                <Card className="p-4 sm:p-5 space-y-4">
                   <div className="border-b border-[var(--border)] pb-3">
                     <div className="flex items-center gap-2">
                       <ShieldAlert size={18} className="text-rose-500" />
@@ -2423,7 +2043,7 @@ export function SettingsPage() {
 
                 {/* Right Column: Operating Hours & Customer Safety */}
                 <div className="space-y-6">
-                  <Card className="p-6 space-y-4">
+                  <Card className="p-4 sm:p-5 space-y-3">
                     <div className="border-b border-[var(--border)] pb-3">
                       <div className="flex items-center gap-2">
                         <Clock3 size={18} className="text-blue-500" />
@@ -2493,16 +2113,16 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'integrations' && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="grid items-start gap-4 xl:grid-cols-2 animate-in fade-in duration-200">
               {/* Endpoint Card */}
-              <Card className="p-6 space-y-5">
-                <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
+              <Card className="p-4 sm:p-5 space-y-4 xl:col-span-2">
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
                     <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
                       <Globe size={20} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Public Lead Capture Webhook</h3>
+                      <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Public Lead Capture Webhook</h3>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         Accept inbound leads directly from your WordPress site, Elementor forms, Webflow, or custom landing pages.
                       </p>
@@ -2574,7 +2194,7 @@ export function SettingsPage() {
               </Card>
 
               {/* Live Test Sandbox */}
-              <Card className="p-6 space-y-5">
+              <Card className="p-4 sm:p-5 space-y-4">
                 <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
                   <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                     <Send size={16} className="text-emerald-600 dark:text-emerald-400" />
@@ -2697,7 +2317,7 @@ export function SettingsPage() {
               </Card>
 
               {/* Code Snippets Card */}
-              <Card className="p-6 space-y-4">
+              <Card className="p-4 sm:p-5 space-y-3">
                 <div className="border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center justify-between">
                   <div>
                     <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -2832,14 +2452,6 @@ curl_close($ch);
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Primary Color</label>
-            <Input
-              type="color"
-              value={templateDraft.primaryColor || '#3b82f6'}
-              onChange={(event) => setTemplateDraft((current) => ({ ...current, primaryColor: event.target.value }))}
-            />
-          </div>
-          <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Layout</label>
             <ThemedSelect
               className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 focus:border-[var(--primary)] focus:outline-none"
@@ -2878,119 +2490,6 @@ curl_close($ch);
             />
             Set as default template
           </label>
-        </div>
-      </Modal>
-
-      <Modal
-        open={fieldEditorOpen}
-        onClose={() => setFieldEditorOpen(false)}
-        title={fieldEditorData.index >= 0 ? `Edit ${fieldEditorType === 'statuses' ? 'Status' : fieldEditorType === 'labels' ? 'Label' : 'Source'}` : `Add New ${fieldEditorType === 'statuses' ? 'Status' : fieldEditorType === 'labels' ? 'Label' : 'Source'}`}
-        subtitle={`Enter the value for this ${fieldEditorType === 'statuses' ? 'status' : fieldEditorType === 'labels' ? 'label' : 'source'} option.`}
-        width="400px"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="ghost" onClick={() => setFieldEditorOpen(false)}>Cancel</Button>
-            <Button onClick={async () => {
-              if (!fieldEditorValue.trim()) {
-                toast.error('Value cannot be empty');
-                return;
-              }
-              const val = fieldEditorValue.trim();
-              const section = fieldEditorType;
-              const currentArr = [...(settings[section]?.[activeModuleTab] || [])];
-              const isColoredField = section === 'statuses' || section === 'labels';
-              const getItemLabel = (item) => {
-                if (isColoredField) return normalizeBadgeItem(item).label;
-                return typeof item === 'string' ? item : String(item ?? '');
-              };
-              
-              if (fieldEditorData.index >= 0) {
-                if (currentArr.some((item, idx) => getItemLabel(item).toLowerCase() === val.toLowerCase() && idx !== fieldEditorData.index)) {
-                  toast.error('This value already exists');
-                  return;
-                }
-                currentArr[fieldEditorData.index] = isColoredField ? { label: val, color: fieldEditorColor, ...(section === 'statuses' ? { state: fieldEditorState } : {}) } : val;
-              } else {
-                if (currentArr.some(item => getItemLabel(item).toLowerCase() === val.toLowerCase())) {
-                  toast.error('This value already exists');
-                  return;
-                }
-                currentArr.push(isColoredField ? { label: val, color: fieldEditorColor, ...(section === 'statuses' ? { state: fieldEditorState } : {}) } : val);
-              }
-              
-              updateSection(setSettings, section, activeModuleTab, currentArr);
-              setFieldEditorOpen(false);
-              
-              const typeName = section === 'statuses' ? 'Status' : section === 'labels' ? 'Label' : 'Source';
-              try {
-                await api.settings.save(token, { [section]: { ...settings[section], [activeModuleTab]: currentArr } });
-                toast.success(`${typeName} saved successfully`);
-              } catch (e) {
-                toast.error(`Failed to save ${typeName}`);
-              }
-            }}>
-              Save Option
-            </Button>
-          </div>
-        }
-      >
-        <div className="py-2 space-y-5">
-          <div>
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">Value *</label>
-            <Input 
-              value={fieldEditorValue} 
-              onChange={e => setFieldEditorValue(e.target.value)} 
-              placeholder={`e.g. ${fieldEditorType === 'statuses' ? 'In Progress' : fieldEditorType === 'labels' ? 'Enterprise' : 'Website'}`}
-              autoFocus
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                }
-              }}
-            />
-          </div>
-
-          {fieldEditorType === 'statuses' && (
-            <div>
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">Pipeline State</label>
-              <ThemedSelect
-                className="w-full h-10 px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] transition-all"
-                style={{ borderRadius: 'var(--radius-input, 0.5rem)' }}
-                value={fieldEditorState}
-                onChange={e => setFieldEditorState(e.target.value)}
-              >
-                <option value="open">Open (Active Lead)</option>
-                <option value="won">Won (Convert to Client)</option>
-                <option value="lost">Lost (Failed Lead)</option>
-              </ThemedSelect>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Leads dragged to a "Won" status will prompt for Client conversion.
-              </p>
-            </div>
-          )}
-
-          {fieldEditorType !== 'sources' && (
-            <div>
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 block">Badge Color</label>
-              <div className="flex flex-wrap gap-2">
-                {presetColors.map(color => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => setFieldEditorColor(color)}
-                    className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center transition-all text-white",
-                      fieldEditorColor === color ? "scale-110 shadow-md ring-2 ring-offset-2 ring-slate-400 dark:ring-slate-500" : "hover:scale-105 opacity-90 hover:opacity-100"
-                    )}
-                    style={{ backgroundColor: color }}
-                    aria-label={`Select color ${color}`}
-                  >
-                    {fieldEditorColor === color && <Check size={16} strokeWidth={3} />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </Modal>
 
@@ -3183,18 +2682,6 @@ curl_close($ch);
         uploadEntityId="company-profile"
       />
 
-      <FileBrowserModal
-        open={browserOpenKey !== null}
-        onClose={() => setBrowserOpenKey(null)}
-        onSelect={(file) => {
-          if (browserOpenKey) {
-            updateSection(setSettings, 'logos', browserOpenKey, getFileViewUrl(file));
-            setBrowserOpenKey(null);
-          }
-        }}
-        uploadModule="settings"
-        uploadEntityId="logos"
-      />
     </div>
   );
 }

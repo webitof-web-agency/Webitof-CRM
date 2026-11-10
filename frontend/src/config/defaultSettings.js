@@ -148,20 +148,8 @@ export const DEFAULT_SETTINGS = {
     buttonRadius: '0.5rem',
     cardRadius: '1.5rem'
   },
-  logos: {
-    primary: '/assets/images/horizontal-logo.png',
-    primaryDark: '/assets/images/horizontal-white-logo.png',
-    sidebar: '/assets/images/horizontal-logo.png',
-    sidebarDark: '/assets/images/horizontal-white-logo.png',
-    sidebarCollapsed: '/assets/images/round-logo.png',
-    sidebarCollapsedDark: '/assets/images/webitof-icon-white.png',
-    quotation: '/assets/images/main-logo.png',
-    favicon: '/assets/images/round-logo.png',
-    loginLight: '/assets/images/webitof-icon.png',
-    loginDark: '/assets/images/webitof-icon-white.png'
-  },
+  // Logos are static files, not settings: see config/brandAssets.js.
   invoiceTheme: {
-    primaryColor: '#4361EE',
     watermarkUrl: '/assets/images/invoice_watermark.png'
   },
   statuses: {
@@ -188,15 +176,34 @@ export const DEFAULT_SETTINGS = {
       { label: 'Active', color: '#10b981' },
       { label: 'Inactive', color: '#64748b' }
     ],
+    // Same as backend/config/pipelineFields.js (fallback until the settings API answers).
     projects: [
       { label: 'Not Started', color: '#64748b' },
+      { label: 'Requirement Gathering', color: '#0ea5e9' },
+      { label: 'Awaiting Advance', color: '#f97316' },
+      { label: 'Planning', color: '#6366f1' },
+      { label: 'Design', color: '#d946ef' },
       { label: 'In Progress', color: '#3b82f6' },
+      { label: 'Content Pending', color: '#eab308' },
+      { label: 'Testing / QA', color: '#8b5cf6' },
+      { label: 'Client Review', color: '#06b6d4' },
+      { label: 'Revisions', color: '#ec4899' },
+      { label: 'On Hold', color: '#f59e0b' },
+      { label: 'Waiting on Client', color: '#fb923c' },
+      { label: 'Payment Pending', color: '#ef4444' },
+      { label: 'Ready for Launch', color: '#14b8a6' },
+      { label: 'Live', color: '#22c55e' },
       { label: 'Completed', color: '#10b981' },
-      { label: 'On Hold', color: '#f59e0b' }
+      { label: 'Support / Warranty', color: '#0891b2' },
+      { label: 'Handed Over', color: '#475569' },
+      { label: 'AMC', color: '#7c3aed' },
+      { label: 'Cancelled', color: '#dc2626' },
+      { label: 'Closed', color: '#334155' }
     ]
   },
+  // Same as backend/config/pipelineFields.js (fallback until the settings API answers).
   sources: {
-    leads: ['Website', 'Referral', 'Cold Call', 'Other']
+    leads: ['Website', 'Website Contact Form', 'Landing Page', 'Live Chat', 'Chatbot', 'Google Search (SEO)', 'Google Ads', 'Google Business Profile', 'Bing Ads', 'Facebook', 'Facebook Ads', 'Instagram', 'Instagram Ads', 'LinkedIn', 'LinkedIn Ads', 'YouTube', 'X (Twitter)', 'Quora', 'Pinterest', 'WhatsApp', 'WhatsApp Business', 'Telegram', 'SMS', 'Phone Call', 'Inbound Call', 'Missed Call', 'Cold Call', 'Email', 'Email Campaign', 'Newsletter', 'IndiaMART', 'Justdial', 'TradeIndia', 'Sulekha', 'ExportersIndia', 'Clutch', 'GoodFirms', 'Directory Listing', 'Upwork', 'Freelancer', 'Fiverr', 'Guru', 'PeoplePerHour', 'Toptal', 'Referral', 'Existing Client', 'Repeat Client', 'Employee Reference', 'Partner', 'Channel Partner', 'Reseller', 'Affiliate', 'Walk-in', 'Event / Exhibition', 'Trade Show', 'Seminar / Webinar', 'Workshop', 'Networking Event', 'Business Card', 'Newspaper / Print Ad', 'Radio / TV', 'Hoarding / Outdoor', 'Pamphlet / Flyer', 'Government Tender', 'GeM Portal', 'Other']
   },
   labels: []
 };

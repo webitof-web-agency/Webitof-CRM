@@ -346,7 +346,6 @@ export function InvoiceBuilderPage() {
   const [bankAccounts, setBankAccounts] = useState([]);
   const [serviceCatalog, setServiceCatalog] = useState([]);
   const [settings, setSettings] = useState({});
-  const [logos, setLogos] = useState({});
   const [templates, setTemplates] = useState([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [showGST, setShowGST] = useState(true);
@@ -409,7 +408,6 @@ export function InvoiceBuilderPage() {
         setServiceCatalog(serviceCatalogRes.data || []);
         const s = settingsRes.data || {};
         setSettings(s);
-        setLogos(s.logos || {});
         const tmps = Array.isArray(s.invoiceTemplates) ? s.invoiceTemplates : [];
         setTemplates(tmps);
         const def = tmps.find(t => t.isDefault) || tmps[0] || null;
@@ -883,7 +881,6 @@ export function InvoiceBuilderPage() {
   if (loading) return <PageLoader />;
 
   const clientOptions = clients.map(c => ({ value: String(c.id), label: c.companyName || c.name || 'Unknown' }));
-  const templateColor = selectedTemplate?.primaryColor || 'var(--primary)';
   const uiColor = settings.branding?.primaryColor || 'var(--primary)';
   const bankOptions = bankAccounts.map((bank) => ({
     value: String(bank.id),
@@ -1280,7 +1277,6 @@ export function InvoiceBuilderPage() {
               draft={draft}
               client={selectedClient}
               company={settings.company || {}}
-              logos={logos}
               template={selectedTemplate}
               bankAccount={draft.bankAccount || selectedBankAccount}
               bankSettings={settings.bank || {}}

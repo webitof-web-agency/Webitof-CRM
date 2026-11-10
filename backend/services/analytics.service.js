@@ -26,6 +26,7 @@ const {
   getPlaceOfSupplyForClient
 } = require('../utils/finance');
 const { round2, toNumber } = require('../utils/format');
+const { countProjectsByPhase, projectPhase } = require('../config/pipelineFields');
 const { getInvoiceSnapshot, isIssuedInvoice, getPaymentAppliedAmount, getPayrollExpenseTotal, getPayrollRecords } = require('./finance.service');
 
 function sumBy(items = [], iteratee = (item) => item) {
@@ -266,7 +267,8 @@ async function buildDashboardSummary() {
 
   return {
     totalClients: state.clients.length,
-    activeProjects: state.projects.filter((project) => project.status === 'Active').length,
+    // Phases come from config/pipelineFields.js: open = still being worked on.
+    activeProjects: countProjectsByPhase(state.projects, state.settings).open,
     totalProjects: state.projects.length,
     totalInvoiceAmount: sumBy(invoiceTotals, (item) => item.totalAmount),
     totalTaxableAmount: sumBy(invoiceTotals, (item) => item.taxableAmount),
@@ -352,8 +354,8 @@ async function buildClientSummary(clientId) {
     client,
     summary: {
       totalProjects: projects.length,
-      activeProjects: projects.filter((project) => project.status === 'Active').length,
-      completedProjects: projects.filter((project) => project.status === 'Completed').length,
+      activeProjects: countProjectsByPhase(projects, state.settings).open,
+      completedProjects: countProjectsByPhase(projects, state.settings).completed,
       totalInvoiceAmount: sumBy(invoiceTotals, (item) => item.totalAmount),
       totalTaxableAmount: sumBy(invoiceTotals, (item) => item.taxableAmount),
       totalGstCharged: sumBy(invoiceTotals, (item) => item.gstAmount),
@@ -902,7 +904,7 @@ async function buildProjectSummary(projectId) {
       commissionExpense: sumBy(commissionImpacts, (item) => item.expenseImpact),
       inputGst: totalInputGst,
       profit: round2(sumBy(invoiceTotals, (item) => item.taxableAmount) - totalExpense),
-      progressPercent: Number(project.progressPercent || project.progress || 0) || (String(project.status || '').toLowerCase() === 'completed' ? 100 : String(project.status || '').toLowerCase() === 'in progress' ? 55 : String(project.status || '').toLowerCase() === 'on hold' ? 25 : 0),
+      progressPercent: Number(project.progressPercent || project.progress || 0) || (projectPhase(project.status, state.settings) === 'completed' ? 100 : String(project.status || '').toLowerCase() === 'in progress' ? 55 : String(project.status || '').toLowerCase() === 'on hold' ? 25 : 0),
       activitiesCount: projectActivities.length,
       tasksCount: projectActivities.filter((item) => item.type === 'task').length,
       notesCount: projectActivities.filter((item) => item.type === 'note').length,

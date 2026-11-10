@@ -10,6 +10,7 @@ import backCoverImg from '../../../assets/images/quotation-cover-back.png';
 import { calculateQuotationTotals as calculateCommercialTotals } from '../../utils/taxCalculationEngine';
 import { calculateMilestoneAmounts, parseMilestonesFromText } from '../../utils/paymentMilestoneEngine';
 import { safeRichHtml } from '../../utils/safeHtml';
+import { BRAND_LOGOS } from '../../config/brandAssets';
 
 const BUILT_IN_QUOTATION_BACKGROUND = 'builtin:invoice_watermark.png';
 
@@ -210,7 +211,7 @@ export function QuotationPreviewPage() {
   const companyPhone = company.phone || '+91 98765 43210';
   const companyWebsite = company.website || 'https://webitof.com';
   const companyAddress = company.address || 'Raipur, Chhattisgarh, India';
-  const companyLogo = settings?.logos?.quotation || settings?.logos?.primary || settings?.logos?.sidebar || company.logoUrl || '/assets/images/main-logo.png';
+  const companyLogo = BRAND_LOGOS.quotation;
   const companyInitials = companyName.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 3).toUpperCase() || 'WT';
   const companyGstin = company.gstin || company.taxId || '22AAAAA0000A1Z5';
   const quotationMaster = data.quotationMaster?.payload || data.quotationMaster || {};

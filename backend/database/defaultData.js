@@ -93,27 +93,7 @@ const DEFAULT_SETTINGS = {
     accountant: ['finance', 'reports'],
     sales: ['clients', 'projects', 'invoices']
   },
-  statuses: {
-    leads: [
-      { label: 'New', color: '#3b82f6', state: 'open' },
-      { label: 'Qualified', color: '#f59e0b', state: 'open' },
-      { label: 'Won', color: '#10b981', state: 'won' },
-      { label: 'Lost', color: '#ef4444', state: 'lost' }
-    ],
-    clients: [
-      { label: 'Active', color: '#10b981' },
-      { label: 'Inactive', color: '#64748b' }
-    ],
-    projects: [
-      { label: 'Not Started', color: '#64748b' },
-      { label: 'In Progress', color: '#3b82f6' },
-      { label: 'Completed', color: '#10b981' },
-      { label: 'On Hold', color: '#f59e0b' }
-    ]
-  },
-  sources: {
-    leads: ['Website', 'Referral', 'Cold Call', 'Other']
-  },
+  // Statuses and sources are fixed in code (config/pipelineFields.js), not seeded.
   labels: []
 };
 

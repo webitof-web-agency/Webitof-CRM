@@ -128,7 +128,6 @@ export function InvoiceExportPage() {
   };
 
   const company = settings?.company || {};
-  const logos = settings?.logos || {};
   const invoiceSettings = settings || {};
   const bankSettings = settings?.bank || {};
   const selectedLabel = selectedYear ? `FY ${selectedYear}` : '-';
@@ -204,7 +203,6 @@ export function InvoiceExportPage() {
                       draft={{ ...invoice, financialYear: invoice.financialYear || getFinancialYear(invoice.invoiceDate || invoice.createdAt) }}
                       client={clientMap.get(String(invoice.clientId)) || {}}
                       company={company}
-                      logos={logos}
                       template={settings?.invoiceTemplates?.find((item) => String(item.id) === String(invoice.templateId)) || settings?.invoiceTemplates?.find((item) => item.isDefault) || settings?.invoiceTemplates?.[0] || {}}
                       bankAccount={invoice.bankAccount || null}
                       bankSettings={bankSettings}
@@ -229,7 +227,6 @@ export function InvoiceExportPage() {
                     draft={{ ...invoice, financialYear: invoice.financialYear || getFinancialYear(invoice.invoiceDate || invoice.createdAt) }}
                     client={clientMap.get(String(invoice.clientId)) || {}}
                     company={company}
-                    logos={logos}
                     template={settings?.invoiceTemplates?.find((item) => String(item.id) === String(invoice.templateId)) || settings?.invoiceTemplates?.find((item) => item.isDefault) || settings?.invoiceTemplates?.[0] || {}}
                     bankAccount={invoice.bankAccount || null}
                     bankSettings={bankSettings}

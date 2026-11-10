@@ -21,9 +21,6 @@ async function fetchSettings(req, res, next) {
 
 async function saveSettings(req, res, next) {
   try {
-    const { getSettings } = require('../models/settings.model');
-    // We only unlink logos from settings now; we do not delete from Drive.
-
     const settings = await updateSettings(req.body || {});
     res.json({ success: true, data: settings });
   } catch (error) {
@@ -38,7 +35,6 @@ async function fetchPublicSettings(req, res, next) {
       companyName: settings?.company?.name || 'Webitof',
       legalName: settings?.company?.legalName || '',
       logoUrl: settings?.company?.logoUrl || '',
-      logos: settings?.logos || {},
       branding: settings?.branding || {},
       ui: settings?.ui || {}
     };

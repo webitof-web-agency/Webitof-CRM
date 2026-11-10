@@ -55,7 +55,11 @@ let fake;
 let memory;
 let driveFileCount;
 
+// Drive credentials and folders are read from the env only; each test sets what it needs.
+const ENV_ONLY_VARS = ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GDRIVE_PARENT_FOLDER_ID', 'GDRIVE_UPLOADS_FOLDER_NAME', 'GDRIVE_BACKUP_FOLDER_NAME'];
+
 function setup(options) {
+  for (const name of ENV_ONLY_VARS) delete process.env[name];
   fake = createFakeGoogleDrive(options);
   driveClient.setFetchForTests(fake.fetchImpl);
   memory = settingsStore.createMemoryStore();
@@ -89,7 +93,7 @@ test('config problems are listed by name and Check connection is refused', async
   delete process.env.GOOGLE_OAUTH_CLIENT_SECRET;
   try {
     const problems = getGoogleDriveConfigProblems();
-    assert.deepEqual(problems, ['Client secret is not set (Settings or GOOGLE_OAUTH_CLIENT_SECRET)']);
+    assert.deepEqual(problems, ['Client secret is not set (GOOGLE_OAUTH_CLIENT_SECRET in the server env)']);
     await assert.rejects(() => connection.checkConnection(), { statusCode: 400 });
   } finally {
     process.env.GOOGLE_OAUTH_CLIENT_SECRET = saved;
@@ -101,20 +105,20 @@ test('without a refresh token the status says so and Check connection asks for i
   const status = await connection.getStatus();
   assert.equal(status.connected, false);
   assert.ok(status.problems.some((p) => /Refresh token is not set/.test(p)));
-  await assert.rejects(() => connection.checkConnection(), { statusCode: 400, message: /Add the refresh token/ });
+  await assert.rejects(() => connection.checkConnection(), { statusCode: 400, message: /Set GOOGLE_OAUTH_REFRESH_TOKEN/ });
 });
 
-test('Check connection applies the saved refresh token encrypted, creates both folders, and status has no secrets', async () => {
+test('Check connection applies the env refresh token encrypted, creates both folders, and status has no secrets', async () => {
   setup();
-  await driveSettings.saveConfig({ refreshToken: 'refresh-1' });
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'refresh-1';
   const result = await connection.checkConnection({ userId: 'user_admin' });
   assert.equal(result.accountEmail, 'owner@example.com');
   assert.match(result.uploadsFolder.link, /^https:\/\/drive\.google\.com\/drive\/folders\//);
 
   const raw = JSON.stringify(Object.fromEntries(memory.data));
   assert.ok(!raw.includes('refresh-1'), 'refresh token must not be stored in plain text');
-  assert.ok(fake.findByName('Webitof CRM – DB Backups'));
-  assert.ok(fake.findByName('Webitof CRM – Uploads'));
+  assert.ok(fake.findByName('Webitof Backups'));
+  assert.ok(fake.findByName('Webitof Uploads'));
 
   const status = await connection.getStatus();
   assert.equal(status.connected, true);
@@ -126,23 +130,23 @@ test('Check connection applies the saved refresh token encrypted, creates both f
 
 test('a rejected refresh token fails Check connection clearly, and a new token fixes it', async () => {
   setup();
-  await driveSettings.saveConfig({ refreshToken: 'not-a-valid-token' });
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'not-a-valid-token';
   await assert.rejects(() => connection.checkConnection(), { statusCode: 400, message: /did not accept these credentials/ });
   assert.equal((await connection.getStatus()).connected, false);
-  await driveSettings.saveConfig({ refreshToken: 'refresh-1' });
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'refresh-1';
   assert.equal((await connection.checkConnection()).accountEmail, 'owner@example.com');
 });
 
 test('Check connection reconnects after a disconnect when the token still works', async () => {
   setup();
-  await driveSettings.saveConfig({ refreshToken: 'refresh-1' });
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'refresh-1';
   await connection.checkConnection();
   await connection.disconnect({ activeProvider: 'local' });
   // The disconnect revoked it at Google, so the same token is refused with a clear message.
   fake.state.validRefreshTokens.delete('refresh-1');
   await assert.rejects(() => connection.checkConnection(), { statusCode: 400 });
   fake.state.validRefreshTokens.add('refresh-2');
-  await driveSettings.saveConfig({ refreshToken: 'refresh-2' });
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'refresh-2';
   assert.equal((await connection.checkConnection()).accountEmail, 'owner@example.com');
 });
 
@@ -272,6 +276,33 @@ test('retention keeps the newest 15 of this database and never touches other fil
   assert.equal(own.length, 15);
   assert.equal(own[0], result.fileName);
   for (const other of others) assert.ok(fake.files.has(other.id), `${other.name} must be kept`);
+});
+
+test('backups are filed in year/month folders; pruning removes month and year folders it empties', async () => {
+  setup();
+  await connect();
+  const rootId = await connection.ensureFolder('backup');
+  const folder = (name, parentId) => fake.addFile({ name, parents: [parentId], mimeType: 'application/vnd.google-apps.folder' });
+  const y2025 = folder('2025', rootId);
+  const dec = folder('12-Dec', y2025.id);
+  const y2026 = folder('2026', rootId);
+  const sep = folder('09-Sep', y2026.id);
+  const old = fake.addFile({ name: 'crm-backup-crm-2025-12-31_02-00-00-IST.dump', parents: [dec.id] });
+  for (let day = 1; day <= 13; day += 1) {
+    fake.addFile({ name: `crm-backup-crm-2026-09-${String(day).padStart(2, '0')}_02-00-00-IST.dump`, parents: [sep.id] });
+  }
+  const flat = fake.addFile({ name: 'crm-backup-crm-2026-09-14_02-00-00-IST.dump', parents: [rootId] });
+  assert.equal((await backups.listBackups()).length, 15, 'backups in month folders and directly in the root are listed');
+
+  const result = await backups.runBackup({ trigger: 'schedule' });
+  assert.equal(result.status, 'SUCCESS');
+  assert.match(fake.pathOf(fake.files.get(result.fileId)), /^Webitof Backups\/\d{4}\/\d{2}-[A-Z][a-z]{2}\/crm-backup-crm-/);
+  assert.equal(result.removed, 1);
+  assert.ok(!fake.files.has(old.id));
+  assert.ok(!fake.files.has(dec.id), 'emptied month folder is removed');
+  assert.ok(!fake.files.has(y2025.id), 'emptied year folder is removed');
+  assert.ok(fake.files.has(sep.id) && fake.files.has(y2026.id) && fake.files.has(flat.id));
+  assert.equal((await backups.listBackups()).length, 15);
 });
 
 test('a pre-restore backup is named and listed as its own kind and counts toward retention', async () => {
@@ -450,15 +481,15 @@ test('Drive storage mirrors the key folders inside Uploads, then exists / stream
   setup();
   await connect();
   const key = `${buildFolderPath({ moduleName: 'leads', entityId: 'lead_abc', date: new Date('2026-10-19T06:00:00Z') })}/quote-x.pdf`;
-  assert.equal(key, '2026/oct/leads/lead_abc/quote-x.pdf');
+  assert.equal(key, 'CRM/Leads/lead_abc/quote-x.pdf');
 
   const locators = await Promise.all([
     gdriveProvider.upload(Buffer.from('one'), key, { mimeType: 'application/pdf' }),
     gdriveProvider.upload(Buffer.from('two'), key.replace('quote-x', 'quote-y'), { mimeType: 'application/pdf' })
   ]);
-  const monthFolders = Array.from(fake.files.values()).filter((file) => file.name === 'oct');
-  assert.equal(monthFolders.length, 1, 'concurrent uploads must not create duplicate folders');
-  assert.equal(fake.pathOf(fake.files.get(locators[0].storageKey)), 'Webitof CRM – Uploads/2026/oct/leads/lead_abc/quote-x.pdf');
+  const recordFolders = Array.from(fake.files.values()).filter((file) => file.name === 'lead_abc');
+  assert.equal(recordFolders.length, 1, 'concurrent uploads must not create duplicate folders');
+  assert.equal(fake.pathOf(fake.files.get(locators[0].storageKey)), 'Webitof Uploads/CRM/Leads/lead_abc/quote-x.pdf');
 
   assert.equal(await gdriveProvider.exists(locators[0]), true);
   assert.equal((await gdriveProvider.readBuffer(locators[0])).toString(), 'one');
@@ -525,7 +556,7 @@ test('the upload pipeline enforces the allowlist and records the locator', async
     assert.equal(created[0].mimeType, 'application/pdf');
     assert.equal(created[0].storageProvider, 'local');
     assert.match(created[0].storedName, /^signed-quote-final-[a-z0-9]+\.pdf$/);
-    assert.match(created[0].storageKey, /^\d{4}\/[a-z]{3}\/leads\/lead_abc\/signed-quote-final-/);
+    assert.match(created[0].storageKey, /^CRM\/Leads\/lead_abc\/signed-quote-final-/);
     assert.equal(
       (await localProvider.readBuffer({ storageKey: created[0].storageKey })).toString(),
       '%PDF-1.4'
@@ -548,11 +579,15 @@ test('local storage refuses keys outside its root and serves byte ranges', async
   assert.equal(parseRange('bytes=20-30', 10), null);
 });
 
-test('site uploads go to site/, everything else to year/month/section/record in India time', () => {
-  assert.equal(buildFolderPath({ moduleName: 'settings' }), 'site');
+test('uploads are filed by category/section/record; without a record by year/month in India time', () => {
+  assert.equal(buildFolderPath({ moduleName: 'settings' }), 'Site');
+  assert.equal(buildFolderPath({ moduleName: 'call', entityId: 'call_1' }), 'CRM/Calls/call_1');
+  assert.equal(buildFolderPath({ moduleName: 'invoices', entityId: 'inv_1' }), 'Finance/Invoices/inv_1');
+  assert.equal(buildFolderPath({ moduleName: 'avatar', entityId: 'user_1' }), 'Users/user_1');
+  assert.equal(buildFolderPath({ moduleName: 'something-new', entityId: 'x_1' }), 'General/Something-New/x_1');
   // 2026-10-31T20:00Z is already 1 November in India.
-  assert.equal(buildFolderPath({ moduleName: 'call', entityId: 'call_1', date: new Date('2026-10-31T20:00:00Z') }), '2026/nov/calls/call_1');
-  assert.equal(buildFolderPath({ moduleName: 'quotation-master', date: new Date('2026-10-01T00:00:00Z') }), '2026/oct/quotations');
+  assert.equal(buildFolderPath({ moduleName: 'quotation-master', date: new Date('2026-10-31T20:00:00Z') }), 'CRM/Quotations/2026/11-Nov');
+  assert.equal(buildFolderPath({ moduleName: 'general', date: new Date('2026-10-01T00:00:00Z') }), 'General/Files/2026/10-Oct');
 });
 
 test('session auth refuses OAuth state and other purpose-bound tokens', async () => {
@@ -591,78 +626,72 @@ test('a real pg_dump produces a custom-format dump', { skip: !process.env.TEST_D
   }
 });
 
-test('Drive settings saved in Settings win over env, and secrets never come back', async () => {
+test('Drive credentials and folders come from the env only and cannot be set from Settings', async () => {
   setup();
-  const view = await driveSettings.saveConfig({
-    clientId: 'client-from-settings',
-    clientSecret: 'secret-from-settings',
-    parentFolderId: 'https://drive.google.com/drive/folders/PARENT_1',
-    uploadsFolderName: 'CRM Uploads',
-    backupKeep: '12',
-    backupHourIst: '-1'
-  });
-  assert.equal(view.values.clientId, 'client-from-settings');
-  assert.equal(view.values.clientSecretSet, true);
-  assert.equal(view.values.parentFolderId, 'PARENT_1');
+  for (const patch of [
+    { clientId: 'client-from-settings' },
+    { clientSecret: 'secret-from-settings' },
+    { refreshToken: 'refresh-from-settings' },
+    { parentFolderId: 'PARENT_1' },
+    { uploadsFolderName: 'CRM Uploads' },
+    { backupFolderName: 'CRM Backups' },
+    { clientId: '' }
+  ]) {
+    await assert.rejects(() => driveSettings.saveConfig(patch), { statusCode: 400, message: /server env only/ });
+  }
+
+  // Values an older version saved in the database are ignored, and dropped on the next save.
+  memory.data.set('google_drive_config', { clientId: 'old-client', parentFolderId: 'OLD_PARENT', uploadsFolderName: 'Old Uploads' });
+  process.env.GDRIVE_PARENT_FOLDER_ID = 'https://drive.google.com/drive/folders/PARENT_ENV';
+  _resetDriveSettingsForTests();
+  const view = await driveSettings.getConfigView();
+  const byKey = Object.fromEntries(view.env.map((item) => [item.key, item]));
+  assert.equal(byKey.clientId.value, 'client-id');
+  assert.equal(byKey.clientId.name, 'GOOGLE_OAUTH_CLIENT_ID');
+  assert.equal(byKey.parentFolderId.value, 'PARENT_ENV');
+  assert.equal(byKey.uploadsFolderName.value, 'Webitof Uploads');
+  assert.equal(byKey.uploadsFolderName.set, false);
+  assert.equal(byKey.clientSecret.set, true);
+  assert.equal(byKey.refreshToken.set, false);
+  assert.ok(!JSON.stringify(view).includes('client-secret'), 'secret values never reach the browser');
+  assert.equal(getGoogleDriveConfig().clientId, 'client-id');
+
+  await driveSettings.saveConfig({ backupKeep: '12' });
+  assert.deepEqual(memory.data.get('google_drive_config'), { backupKeep: 12 });
+});
+
+test('the backup schedule can be saved in Settings and wins over env', async () => {
+  setup();
+  const view = await driveSettings.saveConfig({ backupKeep: '12', backupHourIst: '-1' });
   assert.equal(view.values.backupKeep, 12);
   assert.equal(view.values.backupHourIst, -1);
-  assert.equal(view.sources.clientId, 'settings');
-  assert.equal(view.sources.backupFolderName, 'default');
-  assert.ok(!JSON.stringify(view).includes('secret-from-settings'));
-  assert.ok(!JSON.stringify(Object.fromEntries(memory.data)).includes('secret-from-settings'), 'secret must be stored encrypted');
+  assert.equal(view.sources.backupKeep, 'settings');
+  assert.equal(getGoogleDriveConfig().backupHourIst, -1);
 
-  const config = getGoogleDriveConfig();
-  assert.equal(config.clientSecret, 'secret-from-settings');
-  assert.equal(config.uploadsFolderName, 'CRM Uploads');
-
-  // Clearing a field falls back to the env var; leaving a secret out keeps it.
-  const cleared = await driveSettings.saveConfig({ clientId: '' });
-  assert.equal(cleared.values.clientId, 'client-id');
-  assert.equal(cleared.sources.clientId, 'environment');
-  assert.equal(cleared.values.clientSecretSet, true);
-  assert.equal(getGoogleDriveConfig().clientSecret, 'secret-from-settings');
+  const cleared = await driveSettings.saveConfig({ backupHourIst: '' });
+  assert.equal(cleared.sources.backupHourIst, 'default');
+  assert.equal(cleared.values.backupHourIst, 2);
 });
 
-test('Drive settings are validated', async () => {
+test('the backup schedule is validated', async () => {
   setup();
-  await assert.rejects(() => driveSettings.saveConfig({ parentFolderId: 'not a folder!' }), { statusCode: 400 });
   await assert.rejects(() => driveSettings.saveConfig({ backupKeep: 500 }), { statusCode: 400 });
   await assert.rejects(() => driveSettings.saveConfig({ backupHourIst: 24 }), { statusCode: 400 });
-  await assert.rejects(() => driveSettings.saveConfig({ uploadsFolderName: 'a/b' }), { statusCode: 400 });
 });
 
-test('secrets cannot be saved without SETTINGS_ENCRYPTION_KEY', async () => {
+test('an env refresh token connects once', async () => {
   setup();
-  const saved = process.env.SETTINGS_ENCRYPTION_KEY;
-  delete process.env.SETTINGS_ENCRYPTION_KEY;
-  try {
-    await assert.rejects(() => driveSettings.saveConfig({ clientSecret: 'x' }), { statusCode: 409 });
-    assert.equal((await driveSettings.getConfigView()).canStoreSecrets, false);
-  } finally {
-    process.env.SETTINGS_ENCRYPTION_KEY = saved;
-  }
-});
-
-test('changing the OAuth client in Settings asks for a reconnect', async () => {
-  setup();
-  await connect();
-  await driveSettings.saveConfig({ clientId: 'another-client' });
-  assert.equal((await connection.getStatus()).needsReconnect, true);
-});
-
-test('a refresh token saved in Settings connects once, like the env token', async () => {
-  setup();
-  await driveSettings.saveConfig({ refreshToken: 'refresh-1' });
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'refresh-1';
   const status = await connection.getStatus();
   assert.equal(status.connected, true);
   assert.equal(status.accountEmail, 'owner@example.com');
 });
 
-test('renaming a folder in Settings renames the existing Drive folder', async () => {
+test('renaming a folder in the env renames the existing Drive folder', async () => {
   setup();
   await connect();
   const id = await connection.ensureFolder('backup');
-  await driveSettings.saveConfig({ backupFolderName: 'Renamed Backups' });
+  process.env.GDRIVE_BACKUP_FOLDER_NAME = 'Renamed Backups';
   assert.equal(await connection.ensureFolder('backup'), id);
   assert.equal(fake.files.get(id).name, 'Renamed Backups');
 });

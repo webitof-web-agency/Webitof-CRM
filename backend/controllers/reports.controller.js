@@ -7,6 +7,7 @@ const {
   calculateOutsourcingExpense
 } = require('../utils/finance');
 const { round2, toNumber } = require('../utils/format');
+const { countProjectsByPhase } = require('../config/pipelineFields');
 
 function sumBy(items = [], iteratee = (item) => item) {
   return round2(items.reduce((sum, item) => sum + toNumber(iteratee(item)), 0));
@@ -251,7 +252,7 @@ async function dashboardSummary(req, res, next) {
       success: true,
       data: {
         totalClients: state.clients.length,
-        activeProjects: state.projects.filter((project) => project.status === 'Active').length,
+        activeProjects: countProjectsByPhase(state.projects, state.settings).open,
         totalProjects: state.projects.length,
         totalInvoices: state.invoices.length,
         totalReceived: financeSummary.totalReceived,

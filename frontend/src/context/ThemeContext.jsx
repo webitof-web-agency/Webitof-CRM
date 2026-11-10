@@ -67,26 +67,13 @@ export function ThemeProvider({ children }) {
     return () => media.removeEventListener('change', listener);
   }, [mode]);
 
-  // Initial load of custom UI settings, logos, and branding
+  // Initial load of custom UI settings and branding (logos are static: config/brandAssets.js)
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem('webitof-ui-settings');
       if (raw) {
         const ui = JSON.parse(raw);
         applyUiSettings(ui);
-      }
-      const rawLogos = window.localStorage.getItem('webitof-logos');
-      if (rawLogos) {
-        const logos = JSON.parse(rawLogos);
-        if (logos.favicon) {
-          let link = document.querySelector("link[rel~='icon']");
-          if (!link) {
-            link = document.createElement('link');
-            link.rel = 'icon';
-            document.head.appendChild(link);
-          }
-          link.href = logos.favicon;
-        }
       }
 
       // Apply Branding colors

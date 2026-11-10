@@ -1,4 +1,5 @@
 const { createRepository, column } = require('./baseModel');
+const { customOnly, pipelineSettings } = require('../config/pipelineFields');
 
 const settingsRepository = createRepository({
   table: 'app_settings',
@@ -32,17 +33,49 @@ function mergeDeep(target = {}, source = {}) {
   return result;
 }
 
+// Never stored:
+// - logos: static files in the frontend (src/config/brandAssets.js);
+// - customSources: derived on read (which lead sources an admin added).
+// Values older versions saved in the payload column are hidden on read and dropped on save.
+const STATIC_KEYS = ['logos', 'customSources'];
+
+// statuses / sources: the built-in lists live in config/pipelineFields.js. Only the values an
+// admin added are stored; reads return built-in + custom, saves keep the custom part only.
+const PIPELINE_KEYS = ['statuses', 'sources'];
+
+function withoutStaticKeys(record) {
+  if (!record) return record;
+  const clean = { ...record };
+  for (const key of STATIC_KEYS) delete clean[key];
+  if (clean.payload && typeof clean.payload === 'object') {
+    clean.payload = { ...clean.payload };
+    for (const key of [...STATIC_KEYS, ...PIPELINE_KEYS]) delete clean.payload[key];
+  }
+  return clean;
+}
+
+function withStaticValues(record) {
+  if (!record) return record;
+  return { ...withoutStaticKeys(record), ...pipelineSettings({ statuses: record.statuses, sources: record.sources }) };
+}
+
 async function getSettings() {
   const record = await settingsRepository.findById('default');
-  return record || null;
+  return withStaticValues(record) || null;
 }
 
 async function updateSettings(patch = {}) {
   const current = (await getSettings()) || { id: 'default' };
-  const next = mergeDeep(current, patch);
+  const incoming = { ...(patch || {}) };
+  for (const key of STATIC_KEYS) delete incoming[key];
+  const next = withoutStaticKeys(mergeDeep(current, incoming));
+  // update() spreads the stored row under this patch, so payload-only keys must be overwritten:
+  // undefined is dropped from the JSON payload.
+  for (const key of STATIC_KEYS) next[key] = undefined;
+  Object.assign(next, customOnly({ statuses: next.statuses, sources: next.sources }));
   next.id = 'default';
   const saved = await settingsRepository.upsert(next);
-  return saved;
+  return withStaticValues(saved);
 }
 
 module.exports = {

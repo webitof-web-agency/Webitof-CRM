@@ -235,12 +235,13 @@ export function ProjectsListPage() {
     const values = configured.map((status) => (typeof status === 'string' ? status : status.label));
     return [
       { value: '', label: 'All Statuses' },
-      ...Array.from(new Set(values.concat(['Active', 'Paused', 'Cancelled', 'Archived']))).map((status) => ({
+      // Older statuses still used by some projects stay filterable.
+      ...Array.from(new Set(values.concat(rows.map((row) => String(row.status || '').trim()).filter(Boolean)))).map((status) => ({
         value: status,
         label: status
       }))
     ];
-  }, [settings]);
+  }, [settings, rows]);
 
   const typeOptions = useMemo(() => {
     const discovered = Array.from(new Set(rows.map((row) => String(row.projectType || '').trim()).filter(Boolean)));
