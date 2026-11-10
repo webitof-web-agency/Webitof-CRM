@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from './Button';
 import { cn } from '../../lib/cn';
@@ -40,7 +41,9 @@ export function Modal({
     }
   };
 
-  return (
+  // Rendered into <body>: inside a card with a transform or overflow, a fixed overlay is
+  // clipped to that card instead of covering the screen.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 overflow-y-auto bg-black/45 dark:bg-black/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
       role="presentation"
@@ -122,6 +125,7 @@ export function Modal({
           ) : null}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

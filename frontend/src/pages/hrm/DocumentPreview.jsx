@@ -53,7 +53,7 @@ export function DocumentPreview({ token, doc, onClose }) {
         </div>
       }
     >
-      <div className="flex min-h-[50vh] items-center justify-center rounded-xl bg-[var(--surface-2)]">
+      <div className="flex min-h-[40vh] items-center justify-center rounded-xl bg-[var(--surface-2)] p-2">
         {error ? (
           <p role="alert" className="p-6 text-sm text-rose-600">{error}</p>
         ) : !url ? (
@@ -61,9 +61,9 @@ export function DocumentPreview({ token, doc, onClose }) {
             <Loader2 size={16} className="animate-spin" /> Loading document…
           </span>
         ) : isImage ? (
-          <img src={url} alt={title} className="max-h-[70vh] w-auto max-w-full rounded-lg object-contain" />
+          <img src={url} alt={title} className="max-h-[65vh] w-auto max-w-full rounded-lg object-contain" />
         ) : (
-          <iframe src={url} title={title} className="h-[70vh] w-full rounded-lg border-0 bg-white" />
+          <iframe src={url} title={title} className="h-[65vh] w-full rounded-lg border-0 bg-white" />
         )}
       </div>
     </Modal>
