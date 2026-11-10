@@ -119,6 +119,33 @@ async function createEmployeeLogin(tx, user, login, employee) {
   return id;
 }
 
+// A linked login keeps its own roles (e.g. Sales); if none of them gives HRM self service,
+// the Employee role is added so My day and the Employee app work. Same minimal grant as a
+// login created from the wizard, so no user-management rights are needed.
+async function ensureSelfService(tx, user, userId) {
+  const r = await tx.query(
+    `SELECT bool_or(ro.code='admin') AS admin,
+            count(DISTINCT p.code) FILTER (WHERE p.code IN ('hrm.view_own','hrm.self_service')) AS self
+     FROM user_roles ur
+     JOIN roles ro ON ro.id=ur.role_id AND ro.is_active=true
+     LEFT JOIN role_permissions rp ON rp.role_id=ro.id
+     LEFT JOIN permissions p ON p.id=rp.permission_id
+     WHERE ur.user_id=$1`,
+    [userId],
+  );
+  const row = r.rows[0] || {};
+  if (row.admin || Number(row.self) >= 2) return;
+  const role = (
+    await tx.query("SELECT id FROM roles WHERE code='employee' AND is_active=true")
+  ).rows[0];
+  if (!role)
+    c.fail("The Employee role is missing. Run the HRM migration (npm run migrate:hrm).", 503);
+  await tx.query(
+    "INSERT INTO user_roles(user_id,role_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+    [userId, role.id, user.id],
+  );
+}
+
 // Base salary from the wizard. The first record starts on the joining date and is corrected
 // in place until the employee joins; after that a change is a revision dated today (or
 // corrects today's revision in place).
@@ -238,17 +265,37 @@ async function save(user, body, id = null, db = null) {
       await c.master(tx, v[key], type);
       result[key] = v[key] || null;
     }
-    if (v.userId) {
-      const u = await tx.query(
-        "SELECT id,full_name,email,phone FROM users WHERE id=$1",
-        [v.userId],
-      );
-      if (!u.rows[0]) c.fail("Linked user does not exist");
-      v.fullName = v.fullName || u.rows[0].full_name;
-      v.companyEmail = v.companyEmail || u.rows[0].email;
-    }
-    if (old && old.userId !== (v.userId || null))
+    // A login can be attached to an employee that has none (at creation or later), but an
+    // existing mapping is never moved or removed: attendance and payroll history hang off it.
+    if (old?.userId && old.userId !== (v.userId || null))
       c.fail("An existing employee login mapping cannot be reassigned");
+    const linkingLogin = Boolean(v.userId) && v.userId !== (old?.userId || null);
+    if (linkingLogin) {
+      const u = (
+        await tx.query(
+          "SELECT id,full_name,email,phone,is_active FROM users WHERE id=$1",
+          [v.userId],
+        )
+      ).rows[0];
+      if (!u) c.fail("Linked user does not exist");
+      if (!u.is_active) c.fail("This login is inactive. Activate it from Users first.");
+      const other = (
+        await tx.query(
+          "SELECT employee_number,full_name,archived_at FROM hrm_employees WHERE user_id=$1 AND id<>$2",
+          [v.userId, id || ""],
+        )
+      ).rows[0];
+      if (other)
+        c.fail(
+          other.archived_at
+            ? `This login belongs to archived employee ${other.full_name} (${other.employee_number}).`
+            : `This login is already linked to employee ${other.full_name} (${other.employee_number}).`,
+          409,
+        );
+      v.fullName = v.fullName || u.full_name;
+      v.companyEmail = v.companyEmail || u.email;
+      v.phone = v.phone || u.phone;
+    }
     result.userId = v.userId || null;
     if (login && result.userId) c.fail("This employee already has a login");
     result.fullName = c.text(v.fullName, "Full name", 160, true);
@@ -338,6 +385,7 @@ async function save(user, body, id = null, db = null) {
         await c.update(tx, "hrm_employees", saved.id, { userId }),
       );
     }
+    if (linkingLogin) await ensureSelfService(tx, user, result.userId);
     await savePrivate(tx, user, saved, profile, financial);
     // A moved joining date carries the joining salary with it, so payroll never finds a gap.
     if (preJoining && old.joiningDate !== saved.joiningDate)

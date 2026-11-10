@@ -140,11 +140,11 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
     hrm(token, "/lookups?type=employees")
       .then((r) => setManagers((r.rows || []).filter((e) => e.id !== employeeId)))
       .catch(() => setManagers([]));
-    if (!editing)
-      hrm(token, "/lookups?type=users")
-        .then((r) => setUsers(r.rows || []))
-        .catch(() => setUsers([]));
-  }, [token, editing, employeeId]);
+    // Logins not yet linked to any employee; also offered when editing an employee without one.
+    hrm(token, "/lookups?type=users")
+      .then((r) => setUsers(r.rows || []))
+      .catch(() => setUsers([]));
+  }, [token, employeeId]);
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -206,6 +206,17 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   const departmentFirst = lists.departments.length > 0 && !form.departmentId;
   const options = (items) => items.map((m) => ({ value: m.id, label: m.name }));
   const hasLogin = Boolean(original?.userId || form.userId);
+  // Linking a login fills the blanks from it, so the employee email matches the login email.
+  const linkLogin = (userId) => {
+    const picked = users.find((u) => u.id === userId);
+    setForm((f) => ({
+      ...f,
+      userId,
+      ...(picked && !f.fullName.trim() ? { fullName: picked.name || "" } : {}),
+      ...(picked && !f.companyEmail.trim() ? { companyEmail: picked.email || "" } : {}),
+      ...(picked && !f.phone.trim() && picked.phone ? { phone: picked.phone } : {}),
+    }));
+  };
 
   function validate(name) {
     const e = {};
@@ -308,7 +319,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
         probationEnd: form.probationEnd || null,
         contractEnd: form.contractEnd || null,
         exitDate: form.exitDate || null,
-        ...(!editing && form.userId ? { userId: form.userId } : {}),
+        ...(form.userId && !original?.userId ? { userId: form.userId } : {}),
         ...(canPrivate ? { profile } : {}),
         ...(canSalary
           ? {
@@ -502,11 +513,19 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   <p className="mt-1 text-xs text-[var(--text-muted)]">Used to map the employee with the biometric device.</p>
                 </div>
                 <F k="companyEmail" title="Email" type="email" value={form.companyEmail} onChange={set("companyEmail")} required />
-                {hasLogin ? (
+                {original?.userId ? (
                   <div>
                     <span className="mb-1.5 block text-xs font-semibold">Login</span>
                     <p className="rounded-xl border border-[var(--border)] px-3 py-2.5 text-sm text-[var(--text-muted)]">
                       This employee already has an ERP login. Change the password from Users.
+                    </p>
+                  </div>
+                ) : hasLogin ? (
+                  <div>
+                    <span className="mb-1.5 block text-xs font-semibold">Login</span>
+                    <p className="rounded-xl border border-[var(--border)] px-3 py-2.5 text-sm text-[var(--text-muted)]">
+                      The selected ERP login will be linked. Its roles stay as they are; HRM self service is
+                      added if they do not include it.
                     </p>
                   </div>
                 ) : (
@@ -548,7 +567,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                     {err("gender")}
                   </fieldset>
                 )}
-                {!editing && !form.password && users.length > 0 && (
+                {!original?.userId && !form.password && users.length > 0 && (
                   <div>
                     <Field
                       name="userId"
@@ -556,7 +575,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                       type="select"
                       options={users.map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }))}
                       value={form.userId}
-                      onChange={set("userId")}
+                      onChange={linkLogin}
                     />
                   </div>
                 )}

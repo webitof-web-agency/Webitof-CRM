@@ -127,7 +127,7 @@ async function lookups(user, q = {}, db = c.dbDefault) {
     c.permit(user, "manage_employees");
     const rows = (
       await db.query(
-        "SELECT u.id,u.full_name AS name,u.email FROM users u WHERE u.is_active=true AND NOT EXISTS(SELECT 1 FROM hrm_employees e WHERE e.user_id=u.id) AND (u.full_name ILIKE $1 OR u.email ILIKE $1) ORDER BY u.full_name LIMIT 50",
+        "SELECT u.id,u.full_name AS name,u.email,u.phone FROM users u WHERE u.is_active=true AND NOT EXISTS(SELECT 1 FROM hrm_employees e WHERE e.user_id=u.id) AND (u.full_name ILIKE $1 OR u.email ILIKE $1) ORDER BY u.full_name LIMIT 50",
         [`%${search}%`],
       )
     ).rows;
