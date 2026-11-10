@@ -1,5 +1,6 @@
 const c = require("./core");
 const rules = require("./validators");
+const access = require("./access");
 const bcrypt = require("bcryptjs");
 const { createId } = require("../../utils/format");
 const {
@@ -350,6 +351,14 @@ async function save(user, body, id = null, db = null) {
       EMPLOYEE_STATUSES,
       "Employment status",
     );
+    // Suspending, ending or restoring employment also blocks or restores the login, so it
+    // needs the same HR approval as the Suspend / Terminate / Reinstate actions.
+    if (
+      access.isBlocked(result.status) !== access.isBlocked(old?.status) &&
+      (old || result.userId || login) &&
+      !c.can(user, "hr_approve")
+    )
+      c.fail("Final HR approval is required to suspend, end or restore employment", 403);
     result.workMode = c.choice(v.workMode || "Office", WORK_MODES, "Work mode");
     result.joiningDate = c.date(v.joiningDate, "Joining date");
     for (const key of ["exitDate", "probationEnd", "contractEnd"])
@@ -405,6 +414,8 @@ async function save(user, body, id = null, db = null) {
       );
     }
     if (linkingLogin) await ensureSelfService(tx, user, result.userId);
+    if (!old || old.status !== saved.status || login || linkingLogin)
+      await access.syncLogin(tx, user, saved);
     await savePrivate(tx, user, saved, profile, financial);
     // A moved joining date carries the joining salary with it, so payroll never finds a gap.
     if (preJoining && old.joiningDate !== saved.joiningDate)

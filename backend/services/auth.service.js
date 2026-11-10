@@ -163,15 +163,18 @@ async function login({ identifier, password }) {
     error.statusCode = 401;
     throw error;
   }
-  if (!userRow.isActive) {
-    const error = new Error('User account is disabled');
-    error.statusCode = 403;
-    throw error;
-  }
   const valid = await comparePassword(password, userRow.passwordHash);
   if (!valid) {
     const error = new Error('Invalid credentials');
     error.statusCode = 401;
+    throw error;
+  }
+  // Checked after the password, so the account state is told only to its owner.
+  if (!userRow.isActive) {
+    const { blockedLoginMessage } = require('./hrm/access');
+    const error = new Error(blockedLoginMessage(userRow.payload?.hrmBlocked));
+    error.statusCode = 403;
+    error.code = 'ACCOUNT_DISABLED';
     throw error;
   }
 
@@ -398,6 +401,12 @@ async function updateUser(userId, data = {}, meta = {}) {
     // Fetch current user to merge payload
     const currentUser = await userModel.findById(userId, client);
     const currentPayload = (currentUser && currentUser.payload) ? currentUser.payload : {};
+    // A login HR blocked (suspended or exited employee) comes back only through Reinstate in HRM.
+    if (data.isActive === true && currentUser && !currentUser.isActive && currentPayload.hrmBlocked) {
+      const error = new Error(`This login belongs to a ${String(currentPayload.hrmBlocked.status || 'blocked').toLowerCase()} employee. Reinstate the employee from HRM to restore access.`);
+      error.statusCode = 409;
+      throw error;
+    }
 
     const newPayload = { ...currentPayload };
     if (Object.keys(data).includes('social')) {

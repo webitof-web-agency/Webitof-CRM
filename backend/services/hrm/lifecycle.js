@@ -3,6 +3,7 @@ const fileAssetModel = require("../../models/fileAsset.model");
 const { readFileBuffer, removeFile, saveUpload } = require("../file.service");
 const { employeeFolder } = require("../../utils/uploadPath");
 const rules = require("./validators");
+const access = require("./access");
 const HRM_DOCUMENT_TYPES = {
   ".pdf": "application/pdf",
   ".png": "image/png",
@@ -326,11 +327,7 @@ async function offboard(user, id, db = null) {
       version: e.version + 1,
       updatedAt: new Date(),
     });
-    if (e.userId)
-      await tx.query(
-        "UPDATE users SET is_active=false,updated_at=now() WHERE id=$1",
-        [e.userId],
-      );
+    const login = await access.syncLogin(tx, user, updated);
     await c.insert(tx, "hrm_employment_history", {
       employeeId: e.id,
       effectiveDate: e.exitDate,
@@ -345,10 +342,10 @@ async function offboard(user, id, db = null) {
       id,
       "relieved",
       { status: e.status },
-      { status: "Relieved", accessRevoked: Boolean(e.userId) },
+      { status: "Relieved", accessRevoked: login.login === "blocked" },
       id,
     );
-    return { relieved: true, accessRevoked: Boolean(e.userId) };
+    return { relieved: true, accessRevoked: login.login === "blocked" };
   }, db);
 }
 async function letter(user, employeeId, templateId, db = c.dbDefault) {

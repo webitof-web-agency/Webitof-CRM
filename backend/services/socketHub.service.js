@@ -115,8 +115,15 @@ function broadcastMaintenance(state) {
   setTimeout(() => io && io.disconnectSockets(true), 250).unref?.();
 }
 
+// Drops every open connection of a login that was just switched off (e.g. suspended by HR).
+function disconnectUser(userId) {
+  if (!io || !userId) return;
+  io.in(`user:${userId}`).disconnectSockets(true);
+}
+
 module.exports = {
   broadcastMaintenance,
+  disconnectUser,
   emitToPermission,
   emitToUser,
   emitToUsers,

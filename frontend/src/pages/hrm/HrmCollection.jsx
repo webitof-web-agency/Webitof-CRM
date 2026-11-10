@@ -26,7 +26,6 @@ import { forms, recordForm } from "./hrmForms";
 import { hrm, queryString, downloadHrm, label, localDay } from "./hrmApi";
 import { documentSides, employeePath, masterLists } from "./employeeShared";
 const titles = {
-  employees: "Employee directory",
   attendance: "Attendance",
   leave: "Leave requests",
   regularization: "Attendance regularization",
@@ -711,18 +710,33 @@ export function HrmCollection({
   return (
     <div className="space-y-4">
       <PageHeader
-        title={titles[kind] || metadata.records[kind]?.label || label(kind)}
+        title={kind === "employees" ? null : titles[kind] || metadata.records[kind]?.label || label(kind)}
         description={
-          kind === "timesheets"
-            ? "Generated from approved daily work reports."
-            : kind === "documents"
-              ? "Private employee documents and receipts with authenticated downloads."
-              : kind === "salary-history"
-                ? "Effective-dated compensation. Each revision preserves the previous record."
-                : "Manage records within your assigned HR scope."
+          kind === "employees"
+            ? null
+            : kind === "timesheets"
+              ? "Generated from approved daily work reports."
+              : kind === "documents"
+                ? "Private employee documents and receipts with authenticated downloads."
+                : kind === "salary-history"
+                  ? "Effective-dated compensation. Each revision preserves the previous record."
+                  : "Manage records within your assigned HR scope."
         }
       >
-        <div className="flex flex-wrap gap-2">
+        <div className={kind === "employees" ? "flex w-full flex-wrap items-end gap-2" : "flex flex-wrap gap-2"}>
+          {kind === "employees" && (
+            <div className="min-w-[16rem] flex-1">
+              <Field
+                name="recordSearch"
+                title="Search employee / title"
+                value={search}
+                onChange={(v) => {
+                  setSearch(v);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
           {canCreate && (
             <Button
               onClick={() =>
@@ -795,41 +809,43 @@ export function HrmCollection({
             )}
         </div>
       </PageHeader>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Field
-          name="recordSearch"
-          title="Search employee / title"
-          value={search}
-          onChange={(v) => {
-            setSearch(v);
-            setPage(1);
-          }}
-        />
-        {dateKinds.includes(kind) && (
-          <>
-            <Field
-              name="fromDate"
-              title="From date"
-              type="date"
-              value={start}
-              onChange={(v) => {
-                setStart(v);
-                setPage(1);
-              }}
-            />
-            <Field
-              name="toDate"
-              title="To date"
-              type="date"
-              value={end}
-              onChange={(v) => {
-                setEnd(v);
-                setPage(1);
-              }}
-            />
-          </>
-        )}
-      </div>
+      {kind !== "employees" && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Field
+            name="recordSearch"
+            title="Search employee / title"
+            value={search}
+            onChange={(v) => {
+              setSearch(v);
+              setPage(1);
+            }}
+          />
+          {dateKinds.includes(kind) && (
+            <>
+              <Field
+                name="fromDate"
+                title="From date"
+                type="date"
+                value={start}
+                onChange={(v) => {
+                  setStart(v);
+                  setPage(1);
+                }}
+              />
+              <Field
+                name="toDate"
+                title="To date"
+                type="date"
+                value={end}
+                onChange={(v) => {
+                  setEnd(v);
+                  setPage(1);
+                }}
+              />
+            </>
+          )}
+        </div>
+      )}
       <HrmTable
         {...result}
         page={page}
