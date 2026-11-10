@@ -1,4 +1,5 @@
 const c = require("./core");
+const rules = require("./validators");
 const bcrypt = require("bcryptjs");
 const { createId } = require("../../utils/format");
 const {
@@ -194,13 +195,39 @@ async function saveSalary(tx, user, employee, salary, p, onboarding) {
   );
 }
 
+// Cleaned in place before storing, for the employee form and the /private endpoint alike:
+// digits-only phones and PIN, letter-only names, lower-case email, valid date of birth.
+async function cleanProfile(tx, profile) {
+  if (profile.gender) c.choice(profile.gender, GENDERS, "Gender");
+  if (profile.dob) profile.dob = rules.dateOfBirth(profile.dob, c.today(await c.policy(tx)));
+  if (profile.emergencyName != null)
+    profile.emergencyName = rules.personName(profile.emergencyName, "Emergency contact name") || "";
+  for (const [k, title] of [
+    ["emergencyPhone", "Emergency contact phone"],
+    ["alternateMobile", "Alternate mobile"],
+  ])
+    if (profile[k] != null) profile[k] = rules.phone(profile[k], title) || "";
+  if (profile.personalEmail != null)
+    profile.personalEmail = rules.email(profile.personalEmail, "Personal email") || "";
+  if (profile.postalCode != null) profile.postalCode = rules.pin(profile.postalCode) || "";
+}
+
+// PAN/IFSC stored upper-case; account number and UAN digits only.
+function cleanFinancial(financial) {
+  if (financial.ifsc != null) financial.ifsc = rules.ifsc(financial.ifsc) || "";
+  if (financial.pan != null) financial.pan = rules.pan(financial.pan) || "";
+  if (financial.accountNumber != null) financial.accountNumber = rules.accountNumber(financial.accountNumber) || "";
+  if (financial.uan != null) financial.uan = rules.uan(financial.uan) || "";
+  if (financial.accountHolderName != null)
+    financial.accountHolderName = rules.personName(financial.accountHolderName, "Account holder name") || "";
+}
+
 // Personal (profile) and bank details sent with the employee form; same rules as /private.
 async function savePrivate(tx, user, employee, profile, financial) {
   if (profile) {
     c.permit(user, "manage_private");
     c.allow(profile, personalFields);
-    if (profile.gender) c.choice(profile.gender, GENDERS, "Gender");
-    if (profile.dob) c.date(profile.dob, "Date of birth");
+    await cleanProfile(tx, profile);
     await c.update(tx, "hrm_employees", employee.id, {
       profile: JSON.stringify(profile),
       updatedAt: new Date(),
@@ -209,10 +236,7 @@ async function savePrivate(tx, user, employee, profile, financial) {
   if (financial) {
     c.permit(user, "manage_salary");
     c.allow(financial, financialFields);
-    if (financial.ifsc && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(financial.ifsc))
-      c.fail("IFSC must look like HDFC0001234");
-    if (financial.pan && !/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/.test(financial.pan))
-      c.fail("PAN must look like ABCDE1234F");
+    cleanFinancial(financial);
     for (const [k, title, min, max] of [
       ["hoursPerDay", "Hours per day", 1, 24],
       ["daysPerWeek", "Days per week", 1, 7],
@@ -298,8 +322,8 @@ async function save(user, body, id = null, db = null) {
     }
     result.userId = v.userId || null;
     if (login && result.userId) c.fail("This employee already has a login");
-    result.fullName = c.text(v.fullName, "Full name", 160, true);
-    result.employeeCode = c.text(v.employeeCode, "Employee code", 40);
+    result.fullName = rules.personName(v.fullName, "Full name", true);
+    result.employeeCode = rules.employeeCode(v.employeeCode);
     if (result.employeeCode) {
       const dup = await tx.query(
         "SELECT 1 FROM hrm_employees WHERE lower(employee_code)=lower($1) AND archived_at IS NULL AND id<>$2",
@@ -319,13 +343,8 @@ async function save(user, body, id = null, db = null) {
         c.fail("Profile photo must be an image uploaded for this employee");
     }
     result.photoDocumentId = (old && v.photoDocumentId) || null;
-    result.companyEmail = c.text(v.companyEmail, "Company email", 254);
-    result.phone = c.text(v.phone, "Phone", 40);
-    if (
-      result.companyEmail &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(result.companyEmail)
-    )
-      c.fail("Invalid company email");
+    result.companyEmail = rules.email(v.companyEmail, "Company email");
+    result.phone = rules.phone(v.phone, "Phone");
     result.status = c.choice(
       v.status || "Draft",
       EMPLOYEE_STATUSES,
@@ -505,7 +524,10 @@ async function privateProfile(user, id, body = null, db = null) {
     if (body) {
       c.permit(user, "manage_private");
       c.allow(body, ["profile", "financial"]);
-      if (body.profile) c.allow(body.profile, personalFields);
+      if (body.profile) {
+        c.allow(body.profile, personalFields);
+        await cleanProfile(tx, body.profile);
+      }
       if (body.financial) {
         c.permit(user, "manage_salary");
         c.allow(body.financial, [
@@ -518,6 +540,7 @@ async function privateProfile(user, id, body = null, db = null) {
           "esiApplicable",
           "statutory",
         ]);
+        cleanFinancial(body.financial);
       }
       const old =
         (

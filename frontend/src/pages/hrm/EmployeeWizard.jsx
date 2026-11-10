@@ -8,6 +8,7 @@ import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
 import { INDIA_STATE_NAMES, getCitiesByState } from "../../data/indiaLocations";
+import { clean, valid, latestBirthDate } from "../../lib/fieldRules";
 import { hrm, localDay } from "./hrmApi";
 import {
   EMPLOYEE_STATUSES,
@@ -54,8 +55,6 @@ const EMPTY_FINANCIAL = {
 const PHOTO_MAX = 2 * 1024 * 1024;
 const DOC_MAX = 5 * 1024 * 1024;
 const DOC_TYPES = ["application/pdf", "image/jpeg", "image/png"];
-const isEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v || "");
-const isPhone = (v) => /^\+?[\d\s\-().]{7,20}$/.test(v || "") && (v.match(/\d/g) || []).length >= 7;
 let rowKey = 0;
 const ErrorsContext = createContext({});
 
@@ -248,9 +247,9 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
     setForm((f) => ({
       ...f,
       userId,
-      ...(picked && !f.fullName.trim() ? { fullName: picked.name || "" } : {}),
-      ...(picked && !f.companyEmail.trim() ? { companyEmail: picked.email || "" } : {}),
-      ...(picked && !f.phone.trim() && picked.phone ? { phone: picked.phone } : {}),
+      ...(picked && !f.fullName.trim() ? { fullName: clean.name(picked.name) } : {}),
+      ...(picked && !f.companyEmail.trim() ? { companyEmail: clean.email(picked.email) } : {}),
+      ...(picked && !f.phone.trim() && picked.phone ? { phone: clean.phone(picked.phone) } : {}),
     }));
   };
 
@@ -261,10 +260,12 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
     };
     if (name === "Personal") {
       need("fullName", form.fullName, "Full name");
-      if (!isEmail(form.companyEmail)) e.companyEmail = "Enter a valid email";
-      if (!isPhone(form.phone)) e.phone = "Enter a valid phone number";
+      if (form.fullName.trim() && !valid.name(form.fullName)) e.fullName = "Use letters, spaces and . ' - only";
+      if (!valid.email(form.companyEmail)) e.companyEmail = "Enter a valid email";
+      if (!valid.phone(form.phone)) e.phone = "Enter 10 to 15 digits";
       if (canPrivate) {
         need("dob", profile.dob, "Date of birth");
+        if (profile.dob && profile.dob > latestBirthDate(localDay())) e.dob = "Must be at least 14 years old";
         need("gender", profile.gender, "Gender");
       }
       if (form.password && form.password.length < 8) e.password = "At least 8 characters";
@@ -283,19 +284,21 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
       need("city", profile.city, "City");
       need("state", profile.state, "State");
       need("postalCode", profile.postalCode, "PIN code");
-      if (profile.postalCode && !/^\d{6}$/.test(profile.postalCode))
-        e.postalCode = "PIN code must be 6 digits";
+      if (profile.postalCode && !valid.pin(profile.postalCode)) e.postalCode = "PIN code must be 6 digits";
       need("emergencyName", profile.emergencyName, "Emergency contact name");
+      if (profile.emergencyName.trim() && !valid.name(profile.emergencyName))
+        e.emergencyName = "Use letters, spaces and . ' - only";
       need("emergencyRelationship", profile.emergencyRelationship, "Relationship");
-      if (!isPhone(profile.emergencyPhone)) e.emergencyPhone = "Enter a valid phone number";
+      if (!valid.phone(profile.emergencyPhone)) e.emergencyPhone = "Enter 10 to 15 digits";
     }
     if (name === "Banking") {
-      if (financial.ifsc && !/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(financial.ifsc))
-        e.ifsc = "IFSC looks like HDFC0001234";
-      if (financial.pan && !/^[A-Za-z]{5}\d{4}[A-Za-z]$/.test(financial.pan))
-        e.pan = "PAN looks like ABCDE1234F";
-      if (financial.accountNumber && !/^\d{6,20}$/.test(financial.accountNumber))
-        e.accountNumber = "Account number is 6–20 digits";
+      if (financial.ifsc && !valid.ifsc(financial.ifsc)) e.ifsc = "IFSC looks like HDFC0001234";
+      if (financial.pan && !valid.pan(financial.pan)) e.pan = "PAN looks like ABCDE1234F";
+      if (financial.accountNumber && !valid.accountNumber(financial.accountNumber))
+        e.accountNumber = "Account number is 9–18 digits";
+      if (financial.uan && !valid.uan(financial.uan)) e.uan = "UAN is 12 digits";
+      if (financial.accountHolderName?.trim() && !valid.name(financial.accountHolderName))
+        e.accountHolderName = "Use letters, spaces and . ' - only";
       if (salary !== "" && !(Number(salary) >= 0)) e.salary = "Enter a valid amount";
       if (hoursPerDay !== "" && !(Number(hoursPerDay) >= 1 && Number(hoursPerDay) <= 24))
         e.hoursPerDay = "1 to 24";
@@ -542,14 +545,14 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   k="fullName"
                   title="Full Name"
                   value={form.fullName}
-                  onChange={set("fullName")}
+                  onChange={(v) => set("fullName")(clean.name(v))}
                   required
                   disabled={converting && Boolean(candidate?.title)}
                 />
                 <F k="companyEmail" title="Email" type="email" value={form.companyEmail} onChange={set("companyEmail")} required />
                 <F k="phone" title="Phone Number" type="tel" value={form.phone} onChange={set("phone")} required />
                 {canPrivate && (
-                  <F k="dob" title="Date of Birth" type="date" value={profile.dob} onChange={setP("dob")} required max={localDay()} />
+                  <F k="dob" title="Date of Birth" type="date" value={profile.dob} onChange={setP("dob")} required max={latestBirthDate(localDay())} />
                 )}
                 {canPrivate && (
                   <fieldset>
@@ -572,7 +575,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   </fieldset>
                 )}
                 <div>
-                  <F k="employeeCode" title="Employee Code" value={form.employeeCode} onChange={set("employeeCode")} />
+                  <F k="employeeCode" title="Employee Code" value={form.employeeCode} onChange={(v) => set("employeeCode")(clean.employeeCode(v))} maxLength={40} />
                   <p className="mt-1 text-xs text-[var(--text-muted)]">Optional: staff or biometric device number.</p>
                 </div>
                 {original?.userId ? (
@@ -794,7 +797,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                       required
                     />
                   )}
-                  <F k="postalCode" title="PIN Code" value={profile.postalCode} onChange={setP("postalCode")} required />
+                  <F k="postalCode" title="PIN Code" value={profile.postalCode} onChange={(v) => setP("postalCode")(clean.pin(v))} inputMode="numeric" maxLength={6} required />
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <F k="addressLine1" title="Address Line 1" value={profile.addressLine1} onChange={setP("addressLine1")} required />
@@ -802,7 +805,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                 </div>
                 <h3 className="border-t border-[var(--border)] pt-4 font-semibold">Emergency Contact</h3>
                 <div className="grid gap-4 md:grid-cols-3">
-                  <F k="emergencyName" title="Name" value={profile.emergencyName} onChange={setP("emergencyName")} required />
+                  <F k="emergencyName" title="Name" value={profile.emergencyName} onChange={(v) => setP("emergencyName")(clean.name(v))} required />
                   <F
                     k="emergencyRelationship"
                     title="Relationship"
@@ -823,13 +826,13 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   Optional — fill now or later from the employee profile.
                 </p>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <F k="accountHolderName" title="Account Holder Name" value={financial.accountHolderName} onChange={setF("accountHolderName")} />
+                  <F k="accountHolderName" title="Account Holder Name" value={financial.accountHolderName} onChange={(v) => setF("accountHolderName")(clean.name(v))} />
                   <F k="bankName" title="Bank Name" value={financial.bankName} onChange={setF("bankName")} />
                   <F k="bankBranch" title="Bank Branch" value={financial.bankBranch} onChange={setF("bankBranch")} />
-                  <F k="ifsc" title="IFSC Code" value={financial.ifsc} onChange={setF("ifsc")} />
-                  <F k="accountNumber" title="Account Number" value={financial.accountNumber} onChange={setF("accountNumber")} />
-                  <F k="pan" title="PAN" value={financial.pan} onChange={setF("pan")} />
-                  <F k="uan" title="UAN (PF)" value={financial.uan} onChange={setF("uan")} />
+                  <F k="ifsc" title="IFSC Code" value={financial.ifsc} onChange={(v) => setF("ifsc")(clean.ifsc(v))} maxLength={11} />
+                  <F k="accountNumber" title="Account Number" value={financial.accountNumber} onChange={(v) => setF("accountNumber")(clean.accountNumber(v))} inputMode="numeric" maxLength={18} />
+                  <F k="pan" title="PAN" value={financial.pan} onChange={(v) => setF("pan")(clean.pan(v))} maxLength={10} />
+                  <F k="uan" title="UAN (PF)" value={financial.uan} onChange={(v) => setF("uan")(clean.uan(v))} inputMode="numeric" maxLength={12} />
                 </div>
                 <h3 className="border-t border-[var(--border)] pt-4 font-semibold">Hours & Rates</h3>
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

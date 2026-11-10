@@ -27,7 +27,7 @@ async function makeUser(db, { roleCode = null, active = true, phone = "+91 98765
   const email = `${id}@example.test`;
   await db.query(
     "INSERT INTO users(id,full_name,username,email,phone,password_hash,is_active,payload) VALUES($1,$2,$3,$3,$4,'x',$5,'{}'::jsonb)",
-    [id, `Test ${id.slice(-6)}`, email, phone, active],
+    [id, `Test User ${id.replace(/[^a-f]/g, "").slice(0, 6)}`, email, phone, active],
   );
   if (roleCode)
     await db.query(
@@ -70,7 +70,7 @@ test("creating an employee from an existing login fills blanks and keeps its rol
     const saved = await employees.save(hr, base({ userId: login.id }), null, db);
     assert.equal(saved.userId, login.id);
     assert.equal(saved.companyEmail, login.email);
-    assert.equal(saved.phone, "+91 98765 00000");
+    assert.equal(saved.phone, "+919876500000"); // stored without spaces
     assert.deepEqual(await roleCodes(db, login.id), ["sales"]);
   }));
 

@@ -96,7 +96,7 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
       e.id,
       {
         profile: { personalEmail: "private@example.test" },
-        financial: { accountNumber: "secret-account", pan: "secret-pan" },
+        financial: { accountNumber: "123456789012", pan: "ABCDE1234F" },
       },
       db,
     );

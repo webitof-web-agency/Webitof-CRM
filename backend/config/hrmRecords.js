@@ -35,7 +35,7 @@ const RECORDS = {
     ],
     fields: [
       field("email", "Email", "email", { required: true }),
-      field("phone", "Phone"),
+      field("phone", "Phone", "tel"),
       field("source", "Source"),
       field("notes", "Notes", "textarea"),
     ],
