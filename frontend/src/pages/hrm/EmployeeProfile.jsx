@@ -379,6 +379,12 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
         <Button variant="secondary" onClick={() => navigate("/app/hrm/employees")}>
           <ArrowLeft size={16} /> Back
         </Button>
+        {can("manage_employees") && !employee.userId && (
+          // Without a linked login the employee cannot use My day or the Employee app.
+          <Button variant="secondary" onClick={() => navigate(employeePath(employee, "/edit"))}>
+            No login yet: create one
+          </Button>
+        )}
         {can("manage_employees") && (
           <Button onClick={() => navigate(employeePath(employee, "/edit"))}>Edit employee</Button>
         )}

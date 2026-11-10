@@ -459,6 +459,11 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
           duration: 10000,
         });
       else toast.success(editing ? "Employee updated" : converting ? "Candidate joined as an employee" : "Employee created");
+      // The password is optional, so say plainly when the person still cannot sign in.
+      if (!saved.userId)
+        toast.warning("No login was created, so this employee cannot sign in yet. Edit the employee and set a password.", {
+          duration: 10000,
+        });
       onDone(saved);
     } catch (e) {
       toast.error(e.message);
