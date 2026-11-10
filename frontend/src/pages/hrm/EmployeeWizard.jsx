@@ -24,6 +24,7 @@ import {
   useDocumentImage,
 } from "./employeeShared";
 
+const OTHER_CITY = "__other__";
 const EMPTY_PROFILE = {
   dob: "",
   gender: "",
@@ -98,6 +99,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   // Steps confirmed with Next (shown with a tick). Tabs move freely between steps; the full
   // form is still validated on save, which jumps to the first step that needs fixing.
   const [done, setDone] = useState(() => new Set());
+  const [customCity, setCustomCity] = useState(false);
   const [loaded, setLoaded] = useState(!editing);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -218,12 +220,28 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
     ...INDIA_STATE_NAMES,
     ...(profile.state && !INDIA_STATE_NAMES.includes(profile.state) ? [profile.state] : []),
   ];
-  const pickState = (state) =>
+  const pickState = (state) => {
+    setCustomCity(false);
     setProfile((p) => ({
       ...p,
       state,
       city: !p.city || getCitiesByState(state).includes(p.city) ? p.city : "",
     }));
+  };
+  // City is a list of the state's cities with an "Other" choice that opens a text box. A city
+  // saved earlier that is not in the list opens in the text box so it is not lost.
+  const profileCities = inIndia ? getCitiesByState(profile.state) : [];
+  const cityAsText =
+    !inIndia ||
+    customCity ||
+    (Boolean(profile.state) && profileCities.length === 0) ||
+    (Boolean(profile.city) && !profileCities.includes(profile.city));
+  const pickCity = (value) => {
+    if (value === OTHER_CITY) {
+      setCustomCity(true);
+      setP("city")("");
+    } else setP("city")(value);
+  };
   // Linking a login fills the blanks from it, so the employee email matches the login email.
   const linkLogin = (userId) => {
     const picked = users.find((u) => u.id === userId);
@@ -752,15 +770,35 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   ) : (
                     <F k="state" title="State" value={profile.state} onChange={setP("state")} required />
                   )}
-                  <F
-                    k="city"
-                    title="City"
-                    value={profile.city}
-                    onChange={setP("city")}
-                    suggestions={inIndia ? getCitiesByState(profile.state) : undefined}
-                    help={inIndia && profile.state ? "Pick from the list or type a city that is not listed." : undefined}
-                    required
-                  />
+                  {cityAsText ? (
+                    <div>
+                      <F k="city" title="City" value={profile.city} onChange={setP("city")} required />
+                      {inIndia && profileCities.length > 0 && (
+                        <button
+                          type="button"
+                          className="mt-1 text-xs font-semibold text-[var(--primary)] hover:underline"
+                          onClick={() => {
+                            setCustomCity(false);
+                            setP("city")("");
+                          }}
+                        >
+                          Pick from list
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <F
+                      k="city"
+                      title="City"
+                      type="select"
+                      options={[...profileCities, { value: OTHER_CITY, label: "Other (type the city)" }]}
+                      value={profile.city}
+                      onChange={pickCity}
+                      disabled={!profile.state}
+                      help={profile.state ? undefined : "Select the state first."}
+                      required
+                    />
+                  )}
                   <F k="postalCode" title="PIN / Postal Code" value={profile.postalCode} onChange={setP("postalCode")} required />
                 </div>
                 <h3 className="border-t border-[var(--border)] pt-5 font-semibold">Emergency Contact</h3>
