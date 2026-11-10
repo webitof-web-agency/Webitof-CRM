@@ -1,6 +1,9 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { pool } = require("../config/db");
+// Masters are unique by (type, name); a per-run suffix keeps the test clear of names a seeded
+// database already has (e.g. "Engineering" from the IT masters seed).
+const RUN = Date.now().toString(36);
 const { migrate } = require("../database/migrate-hrm");
 const c = require("../services/hrm/core");
 const employees = require("../services/hrm/employees");
@@ -50,7 +53,7 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
     const dept = await queries.masters(
       admin,
       "department",
-      { name: "Engineering", payload: {} },
+      { name: `Engineering ${RUN}`, payload: {} },
       null,
       db,
     );
@@ -111,7 +114,7 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
       admin,
       "leave_type",
       {
-        name: "Paid",
+        name: `Paid ${RUN}`,
         payload: { annualDays: 12, paid: true, halfDayAllowed: true },
       },
       null,
@@ -285,7 +288,7 @@ test("HRM migration, workflows, privacy and finance integration roll back withou
     });
     assert.ok((await life.document(staff, doc.id, {}, db)).content.length);
     const category = await c.insert(db, "master_items", {
-      name: "Test expense category",
+      name: `Test expense category ${RUN}`,
       type: "expense_category",
     });
     const claim = await ops.request(

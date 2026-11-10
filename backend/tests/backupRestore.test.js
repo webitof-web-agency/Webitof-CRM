@@ -8,12 +8,15 @@ const path = require('path');
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'crm-restore-test-'));
 process.env.DATABASE_URL = 'postgresql://crm_user:s3cret-pass@db.example.com:5432/crm';
-delete process.env.BACKUP_DATABASE_URL;
-delete process.env.ALLOW_PROD_DEV;
 
 const settingsStore = require('../models/systemSetting.model');
 const maintenance = require('../services/maintenance.service');
 const restore = require('../services/googleDrive/restore.service');
+
+// Loading the services pulls in backend/.env, which refills any key deleted before the
+// requires; a developer machine on the live DB has ALLOW_PROD_DEV=true there. Drop them now.
+delete process.env.BACKUP_DATABASE_URL;
+delete process.env.ALLOW_PROD_DEV;
 
 const ADMIN = { id: 'user_admin', fullName: 'Admin', permissions: ['backups.restore'] };
 const FILE = { id: 'f-backup', name: 'crm-backup-crm-2026-11-08_02-00-00-IST.dump', kind: 'scheduled' };

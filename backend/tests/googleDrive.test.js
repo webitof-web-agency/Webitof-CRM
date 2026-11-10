@@ -293,7 +293,11 @@ test('a pre-restore backup is named and listed as its own kind and counts toward
   assert.equal((await backups.listBackups()).find((file) => file.id === manual.fileId).kind, 'manual');
 });
 
-test('pg_dump only dumps the public schema', async () => {
+// These spawn a /bin/sh script as a stand-in pg_dump; Windows cannot run one without a shell,
+// and the service spawns pg_dump directly. CI (Linux) runs them.
+const POSIX_ONLY = process.platform === 'win32' && 'needs a POSIX shell for the fake pg_dump';
+
+test('pg_dump only dumps the public schema', { skip: POSIX_ONLY }, async () => {
   setup();
   await connect();
   const argsFile = path.join(TMP, 'pg-dump-args.txt');
@@ -328,7 +332,7 @@ test('Back up now is allowed in production only for users with backups.restore',
   assert.ok(PERMISSIONS.some((permission) => permission.code === 'backups.restore'));
 });
 
-test('a pg_dump failure is recorded as FAILED without showing the password', async () => {
+test('a pg_dump failure is recorded as FAILED without showing the password', { skip: POSIX_ONLY }, async () => {
   setup();
   await connect();
   const script = path.join(TMP, 'fake-pg-dump.sh');
