@@ -36,6 +36,7 @@ import {
   openDocument,
   useDocumentImage,
 } from "./employeeShared";
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 
 const MORE_TABS = [
   "overview",
@@ -446,7 +447,7 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
                 {title}
               </button>
             ))}
-            <select
+            <ThemedSelect
               aria-label="More employee sections"
               value={more}
               onChange={(e) => setMore(e.target.value)}
@@ -458,7 +459,7 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
                   {label(value.replace(/-/g, " "))}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
 
           {more ? (

@@ -19,6 +19,7 @@ import { cn } from '../lib/cn';
 import { FileBrowserModal } from '../components/ui/FileBrowserModal';
 import { ThemeSwitcher } from '../components/layout/ThemeSwitcher';
 import { IconButton } from '../components/ui/IconButton';
+import { ThemedSelect } from '../components/ui/ThemedSelect';
 
 function mergeDeep(target = {}, source = {}) {
   const result = Array.isArray(target) ? [...target] : { ...target };
@@ -1723,14 +1724,14 @@ export function SettingsPage() {
                   ))}
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Invoice Number Format</label>
-                    <select
+                    <ThemedSelect
                       className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 focus:border-[var(--primary)] focus:outline-none"
                       value={String(settings.invoice?.numberFormat || 'month_year') === 'financial_year' ? 'financial_year' : 'month_year'}
                       onChange={(event) => updateSection(setSettings, 'invoice', 'numberFormat', event.target.value)}
                     >
                       <option value="month_year">Prefix + Month-Year + Sequence</option>
                       <option value="financial_year">Prefix + Financial Year + Sequence</option>
-                    </select>
+                    </ThemedSelect>
                   </div>
                   <div className="md:col-span-2">
                     <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Terms & Conditions</label>
@@ -2438,13 +2439,13 @@ export function SettingsPage() {
 
                     <div>
                       <label className="mb-1.5 block text-sm font-medium text-[var(--text-main)]">Time Zone</label>
-                      <select
+                      <ThemedSelect
                         className="w-full h-10 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] focus:border-[var(--primary)] focus:outline-none"
                         value={followUpSettings.timezone || 'Asia/Kolkata'}
                         onChange={(e) => setFollowUpSettings((curr) => ({ ...curr, timezone: e.target.value }))}
                       >
                         <option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option>
-                      </select>
+                      </ThemedSelect>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -2847,7 +2848,7 @@ curl_close($ch);
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Layout</label>
-            <select
+            <ThemedSelect
               className="w-full h-10 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm text-slate-700 dark:text-slate-200 focus:border-[var(--primary)] focus:outline-none"
               value={templateDraft.layout || 'modern'}
               onChange={(event) => setTemplateDraft((current) => ({ ...current, layout: event.target.value }))}
@@ -2855,7 +2856,7 @@ curl_close($ch);
               <option value="modern">Modern</option>
               <option value="classic">Classic</option>
               <option value="minimal">Minimal</option>
-            </select>
+            </ThemedSelect>
           </div>
           <div className="md:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Footer Text</label>
@@ -2959,7 +2960,7 @@ curl_close($ch);
           {fieldEditorType === 'statuses' && (
             <div>
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 block">Pipeline State</label>
-              <select
+              <ThemedSelect
                 className="w-full h-10 px-3 py-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] transition-all"
                 style={{ borderRadius: 'var(--radius-input, 0.5rem)' }}
                 value={fieldEditorState}
@@ -2968,7 +2969,7 @@ curl_close($ch);
                 <option value="open">Open (Active Lead)</option>
                 <option value="won">Won (Convert to Client)</option>
                 <option value="lost">Lost (Failed Lead)</option>
-              </select>
+              </ThemedSelect>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Leads dragged to a "Won" status will prompt for Client conversion.
               </p>
@@ -3069,7 +3070,7 @@ curl_close($ch);
         <div className="space-y-4">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Certificate Type</label>
-            <select
+            <ThemedSelect
               value={customCertDraft.type}
               onChange={(e) => {
                 const val = e.target.value;
@@ -3091,7 +3092,7 @@ curl_close($ch);
               <optgroup label="Other Corporate Documents">
                 <option value="custom">Other / Custom Certificate</option>
               </optgroup>
-            </select>
+            </ThemedSelect>
           </div>
 
           <div>

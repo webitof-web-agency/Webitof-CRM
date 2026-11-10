@@ -32,7 +32,11 @@ export function SearchableSelect({
   className = '',
   triggerClassName = '',
   listClassName = 'max-h-60',
-  maxSelectedChips = 2
+  // 'auto' shows the search box only for lists long enough to need it.
+  searchable = 'auto',
+  maxSelectedChips = 2,
+  id,
+  'aria-label': ariaLabel
 }) {
   const rootRef = useRef(null);
   const dropdownRef = useRef(null);
@@ -79,6 +83,7 @@ export function SearchableSelect({
     () => (Array.isArray(options) ? options.map((opt) => normalizeOption(opt)) : []),
     [options]
   );
+  const showSearch = searchable === 'auto' ? normalizedOptions.length > 8 : Boolean(searchable);
 
   const selectedValues = useMemo(() => {
     if (multiple) {
@@ -205,6 +210,10 @@ export function SearchableSelect({
       ) : (
         <button
           type="button"
+          id={id}
+          aria-label={ariaLabel}
+          aria-haspopup="listbox"
+          aria-expanded={open}
           disabled={disabled}
           onClick={() => setOpen((current) => !current)}
           className={cn(
@@ -229,18 +238,20 @@ export function SearchableSelect({
           className="fixed z-[9999] overflow-hidden rounded-2xl border border-[var(--border-glass)] bg-[var(--surface)] shadow-[var(--shadow-modal)] backdrop-blur-xl animate-fade-scale"
           style={coords}
         >
-          <div className="border-b border-[var(--border)] p-2 bg-[var(--surface)]">
-            <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder={searchPlaceholder}
-                className="pl-9 text-xs"
-                autoFocus
-              />
+          {showSearch ? (
+            <div className="border-b border-[var(--border)] p-2 bg-[var(--surface)]">
+              <div className="relative">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="pl-9 text-xs"
+                  autoFocus
+                />
+              </div>
             </div>
-          </div>
+          ) : null}
           <div className={cn(listClassName, 'overflow-y-auto p-1.5 flex flex-col gap-0.5')}>
             {filteredOptions.length ? filteredOptions.map((option) => {
               const active = selectedValueSet.has(String(option.value));

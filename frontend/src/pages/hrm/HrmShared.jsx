@@ -3,6 +3,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { SearchableSelect } from "../../components/forms/SearchableSelect";
+import { clean } from "../../lib/fieldRules";
 import { Modal } from "../../components/ui/Modal";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { SimpleTable } from "../../components/ui/SimpleTable";
@@ -25,6 +26,8 @@ export function Field({
   help,
   suggestions,
   searchable = false,
+  inputMode,
+  maxLength,
 }) {
   const id = `hrm-${name}`;
   return (
@@ -36,37 +39,24 @@ export function Field({
         {title || label(name)}
         {required ? " *" : ""}
       </label>
-      {type === "select" && searchable ? (
-        // Themed, searchable pop-up for long lists (states, cities); short lists keep <select>.
+      {type === "select" ? (
+        // The app's themed pop-up for every HRM dropdown; the search box shows for long lists
+        // (or always when `searchable`). Optional fields get a "None" choice to clear them.
         <SearchableSelect
+          id={id}
           value={value ?? ""}
           onChange={(next) => onChange(next ?? "")}
-          options={options}
+          options={[
+            ...(required ? [] : [{ value: "", label: "— None —" }]),
+            ...options.map((o) => (typeof o === "string" ? { value: o, label: o } : o)),
+          ]}
           placeholder="Select…"
+          searchable={searchable || "auto"}
           searchPlaceholder={`Search ${String(title || label(name)).toLowerCase()}…`}
           disabled={disabled}
           triggerClassName="py-2.5 text-sm"
           listClassName="max-h-52"
         />
-      ) : type === "select" ? (
-        <select
-          id={id}
-          className={controlClass}
-          value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
-          required={required}
-          disabled={disabled}
-        >
-          <option value="">Select…</option>
-          {options.map((o) => (
-            <option
-              key={typeof o === "string" ? o : o.value}
-              value={typeof o === "string" ? o : o.value}
-            >
-              {typeof o === "string" ? o : o.label}
-            </option>
-          ))}
-        </select>
       ) : type === "checkbox" ? (
         <input
           id={id}
@@ -91,7 +81,12 @@ export function Field({
           id={id}
           type={type}
           value={value ?? ""}
-          onChange={(e) => onChange(e.target.value)}
+          // Phones keep only digits and a leading +; emails lose spaces and go lower-case.
+          onChange={(e) =>
+            onChange(type === "tel" ? clean.phone(e.target.value) : type === "email" ? clean.email(e.target.value) : e.target.value)
+          }
+          inputMode={inputMode ?? (type === "tel" ? "tel" : undefined)}
+          maxLength={maxLength}
           required={required}
           disabled={disabled}
           min={min}

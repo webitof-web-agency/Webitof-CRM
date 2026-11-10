@@ -27,6 +27,7 @@ import { CompleteFollowUpModal, FollowUpFormModal, RescheduleFollowUpModal } fro
 import { Chip } from '../../components/ui/Chip';
 import { SimpleTable } from '../../components/ui/SimpleTable';
 import { IconButton } from '../../components/ui/IconButton';
+import { ThemedSelect } from '../../components/ui/ThemedSelect';
 
 const tabs = [
   { id: 'today', label: 'Today', icon: Clock3 },
@@ -1046,7 +1047,7 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
 
               <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                 <span>Rows per page:</span>
-                <select
+                <ThemedSelect
                   value={pageSize}
                   onChange={(e) => setFilters((current) => ({ ...current, limit: Number(e.target.value), page: 1 }))}
                   className="h-7.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold text-[var(--text-main)] px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-[var(--primary)] cursor-pointer"
@@ -1056,7 +1057,7 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
                       {size}
                     </option>
                   ))}
-                </select>
+                </ThemedSelect>
               </div>
             </div>
 
@@ -1638,7 +1639,7 @@ function WorkloadView({ data, loading, onSelectAssignee }) {
             </div>
 
             {/* Sort Dropdown */}
-            <select
+            <ThemedSelect
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="h-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] text-xs font-semibold text-[var(--text-main)] px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-[var(--primary)] cursor-pointer"
@@ -1646,7 +1647,7 @@ function WorkloadView({ data, loading, onSelectAssignee }) {
               <option value="assigned">Sort: Most Tasks</option>
               <option value="overdue">Sort: Most Overdue</option>
               <option value="completion">Sort: Highest Rate</option>
-            </select>
+            </ThemedSelect>
           </div>
         </div>
 

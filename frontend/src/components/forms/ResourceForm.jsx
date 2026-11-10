@@ -10,6 +10,7 @@ import { buildInitialDraft, getFieldOptions, isFieldVisible, isLookupField, seri
 import { cn } from '../../lib/cn';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../../data/indiaLocations';
 import { DEFAULT_TECHNOLOGY_ICON, TECHNOLOGY_ICONS } from '../../config/technologyIcons';
+import { ThemedSelect } from '../ui/ThemedSelect';
 
 function FieldLabel({ field, compact = false, inline = false }) {
   const descriptionAsTooltip = field.description && field.descriptionDisplay === 'tooltip';
@@ -393,7 +394,7 @@ export function ResourceForm({
                 <div className="flex items-center justify-between gap-3">
                   <label className="flex items-center gap-2 text-xs font-semibold text-[var(--text-main)]">
                     Number of installments
-                    <select
+                    <ThemedSelect
                       value={milestones.length || 1}
                       onChange={(event) => updateInstallmentCount(event.target.value)}
                       disabled={busy}
@@ -403,7 +404,7 @@ export function ResourceForm({
                       )}
                     >
                       {[1, 2, 3, 4, 5, 6].map((count) => <option key={count} value={count}>{count}</option>)}
-                    </select>
+                    </ThemedSelect>
                   </label>
                   <span className={cn(
                     'font-bold',

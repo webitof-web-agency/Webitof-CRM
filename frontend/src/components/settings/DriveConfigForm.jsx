@@ -5,6 +5,7 @@ import { api } from '../../api/client';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { ThemedSelect } from '../ui/ThemedSelect';
 
 const TEXT_FIELDS = [
   { key: 'clientId', label: 'OAuth client ID', placeholder: '1234567890-abc.apps.googleusercontent.com' },
@@ -182,14 +183,14 @@ export function DriveConfigForm({ token, canWrite, onSaved }) {
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-200">Daily backup time</label>
             <SourceBadge source={config.sources.backupHourIst} />
           </div>
-          <select
+          <ThemedSelect
             value={form.backupHourIst}
             onChange={(event) => set('backupHourIst', event.target.value)}
             disabled={disabled}
             className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
           >
             {HOURS.map((hour) => <option key={hour.value} value={hour.value}>{hour.label}</option>)}
-          </select>
+          </ThemedSelect>
         </div>
         <div>
           <div className="mb-1.5 flex items-center gap-2">

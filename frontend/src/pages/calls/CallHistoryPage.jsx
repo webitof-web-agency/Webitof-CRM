@@ -38,6 +38,7 @@ import { Input } from '../../components/ui/Input';
 import { Modal } from '../../components/ui/Modal';
 import { cn } from '../../lib/cn';
 import { IconButton } from '../../components/ui/IconButton';
+import { ThemedSelect } from '../../components/ui/ThemedSelect';
 
 function formatDuration(seconds = 0) {
   const s = Math.max(0, parseInt(seconds, 10) || 0);
@@ -827,7 +828,7 @@ export function CallHistoryPage() {
           </div>
 
           {/* Staff Filter Dropdown */}
-          <select
+          <ThemedSelect
             value={selectedStaff}
             onChange={(e) => {
               setSelectedStaff(e.target.value);
@@ -841,10 +842,10 @@ export function CallHistoryPage() {
                 {s.staffName} ({s.totalCalls})
               </option>
             ))}
-          </select>
+          </ThemedSelect>
 
           {/* Call Type Dropdown */}
-          <select
+          <ThemedSelect
             value={callType}
             onChange={(e) => {
               setCallType(e.target.value);
@@ -857,10 +858,10 @@ export function CallHistoryPage() {
             <option value="incoming">Incoming</option>
             <option value="missed">Missed</option>
             <option value="rejected">Rejected</option>
-          </select>
+          </ThemedSelect>
 
           {/* Date Range Dropdown */}
-          <select
+          <ThemedSelect
             value={dateRange}
             onChange={(e) => {
               setDateRange(e.target.value);
@@ -873,7 +874,7 @@ export function CallHistoryPage() {
             <option value="yesterday">Yesterday</option>
             <option value="this_week">This Week</option>
             <option value="this_month">This Month</option>
-          </select>
+          </ThemedSelect>
 
           {/* Recordings Only Toggle */}
           <button
@@ -1135,7 +1136,7 @@ export function CallHistoryPage() {
               {/* Rows Per Page Selector */}
               <div className="flex items-center gap-1.5 text-[11px]">
                 <span className="hidden sm:inline text-[var(--text-muted)] font-medium">Rows per page:</span>
-                <select
+                <ThemedSelect
                   value={pageSize}
                   onChange={(e) => {
                     setPageSize(Number(e.target.value));
@@ -1147,7 +1148,7 @@ export function CallHistoryPage() {
                   <option value={20}>20</option>
                   <option value={30}>30</option>
                   <option value={50}>50</option>
-                </select>
+                </ThemedSelect>
               </div>
 
               {/* Pagination Navigation & Direct Page Number Buttons */}
@@ -1317,7 +1318,7 @@ export function CallHistoryPage() {
               <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">
                 Call Type
               </label>
-              <select
+              <ThemedSelect
                 value={formData.callType}
                 onChange={(e) => setFormData({ ...formData, callType: e.target.value })}
                 className="w-full h-8.5 px-2.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
@@ -1326,7 +1327,7 @@ export function CallHistoryPage() {
                 <option value="incoming">Incoming</option>
                 <option value="missed">Missed</option>
                 <option value="rejected">Rejected</option>
-              </select>
+              </ThemedSelect>
             </div>
 
             <div>
@@ -1347,7 +1348,7 @@ export function CallHistoryPage() {
             <label className="block text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">
               Outcome
             </label>
-            <select
+            <ThemedSelect
               value={formData.outcome}
               onChange={(e) => setFormData({ ...formData, outcome: e.target.value })}
               className="w-full h-8.5 px-2.5 text-xs rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]/20"
@@ -1358,7 +1359,7 @@ export function CallHistoryPage() {
               <option value="Wrong Number">Wrong Number</option>
               <option value="Not Answered">Not Answered</option>
               <option value="Declined">Declined</option>
-            </select>
+            </ThemedSelect>
           </div>
 
           <div>

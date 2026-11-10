@@ -9,6 +9,7 @@ import { ResourceForm } from '../components/forms/ResourceForm';
 import { useAuth } from '../context/AuthContext';
 import { sortRows } from '../lib/resource';
 import { IconButton } from '../components/ui/IconButton';
+import { ThemedSelect } from '../components/ui/ThemedSelect';
 
 const accountSchema = {
   key: 'banking-accounts',
@@ -225,41 +226,41 @@ export function BankingPage() {
             activeTab === 'transactions' ? (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 text-[var(--text-muted)] mr-1"><Filter size={16} /> <span className="text-sm font-medium">Filters:</span></div>
-                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                <ThemedSelect className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
                   <option value="">All Types</option>
                   <option value="Credit">Credit</option>
                   <option value="Debit">Debit</option>
                   <option value="Transfer">Transfer</option>
                   <option value="Adjustment">Adjustment</option>
-                </select>
-                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
+                </ThemedSelect>
+                <ThemedSelect className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
                   <option value="">All Banks</option>
                   {lookups.bankAccounts.map(b => <option key={b.id} value={b.id}>{b.bankName} - {b.accountNumber}</option>)}
-                </select>
-                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterClient} onChange={e => setFilterClient(e.target.value)}>
+                </ThemedSelect>
+                <ThemedSelect className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterClient} onChange={e => setFilterClient(e.target.value)}>
                   <option value="">All Clients</option>
                   {lookups.clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
+                </ThemedSelect>
+                <ThemedSelect className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterProject} onChange={e => setFilterProject(e.target.value)}>
                   <option value="">All Projects</option>
                   {lookups.projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                </ThemedSelect>
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2 text-[var(--text-muted)] mr-1"><Filter size={16} /> <span className="text-sm font-medium">Filters:</span></div>
-                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
+                <ThemedSelect className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterType} onChange={e => setFilterType(e.target.value)}>
                   <option value="">All Account Types</option>
                   <option value="Current">Current</option>
                   <option value="Savings">Savings</option>
                   <option value="OD">OD</option>
                   <option value="Cash Credit">Cash Credit</option>
-                </select>
-                <select className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
+                </ThemedSelect>
+                <ThemedSelect className="h-9 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 text-sm text-[var(--text-main)] outline-none focus:border-[var(--primary)]" value={filterBank} onChange={e => setFilterBank(e.target.value)}>
                   <option value="">Primary Status</option>
                   <option value="true">Primary Only</option>
                   <option value="false">Secondary Only</option>
-                </select>
+                </ThemedSelect>
               </div>
             )
           }

@@ -82,6 +82,7 @@ import {
 import { normalizeServicePaymentPlan } from '../../config/paymentPlans';
 import { IconButton } from '../ui/IconButton';
 import { Chip } from '../ui/Chip';
+import { ThemedSelect } from '../ui/ThemedSelect';
 
 const TECHNOLOGY_NAME_BY_ID = new Map((STATIC_TECHNOLOGIES || []).map((tech) => [String(tech.id), tech.name]));
 
@@ -2372,7 +2373,7 @@ export function QuotationBuilderModal({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-[var(--text-main)]">Quotation Status</label>
-                      <select
+                      <ThemedSelect
                         className="w-full h-10 px-3 py-2 text-xs font-semibold bg-[var(--surface-elevated)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         value={formData.status}
                         onChange={(e) => setField('status', e.target.value)}
@@ -2383,7 +2384,7 @@ export function QuotationBuilderModal({
                         <option value="Sent">Sent to Client</option>
                         <option value="Accepted">Accepted / Won</option>
                         <option value="Declined">Declined</option>
-                      </select>
+                      </ThemedSelect>
                     </div>
 
                     <div className="space-y-1.5">
@@ -2559,7 +2560,7 @@ export function QuotationBuilderModal({
                   {/* Compact Add Feature Input Row */}
                   <div className="flex items-center gap-2 bg-[var(--surface-2)] p-2 rounded-xl border border-slate-200/80">
                     {availableFeatureServices.length > 1 && (
-                      <select
+                      <ThemedSelect
                         value={selectedFeatureService || availableFeatureServices[0] || ''}
                         onChange={(e) => setSelectedFeatureService(e.target.value)}
                         className="h-8 px-2.5 text-xs font-semibold bg-[var(--surface-elevated)] border border-[var(--border)] rounded-lg text-[var(--text-main)] focus:outline-none focus:ring-1 focus:ring-blue-500 shrink-0 max-w-[200px] truncate"
@@ -2567,7 +2568,7 @@ export function QuotationBuilderModal({
                         {availableFeatureServices.map((svc) => (
                           <option key={svc} value={svc}>{svc}</option>
                         ))}
-                      </select>
+                      </ThemedSelect>
                     )}
                     <Input
                       className="h-8 text-xs px-3 rounded-lg border-[var(--border)] bg-[var(--surface-elevated)] flex-1"
@@ -3158,7 +3159,7 @@ export function QuotationBuilderModal({
                         />
                       </div>
                       <div className="flex gap-2">
-                        <select
+                        <ThemedSelect
                           disabled={!formData.discountEnabled}
                           className="w-24 h-10 px-2 text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg disabled:opacity-50"
                           value={formData.discountType}
@@ -3166,7 +3167,7 @@ export function QuotationBuilderModal({
                         >
                           <option value="percent">%</option>
                           <option value="flat">₹ Flat</option>
-                        </select>
+                        </ThemedSelect>
                         <Input
                           type="number"
                           disabled={!formData.discountEnabled}
@@ -3188,7 +3189,7 @@ export function QuotationBuilderModal({
                           className="rounded text-blue-600 cursor-pointer"
                         />
                       </div>
-                      <select
+                      <ThemedSelect
                         disabled={!formData.gstApplicable}
                         className="w-full h-10 px-3 text-xs bg-[var(--surface-2)] border border-[var(--border)] rounded-lg disabled:opacity-50 font-semibold"
                         value={formData.gstRate}
@@ -3198,7 +3199,7 @@ export function QuotationBuilderModal({
                         <option value="12">12%</option>
                         <option value="5">5%</option>
                         <option value="0">0% (Exempt)</option>
-                      </select>
+                      </ThemedSelect>
                     </div>
                   </div>
 

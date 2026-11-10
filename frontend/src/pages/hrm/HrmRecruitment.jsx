@@ -8,6 +8,7 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { formatDateTime } from "../../lib/format";
 import { hrm, queryString } from "./hrmApi";
 import { Status } from "./HrmShared";
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 
 const STAGE_HINT = {
   Applicant: "New applications",
@@ -169,7 +170,7 @@ export function HrmRecruitment({ token, can }) {
                       <p className="text-xs text-emerald-700 dark:text-emerald-400">Joined as an employee</p>
                     ) : (
                       <div className="flex flex-wrap items-center gap-2">
-                        <select
+                        <ThemedSelect
                           aria-label={`Stage for ${candidate.title}`}
                           className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-xs text-[var(--text-main)] disabled:opacity-50"
                           value={candidate.status}
@@ -181,7 +182,7 @@ export function HrmRecruitment({ token, can }) {
                               {s}
                             </option>
                           ))}
-                        </select>
+                        </ThemedSelect>
                         {["Selected", "Offer"].includes(candidate.status) && can("manage_employees") && (
                           <Button
                             size="xs"

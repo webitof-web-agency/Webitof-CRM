@@ -33,6 +33,7 @@ import { ConfirmDialog } from '../components/overlays/ConfirmDialog';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { cn } from '../lib/cn';
+import { ThemedSelect } from '../components/ui/ThemedSelect';
 
 export const IT_AGREEMENT_TYPES = [
   { value: 'terms_and_conditions', label: 'Terms and Conditions', category: 'General', defaultInQuotation: true },
@@ -861,7 +862,7 @@ export function LegalMasterPage() {
 
             <label>
               <span className="mb-1 block text-xs font-semibold text-slate-700">Document Type</span>
-              <select
+              <ThemedSelect
                 value={formData.documentType}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -877,7 +878,7 @@ export function LegalMasterPage() {
                 {IT_AGREEMENT_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
                 ))}
-              </select>
+              </ThemedSelect>
             </label>
 
             <label>

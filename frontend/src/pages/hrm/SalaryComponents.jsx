@@ -2,6 +2,7 @@ import { Button } from "../../components/ui/Button";
 import { IconButton } from "../../components/ui/IconButton";
 import { Input } from "../../components/ui/Input";
 import { Trash2 } from "lucide-react";
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 
 export const COMPONENT_TYPES = [
   { value: "earning", label: "Earning (paid to the employee)" },
@@ -41,7 +42,7 @@ export function SalaryComponents({ value = [], onChange, currency = "INR" }) {
             onChange={(e) => update(index, { name: e.target.value })}
             required
           />
-          <select
+          <ThemedSelect
             aria-label={`Component ${index + 1} type`}
             className="w-full rounded-[var(--radius-input,0.625rem)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-main)]"
             value={row.type || "earning"}
@@ -52,7 +53,7 @@ export function SalaryComponents({ value = [], onChange, currency = "INR" }) {
                 {t.label}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
           <Input
             aria-label={`Component ${index + 1} monthly amount`}
             type="number"
