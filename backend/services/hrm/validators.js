@@ -21,6 +21,10 @@ function phone(value, label, required = false) {
   const clean = text.replace(/[\s()-]/g, "");
   if (!/^\+?\d{10,15}$/.test(clean))
     c.fail(`${label} must be 10 to 15 digits (a leading + is allowed)`);
+  // Stored with the country code: a bare Indian number (10 digits, or 0 + STD code) gets +91,
+  // otherwise phone widgets read its first digits as a country code (8839… shown as +88).
+  if (/^\d{10}$/.test(clean)) return `+91${clean}`;
+  if (/^0\d{10}$/.test(clean)) return `+91${clean.slice(1)}`;
   return clean;
 }
 

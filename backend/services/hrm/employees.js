@@ -522,8 +522,18 @@ async function list(user, q = {}, db = c.dbDefault) {
 }
 async function detail(user, id, db = c.dbDefault) {
   const e = await c.employee(db, user, id);
+  // Whether the linked login can sign in, and whether HR switched it off (status-driven).
+  const u = e.userId
+    ? (
+        await db.query(
+          "SELECT is_active,(payload ? 'hrmBlocked') AS hr_blocked FROM users WHERE id=$1",
+          [e.userId],
+        )
+      ).rows[0]
+    : null;
   return {
     ...publicEmployee(e),
+    login: u ? { active: u.is_active, blockedByHr: u.hr_blocked } : null,
     ...(e.userId === user.id || c.can(user, "view_private")
       ? { profile: e.profile }
       : {}),

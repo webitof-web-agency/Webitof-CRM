@@ -1,3 +1,4 @@
+require("./helpers/requireTestDb"); // never the live database from .env
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const database = require("../config/db");

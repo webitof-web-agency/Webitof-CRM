@@ -7,7 +7,9 @@ const refuses = (fn, message) => assert.throws(fn, (e) => e.statusCode === 400 &
 
 test("phones keep digits and a leading +, 10 to 15 digits", () => {
   assert.equal(rules.phone("+91 98765-43210", "Phone"), "+919876543210");
-  assert.equal(rules.phone("(0771) 4012345", "Phone"), "07714012345");
+  assert.equal(rules.phone("(0771) 4012345", "Phone"), "+917714012345");
+  assert.equal(rules.phone("8839229950", "Phone"), "+918839229950");
+  assert.equal(rules.phone("+1 415 555 0100", "Phone"), "+14155550100");
   assert.equal(rules.phone("", "Phone"), null);
   refuses(() => rules.phone("98765abc10", "Phone"), /10 to 15 digits/);
   refuses(() => rules.phone("12345", "Phone"), /10 to 15 digits/);

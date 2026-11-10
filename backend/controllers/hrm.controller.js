@@ -5,6 +5,7 @@ const work = require("../services/hrm/work");
 const operations = require("../services/hrm/operations");
 const finance = require("../services/hrm/payroll");
 const lifecycle = require("../services/hrm/lifecycle");
+const access = require("../services/hrm/access");
 const analytics = require("../services/hrm/analytics");
 const workday = require("../services/hrm/workday");
 const respond =
@@ -156,6 +157,9 @@ const controller = {
   recruitmentPipeline: respond((req) => lifecycle.recruitmentPipeline(req.user, req.query)),
   moveCandidate: respond((req) => lifecycle.moveCandidate(req.user, req.params.id, req.body)),
   offboard: respond((req) => lifecycle.offboard(req.user, req.params.id)),
+  suspendEmployee: respond((req) => access.suspend(req.user, req.params.id, req.body || {})),
+  terminateEmployee: respond((req) => access.terminate(req.user, req.params.id, req.body || {})),
+  reinstateEmployee: respond((req) => access.reinstate(req.user, req.params.id, req.body || {})),
   letter: respond((req) =>
     lifecycle.letter(req.user, req.params.id, req.query.templateId),
   ),

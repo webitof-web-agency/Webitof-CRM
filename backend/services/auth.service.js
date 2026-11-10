@@ -42,6 +42,64 @@ function normalizeUsername(username) {
   return String(username || '').trim().toLowerCase();
 }
 
+function badRequest(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+// Same rules as the Users form. Only fields present in `data` are checked, so partial
+// updates (e.g. the detail page saving one field) keep working.
+async function cleanUserInput(data = {}, { creating = false, userId = null } = {}) {
+  const has = (key) => Object.prototype.hasOwnProperty.call(data, key) && data[key] !== undefined;
+  if (has('fullName') || creating) {
+    const name = String(data.fullName || data.full_name || data.name || '').trim().replace(/\s+/g, ' ');
+    if (!name) throw badRequest('Full name is required');
+    if (name.length > 80 || !/^\p{L}[\p{L}\p{M} .'-]*$/u.test(name)) throw badRequest("Full name may use letters, spaces and . ' - only");
+    data.fullName = name;
+  }
+  if (has('email') || creating) {
+    const email = normalizeEmail(data.email || data.username);
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw badRequest('Enter a valid email address');
+    data.email = email;
+  }
+  if (has('username') || creating) {
+    const username = normalizeUsername(data.username || data.email);
+    if (username.length < 3 || username.length > 60 || !/^[a-z0-9._@-]+$/.test(username)) throw badRequest('Username may use letters, digits and . _ @ - (3 to 60 characters)');
+    data.username = username;
+  }
+  if (has('phone')) {
+    const text = String(data.phone || '').trim();
+    let digits = text.replace(/\D/g, '');
+    if (!text.startsWith('+') && digits.length === 10) digits = `91${digits}`;
+    else if (!text.startsWith('+') && digits.length === 11 && digits.startsWith('0')) digits = `91${digits.slice(1)}`;
+    const phone = digits && !/^\d{1,4}$/.test(digits) ? `+${digits}` : '';
+    if (phone && (!/^\+\d{8,15}$/.test(phone) || (phone.startsWith('+91') && !/^\+91[6-9]\d{9}$/.test(phone))))
+      throw badRequest('Enter a valid phone number');
+    data.phone = phone || null;
+  }
+  if (has('address')) {
+    const address = String(data.address || '').replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, '').trim();
+    if (address.length > 300) throw badRequest('Address is too long (300 characters max)');
+    data.address = address || null;
+  }
+  if (has('gender') && data.gender && !['Male', 'Female', 'Other'].includes(data.gender)) throw badRequest('Invalid gender');
+  if (has('password') && data.password) {
+    const password = String(data.password);
+    if (password.length < 8 || !password.trim()) throw badRequest('Password must be at least 8 characters');
+    if (password.length > 72) throw badRequest('Password is too long (72 characters max)');
+  }
+  for (const [key, label] of [['email', 'email'], ['username', 'username']]) {
+    if (!has(key)) continue;
+    const taken = await query(
+      'select 1 from users where (lower(email) = $1 or lower(username) = $1) and ($2::text is null or id <> $2) limit 1',
+      [data[key], userId]
+    );
+    if (taken.rowCount) throw badRequest(`This ${label} is already used by another user`, 409);
+  }
+  return data;
+}
+
 function generatePasswordResetOtp() {
   return String(randomInt(100000, 1000000));
 }
@@ -361,6 +419,7 @@ async function syncRolePermissions(client, roleId, permissionIds = [], grantedBy
 }
 
 async function createUser(data = {}, meta = {}) {
+  data = await cleanUserInput({ ...data }, { creating: true });
   // No shared fallback password: every new account needs its own.
   const initialPassword = String(data.password || data.tempPassword || '');
   if (initialPassword.length < 8) {
@@ -396,6 +455,7 @@ async function createUser(data = {}, meta = {}) {
 }
 
 async function updateUser(userId, data = {}, meta = {}) {
+  data = await cleanUserInput({ ...data }, { userId });
   // Same as createUser: load the profile after COMMIT so it reflects this update.
   await withTransaction(async (client) => {
     // Fetch current user to merge payload

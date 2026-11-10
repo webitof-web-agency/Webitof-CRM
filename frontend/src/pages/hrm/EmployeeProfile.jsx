@@ -28,6 +28,7 @@ import { hrm, label, localDay } from "./hrmApi";
 import { HrmCollection } from "./HrmCollection";
 import { HrmDashboard } from "./HrmDashboard";
 import { DocumentPreview } from "./DocumentPreview";
+import { EmploymentAccessDialog, LoginBadge, isBlockedStatus } from "./EmploymentAccess";
 import {
   PHOTO_CATEGORY,
   downloadLetter,
@@ -311,6 +312,7 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0),
     [action, setAction] = useState(null),
+    [access, setAccess] = useState(""),
     [busy, setBusy] = useState(false);
   const photo = useDocumentImage(token, employee?.photoDocumentId);
 
@@ -405,6 +407,23 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
             Complete exit
           </Button>
         )}
+        {can("hr_approve") &&
+          (isBlockedStatus(employee.status) ? (
+            <Button variant="success" onClick={() => setAccess("reinstate")}>
+              {employee.status === "Suspended" ? "Reinstate" : "Rejoin"}
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setAccess("suspend")}>
+                Suspend
+              </Button>
+              {employee.status !== "Draft" && (
+                <Button variant="danger" onClick={() => setAccess("terminate")}>
+                  Terminate
+                </Button>
+              )}
+            </>
+          ))}
       </PageHeader>
 
       <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
@@ -426,8 +445,9 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
             </div>
             <h2 className="mt-4 text-xl font-bold">{employee.fullName}</h2>
             {designation && <p className="text-sm text-[var(--text-muted)]">{designation}</p>}
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
               <Status value={employee.status} />
+              <LoginBadge login={employee.login} />
             </div>
           </div>
           <ul className="mt-6 space-y-3 text-sm">
@@ -623,6 +643,18 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
             } finally {
               setBusy(false);
             }
+          }}
+        />
+      )}
+      {access && (
+        <EmploymentAccessDialog
+          kind={access}
+          employee={employee}
+          token={token}
+          onClose={() => setAccess("")}
+          onDone={() => {
+            setAccess("");
+            setRefresh((n) => n + 1);
           }}
         />
       )}

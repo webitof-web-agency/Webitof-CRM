@@ -145,7 +145,7 @@ async function suspend(user, id, body = {}, db = null) {
   const reason = c.text(body.reason, "Reason", 1000, true);
   return c.transaction(async (tx) => {
     const e = await c.employee(tx, user, id, { lock: true });
-    c.optimistic(e, body);
+    if (body.version != null) c.optimistic(e, body);
     if (isBlocked(e.status)) c.fail(`Employee is already ${e.status}`, 409);
     return applyStatus(tx, user, e, {
       status: "Suspended",
@@ -164,7 +164,7 @@ async function terminate(user, id, body = {}, db = null) {
   const reason = c.text(body.reason, "Reason", 1000, true);
   return c.transaction(async (tx) => {
     const e = await c.employee(tx, user, id, { lock: true });
-    c.optimistic(e, body);
+    if (body.version != null) c.optimistic(e, body);
     if (["Relieved", "Terminated"].includes(e.status))
       c.fail(`Employee is already ${e.status}`, 409);
     const p = await c.policy(tx);
@@ -207,7 +207,7 @@ async function reinstate(user, id, body = {}, db = null) {
   const reason = c.text(body.reason, "Reason", 1000, true);
   return c.transaction(async (tx) => {
     const e = await c.employee(tx, user, id, { lock: true });
-    c.optimistic(e, body);
+    if (body.version != null) c.optimistic(e, body);
     if (!isBlocked(e.status)) c.fail("Only a suspended or exited employee can be reinstated", 409);
     const status = body.status
       ? c.choice(body.status, WORKING_STATUSES, "Status")

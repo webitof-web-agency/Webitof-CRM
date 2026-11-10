@@ -1,3 +1,4 @@
+require("./helpers/requireTestDb"); // never the live database from .env
 const assert = require('node:assert/strict');
 const { pool, query, closePool } = require('../config/db');
 const leadModel = require('../models/lead.model');
