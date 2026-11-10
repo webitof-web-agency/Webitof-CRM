@@ -95,6 +95,9 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
     "Documents",
   ];
   const [step, setStep] = useState(0);
+  // Steps confirmed with Next (shown with a tick). Tabs move freely between steps; the full
+  // form is still validated on save, which jumps to the first step that needs fixing.
+  const [done, setDone] = useState(() => new Set());
   const [loaded, setLoaded] = useState(!editing);
   const [loadError, setLoadError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -295,6 +298,17 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
     return Object.keys(e).length === 0;
   }
 
+  function goToStep(i) {
+    setErrors({});
+    setStep(i);
+  }
+
+  function nextStep() {
+    if (!validate(current)) return;
+    setDone((d) => new Set(d).add(current));
+    setStep(step + 1);
+  }
+
   async function upload(file, employee, title, category, expiresOn = "") {
     const data = new FormData();
     data.append("employeeId", employee);
@@ -308,6 +322,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   async function submit() {
     for (let i = 0; i < steps.length; i += 1)
       if (!validate(steps[i])) {
+        setDone(new Set(steps.slice(0, i)));
         setStep(i);
         return;
       }
@@ -462,29 +477,29 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
             <li key={name} className="flex min-w-fit flex-1 items-center gap-2">
               <button
                 type="button"
-                onClick={() => (i < step || steps.slice(0, i).every((s) => validate(s))) && setStep(i)}
+                onClick={() => goToStep(i)}
                 className="flex items-center gap-2"
                 aria-current={i === step ? "step" : undefined}
               >
                 <span
                   className={`grid h-9 w-9 place-items-center rounded-full border-2 text-sm font-semibold ${
-                    i < step
+                    i !== step && done.has(name)
                       ? "border-emerald-500 bg-emerald-500 text-white"
                       : i === step
                         ? "border-emerald-500 text-emerald-600"
                         : "border-[var(--border)] text-[var(--text-muted)]"
                   }`}
                 >
-                  {i < step ? <Check size={16} /> : i + 1}
+                  {i !== step && done.has(name) ? <Check size={16} /> : i + 1}
                 </span>
                 <span
-                  className={`text-sm font-medium ${i === step ? "text-emerald-600" : i < step ? "text-[var(--text-main)]" : "text-[var(--text-muted)]"}`}
+                  className={`text-sm font-medium ${i === step ? "text-emerald-600" : done.has(name) ? "text-[var(--text-main)]" : "text-[var(--text-muted)]"}`}
                 >
                   {name}
                 </span>
               </button>
               {i < steps.length - 1 && (
-                <span className={`h-px min-w-6 flex-1 ${i < step ? "bg-emerald-500" : "bg-[var(--border)]"}`} />
+                <span className={`h-px min-w-6 flex-1 ${done.has(name) ? "bg-emerald-500" : "bg-[var(--border)]"}`} />
               )}
             </li>
           ))}
@@ -897,7 +912,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
             <ArrowLeft size={16} /> {step === 0 ? "Cancel" : "Back"}
           </Button>
           {step < steps.length - 1 ? (
-            <Button onClick={() => validate(current) && setStep(step + 1)}>
+            <Button onClick={nextStep}>
               Next <ArrowRight size={16} />
             </Button>
           ) : (
