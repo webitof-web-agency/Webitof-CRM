@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
+import { INDIA_STATES, getCitiesByState } from "../../data/indiaLocations";
 import { hrm, localDay } from "./hrmApi";
 import {
   EMPLOYEE_STATUSES,
@@ -166,7 +167,8 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
           password: "",
           userId: employee.userId || "",
         }));
-        setProfile({ ...EMPTY_PROFILE, ...(priv?.profile || employee.profile || {}) });
+        const savedProfile = { ...EMPTY_PROFILE, ...(priv?.profile || employee.profile || {}) };
+        setProfile({ ...savedProfile, country: savedProfile.country || EMPTY_PROFILE.country });
         setFinancial({ ...EMPTY_FINANCIAL, ...(priv?.financial || {}) });
         const latest = (salaries?.rows || []).sort((a, b) =>
           String(b.effectiveDate).localeCompare(String(a.effectiveDate)),
@@ -206,6 +208,19 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
   const departmentFirst = lists.departments.length > 0 && !form.departmentId;
   const options = (items) => items.map((m) => ({ value: m.id, label: m.name }));
   const hasLogin = Boolean(original?.userId || form.userId);
+  // Indian addresses pick the state from a list and get city suggestions for it; a state
+  // saved earlier in another spelling stays selectable instead of being dropped.
+  const inIndia = profile.country.trim().toLowerCase() === "india";
+  const stateOptions = [
+    ...INDIA_STATES.map((s) => s.value),
+    ...(profile.state && !INDIA_STATES.some((s) => s.value === profile.state) ? [profile.state] : []),
+  ];
+  const pickState = (state) =>
+    setProfile((p) => ({
+      ...p,
+      state,
+      city: !p.city || getCitiesByState(state).includes(p.city) ? p.city : "",
+    }));
   // Linking a login fills the blanks from it, so the employee email matches the login email.
   const linkLogin = (userId) => {
     const picked = users.find((u) => u.id === userId);
@@ -708,9 +723,29 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                 <div className="grid gap-5 md:grid-cols-2">
                   <F k="addressLine1" title="Address Line 1" value={profile.addressLine1} onChange={setP("addressLine1")} required />
                   <F k="addressLine2" title="Address Line 2" value={profile.addressLine2} onChange={setP("addressLine2")} />
-                  <F k="city" title="City" value={profile.city} onChange={setP("city")} required />
-                  <F k="state" title="State" value={profile.state} onChange={setP("state")} required />
                   <F k="country" title="Country" value={profile.country} onChange={setP("country")} required />
+                  {inIndia ? (
+                    <F
+                      k="state"
+                      title="State"
+                      type="select"
+                      options={stateOptions}
+                      value={profile.state}
+                      onChange={pickState}
+                      required
+                    />
+                  ) : (
+                    <F k="state" title="State" value={profile.state} onChange={setP("state")} required />
+                  )}
+                  <F
+                    k="city"
+                    title="City"
+                    value={profile.city}
+                    onChange={setP("city")}
+                    suggestions={inIndia ? getCitiesByState(profile.state) : undefined}
+                    help={inIndia && profile.state ? "Pick from the list or type a city that is not listed." : undefined}
+                    required
+                  />
                   <F k="postalCode" title="PIN / Postal Code" value={profile.postalCode} onChange={setP("postalCode")} required />
                 </div>
                 <h3 className="border-t border-[var(--border)] pt-5 font-semibold">Emergency Contact</h3>

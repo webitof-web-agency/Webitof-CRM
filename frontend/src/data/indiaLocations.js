@@ -86,7 +86,14 @@ export const INDIA_STATES = [
   },
   {
     label: 'Chhattisgarh', value: 'Chhattisgarh', code: '22',
-    cities: ['Raipur', 'Bhilai', 'Bilaspur', 'Korba', 'Raigarh', 'Jagdalpur', 'Rajnandgaon', 'Ambikapur', 'Durg', 'Mahasamund', 'Dhamtari']
+    // Every district headquarters (33 districts) plus the larger towns.
+    cities: [
+      'Raipur', 'Nava Raipur', 'Bhilai', 'Durg', 'Bilaspur', 'Korba', 'Raigarh', 'Jagdalpur', 'Rajnandgaon',
+      'Ambikapur', 'Mahasamund', 'Dhamtari', 'Kanker', 'Kawardha', 'Balod', 'Baloda Bazar', 'Bemetara',
+      'Mungeli', 'Janjgir', 'Champa', 'Sakti', 'Sarangarh', 'Jashpur Nagar', 'Kondagaon', 'Narayanpur',
+      'Dantewada', 'Bijapur', 'Sukma', 'Gariaband', 'Balrampur', 'Surajpur', 'Baikunthpur', 'Manendragarh',
+      'Chirmiri', 'Gaurela', 'Pendra', 'Khairagarh', 'Mohla', 'Dongargarh', 'Tilda Newra', 'Kumhari'
+    ]
   },
   {
     label: 'Madhya Pradesh', value: 'Madhya Pradesh', code: '23',

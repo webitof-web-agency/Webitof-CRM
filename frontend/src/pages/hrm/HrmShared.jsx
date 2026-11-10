@@ -22,6 +22,7 @@ export function Field({
   max,
   step,
   help,
+  suggestions,
 }) {
   const id = `hrm-${name}`;
   return (
@@ -82,8 +83,18 @@ export function Field({
           min={min}
           max={max}
           step={step ?? (type === "number" ? "any" : undefined)}
+          list={suggestions?.length ? `${id}-list` : undefined}
+          autoComplete={suggestions?.length ? "off" : undefined}
         />
       )}
+      {/* Free text with a pick list: choose a suggestion or type a value that is not listed. */}
+      {suggestions?.length ? (
+        <datalist id={`${id}-list`}>
+          {suggestions.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+      ) : null}
       {help && <p className="mt-1 text-xs text-[var(--text-muted)]">{help}</p>}
     </div>
   );
