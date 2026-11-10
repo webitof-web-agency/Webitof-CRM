@@ -7,6 +7,7 @@ import { NotificationProvider } from './context/NotificationContext';
 import { ProtectedRoute } from './components/guards/ProtectedRoute';
 import { PermissionRoute } from './components/guards/PermissionRoute';
 import { HomeRedirect } from './components/guards/HomeRedirect';
+import { HrmRoute } from './components/guards/HrmRoute';
 import { ConfirmHost } from './components/overlays/ConfirmHost';
 import { AppLayout } from './components/layout/AppLayout';
 import { MaintenanceScreen } from './components/layout/MaintenanceScreen';
@@ -94,7 +95,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<HomeRedirect />} />
-        <Route path="hrm/*" element={<PermissionRoute permissions={['hrm.view_own','hrm.view_team','hrm.view_projects','hrm.view_all']}><Suspense fallback={<div className="p-6" role="status">Loading HRM…</div>}><HrmPage /></Suspense></PermissionRoute>} />
+        <Route path="hrm/*" element={<HrmRoute><Suspense fallback={<div className="p-6" role="status">Loading HRM…</div>}><HrmPage /></Suspense></HrmRoute>} />
         <Route
           path="dashboard"
           element={

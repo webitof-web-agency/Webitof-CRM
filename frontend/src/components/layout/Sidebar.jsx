@@ -267,6 +267,7 @@ export function Sidebar({ open = false, onClose }) {
             .map((item) => {
               if (item.children) {
                 const visibleChildren = item.children.filter((child) => {
+                  if (child.visible && !child.visible(user)) return false;
                   const required = [child.permission, ...(child.permissions || [])].filter(Boolean);
                   return (
                     !required.length ||
@@ -282,6 +283,8 @@ export function Sidebar({ open = false, onClose }) {
               return item;
             })
             .filter((item) => {
+              // `visible` covers rules a permission list cannot express (e.g. HRM needs an employee profile).
+              if (item.visible && !item.visible(user)) return false;
               const required = [item.permission, ...(item.permissions || [])].filter(Boolean);
               const hasItemPermission =
                 !required.length ||
@@ -295,7 +298,7 @@ export function Sidebar({ open = false, onClose }) {
             })
         }))
         .filter((group) => group.items.length > 0),
-    [user?.isSuperAdmin, user?.permissions]
+    [user]
   );
 
   useEffect(() => {

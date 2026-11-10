@@ -1,3 +1,4 @@
+import { canOpenHrm, hasEmployeeProfile } from '../lib/hrmAccess';
 import {
   PhoneCall,
   Banknote,
@@ -106,9 +107,10 @@ export const navigationGroups = [
         path: '/app/hrm',
         icon: Users,
         permissions: ['hrm.view_own', 'hrm.view_team', 'hrm.view_projects', 'hrm.view_all'],
+        visible: canOpenHrm,
         children: [
           { label: 'Overview', path: '/app/hrm/overview', icon: LayoutDashboard },
-          { label: 'My day', path: '/app/hrm/my-day', icon: Timer, permission: 'hrm.self_service' },
+          { label: 'My day', path: '/app/hrm/my-day', icon: Timer, permission: 'hrm.self_service', visible: hasEmployeeProfile },
           { label: 'Employees', path: '/app/hrm/employees', icon: Users },
           { label: 'Attendance', path: '/app/hrm/attendance', icon: CalendarCheck },
           { label: 'Work locations', path: '/app/hrm/geofences', icon: MapPinned, permissions: ['hrm.approve', 'hrm.manage_settings'] },

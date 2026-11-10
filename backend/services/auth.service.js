@@ -91,6 +91,16 @@ async function getRolePermissions(roleIds = []) {
   return result.rows.map((row) => permissionModel.hydrateRow(row));
 }
 
+// The UI hides self-service HRM from logins that have no employee profile yet.
+async function findHrmEmployeeId(userId) {
+  try {
+    const result = await query('select id from hrm_employees where user_id = $1 and archived_at is null limit 1', [userId]);
+    return result.rows[0]?.id || null;
+  } catch {
+    return null; // HRM migration not applied on this install
+  }
+}
+
 async function getUserAccessProfile(userId) {
   const user = await userModel.findById(userId);
   if (!user) return null;
@@ -134,7 +144,8 @@ async function getUserAccessProfile(userId) {
       action: permission.action,
       description: permission.description
     })),
-    isSuperAdmin
+    isSuperAdmin,
+    hrmEmployeeId: await findHrmEmployeeId(userId)
   };
 }
 
