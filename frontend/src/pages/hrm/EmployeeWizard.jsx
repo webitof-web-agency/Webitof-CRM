@@ -653,7 +653,8 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
             )}
 
             {current === "Employment" && (
-              <div className="grid gap-5 md:grid-cols-2">
+              // Three per row on wide screens: organisation, employment terms, schedule, reporting, dates.
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <F
                     k="locationId"
@@ -688,11 +689,11 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                     value={form.designationId}
                     disabled={departmentFirst}
                     onChange={set("designationId")}
+                    searchable
                     required={lists.designations.length > 0}
                   />
                   {masterEmpty(lists.designations, "designations")}
                 </div>
-                <F k="joiningDate" title="Date of Joining" type="date" value={form.joiningDate} onChange={set("joiningDate")} required />
                 <div>
                   <F
                     k="employmentTypeId"
@@ -714,6 +715,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   onChange={set("status")}
                   required
                 />
+                <F k="joiningDate" title="Date of Joining" type="date" value={form.joiningDate} onChange={set("joiningDate")} required />
                 <F k="shiftId" title="Shift" type="select" options={options(lists.shifts)} value={form.shiftId} onChange={set("shiftId")} />
                 <F
                   k="attendancePolicyId"
@@ -723,6 +725,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   value={form.attendancePolicyId}
                   onChange={set("attendancePolicyId")}
                 />
+                <F k="workMode" title="Work Mode" type="select" options={WORK_MODES} value={form.workMode} onChange={set("workMode")} />
                 <F
                   k="managerId"
                   title="Reporting Manager"
@@ -730,8 +733,8 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   options={managers.map((m) => ({ value: m.id, label: `${m.fullName} (${m.employeeNumber})` }))}
                   value={form.managerId}
                   onChange={set("managerId")}
+                  searchable
                 />
-                <F k="workMode" title="Work Mode" type="select" options={WORK_MODES} value={form.workMode} onChange={set("workMode")} />
                 {lists.teams.length > 0 && (
                   <F k="teamId" title="Team" type="select" options={options(lists.teams)} value={form.teamId} onChange={set("teamId")} />
                 )}
