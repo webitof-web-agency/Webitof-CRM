@@ -233,6 +233,27 @@ test('the env refresh token connects once per value and is not re-applied after 
   }
 });
 
+test('a rejected env refresh token shows why and is retried later, not marked as applied', async () => {
+  setup();
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'refresh-1';
+  const realNow = Date.now;
+  try {
+    fake.state.failNextTokenWith = 'invalid_grant';
+    const failed = await connection.getStatus();
+    assert.equal(failed.connected, false);
+    assert.match(failed.envTokenError, /revoked or expired/i);
+    // Within the pause nothing is retried, even though the token would work now.
+    assert.equal((await connection.getStatus()).connected, false);
+    Date.now = () => realNow() + 16 * 60 * 1000;
+    const retried = await connection.getStatus();
+    assert.equal(retried.connected, true);
+    assert.equal(retried.envTokenError, '');
+  } finally {
+    Date.now = realNow;
+    delete process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  }
+});
+
 test('the parent folder can be given as a link or an id', () => {
   assert.equal(parseFolderId('https://drive.google.com/drive/folders/1AbC_d-9?usp=sharing'), '1AbC_d-9');
   assert.equal(parseFolderId('1AbC_d-9'), '1AbC_d-9');

@@ -252,6 +252,16 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false, oaut
           </div>
         ) : null}
 
+        {drive.envTokenError ? (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              The refresh token in the server env was not accepted: {drive.envTokenError}. It is retried every 15
+              minutes; or use Connect Google Drive below.
+            </span>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 text-sm md:grid-cols-2">
           <div>
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Status</div>

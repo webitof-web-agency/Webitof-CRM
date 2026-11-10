@@ -249,6 +249,10 @@ async function completeOAuth({ code, state, error }) {
 }
 
 // Applies GOOGLE_OAUTH_REFRESH_TOKEN once per token value, so a later disconnect is not undone on restart.
+// A token Google rejected (or a network error) is retried after a pause instead of being
+// marked as applied, and the reason is shown in Settings.
+const ENV_TOKEN_RETRY_MS = 15 * 60 * 1000;
+
 async function connectFromEnvToken() {
   await refreshDriveSettings();
   const config = getGoogleDriveConfig();
@@ -256,16 +260,25 @@ async function connectFromEnvToken() {
   const hash = sha256(config.envRefreshToken);
   const state = await getState();
   if (state.envTokenHash === hash) return;
+  const failedAt = state.envTokenFailedHash === hash ? Date.parse(state.envTokenFailedAt || '') : NaN;
+  if (Date.now() - failedAt < ENV_TOKEN_RETRY_MS) return;
 
   if (!envConnectPromise) {
     envConnectPromise = (async () => {
       try {
         await saveConnection(config.envRefreshToken, { source: 'env' });
+        const { envTokenFailedHash, envTokenFailedAt, envTokenError, ...latest } = await getState();
+        await saveState({ ...latest, envTokenHash: hash });
       } catch (error) {
         console.error('Google Drive env refresh token could not be applied:', error.message);
-      } finally {
         const latest = await getState();
-        await saveState({ ...latest, envTokenHash: hash });
+        await saveState({
+          ...latest,
+          envTokenFailedHash: hash,
+          envTokenFailedAt: new Date().toISOString(),
+          envTokenError: String(error.message || 'Unknown error').slice(0, 300)
+        });
+      } finally {
         envConnectPromise = null;
       }
     })();
@@ -321,6 +334,10 @@ async function getStatus() {
     problems: getGoogleDriveConfigProblems(config),
     connected: Boolean(state.encryptedRefreshToken),
     needsReconnect: Boolean(state.needsReconnect),
+    // Why the refresh token from the server env was not applied (empty once it works).
+    envTokenError: !state.encryptedRefreshToken && config.envRefreshToken && state.envTokenFailedHash === sha256(config.envRefreshToken)
+      ? state.envTokenError || ''
+      : '',
     accountEmail: state.accountEmail || '',
     connectedAt: state.connectedAt || null,
     redirectUri: config.redirectUri,

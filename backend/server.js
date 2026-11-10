@@ -59,7 +59,20 @@ app.use(errorHandler);
 const skipDbSetup = String(process.env.SKIP_DB_SETUP || '').toLowerCase() === 'true';
 const disableSchedulers = String(process.env.DISABLE_SCHEDULERS || '').toLowerCase() === 'true';
 
+// Anyone who knows JWT_SECRET can sign a session for any user, so a placeholder or short value
+// is as good as no password. Loud on every start until it is replaced.
+function warnWeakJwtSecret() {
+  const secret = String(process.env.JWT_SECRET || '');
+  const placeholder = /change[-_ ]?this|changeme|secret|example|your[-_]/i.test(secret);
+  if (secret.length >= 32 && !placeholder) return;
+  const line = '!'.repeat(78);
+  console.error(`${line}\nSECURITY: JWT_SECRET is a placeholder or shorter than 32 characters. Anyone who\n`
+    + `knows it can sign in as any user. Set a long random value (openssl rand -hex 48)\n`
+    + `and restart; everyone signs in again once.\n${line}`);
+}
+
 async function start() {
+  warnWeakJwtSecret();
   maintenance.loadOnStartup();
   if (skipDbSetup) {
     console.log('SKIP_DB_SETUP=true: schema setup and seeding skipped');
