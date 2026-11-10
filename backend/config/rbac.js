@@ -100,6 +100,8 @@ const DEFAULT_ROLE_DEFINITIONS = [
     permissions: [
       'dashboard.view',
       'leads.read',
+      // Finance works commissions and budgets across every lead, not only assigned ones.
+      'leads.view_all',
       'leads.view_budget',
       'leads.view_commission',
       'followups.view_own',
@@ -144,6 +146,8 @@ const DEFAULT_ROLE_DEFINITIONS = [
       'dashboard.view',
       'leads.read',
       'leads.write',
+      // Sales works the whole lead book, not only leads assigned to them.
+      'leads.view_all',
       'leads.assign',
       'leads.convert',
       'leads.view_budget',

@@ -2460,7 +2460,7 @@ export function LeadQuotationPage({ mode = '' }) {
 
   const latestQuotation = useMemo(() => getLatestQuotationEvent(events), [events]);
   const defaultAmount = getQuotationAmount(lead, latestQuotation) ?? lead?.estimatedBudget ?? lead?.value ?? '';
-  const canWriteLead = hasPermission('leads.write') || hasPermission('leads.manage');
+  const canWriteLead = hasPermission('leads.write');
 
   useEffect(() => {
     if (!loading && !isCreateMode && effectiveQuotationId && data && !quotationEvent) {
@@ -3981,9 +3981,10 @@ export function LeadDetailsPage() {
     }));
   }, [lead?.status, settings, leadOptions.statuses, wonStatusLabel, statusColors]);
 
-  const canWriteLead = hasPermission('leads.write') || hasPermission('leads.manage');
+  const canWriteLead = hasPermission('leads.write');
   const canConvertLead = canWriteLead || hasPermission('leads.convert');
-  const canManageRecording = hasPermission('leads.view_call_recording');
+  // Call recordings are the same audio whether opened from the lead or the Calls page.
+  const canManageRecording = hasPermission('leads.view_call_recording', 'calls.recording_view');
   const isWon = String(lead?.status || '').trim().toLowerCase() === String(wonStatusLabel || 'Won').trim().toLowerCase()
     || String(lead?.status || '').trim().toLowerCase() === 'won';
   const isLost = ['lost', 'not interested'].includes(String(lead?.status || '').trim().toLowerCase());

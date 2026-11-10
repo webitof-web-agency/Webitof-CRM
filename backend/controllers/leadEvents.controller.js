@@ -9,7 +9,7 @@ const {
   isVisibleToUser,
   normalizeEventPayload
 } = require('../services/eventNormalization.service');
-const { DEFAULT_PIPELINE_ID, canAccessPipeline, userHasAllPipelineAccess } = require('../services/leadPipelineAccess.service');
+const { canAccessLead, userHasUnrestrictedLeadAccess } = require('../services/leadPipelineAccess.service');
 const { hasPermission } = require('../middlewares/auth');
 const followUpEngine = require('../services/followUpEngine.service');
 
@@ -46,7 +46,7 @@ async function syncQuotationFollowUps(result, req, db) {
 }
 
 function sanitizeEventForUser(event, user) {
-  if (!event || hasPermission(user, 'leads.view_call_recording')) return event;
+  if (!event || hasPermission(user, 'leads.view_call_recording') || hasPermission(user, 'calls.recording_view')) return event;
   if (String(event.eventType || '').toLowerCase() !== 'call') return event;
   const payload = { ...(event.payload || {}) };
   delete payload.callRecordingUrl;
@@ -83,7 +83,7 @@ function getEventLeadId(event = {}) {
 async function canAccessLeadId(leadId, req) {
   if (!leadId) return false;
   const lead = await leadModel.findById(leadId);
-  return Boolean(lead && canAccessPipeline(req?.user, lead.pipelineId || DEFAULT_PIPELINE_ID));
+  return Boolean(lead && canAccessLead(req?.user, lead));
 }
 
 async function assertEventPipelineAccess(event = {}, req) {
@@ -93,7 +93,7 @@ async function assertEventPipelineAccess(event = {}, req) {
 }
 
 async function filterEventsByPipelineAccess(rows = [], req) {
-  if (userHasAllPipelineAccess(req?.user)) return rows;
+  if (userHasUnrestrictedLeadAccess(req?.user)) return rows;
   const result = [];
   for (const event of rows) {
     if (await canAccessLeadId(getEventLeadId(event), req)) {

@@ -54,6 +54,50 @@ function canAccessPipeline(user, pipelineId) {
   return allowed.includes(String(pipelineId || DEFAULT_PIPELINE_ID));
 }
 
+// Inline check: requiring middlewares/auth here would be circular (auth -> auth.service -> this file).
+function userCanViewAllLeads(user) {
+  if (!user) return false;
+  if (user.isSuperAdmin) return true;
+  return Array.isArray(user.permissions) && user.permissions.includes('leads.view_all');
+}
+
+function toIdList(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item?.id ?? item ?? '').trim()).filter(Boolean);
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      return toIdList(JSON.parse(value));
+    } catch {
+      return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
+// Without leads.view_all a user sees only leads they work on.
+function isLeadParticipant(user, lead) {
+  const userId = String(user?.id || '').trim();
+  if (!userId || !lead) return false;
+  const ids = [
+    lead.assignedTo ?? lead.assigned_to,
+    lead.leadOwner ?? lead.lead_owner,
+    lead.createdBy ?? lead.created_by,
+    ...toIdList(lead.secondaryAssignees ?? lead.secondary_assignees),
+    ...toIdList(lead.managers)
+  ];
+  return ids.some((id) => String(id || '').trim() === userId);
+}
+
+function canAccessLead(user, lead) {
+  if (!user || !lead) return false;
+  if (!canAccessPipeline(user, lead.pipelineId || lead.pipeline_id || DEFAULT_PIPELINE_ID)) return false;
+  return userCanViewAllLeads(user) || isLeadParticipant(user, lead);
+}
+
+// True when no per-lead filtering is needed (all pipelines and leads.view_all).
+function userHasUnrestrictedLeadAccess(user) {
+  return userHasAllPipelineAccess(user) && userCanViewAllLeads(user);
+}
+
 async function ensureDefaultLeadPipeline(dbClient = null) {
   const exec = dbClient?.query || query;
   const existing = await exec.call(dbClient || null, 'select id from lead_pipelines where id = $1 limit 1', [DEFAULT_PIPELINE_ID]);
@@ -87,11 +131,15 @@ function sanitizePipelinePayload(body = {}) {
 module.exports = {
   DEFAULT_PIPELINE,
   DEFAULT_PIPELINE_ID,
+  canAccessLead,
   canAccessPipeline,
   ensureDefaultLeadPipeline,
   getPipelineIdOrDefault,
   getUserAllowedPipelineIds,
   normalizeAllowedPipelineIds,
+  isLeadParticipant,
   sanitizePipelinePayload,
-  userHasAllPipelineAccess
+  userCanViewAllLeads,
+  userHasAllPipelineAccess,
+  userHasUnrestrictedLeadAccess
 };

@@ -109,7 +109,7 @@ export function InvoiceDetailsPage() {
   const [copied, setCopied] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const canEdit = hasPermission('invoices.manage') || hasPermission('invoices.write');
+  const canEdit = hasPermission('invoices.write');
 
   useEffect(() => {
     if (!invoice?.id) return;

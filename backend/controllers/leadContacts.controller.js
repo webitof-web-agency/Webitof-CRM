@@ -1,7 +1,7 @@
 const leadContactModel = require('../models/leadContact.model');
 const leadModel = require('../models/lead.model');
 const { safeOrderBy } = require('../utils/orderBy');
-const { DEFAULT_PIPELINE_ID, canAccessPipeline, userHasAllPipelineAccess } = require('../services/leadPipelineAccess.service');
+const { DEFAULT_PIPELINE_ID, canAccessLead, canAccessPipeline, userHasUnrestrictedLeadAccess } = require('../services/leadPipelineAccess.service');
 
 function forbiddenPipelineError() {
   const error = new Error('You do not have access to this lead pipeline');
@@ -15,17 +15,22 @@ async function getAccessibleLead(leadId, req) {
   if (!canAccessPipeline(req?.user, lead.pipelineId || DEFAULT_PIPELINE_ID)) {
     throw forbiddenPipelineError();
   }
+  if (!canAccessLead(req?.user, lead)) {
+    const error = new Error('This lead is not assigned to you');
+    error.statusCode = 403;
+    throw error;
+  }
   return lead;
 }
 
 async function filterContactsByAccess(rows = [], req) {
-  if (userHasAllPipelineAccess(req?.user)) return rows;
+  if (userHasUnrestrictedLeadAccess(req?.user)) return rows;
   const leadIds = [...new Set(rows.map((row) => row.leadId).filter(Boolean))];
   if (!leadIds.length) return [];
   const allowedLeadIds = new Set();
   for (const leadId of leadIds) {
     const lead = await leadModel.findById(leadId);
-    if (lead && canAccessPipeline(req?.user, lead.pipelineId || DEFAULT_PIPELINE_ID)) {
+    if (lead && canAccessLead(req?.user, lead)) {
       allowedLeadIds.add(String(leadId));
     }
   }

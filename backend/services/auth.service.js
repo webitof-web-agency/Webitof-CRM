@@ -354,7 +354,9 @@ async function createUser(data = {}, meta = {}) {
     error.statusCode = 400;
     throw error;
   }
-  return withTransaction(async (client) => {
+  // The profile is read through the pool, so it must be loaded after COMMIT: inside the
+  // transaction the new user is invisible and the API would return data: null.
+  const userId = await withTransaction(async (client) => {
     const passwordHash = await hashPassword(initialPassword);
     const payload = {
       ...(data.payload || {}),
@@ -374,12 +376,14 @@ async function createUser(data = {}, meta = {}) {
     }, client);
 
     await syncUserRoles(client, user.id, data.roleIds || [], meta.assignedBy || null);
-    return getUserAccessProfile(user.id);
+    return user.id;
   });
+  return getUserAccessProfile(userId);
 }
 
 async function updateUser(userId, data = {}, meta = {}) {
-  return withTransaction(async (client) => {
+  // Same as createUser: load the profile after COMMIT so it reflects this update.
+  await withTransaction(async (client) => {
     // Fetch current user to merge payload
     const currentUser = await userModel.findById(userId, client);
     const currentPayload = (currentUser && currentUser.payload) ? currentUser.payload : {};
@@ -419,9 +423,8 @@ async function updateUser(userId, data = {}, meta = {}) {
     if (Array.isArray(data.roleIds)) {
       await syncUserRoles(client, userId, data.roleIds, meta.assignedBy || null);
     }
-
-    return getUserAccessProfile(userId);
   });
+  return getUserAccessProfile(userId);
 }
 
 async function deleteUser(userId) {
@@ -501,7 +504,8 @@ async function listUsers(search = '') {
   const users = result.rows.map((row) => userModel.hydrateRow(row));
   const enriched = [];
   for (const user of users) {
-    enriched.push(await getUserAccessProfile(user.id));
+    const profile = await getUserAccessProfile(user.id);
+    if (profile) enriched.push(profile);
   }
   return enriched;
 }

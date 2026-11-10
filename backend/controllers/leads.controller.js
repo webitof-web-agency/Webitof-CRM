@@ -23,7 +23,9 @@ const {
   ensureDefaultLeadPipeline,
   getPipelineIdOrDefault,
   getUserAllowedPipelineIds,
-  userHasAllPipelineAccess
+  canAccessLead,
+  userHasAllPipelineAccess,
+  userHasUnrestrictedLeadAccess
 } = require('../services/leadPipelineAccess.service');
 
 const LEAD_WRITABLE_FIELDS = new Set([
@@ -257,7 +259,15 @@ async function resolveLeadPipelineId(body = {}, current = null, req = null, db =
 }
 
 function filterLeadsByPipelineAccess(rows = [], req = null) {
-  if (userHasAllPipelineAccess(req?.user)) return rows;
+  if (userHasUnrestrictedLeadAccess(req?.user)) return rows;
+  return rows.filter((row) => canAccessLead(req?.user, row));
+}
+
+// Duplicate warnings must still fire for leads owned by someone else, so this
+// checks only pipeline access, not leads.view_all.
+function filterLeadsByPipelineOnly(rows = [], req = null) {
+  // No request means a system caller (the website webhook), which matches across all leads.
+  if (!req || userHasAllPipelineAccess(req.user)) return rows;
   return rows.filter((row) => canAccessPipeline(req?.user, row.pipelineId || DEFAULT_PIPELINE_ID));
 }
 
@@ -266,6 +276,11 @@ async function findAccessibleLeadById(leadId, req, db = null) {
   if (!lead) return null;
   if (!canAccessPipeline(req?.user, lead.pipelineId || DEFAULT_PIPELINE_ID)) {
     throw forbiddenPipelineError();
+  }
+  if (!canAccessLead(req?.user, lead)) {
+    const error = new Error('This lead is not assigned to you');
+    error.statusCode = 403;
+    throw error;
   }
   return lead;
 }
@@ -326,7 +341,7 @@ function sanitizeLeadForUser(lead, user) {
 }
 
 function sanitizeLeadEventForUser(event, user) {
-  if (!event || hasPermission(user, 'leads.view_call_recording')) return event;
+  if (!event || hasPermission(user, 'leads.view_call_recording') || hasPermission(user, 'calls.recording_view')) return event;
   const sanitized = { ...event };
   if (String(event.eventType || '').toLowerCase() === 'call') {
     const payload = { ...(event.payload || {}) };
@@ -336,6 +351,20 @@ function sanitizeLeadEventForUser(event, user) {
     sanitized.attachments = (Array.isArray(event.attachments) ? event.attachments : []).filter((file) => file?.kind !== 'call_recording');
   }
   return sanitized;
+}
+
+// A duplicate the user cannot open still triggers the warning, but only with identifying fields.
+function toDuplicateWarning(lead, user) {
+  if (canAccessLead(user, lead)) return sanitizeLeadForUser(lead, user);
+  return {
+    id: lead.id,
+    leadNumber: lead.leadNumber,
+    name: lead.name,
+    companyName: lead.companyName,
+    status: lead.status,
+    ownerName: lead.ownerName,
+    restricted: true
+  };
 }
 
 async function findDuplicateLeads({ phone = '', email = '', excludeId = '' } = {}, req = null, db = null) {
@@ -362,7 +391,7 @@ async function findDuplicateLeads({ phone = '', email = '', excludeId = '' } = {
   sql += ' order by updated_at desc limit 10';
   const exec = db?.query || query;
   const result = await exec.call(db || null, sql, values);
-  return filterLeadsByPipelineAccess(result.rows.map((row) => leadModel.hydrateRow(row)), req);
+  return filterLeadsByPipelineOnly(result.rows.map((row) => leadModel.hydrateRow(row)), req);
 }
 
 async function findDuplicateClients(lead, db = null) {
@@ -972,7 +1001,7 @@ const leadsController = {
         email: req.query.email,
         excludeId: req.query.excludeId
       }, req);
-      res.json({ success: true, data: rows.map((row) => sanitizeLeadForUser(row, req.user)) });
+      res.json({ success: true, data: rows.map((row) => toDuplicateWarning(row, req.user)) });
     } catch (error) {
       next(error);
     }
@@ -1279,7 +1308,7 @@ const leadsController = {
       res.status(201).json({
         success: true,
         data: sanitizeLeadForUser(record, req.user),
-        warnings: result.duplicates.length ? { duplicateLeads: result.duplicates.map((item) => sanitizeLeadForUser(item, req.user)) } : undefined
+        warnings: result.duplicates.length ? { duplicateLeads: result.duplicates.map((item) => toDuplicateWarning(item, req.user)) } : undefined
       });
     } catch (error) {
       next(error);
@@ -1295,7 +1324,7 @@ const leadsController = {
       if (!result) {
         return res.status(404).json({ success: false, message: 'Lead not found' });
       }
-      const hasRecordingPermission = hasPermission(req.user, 'leads.view_call_recording');
+      const hasRecordingPermission = hasPermission(req.user, 'leads.view_call_recording') || hasPermission(req.user, 'calls.recording_view');
       const sanitizedTimeline = (result.timeline || []).map((item) => {
         if (hasRecordingPermission) return item;
         const kind = String(item.kind || '').toLowerCase();
@@ -1583,7 +1612,7 @@ const leadsController = {
       const callOutcome = String(req.body?.callOutcome || '').trim();
       if (!LEAD_OPTIONS.callTypes.includes(callType)) throw createValidationError({ callType: 'Select a valid call type' });
       if (callOutcome && !LEAD_OPTIONS.callOutcomes.includes(callOutcome)) throw createValidationError({ callOutcome: 'Select a valid call outcome' });
-      if ((req.body?.callRecordingUrl || req.body?.recordingFile) && !hasPermission(req.user, 'leads.view_call_recording')) {
+      if ((req.body?.callRecordingUrl || req.body?.recordingFile) && !hasPermission(req.user, 'leads.view_call_recording') && !hasPermission(req.user, 'calls.recording_view')) {
         const error = new Error('Call recording permission is required');
         error.statusCode = 403;
         throw error;
@@ -1735,8 +1764,9 @@ const leadsController = {
       const none = Promise.resolve({ rows: [] });
       const [leadsRes, clientsRes, invoicesRes, projectsRes] = await Promise.all([
         !can('leads.read') ? none : query(
-          `SELECT id, name, company_name, phone, email, status, lead_number, pipeline_id 
-           FROM leads 
+          `SELECT id, name, company_name, phone, email, status, lead_number, pipeline_id,
+                  assigned_to, lead_owner, created_by, secondary_assignees, managers
+           FROM leads
            WHERE lower(coalesce(name, '')) LIKE $1 
               OR lower(coalesce(company_name, '')) LIKE $1 
               OR lower(coalesce(phone, '')) LIKE $1 
@@ -1777,7 +1807,7 @@ const leadsController = {
         success: true,
         data: {
           leads: leadsRes.rows
-            .filter((row) => canAccessPipeline(req.user, row.pipeline_id || DEFAULT_PIPELINE_ID))
+            .filter((row) => canAccessLead(req.user, row))
             .slice(0, 5)
             .map((row) => ({
             id: row.id,

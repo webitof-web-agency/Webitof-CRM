@@ -115,8 +115,8 @@ export function ClientsListPage() {
   const [panelData, setPanelData] = useState(null);
   const [panelClientData, setPanelClientData] = useState(null);
 
-  const canCreate = hasPermission('clients.manage') || hasPermission('clients.write');
-  const canDelete = hasPermission('clients.manage') || hasPermission('clients.delete');
+  const canCreate = hasPermission('clients.write');
+  const canDelete = hasPermission('clients.delete');
   const canEdit = canCreate;
 
   useEffect(() => {

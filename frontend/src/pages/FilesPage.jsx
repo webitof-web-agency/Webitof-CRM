@@ -29,7 +29,7 @@ export function FilesPage() {
 
   const canWrite = hasPermission('files.write');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const canDelete = hasPermission('files.write');
+  const canDelete = hasPermission('files.delete');
 
   const load = () => {
     setRefreshTrigger(prev => prev + 1);

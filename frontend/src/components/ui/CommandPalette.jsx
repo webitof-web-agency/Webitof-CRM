@@ -185,7 +185,7 @@ export function CommandPalette({ open, onClose }) {
     });
 
     // Quick Actions
-    if (hasPermission('leads.write') || hasPermission('leads.create')) {
+    if (hasPermission('leads.write')) {
       items.push({
         id: 'action-new-lead',
         label: 'Create New Lead',
@@ -198,7 +198,7 @@ export function CommandPalette({ open, onClose }) {
       });
     }
 
-    if (hasPermission('clients.write') || hasPermission('clients.create')) {
+    if (hasPermission('clients.write')) {
       items.push({
         id: 'action-new-client',
         label: 'Add New Client',
@@ -211,7 +211,7 @@ export function CommandPalette({ open, onClose }) {
       });
     }
 
-    if (hasPermission('invoices.write') || hasPermission('invoices.create')) {
+    if (hasPermission('invoices.write')) {
       items.push({
         id: 'action-new-invoice',
         label: 'Create New Invoice',
@@ -224,7 +224,7 @@ export function CommandPalette({ open, onClose }) {
       });
     }
 
-    if (hasPermission('payments.write') || hasPermission('payments.create')) {
+    if (hasPermission('payments.write')) {
       items.push({
         id: 'action-new-payment',
         label: 'Record New Payment',

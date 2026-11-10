@@ -1160,12 +1160,12 @@ export function LeadsPage() {
     toast.success(`Exported ${sortedRows.length} leads to CSV`);
   };
 
-  const canCreate = hasPermission('leads.manage') || hasPermission('leads.write');
-  const canDelete = hasPermission('leads.manage') || hasPermission('leads.delete');
-  const canBulkAssign = hasPermission('leads.manage') || hasPermission('leads.assign') || hasPermission('leads.write');
-  const canBulkStatus = hasPermission('leads.manage') || hasPermission('leads.write');
-  const canBulkFollowUp = hasPermission('leads.manage') || hasPermission('leads.manage_followup') || hasPermission('leads.write');
-  const canBulkExport = hasPermission('leads.manage') || hasPermission('leads.export');
+  const canCreate = hasPermission('leads.write');
+  const canDelete = hasPermission('leads.delete');
+  const canBulkAssign = hasPermission('leads.assign') || hasPermission('leads.write');
+  const canBulkStatus = hasPermission('leads.write');
+  const canBulkFollowUp = hasPermission('leads.manage_followup') || hasPermission('leads.write');
+  const canBulkExport = hasPermission('leads.export');
   const canSelectLeads = canBulkAssign || canBulkStatus || canBulkFollowUp || canBulkExport;
   const canManagePipelines = hasPermission('users.manage');
 

@@ -5,7 +5,7 @@ const leadModel = require('../models/lead.model');
 const fileService = require('../services/file.service');
 const settingsModel = require('../models/settings.model');
 const { hasPermission } = require('../middlewares/auth');
-const { DEFAULT_PIPELINE_ID, canAccessPipeline, userHasAllPipelineAccess } = require('../services/leadPipelineAccess.service');
+const { canAccessLead, userHasUnrestrictedLeadAccess } = require('../services/leadPipelineAccess.service');
 const { query } = require('../config/db');
 
 const FILE_ID_PATTERN = /^file_[a-z0-9]+$/i;
@@ -18,27 +18,30 @@ const EARLIER_UPLOADS_FOLDER = 'earlier-uploads';
 async function assertLeadFileAccess(moduleName, entityId, req) {
   if (String(moduleName || '').toLowerCase() !== 'leads' || !entityId || String(entityId).startsWith('lead-draft-')) return;
   const lead = await leadModel.findById(entityId);
-  if (!lead || !canAccessPipeline(req?.user, lead.pipelineId || DEFAULT_PIPELINE_ID)) {
+  if (!lead || !canAccessLead(req?.user, lead)) {
     const error = new Error('You do not have access to this lead file');
     error.statusCode = 403;
     throw error;
   }
 }
 
-// An unfiltered listing spans every module, so lead attachments are dropped for leads in
-// pipelines the user cannot open (assertLeadFileAccess only covers a single-lead request).
+// An unfiltered listing spans every module, so lead attachments are dropped for leads the
+// user cannot open (assertLeadFileAccess only covers a single-lead request).
 async function filterLeadFilesByPipeline(rows, req) {
-  if (userHasAllPipelineAccess(req?.user)) return rows;
+  if (userHasUnrestrictedLeadAccess(req?.user)) return rows;
   const leadIds = [...new Set(rows
     .filter((row) => String(row.moduleName || '').toLowerCase() === 'leads' && row.entityId && !String(row.entityId).startsWith('lead-draft-'))
     .map((row) => String(row.entityId)))];
   if (!leadIds.length) return rows;
-  const result = await query('SELECT id, pipeline_id FROM leads WHERE id = ANY($1::text[])', [leadIds]);
-  const pipelineByLead = new Map(result.rows.map((row) => [String(row.id), row.pipeline_id || DEFAULT_PIPELINE_ID]));
+  const result = await query(
+    'SELECT id, pipeline_id, assigned_to, lead_owner, created_by, secondary_assignees, managers FROM leads WHERE id = ANY($1::text[])',
+    [leadIds]
+  );
+  const leadById = new Map(result.rows.map((row) => [String(row.id), row]));
   return rows.filter((row) => {
     if (String(row.moduleName || '').toLowerCase() !== 'leads' || !leadIds.includes(String(row.entityId))) return true;
-    const pipelineId = pipelineByLead.get(String(row.entityId));
-    return Boolean(pipelineId) && canAccessPipeline(req.user, pipelineId);
+    const lead = leadById.get(String(row.entityId));
+    return Boolean(lead) && canAccessLead(req.user, lead);
   });
 }
 
@@ -300,10 +303,38 @@ async function rename(req, res, next) {
   }
 }
 
+// files.delete removes any file. Without it, removing a record's attachment counts as editing
+// that record (e.g. leads.write for a lead file); event attachments follow files.write because
+// events have their own visibility rules.
+const MODULE_WRITE_PERMISSION = {
+  leads: 'leads.write',
+  clients: 'clients.write',
+  projects: 'projects.write',
+  expenses: 'expenses.write',
+  invoices: 'invoices.write',
+  payments: 'payments.write',
+  settings: 'settings.write',
+  masters: 'masters.write',
+  'quotation-master': 'masters.write',
+  amc: 'amc.write',
+  renewals: 'renewals.write',
+  outsourcing: 'outsourcing.write',
+  events: 'files.write'
+};
+
+function canDeleteFile(user, record) {
+  if (hasPermission(user, 'files.delete')) return true;
+  const modulePermission = MODULE_WRITE_PERMISSION[String(record?.moduleName || '').toLowerCase()];
+  return Boolean(modulePermission) && hasPermission(user, modulePermission);
+}
+
 async function remove(req, res, next) {
   try {
     const current = await fileService.findByRef(req.params.id);
     if (!current) return notFound(res);
+    if (!canDeleteFile(req.user, current)) {
+      return res.status(403).json({ success: false, message: 'Missing permission: files.delete' });
+    }
     await assertLeadFileAccess(current.moduleName, current.entityId, req);
     await fileService.removeFile(current);
     res.json({ success: true, message: 'File deleted' });

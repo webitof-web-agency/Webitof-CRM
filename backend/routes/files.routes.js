@@ -11,12 +11,13 @@ router.post('/upload', requirePermission('files.write'), controller.upload.any()
 // /drive/:id paths are kept for older clients; :id accepts a file id or an older Drive id.
 router.get('/drive/usage', requirePermission('files.read'), controller.getUsage);
 router.put('/drive/:id/rename', requirePermission('files.write'), controller.rename);
-router.delete('/drive/:id', requirePermission('files.write'), controller.remove);
+// Finer per-file check (files.delete or the owning module's write permission) is in controller.remove.
+router.delete('/drive/:id', requirePermission('files.delete', 'files.write'), controller.remove);
 // Permission is checked per file (files.read or the file's module read permission).
 router.get('/:id/link', controller.getLink);
 router.get('/:id', requirePermission('files.read'), controller.getById);
 router.put('/:id/rename', requirePermission('files.write'), controller.rename);
 router.patch('/:id/archive', requirePermission('files.write'), controller.archive);
-router.delete('/:id', requirePermission('files.write'), controller.remove);
+router.delete('/:id', requirePermission('files.delete', 'files.write'), controller.remove);
 
 module.exports = router;

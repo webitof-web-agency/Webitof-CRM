@@ -41,8 +41,8 @@ export function InvoicesListPage() {
   const [reloadTick, setReloadTick] = useState(0);
   const [exportOpen, setExportOpen] = useState(false);
 
-  const canCreate = hasPermission('invoices.manage') || hasPermission('invoices.write');
-  const canDelete = hasPermission('invoices.manage') || hasPermission('invoices.delete');
+  const canCreate = hasPermission('invoices.write');
+  const canDelete = hasPermission('invoices.delete');
   const canExport = hasPermission('invoices.read');
 
   useEffect(() => {

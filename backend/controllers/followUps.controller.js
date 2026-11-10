@@ -2,7 +2,7 @@ const { query, withTransaction } = require('../config/db');
 const { createId } = require('../utils/format');
 const { hasPermission } = require('../middlewares/auth');
 const engine = require('../services/followUpEngine.service');
-const { userHasAllPipelineAccess, getUserAllowedPipelineIds } = require('../services/leadPipelineAccess.service');
+const { userHasAllPipelineAccess, getUserAllowedPipelineIds, userCanViewAllLeads } = require('../services/leadPipelineAccess.service');
 
 function notFound(res) {
   return res.status(404).json({ success: false, message: 'Follow-up not found' });
@@ -285,6 +285,14 @@ async function searchRelated(req, res, next) {
     if (target.table === 'leads' && !userHasAllPipelineAccess(req.user)) {
       values.push(getUserAllowedPipelineIds(req.user));
       clauses.push(`coalesce(pipeline_id, 'pipe-default') = any($${values.length}::text[])`);
+    }
+    // Without leads.view_all only leads the user works on are listed (same rule as the lead list).
+    if (target.table === 'leads' && !userCanViewAllLeads(req.user)) {
+      values.push(String(req.user?.id || ''));
+      const me = `$${values.length}`;
+      clauses.push(`(assigned_to = ${me} or lead_owner = ${me} or created_by = ${me}
+        or coalesce(secondary_assignees, '[]'::jsonb) ? ${me}
+        or ${me} = any(string_to_array(replace(coalesce(managers, ''), ' ', ''), ',')))`);
     }
     const result = await query(
       `select id, ${target.label} as label, ${target.subtitle || "''"} as subtitle from ${target.table}

@@ -31,8 +31,8 @@ const userFields = [
   { name: 'allowedLeadPipelineIds', label: 'Lead Pipelines', type: 'multiselect', description: 'Leave blank to allow all lead pipelines.' }
 ];
 
-function formatRoleNames(roles = []) {
-  return roles.map((role) => role.name).filter(Boolean).join(', ') || '-';
+function formatRoleNames(roles) {
+  return (roles || []).map((role) => role.name).filter(Boolean).join(', ') || '-';
 }
 
 export function UsersPage() {
@@ -64,13 +64,14 @@ export function UsersPage() {
     async function load() {
       setLoading(true);
       try {
+        // Roles need roles.manage; a user manager without it still gets the user list.
         const [usersResponse, rolesResponse, pipelinesResponse] = await Promise.all([
           api.resources.list('/users', token, debouncedSearch),
-          api.resources.list('/roles', token),
-          api.resources.list('/lead-pipelines', token)
+          api.resources.list('/roles', token).catch(() => ({ data: [] })),
+          api.resources.list('/lead-pipelines', token).catch(() => ({ data: [] }))
         ]);
         if (!mounted) return;
-        const filteredUsers = (usersResponse.data || []).filter(u => u.email !== 'admin@webitof.com');
+        const filteredUsers = (usersResponse.data || []).filter(u => u && u.email !== 'admin@webitof.com');
         setRows(filteredUsers);
         setRoles(rolesResponse.data || []);
         setLeadPipelines(pipelinesResponse.data || []);
@@ -116,10 +117,12 @@ export function UsersPage() {
         ? await api.resources.update('/users', activeRecord.id, payload, token)
         : await api.resources.create('/users', payload, token);
       toast.success(activeRecord ? 'User updated' : 'User created');
-      setRows((current) => {
-        const next = activeRecord ? current.map((item) => (item.id === response.data.id ? response.data : item)) : [response.data, ...current];
-        return next;
-      });
+      const saved = response?.data;
+      if (saved) {
+        setRows((current) => (activeRecord
+          ? current.map((item) => (item.id === saved.id ? saved : item))
+          : [saved, ...current]));
+      }
       setEditorOpen(false);
       setActiveRecord(null);
       setReloadTick((value) => value + 1);

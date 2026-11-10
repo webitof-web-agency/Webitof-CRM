@@ -6,7 +6,8 @@ export function normalizePermissionIds(permissions = []) {
   return permissions.map((permission) => permission.id).filter(Boolean);
 }
 
-export function mapUserForForm(user = {}) {
+export function mapUserForForm(user) {
+  user = user || {};
   return {
     ...user,
     roleIds: normalizeRoleIds(user.roles || []),

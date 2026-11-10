@@ -132,8 +132,8 @@ export function ProjectsListPage() {
   const [projectFormOpen, setProjectFormOpen] = useState(false);
   const [projectFormInitialData, setProjectFormInitialData] = useState(null);
 
-  const canCreate = hasPermission('projects.manage') || hasPermission('projects.write');
-  const canDelete = hasPermission('projects.manage') || hasPermission('projects.delete');
+  const canCreate = hasPermission('projects.write');
+  const canDelete = hasPermission('projects.delete');
   const canEdit = canCreate;
 
   useEffect(() => {

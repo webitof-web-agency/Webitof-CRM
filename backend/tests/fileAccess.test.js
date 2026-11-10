@@ -18,6 +18,7 @@ const FILES = {
 
 let settings = {};
 let leadPipeline = 'default';
+let leadAssignee = 'someone-else';
 
 fileService.findByRef = async (ref) => FILES[ref] || Object.values(FILES).find((file) => file.driveFileId === ref) || null;
 fileService.openFile = async () => {
@@ -26,7 +27,7 @@ fileService.openFile = async () => {
   return { status: 200, stream, contentLength: 4 };
 };
 settingsModel.getSettings = async () => settings;
-leadModel.findById = async (id) => ({ id, pipelineId: leadPipeline });
+leadModel.findById = async (id) => ({ id, pipelineId: leadPipeline, assignedTo: leadAssignee });
 
 function fakeRes() {
   const res = new PassThrough();
@@ -77,8 +78,8 @@ test('an unknown reference is not found', async () => {
 
 test('the link lookup turns a Drive id into the file-id view link for permitted users', async () => {
   leadPipeline = 'default';
-  const filesReader = { id: 'u1', permissions: ['files.read'] };
-  const leadsReader = { id: 'u2', permissions: ['leads.read'] };
+  const filesReader = { id: 'u1', permissions: ['files.read', 'leads.view_all'] };
+  const leadsReader = { id: 'u2', permissions: ['leads.read', 'leads.view_all'] };
   for (const user of [filesReader, leadsReader]) {
     const result = await link('drivePrivate1', user);
     assert.equal(result.status, 200);
@@ -97,4 +98,42 @@ test('the link lookup refuses lead files from pipelines the user cannot open', a
   const result = await link('drivePrivate1', user);
   assert.equal(result.status, 403);
   leadPipeline = 'default';
+});
+
+test('without leads.view_all a lead file opens only for users working on that lead', async () => {
+  const user = { id: 'u5', permissions: ['leads.read'] };
+  leadAssignee = 'someone-else';
+  assert.equal((await link('drivePrivate1', user)).status, 403);
+  leadAssignee = 'u5';
+  assert.equal((await link('drivePrivate1', user)).status, 200);
+  leadAssignee = 'someone-else';
+});
+
+async function removeFile(id, user) {
+  const res = fakeRes();
+  let error = null;
+  const removed = [];
+  const original = fileService.removeFile;
+  fileService.removeFile = async (file) => { removed.push(file.id); };
+  try {
+    await controller.remove({ params: { id }, user }, res, (err) => { error = err; });
+  } finally {
+    fileService.removeFile = original;
+  }
+  return { status: error ? error.statusCode || 500 : res.statusCode, removed };
+}
+
+test('files.write alone cannot delete a general file; files.delete can', async () => {
+  assert.equal((await removeFile('file_logo1', { id: 'u6', permissions: ['files.write'] })).status, 403);
+  const allowed = await removeFile('file_logo1', { id: 'u6', permissions: ['files.delete'] });
+  assert.equal(allowed.status, 200);
+  assert.deepEqual(allowed.removed, ['file_logo1']);
+});
+
+test('a lead attachment can be removed by someone who can edit that lead', async () => {
+  leadAssignee = 'u7';
+  const editor = { id: 'u7', permissions: ['files.write', 'leads.read', 'leads.write'] };
+  assert.equal((await removeFile('file_private1', editor)).status, 200);
+  leadAssignee = 'someone-else';
+  assert.equal((await removeFile('file_private1', editor)).status, 403);
 });

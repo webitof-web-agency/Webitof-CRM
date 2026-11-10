@@ -50,8 +50,8 @@ export function PaymentsListPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editData, setEditData] = useState(null);
 
-  const canCreate = hasPermission('payments.manage') || hasPermission('payments.write');
-  const canDelete = hasPermission('payments.manage') || hasPermission('payments.delete');
+  const canCreate = hasPermission('payments.write');
+  const canDelete = hasPermission('payments.delete');
 
   const paymentStatusOptions = [{ label: 'All Payment Statuses', value: '' }, ...PAYMENT_STATUS_OPTIONS.map((status) => ({ label: status, value: status }))];
   const modeOptions = [{ label: 'All Modes', value: '' }, ...Array.from(new Set(rows.map((r) => r.paymentMode))).filter(Boolean).map((status) => ({ label: status, value: status }))];
