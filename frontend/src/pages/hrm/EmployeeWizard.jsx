@@ -534,9 +534,10 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
               }[current]
             }
           </h2>
-          <div className="space-y-5 p-5">
+          <div className="space-y-4 p-5">
             {current === "Personal" && (
-              <div className="grid gap-5 md:grid-cols-2">
+              // Three per row on wide screens: identity, personal details, login, then the photo.
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <F
                   k="fullName"
                   title="Full Name"
@@ -545,21 +546,35 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                   required
                   disabled={converting && Boolean(candidate?.title)}
                 />
-                <div>
-                  <Field
-                    name="employeeNumber"
-                    title="Employee ID"
-                    value={original?.employeeNumber || "Auto-generated on save"}
-                    disabled
-                    onChange={() => {}}
-                  />
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">Employee ID is generated automatically.</p>
-                </div>
+                <F k="companyEmail" title="Email" type="email" value={form.companyEmail} onChange={set("companyEmail")} required />
+                <F k="phone" title="Phone Number" type="tel" value={form.phone} onChange={set("phone")} required />
+                {canPrivate && (
+                  <F k="dob" title="Date of Birth" type="date" value={profile.dob} onChange={setP("dob")} required max={localDay()} />
+                )}
+                {canPrivate && (
+                  <fieldset>
+                    <legend className="mb-1.5 text-xs font-semibold">Gender *</legend>
+                    <div className="flex flex-wrap gap-4 py-2.5">
+                      {GENDERS.map((g) => (
+                        <label key={g} className="flex cursor-pointer items-center gap-2 text-sm">
+                          <input
+                            type="radio"
+                            name="gender"
+                            className="h-4 w-4 accent-emerald-600"
+                            checked={profile.gender === g}
+                            onChange={() => setP("gender")(g)}
+                          />
+                          {g}
+                        </label>
+                      ))}
+                    </div>
+                    {err("gender")}
+                  </fieldset>
+                )}
                 <div>
                   <F k="employeeCode" title="Employee Code" value={form.employeeCode} onChange={set("employeeCode")} />
-                  <p className="mt-1 text-xs text-[var(--text-muted)]">Used to map the employee with the biometric device.</p>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">Optional: staff or biometric device number.</p>
                 </div>
-                <F k="companyEmail" title="Email" type="email" value={form.companyEmail} onChange={set("companyEmail")} required />
                 {original?.userId ? (
                   <div>
                     <span className="mb-1.5 block text-xs font-semibold">Login</span>
@@ -585,58 +600,39 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                       onChange={set("password")}
                     />
                     <p className="mt-1 text-xs text-[var(--text-muted)]">
-                      Creates the employee&apos;s login (web My day and Employee app) with the email above. Leave
-                      blank to skip.
+                      Creates a login (web and Employee app) with the email above. Leave blank to skip.
                     </p>
                   </div>
                 )}
-                <F k="phone" title="Phone Number" type="tel" value={form.phone} onChange={set("phone")} required />
-                {canPrivate && (
-                  <F k="dob" title="Date of Birth" type="date" value={profile.dob} onChange={setP("dob")} required max={localDay()} />
-                )}
-                {canPrivate && (
-                  <fieldset>
-                    <legend className="mb-1.5 text-xs font-semibold">Gender *</legend>
-                    <div className="flex flex-wrap gap-4 pt-1">
-                      {GENDERS.map((g) => (
-                        <label key={g} className="flex cursor-pointer items-center gap-2 text-sm">
-                          <input
-                            type="radio"
-                            name="gender"
-                            className="h-4 w-4 accent-emerald-600"
-                            checked={profile.gender === g}
-                            onChange={() => setP("gender")(g)}
-                          />
-                          {g}
-                        </label>
-                      ))}
-                    </div>
-                    {err("gender")}
-                  </fieldset>
-                )}
                 {!original?.userId && !form.password && users.length > 0 && (
-                  <div>
-                    <Field
-                      name="userId"
-                      title="Or link an existing ERP login"
-                      type="select"
-                      options={users.map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }))}
-                      value={form.userId}
-                      onChange={linkLogin}
-                    />
-                  </div>
+                  <Field
+                    name="userId"
+                    title="Or link an existing ERP login"
+                    type="select"
+                    options={users.map((u) => ({ value: u.id, label: `${u.name} (${u.email})` }))}
+                    value={form.userId}
+                    onChange={linkLogin}
+                    searchable
+                  />
                 )}
-                <div className="md:col-span-2">
+                <Field
+                  name="employeeNumber"
+                  title="Employee ID"
+                  value={original?.employeeNumber || "Auto-generated on save"}
+                  disabled
+                  onChange={() => {}}
+                />
+                <div className="md:col-span-2 lg:col-span-3">
                   <span className="mb-1.5 block text-xs font-semibold">Profile Image</span>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="grid h-28 w-28 place-items-center overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-2)]">
                       {photoSrc ? (
                         <img src={photoSrc} alt="Profile preview" className="h-full w-full object-cover" />
                       ) : (
-                        <span className="text-xs text-[var(--text-muted)]">No image</span>
+                        <span className="text-[10px] text-[var(--text-muted)]">No image</span>
                       )}
                     </div>
-                    <div className="min-w-60 flex-1">
+                    <div className="min-w-60 flex-1 lg:max-w-md">
                       <input
                         type="file"
                         accept="image/png,image/jpeg"
@@ -826,17 +822,17 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                 <p className="text-xs text-[var(--text-muted)]">
                   Optional — fill now or later from the employee profile.
                 </p>
-                <div className="grid gap-5 md:grid-cols-2">
-                  <F k="bankName" title="Bank Name" value={financial.bankName} onChange={setF("bankName")} />
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <F k="accountHolderName" title="Account Holder Name" value={financial.accountHolderName} onChange={setF("accountHolderName")} />
-                  <F k="accountNumber" title="Account Number" value={financial.accountNumber} onChange={setF("accountNumber")} />
-                  <F k="ifsc" title="IFSC Code" value={financial.ifsc} onChange={setF("ifsc")} />
+                  <F k="bankName" title="Bank Name" value={financial.bankName} onChange={setF("bankName")} />
                   <F k="bankBranch" title="Bank Branch" value={financial.bankBranch} onChange={setF("bankBranch")} />
+                  <F k="ifsc" title="IFSC Code" value={financial.ifsc} onChange={setF("ifsc")} />
+                  <F k="accountNumber" title="Account Number" value={financial.accountNumber} onChange={setF("accountNumber")} />
                   <F k="pan" title="PAN" value={financial.pan} onChange={setF("pan")} />
                   <F k="uan" title="UAN (PF)" value={financial.uan} onChange={setF("uan")} />
                 </div>
-                <h3 className="border-t border-[var(--border)] pt-5 font-semibold">Hours & Rates</h3>
-                <div className="grid gap-5 md:grid-cols-4">
+                <h3 className="border-t border-[var(--border)] pt-4 font-semibold">Hours & Rates</h3>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <F k="salary" title="Base Salary (monthly, ₹)" type="number" min="0" step="0.01" value={salary} onChange={setSalary} />
                   <F k="hoursPerDay" title="Hours Per Day" type="number" min="1" max="24" step="0.25" value={hoursPerDay} onChange={setF("hoursPerDay")} />
                   <F k="daysPerWeek" title="Days Per Week" type="number" min="1" max="7" step="0.5" value={daysPerWeek} onChange={setF("daysPerWeek")} />
@@ -853,9 +849,9 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                 {documents.length > 0 && (
                   <>
                     <h3 className="font-semibold">Existing Documents</h3>
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                       {documents.map((d) => (
-                        <div key={d.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] p-4">
+                        <div key={d.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] p-3">
                           <div>
                             <p className="font-medium">{d.category}</p>
                             <p className="text-xs text-[var(--text-muted)]">
@@ -893,15 +889,15 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                     <h3 className="pt-2 font-semibold">Add New Documents</h3>
                   </>
                 )}
+                {rows.length > 0 && (
+                  <p className="text-xs text-[var(--text-muted)]">PDF, JPG or PNG, max 5 MB each.</p>
+                )}
+                {/* One line per document: type, file, expiry, remove. */}
                 {rows.map((r, i) => (
-                  <div key={r.key} className="rounded-xl border border-[var(--border)] p-4">
-                    <div className="mb-3 flex items-center justify-between">
-                      <h4 className="font-semibold">Document #{i + 1}</h4>
-                      <Button size="sm" variant="ghost" aria-label={`Remove document ${i + 1}`} onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}>
-                        <X size={15} />
-                      </Button>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
+                  <div
+                    key={r.key}
+                    className="grid items-start gap-3 rounded-xl border border-[var(--border)] p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,0.8fr)_auto]"
+                  >
                       <F
                         k={`doc-type-${r.key}`}
                         title="Document Type"
@@ -926,7 +922,6 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                             )
                           }
                         />
-                        <p className="mt-1 text-xs text-[var(--text-muted)]">PDF, JPG or PNG, max 5 MB.</p>
                         {err(`doc-file-${r.key}`)}
                       </div>
                       <Field
@@ -936,7 +931,15 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                         value={r.expiresOn}
                         onChange={(v) => setRows((list) => list.map((x) => (x.key === r.key ? { ...x, expiresOn: v } : x)))}
                       />
-                    </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="md:mt-7"
+                        aria-label={`Remove document ${i + 1}`}
+                        onClick={() => setRows((list) => list.filter((x) => x.key !== r.key))}
+                      >
+                        <X size={15} />
+                      </Button>
                   </div>
                 ))}
                 {lists.documentTypes.length === 0 && masterEmpty(lists.documentTypes, "document types")}
