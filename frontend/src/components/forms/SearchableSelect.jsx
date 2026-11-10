@@ -31,6 +31,7 @@ export function SearchableSelect({
   disabled = false,
   className = '',
   triggerClassName = '',
+  listClassName = 'max-h-60',
   maxSelectedChips = 2
 }) {
   const rootRef = useRef(null);
@@ -240,7 +241,7 @@ export function SearchableSelect({
               />
             </div>
           </div>
-          <div className="max-h-60 overflow-y-auto p-1.5 flex flex-col gap-0.5">
+          <div className={cn(listClassName, 'overflow-y-auto p-1.5 flex flex-col gap-0.5')}>
             {filteredOptions.length ? filteredOptions.map((option) => {
               const active = selectedValueSet.has(String(option.value));
               const color = option.color || '';

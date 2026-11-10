@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+import { SearchableSelect } from "../../components/forms/SearchableSelect";
 import { Modal } from "../../components/ui/Modal";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { SimpleTable } from "../../components/ui/SimpleTable";
@@ -23,6 +24,7 @@ export function Field({
   step,
   help,
   suggestions,
+  searchable = false,
 }) {
   const id = `hrm-${name}`;
   return (
@@ -34,7 +36,19 @@ export function Field({
         {title || label(name)}
         {required ? " *" : ""}
       </label>
-      {type === "select" ? (
+      {type === "select" && searchable ? (
+        // Themed, searchable pop-up for long lists (states, cities); short lists keep <select>.
+        <SearchableSelect
+          value={value ?? ""}
+          onChange={(next) => onChange(next ?? "")}
+          options={options}
+          placeholder="Select…"
+          searchPlaceholder={`Search ${String(title || label(name)).toLowerCase()}…`}
+          disabled={disabled}
+          triggerClassName="py-2.5 text-sm"
+          listClassName="max-h-52"
+        />
+      ) : type === "select" ? (
         <select
           id={id}
           className={controlClass}

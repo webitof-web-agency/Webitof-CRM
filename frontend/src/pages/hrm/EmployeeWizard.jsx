@@ -765,6 +765,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                       options={stateOptions}
                       value={profile.state}
                       onChange={pickState}
+                      searchable
                       required
                     />
                   ) : (
@@ -794,6 +795,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
                       options={[...profileCities, { value: OTHER_CITY, label: "Other (type the city)" }]}
                       value={profile.city}
                       onChange={pickCity}
+                      searchable
                       disabled={!profile.state}
                       help={profile.state ? undefined : "Select the state first."}
                       required
