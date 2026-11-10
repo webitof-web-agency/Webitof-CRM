@@ -27,6 +27,43 @@ export const EMPLOYEE_STATUSES = [
 export const WORK_MODES = ["Office", "Remote", "Hybrid"];
 export const PHOTO_CATEGORY = "Profile Photo";
 
+// Readable profile link: /app/hrm/employees/mallika-paik-EMP-12 (the server resolves the
+// trailing employee number). Falls back to the id when the number is not known yet.
+export function employeeRef(e) {
+  if (!e?.employeeNumber) return e?.id || "";
+  const name = String(e.fullName || "")
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+  return name ? `${name}-${e.employeeNumber}` : e.employeeNumber;
+}
+
+export const employeePath = (e, suffix = "") => `/app/hrm/employees/${employeeRef(e)}${suffix}`;
+
+// Turns a profile URL segment (readable ref or id) into the employee id.
+export function useEmployeeId(token, ref) {
+  const isId = /^hrm_[a-z0-9]+$/i.test(ref || "");
+  const [state, setState] = useState(() => ({ ref, id: isId ? ref : "", error: "" }));
+  useEffect(() => {
+    if (!ref || isId) {
+      setState({ ref, id: ref || "", error: "" });
+      return undefined;
+    }
+    let active = true;
+    setState({ ref, id: "", error: "" });
+    hrm(token, `/employees/resolve/${encodeURIComponent(ref)}`)
+      .then((r) => active && setState({ ref, id: r.id, error: "" }))
+      .catch((e) => active && setState({ ref, id: "", error: e.message || "Employee not found" }));
+    return () => {
+      active = false;
+    };
+  }, [token, ref, isId]);
+  return state.ref === ref ? state : { ref, id: isId ? ref : "", error: "" };
+}
+
 // Company-managed lists (dynamic) come from HRM masters, edited under Policies & organization.
 export function masterLists(masters) {
   const of = (type) =>

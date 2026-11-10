@@ -50,6 +50,7 @@ const controller = {
   lookups: respond((req) => queries.lookups(req.user, req.query)),
   employees: respond((req) => employees.list(req.user, req.query)),
   employee: respond((req) => employees.detail(req.user, req.params.id)),
+  resolveEmployee: respond((req) => employees.resolveRef(req.user, req.params.ref)),
   saveEmployee: respond((req) =>
     employees.save(req.user, req.body, req.params.id || null),
   ),

@@ -114,3 +114,16 @@ test("inactive or already linked logins are refused with a clear message", { ski
   }));
 
 test.after(() => pool.end());
+
+test("readable profile refs resolve by the trailing employee number", { skip }, () =>
+  inRollback(async (db) => {
+    const hr = await actor(db);
+    const e = await employees.save(hr, base({ fullName: "Mallika Paik" }), null, db);
+    const number = e.employeeNumber;
+    assert.equal((await employees.resolveRef(hr, `mallika-paik-${number}`, db)).id, e.id);
+    assert.equal((await employees.resolveRef(hr, number.toLowerCase(), db)).id, e.id);
+    // The name part is decoration: an outdated name still finds the person.
+    assert.equal((await employees.resolveRef(hr, `old-name-${number}`, db)).id, e.id);
+    assert.equal((await employees.resolveRef(hr, e.id, db)).id, e.id);
+    await assert.rejects(employees.resolveRef(hr, `mallika-paik-${number}9999`, db), /not found/);
+  }));

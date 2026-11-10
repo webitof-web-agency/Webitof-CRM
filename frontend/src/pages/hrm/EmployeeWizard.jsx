@@ -444,7 +444,7 @@ export function EmployeeWizard({ token, metadata, masters, can, employeeId, cand
           duration: 10000,
         });
       else toast.success(editing ? "Employee updated" : converting ? "Candidate joined as an employee" : "Employee created");
-      onDone(saved.id);
+      onDone(saved);
     } catch (e) {
       toast.error(e.message);
     } finally {

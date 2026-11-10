@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { confirmAction } from '../../lib/confirm';
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -30,6 +30,7 @@ import { HrmDashboard } from "./HrmDashboard";
 import {
   PHOTO_CATEGORY,
   downloadLetter,
+  employeePath,
   hourlyRate,
   masterLists,
   money,
@@ -297,6 +298,7 @@ function Documents({ token, employeeId, can }) {
 
 export function EmployeeProfile({ id, token, metadata, masters, can }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const lists = useMemo(() => masterLists(masters), [masters]);
   const [employee, setEmployee] = useState(null),
     [financial, setFinancial] = useState(null),
@@ -321,6 +323,9 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
       .then(([e, priv, salaries]) => {
         if (!active) return;
         setEmployee(e);
+        // An old id link (/employees/hrm_…) is swapped for the readable one in the address bar.
+        if (/\/employees\/hrm_[a-z0-9]+$/i.test(location.pathname) && e?.employeeNumber)
+          navigate(employeePath(e), { replace: true });
         setFinancial(priv?.financial || null);
         setSalary(
           (salaries?.rows || []).sort((a, b) => String(b.effectiveDate).localeCompare(String(a.effectiveDate)))[0] ||
@@ -375,7 +380,7 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
           <ArrowLeft size={16} /> Back
         </Button>
         {can("manage_employees") && (
-          <Button onClick={() => navigate(`/app/hrm/employees/${id}/edit`)}>Edit employee</Button>
+          <Button onClick={() => navigate(employeePath(employee, "/edit"))}>Edit employee</Button>
         )}
         {employee.status === "Notice Period" && can("hr_approve") && (
           <Button
@@ -580,7 +585,7 @@ export function EmployeeProfile({ id, token, metadata, masters, can }) {
               title="Documents"
               action={
                 can("manage_employees") && (
-                  <Button size="sm" variant="secondary" onClick={() => navigate(`/app/hrm/employees/${id}/edit`)}>
+                  <Button size="sm" variant="secondary" onClick={() => navigate(employeePath(employee, "/edit"))}>
                     <BadgeCheck size={15} /> Add documents
                   </Button>
                 )

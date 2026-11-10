@@ -12,6 +12,7 @@ import { HrmGeofences } from "./HrmGeofences";
 import { HrmMyDay } from "./HrmMyDay";
 import { EmployeeProfile } from "./EmployeeProfile";
 import { EmployeeWizard } from "./EmployeeWizard";
+import { employeePath, useEmployeeId } from "./employeeShared";
 import { HrmRecruitment } from "./HrmRecruitment";
 const sections = [
   ["overview", "Overview"],
@@ -63,6 +64,8 @@ export function HrmPage() {
     [hasPermission],
   );
   const reload = useCallback(() => setRefresh((n) => n + 1), []);
+  // Profile URLs are readable (mallika-paik-EMP-12); old id URLs still work.
+  const employee = useEmployeeId(token, kind === "employees" && id !== "new" ? id : "");
   useEffect(() => {
     let active = true;
     Promise.all([hrm(token, "/meta"), hrm(token, "/lookups?type=masters")])
@@ -109,20 +112,26 @@ export function HrmPage() {
           {...props}
           candidateId={searchParams.get("candidate") || ""}
           candidate={location.state?.candidate || null}
-          onDone={(employeeId) => navigate(`/app/hrm/employees/${employeeId}`)}
+          onDone={(saved) => navigate(employeePath(saved))}
           onCancel={() => navigate("/app/hrm/employees")}
         />
+      ) : kind === "employees" && id && id !== "new" && !employee.id ? (
+        // A readable URL (mallika-paik-EMP-12) is still being turned into the employee id.
+        <Card className="p-5" role={employee.error ? "alert" : "status"}>
+          {employee.error || "Loading employee…"}
+        </Card>
       ) : kind === "employees" && id && sub === "edit" && can("manage_employees") ? (
         <EmployeeWizard
           {...props}
-          employeeId={id}
-          onDone={(employeeId) => navigate(`/app/hrm/employees/${employeeId}`)}
+          key={employee.id}
+          employeeId={employee.id}
+          onDone={(saved) => navigate(employeePath(saved))}
           onCancel={() => navigate(`/app/hrm/employees/${id}`)}
         />
       ) : kind === "employees" && id === "new" ? (
         <Card className="p-5">You do not have permission to add employees.</Card>
       ) : kind === "employees" && id ? (
-        <EmployeeProfile key={id} {...props} id={id} />
+        <EmployeeProfile key={employee.id} {...props} id={employee.id} />
       ) : ["overview", "analytics"].includes(kind) ? (
         <HrmDashboard key={kind} {...props} analytics={kind === "analytics"} />
       ) : kind === "settings" ? (

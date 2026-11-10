@@ -23,6 +23,7 @@ router.get("/analytics", c.analytics);
 router.post("/automation/run", c.automation);
 router.get("/employees", c.employees);
 router.post("/employees", c.saveEmployee);
+router.get("/employees/resolve/:ref", c.resolveEmployee);
 router.get("/employees/:id", c.employee);
 router.put("/employees/:id", c.saveEmployee);
 router.delete("/employees/:id", c.archiveEmployee);

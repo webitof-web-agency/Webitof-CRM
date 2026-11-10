@@ -24,6 +24,7 @@ import {
 import { HrmForm, WorkReportForm } from "./HrmForm";
 import { forms, recordForm } from "./hrmForms";
 import { hrm, queryString, downloadHrm, label, localDay } from "./hrmApi";
+import { employeePath } from "./employeeShared";
 const titles = {
   employees: "Employee directory",
   attendance: "Attendance",
@@ -168,7 +169,7 @@ export function HrmCollection({
             render: (r) => (
               <Link
                 className="font-semibold text-[var(--primary)]"
-                to={`/app/hrm/employees/${r.id}`}
+                to={employeePath(r)}
               >
                 {r.fullName}
                 <span className="mt-0.5 block text-xs font-normal text-[var(--text-muted)]">
@@ -374,7 +375,7 @@ export function HrmCollection({
               onClick={() =>
                 // Employees are created and edited in the step-by-step employee form.
                 kind === "employees"
-                  ? navigate(`/app/hrm/employees/${row.id}/edit`)
+                  ? navigate(employeePath(row, "/edit"))
                   : setEditor({ config, initial: row })
               }
             >

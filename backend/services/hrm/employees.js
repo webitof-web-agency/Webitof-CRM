@@ -680,10 +680,32 @@ async function savePolicy(user, body, db = null) {
     return v;
   }, db);
 }
+// Readable profile URLs: "mallika-paik-EMP-12" (or just "EMP-12") -> the employee's id.
+// Only the trailing employee number identifies the person; the name part is decoration, so
+// a renamed employee's old links keep working. Same HR scope as opening the profile.
+async function resolveRef(user, ref, db = c.dbDefault) {
+  const text = c.text(ref, "Employee", 200, true);
+  if (/^hrm_[a-z0-9]+$/i.test(text)) return { id: text };
+  const values = [text];
+  const s = c.scope(user, values);
+  const row = (
+    await db.query(
+      `SELECT e.id FROM hrm_employees e
+       WHERE e.archived_at IS NULL AND ${s}
+         AND (lower(e.employee_number) = lower($1) OR lower($1) LIKE '%-' || lower(e.employee_number))
+       ORDER BY length(e.employee_number) DESC LIMIT 1`,
+      values,
+    )
+  ).rows[0];
+  if (!row) c.fail("Employee not found or outside your HR scope", 404);
+  return { id: row.id };
+}
+
 module.exports = {
   save,
   list,
   detail,
+  resolveRef,
   privateProfile,
   archive,
   savePolicy,
