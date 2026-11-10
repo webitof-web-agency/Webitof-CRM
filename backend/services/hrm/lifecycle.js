@@ -1,6 +1,8 @@
 const c = require("./core");
 const fileAssetModel = require("../../models/fileAsset.model");
 const { readFileBuffer, removeFile, saveUpload } = require("../file.service");
+const { employeeFolder } = require("../../utils/uploadPath");
+const rules = require("./validators");
 const HRM_DOCUMENT_TYPES = {
   ".pdf": "application/pdf",
   ".png": "image/png",
@@ -91,11 +93,9 @@ async function record(user, kind, body, id = null, db = null) {
       else if (f.type === "master") {
         await c.master(tx, value, f.masterType, true);
         d[f.key] = value;
-      } else {
-        d[f.key] = c.text(value, f.label, 8000, f.required);
-        if (f.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
-          c.fail("Invalid email");
-      }
+      } else if (f.type === "email") d[f.key] = rules.email(value, f.label, f.required);
+      else if (f.type === "tel") d[f.key] = rules.phone(value, f.label, f.required);
+      else d[f.key] = c.text(value, f.label, 8000, f.required);
     }
     const startDate = c.date(body.startDate, "Start date", true),
       endDate = c.date(body.endDate, "Due date", true);
@@ -428,7 +428,16 @@ async function uploadDocument(user, body, file, db = null) {
     const title = c.text(body.title, "Document title", 200, true);
     const category = c.text(body.category, "Document category", 100, true);
     const expiresOn = c.date(body.expiresOn, "Expiry date", true);
-    // Stored through the active storage provider (local disk or Google Drive).
+    // Stored through the active storage provider (local disk or Google Drive), all in one
+    // folder per employee and named after the document and the person, e.g.
+    // hrm/employees/Mallika-Paik-EMP-12/aadhaar-card-mallika-paik.pdf. Later uploads reuse the
+    // employee's first folder, so a renamed employee's documents stay together.
+    const existingFolder = (
+      await tx.query(
+        "SELECT folder_key FROM file_assets WHERE module_name='hrm' AND entity_id=$1 AND folder_key LIKE 'hrm/employees/%' ORDER BY created_at LIMIT 1",
+        [e.id],
+      )
+    ).rows[0]?.folder_key;
     const stored = await saveUpload({
       buffer: b,
       originalName: fileName,
@@ -437,6 +446,8 @@ async function uploadDocument(user, body, file, db = null) {
       types: HRM_DOCUMENT_TYPES,
       maxBytes: 10485760,
       dbClient: tx,
+      folderPath: existingFolder || employeeFolder(e),
+      fileBaseName: `${title} ${e.fullName}`,
     });
     let r;
     try {

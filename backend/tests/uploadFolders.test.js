@@ -102,3 +102,48 @@ test('saveUpload still works in the id folder when the lookup fails', async () =
     fileAssetModel.create = originalCreate;
   }
 });
+
+// HR documents: one folder per employee, files named <document>-<employee>.
+const { employeeFolder } = require('../utils/uploadPath');
+
+test('an employee gets one folder named after them and their employee number', () => {
+  assert.equal(employeeFolder({ fullName: 'Mallika Paik', employeeNumber: 'EMP-12' }), 'hrm/employees/Mallika-Paik-EMP-12');
+  assert.equal(employeeFolder({ fullName: '  Ravi  K. Sahu ', employeeNumber: 'EMP-3' }), 'hrm/employees/Ravi-K.-Sahu-EMP-3');
+  assert.equal(employeeFolder({ fullName: '★', employeeNumber: 'EMP-4' }), 'hrm/employees/EMP-4');
+});
+
+test('document names read <document>-<employee>', () => {
+  assert.equal(fileService.slugFileBase('Aadhaar Card Mallika Paik'), 'aadhaar-card-mallika-paik');
+  assert.equal(fileService.slugFileBase('Bank Proof (Cancelled Cheque / Passbook) Mallika Paik'), 'bank-proof-cancelled-cheque-passbook-mallika-paik');
+  assert.equal(fileService.slugFileBase('Profile Photo Ánanya Rao'), 'profile-photo-ananya-rao');
+});
+
+test('saveUpload with a fixed folder and readable name never overwrites: -2, -3 follow', async () => {
+  const taken = new Set(['hrm/employees/Mallika-Paik-EMP-12/pan-card-mallika-paik.pdf']);
+  const db = {
+    query: async (sql, [folder, name]) => ({ rowCount: taken.has(`${folder}/${name}`) ? 1 : 0, rows: [] })
+  };
+  const originalCreate = fileAssetModel.create;
+  fileAssetModel.create = async (data) => ({ id: `file_${data.storedName}`, ...data });
+  const upload = (title) => fileService.saveUpload({
+    buffer: Buffer.from('%PDF-1.4'),
+    originalName: 'IMG_2031.pdf',
+    moduleName: 'hrm',
+    entityId: 'hrm_1',
+    dbClient: db,
+    folderPath: 'hrm/employees/Mallika-Paik-EMP-12',
+    fileBaseName: `${title} Mallika Paik`
+  });
+  try {
+    const first = await upload('Aadhaar Card');
+    assert.equal(first.folderKey, 'hrm/employees/Mallika-Paik-EMP-12');
+    assert.equal(first.storedName, 'aadhaar-card-mallika-paik.pdf');
+    assert.equal(first.originalName, 'IMG_2031.pdf');
+    // Same document again: the first file is on disk (EEXIST) though the fake DB does not know it.
+    assert.equal((await upload('Aadhaar Card')).storedName, 'aadhaar-card-mallika-paik-2.pdf');
+    // Name already recorded in the database for this folder.
+    assert.equal((await upload('PAN Card')).storedName, 'pan-card-mallika-paik-2.pdf');
+  } finally {
+    fileAssetModel.create = originalCreate;
+  }
+});

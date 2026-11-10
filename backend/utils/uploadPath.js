@@ -74,9 +74,18 @@ function buildStorageKey({ moduleName, entityId, entityLabel, storedName, date }
   return `${buildFolderPath({ moduleName, entityId, entityLabel, date })}/${storedName}`;
 }
 
+// One folder per employee for all their HR documents: hrm/employees/Mallika-Paik-EMP-12.
+// The employee number keeps two people with the same name apart.
+function employeeFolder({ fullName = '', employeeNumber = '', id = '' } = {}) {
+  const name = sanitizeSegment(String(fullName).replace(/\s+/g, '-')).slice(0, 60).replace(/[.-]+$/, '');
+  const number = sanitizeSegment(employeeNumber || id);
+  return `hrm/employees/${[name, number].filter(Boolean).join('-') || 'unknown'}`;
+}
+
 module.exports = {
   buildFolderPath,
   buildStorageKey,
+  employeeFolder,
   isSiteModule,
   istParts,
   sanitizeSegment,

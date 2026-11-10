@@ -78,6 +78,46 @@ function buildStoredName(originalName, extension) {
   return `${base}-${unique}${extension}`;
 }
 
+// "Aadhaar Card - Mallika Paik" -> "aadhaar-card-mallika-paik".
+function slugFileBase(value) {
+  return String(value || '')
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 100)
+    .replace(/-+$/, '');
+}
+
+async function storedNameTaken(folderPath, storedName, dbClient) {
+  const exec = dbClient?.query ? dbClient : require('../config/db');
+  const result = await exec.query(
+    'select 1 from file_assets where folder_key = $1 and lower(stored_name) = lower($2) limit 1',
+    [folderPath, storedName]
+  );
+  return result.rowCount > 0;
+}
+
+// Readable, stable names ("aadhaar-card-mallika-paik.pdf"). A name already used in the folder
+// gets "-2", "-3"...: the database check covers both providers, and EEXIST covers a file left
+// on disk without a record (the local provider never overwrites).
+async function uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient) {
+  const base = slugFileBase(fileBaseName) || 'file';
+  for (let n = 1; n <= 50; n += 1) {
+    const candidate = `${base}${n > 1 ? `-${n}` : ''}${extension}`;
+    if (await storedNameTaken(folderPath, candidate, dbClient)) continue;
+    try {
+      const locator = await storage.upload(buffer, `${folderPath}/${candidate}`, { mimeType });
+      return { storedName: candidate, locator };
+    } catch (error) {
+      if (error?.code === 'EEXIST') continue;
+      throw error;
+    }
+  }
+  throw httpError('Could not find a free file name in this folder');
+}
+
 function resolveType(originalName, types) {
   const extension = path.extname(originalName).toLowerCase();
   const mimeType = types[extension];
@@ -108,7 +148,11 @@ async function saveUpload({
   types = DOCUMENT_TYPES,
   maxBytes = maxUploadBytes(),
   extra = {},
-  dbClient = null
+  dbClient = null,
+  // Optional: a fixed folder (instead of <year>/<mon>/<section>/<record>) and a readable
+  // file name (instead of the uploaded name plus a random suffix). Used by HRM documents.
+  folderPath: fixedFolder = '',
+  fileBaseName = ''
 }) {
   if (!buffer?.length) throw httpError('Empty files cannot be uploaded');
   if (buffer.length > maxBytes) {
@@ -116,10 +160,19 @@ async function saveUpload({
   }
   const cleanName = cleanOriginalName(originalName);
   const { extension, mimeType } = resolveType(cleanName, types);
-  const storedName = buildStoredName(cleanName, extension);
-  const entityLabel = entityId && !isSiteModule(moduleName) ? await resolveEntityLabel(moduleName, entityId) : null;
-  const folderPath = buildFolderPath({ moduleName, entityId, entityLabel });
-  const locator = await storage.upload(buffer, `${folderPath}/${storedName}`, { mimeType });
+  let folderPath = fixedFolder;
+  if (!folderPath) {
+    const entityLabel = entityId && !isSiteModule(moduleName) ? await resolveEntityLabel(moduleName, entityId) : null;
+    folderPath = buildFolderPath({ moduleName, entityId, entityLabel });
+  }
+  let storedName;
+  let locator;
+  if (fileBaseName) {
+    ({ storedName, locator } = await uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient));
+  } else {
+    storedName = buildStoredName(cleanName, extension);
+    locator = await storage.upload(buffer, `${folderPath}/${storedName}`, { mimeType });
+  }
 
   try {
     const record = await fileAssetModel.create({
@@ -210,5 +263,6 @@ module.exports = {
   removeFileByRef,
   renameFile,
   saveUpload,
+  slugFileBase,
   toPublicFile
 };
