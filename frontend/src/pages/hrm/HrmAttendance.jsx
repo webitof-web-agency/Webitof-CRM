@@ -503,8 +503,6 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
   const own = metadata.ownEmployeeId || "";
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(20);
   const [picked, setPicked] = useState("");
   const chosen = employeeId || own || employees[0]?.id || "";
   useEffect(() => {
@@ -517,9 +515,13 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
       active = false;
     };
   }, [token, month, chosen, refresh]);
-  useEffect(() => setPage(1), [month, chosen]);
+  // Keep the picked day's row visible in the log.
+  useEffect(() => {
+    if (picked) document.querySelector(`[data-day-row="${picked}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [picked]);
   const row = data?.rows?.[0];
-  const listed = useMemo(() => (row ? row.days.filter((d) => d.date <= data.today && d.code).slice().reverse() : []), [row, data]);
+  // Every day of the month, 1st first; days still to come are dimmed.
+  const listed = row?.days || [];
   const avgIn = useMemo(() => {
     const ins = (row?.days || []).filter((d) => d.checkIn).map((d) => minuteOfDay(d.checkIn, timezone));
     return ins.length ? clockOfMinutes(ins.reduce((a, b) => a + b, 0) / ins.length) : "—";
@@ -604,7 +606,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
         </Card>
         <div className="relative min-h-[420px] xl:min-h-0">
         <Card className="@container flex flex-col overflow-hidden p-0 xl:absolute xl:inset-0">
-          <div className="min-h-0 flex-1 overflow-auto">
+          <div className="max-h-[70vh] min-h-0 flex-1 overflow-auto xl:max-h-none">
             <table className="w-full min-w-[800px] text-[12.5px]">
               <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[10.5px] uppercase tracking-wide text-[var(--text-muted)]">
                 <tr>
@@ -615,8 +617,8 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {listed.slice((page - 1) * limit, page * limit).map((d) => (
-                  <tr key={d.date} className={cn("cursor-pointer hover:bg-[var(--hover-bg)]", d.date === selected?.date && "bg-[var(--hover-bg)]")} onClick={() => setPicked(d.date)}>
+                {listed.map((d) => (
+                  <tr key={d.date} data-day-row={d.date} className={cn("cursor-pointer hover:bg-[var(--hover-bg)]", d.date === selected?.date && "bg-[var(--hover-bg)]", d.date > data.today && "text-[var(--text-muted)] opacity-70", d.date === data.today && "font-semibold")} onClick={() => setPicked(d.date)}>
                     <td className="whitespace-nowrap px-2 py-2 font-semibold">{prettyDate(d.date)}</td>
                     <td className="hidden whitespace-nowrap px-2 py-2 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
                     <td className="whitespace-nowrap px-2 py-2 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
@@ -634,9 +636,12 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
                 ))}
               </tbody>
             </table>
-            {row && !listed.length && <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">No days yet in this month.</p>}
           </div>
-          {listed.length > 0 && <Pager total={listed.length} page={page} limit={limit} onPage={setPage} onLimit={(n) => (setLimit(n), setPage(1))} sizes={[10, 20, 50]} />}
+          {listed.length > 0 && (
+            <div className="border-t border-[var(--border)] px-4 py-2 text-xs text-[var(--text-muted)]">
+              {listed.length} days · {listed.filter((d) => d.date <= data.today).length} so far
+            </div>
+          )}
         </Card>
         </div>
       </div>
