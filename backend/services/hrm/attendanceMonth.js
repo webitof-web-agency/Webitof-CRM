@@ -20,6 +20,14 @@ function monthRange(month) {
   return { start, end };
 }
 
+function employeeIdList(raw) {
+  const list = (Array.isArray(raw) ? raw : String(raw || "").split(","))
+    .map((v) => String(v).trim())
+    .filter(Boolean);
+  if (list.length > 500) c.fail("Pick at most 500 employees");
+  return [...new Set(list)];
+}
+
 const minutes = (v) => (v == null ? 0 : Math.max(0, Number(v) || 0));
 
 function dayCell(d, att, leaves, today, shiftName) {
@@ -107,6 +115,12 @@ async function month(user, q = {}, db = c.dbDefault) {
     values.push(String(q.employeeId));
     clauses.push(`e.id=$${values.length}`);
   }
+  // Column filter on the chart: several employees, comma separated.
+  const ids = employeeIdList(q.employeeIds);
+  if (ids.length) {
+    values.push(ids);
+    clauses.push(`e.id=ANY($${values.length}::text[])`);
+  }
   if (q.locationId) {
     values.push(String(q.locationId));
     clauses.push(`e.location_id=$${values.length}`);
@@ -168,4 +182,4 @@ async function month(user, q = {}, db = c.dbDefault) {
   return { month: start.slice(0, 7), startDate: start, endDate: end, today, dates, rows, total, page, limit };
 }
 
-module.exports = { month, monthRange, dayCell, totals };
+module.exports = { month, monthRange, dayCell, totals, employeeIdList };

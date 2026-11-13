@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowDown,
@@ -8,6 +9,7 @@ import {
   Clock3,
   FilePenLine,
   Download,
+  ListFilter,
   LogOut,
   PenLine,
   RotateCcw,
@@ -19,6 +21,9 @@ import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { cn } from "../../lib/cn";
 import { SearchableSelect } from "../../components/forms/SearchableSelect";
+import { FloatingDropdown } from "../../components/ui/FloatingDropdown";
+import { Checkbox } from "../../components/ui/Checkbox";
+import { employeePath } from "./employeeShared";
 import { HrmForm } from "./HrmForm";
 import { forms } from "./hrmForms";
 import { downloadHrm, hrm, queryString } from "./hrmApi";
@@ -314,9 +319,80 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
   );
 }
 
+/** Checkbox list behind the filter icon in the chart's Employee header. Nothing changes until Apply. */
+function EmployeeFilter({ employees, value, onApply, close }) {
+  const [draft, setDraft] = useState(() => new Set(value));
+  const [search, setSearch] = useState("");
+  const term = search.trim().toLowerCase();
+  const shown = employees.filter((e) => !term || `${e.fullName} ${e.employeeNumber || ""}`.toLowerCase().includes(term));
+  const allShown = shown.length > 0 && shown.every((e) => draft.has(e.id));
+  const toggle = (id) =>
+    setDraft((d) => {
+      const next = new Set(d);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const toggleAll = () =>
+    setDraft((d) => {
+      const next = new Set(d);
+      shown.forEach((e) => (allShown ? next.delete(e.id) : next.add(e.id)));
+      return next;
+    });
+  const apply = () => {
+    // Everyone ticked is the same as no filter.
+    onApply(draft.size >= employees.length ? [] : [...draft]);
+    close();
+  };
+  return (
+    <div className="flex w-[280px] flex-col">
+      <div className="border-b border-[var(--border)] p-3">
+        <label className="relative block">
+          <span className="sr-only">Search employees</span>
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+          <input
+            autoFocus
+            className="h-9 w-full rounded-full border border-[var(--input-border)] bg-[var(--surface)] pl-9 pr-3 text-sm outline-none focus:border-[var(--primary)]"
+            placeholder="Search…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="max-h-[260px] overflow-y-auto py-1">
+        {shown.length ? (
+          <>
+            <label className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm font-semibold hover:bg-[var(--hover-bg)]">
+              <Checkbox checked={allShown} onChange={toggleAll} />
+              Select all
+            </label>
+            {shown.map((e) => (
+              <label key={e.id} className="flex cursor-pointer items-center gap-3 px-4 py-2 text-sm hover:bg-[var(--hover-bg)]">
+                <Checkbox checked={draft.has(e.id)} onChange={() => toggle(e.id)} />
+                <span className="min-w-0 truncate">{e.fullName}</span>
+              </label>
+            ))}
+          </>
+        ) : (
+          <p className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">No employee found.</p>
+        )}
+      </div>
+      <div className="flex items-center justify-between border-t border-[var(--border)] px-3 py-2.5">
+        <button type="button" className="text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)]" onClick={() => setDraft(new Set())}>
+          Clear all
+        </button>
+        <Button size="sm" onClick={apply}>
+          Apply
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Employees x days for the month. */
-function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
-  const { search, locationId, employeeId, sort } = filters;
+function AttendanceChart({ token, filters, setSort, setEmployeeIds, employees, month, onDay, refresh }) {
+  const { search, locationId, employeeIds, sort } = filters;
+  const employeeKey = employeeIds.join(",");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -326,16 +402,16 @@ function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
     const t = setTimeout(() => setQuery(search.trim()), 300);
     return () => clearTimeout(t);
   }, [search]);
-  useEffect(() => setPage(1), [query, locationId, employeeId, month, limit]);
+  useEffect(() => setPage(1), [query, locationId, employeeKey, month, limit]);
   useEffect(() => {
     let active = true;
-    hrm(token, `/attendance/month?${queryString({ month, search: query, locationId, employeeId, sort, page, limit })}`)
+    hrm(token, `/attendance/month?${queryString({ month, search: query, locationId, employeeIds: employeeKey, sort, page, limit })}`)
       .then((r) => active && (setData(r), setError("")))
       .catch((e) => active && setError(e.message));
     return () => {
       active = false;
     };
-  }, [token, month, query, locationId, employeeId, sort, page, limit, refresh]);
+  }, [token, month, query, locationId, employeeKey, sort, page, limit, refresh]);
   const [y, m] = month.split("-");
   const monthName = `${MONTHS[Number(m) - 1]} ${y}`;
   return (
@@ -346,10 +422,42 @@ function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
           <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
-                <th rowSpan={2} className="sticky left-0 z-20 min-w-[200px] border-b border-r border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-left">
-                  <button type="button" className="inline-flex items-center gap-1 font-semibold" onClick={() => setSort((s) => (s === "asc" ? "desc" : "asc"))}>
-                    Employee {sort === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
-                  </button>
+                <th rowSpan={2} className="sticky left-0 z-20 w-[150px] min-w-[150px] max-w-[150px] border-b border-r border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-left">
+                  <div className="flex items-center gap-1">
+                    <span className="font-semibold">Employee</span>
+                    <button
+                      type="button"
+                      aria-label={sort === "asc" ? "Sorted A to Z, switch to Z to A" : "Sorted Z to A, switch to A to Z"}
+                      title={sort === "asc" ? "A → Z" : "Z → A"}
+                      className="rounded-md p-1 text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)]"
+                      onClick={() => setSort((s) => (s === "asc" ? "desc" : "asc"))}
+                    >
+                      {sort === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
+                    </button>
+                    <FloatingDropdown
+                      align="start"
+                      trigger={({ ref, toggle, open }) => (
+                        <button
+                          ref={ref}
+                          type="button"
+                          aria-label="Filter employees"
+                          title={employeeIds.length ? `${employeeIds.length} selected` : "Filter employees"}
+                          onClick={toggle}
+                          className={cn(
+                            "relative rounded-md p-1 transition",
+                            employeeIds.length || open ? "bg-[var(--primary)]/10 text-[var(--primary)]" : "text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)]",
+                          )}
+                        >
+                          <ListFilter size={13} />
+                          {employeeIds.length > 0 && (
+                            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--primary)] px-0.5 text-[9px] font-bold leading-none text-white">{employeeIds.length}</span>
+                          )}
+                        </button>
+                      )}
+                    >
+                      {({ close }) => <EmployeeFilter employees={employees} value={employeeIds} onApply={setEmployeeIds} close={close} />}
+                    </FloatingDropdown>
+                  </div>
                 </th>
                 <th colSpan={data?.dates?.length || 1} className="border-b border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 font-normal">
                   {/* Month name and the legend share the header row. */}
@@ -376,14 +484,11 @@ function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
             <tbody>
               {(data?.rows || []).map((r) => (
                 <tr key={r.employee.id} className="group">
-                  <td className="sticky left-0 z-10 max-w-[200px] border-b border-r border-[var(--border)] bg-[var(--surface)] px-3 py-2 group-hover:bg-[var(--hover-bg)]">
-                    <div className="flex items-center gap-2.5">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface-2)] text-xs font-bold">{r.employee.fullName.slice(0, 1)}</span>
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">{r.employee.fullName}</p>
-                        <p className="truncate text-[11px] text-[var(--text-muted)]">{r.employee.employeeCode || r.employee.employeeNumber}{r.employee.location ? ` · ${r.employee.location}` : ""}</p>
-                      </div>
-                    </div>
+                  <td className="sticky left-0 z-10 w-[150px] min-w-[150px] max-w-[150px] border-b border-r border-[var(--border)] bg-[var(--surface)] px-3 py-2 group-hover:bg-[var(--hover-bg)]">
+                    <Link to={employeePath(r.employee)} title={`Open profile: ${r.employee.fullName}`} className="block truncate font-semibold text-[var(--primary)]! hover:underline!">
+                      {r.employee.fullName}
+                    </Link>
+                    <p className="truncate text-[11px] text-[var(--text-muted)]">{r.employee.employeeCode || r.employee.employeeNumber}</p>
                   </td>
                   {r.days.map((d) => (
                     <td key={d.date} className="border-b border-[var(--border)] px-[2px] py-1.5 text-center">
@@ -438,8 +543,9 @@ export function HrmAttendance({ token, metadata, masters, can }) {
   const [refresh, setRefresh] = useState(0);
   const own = metadata.ownEmployeeId || "";
   const [mineEmployee, setMineEmployee] = useState(own);
-  const [filters, setFilters] = useState({ search: "", locationId: "", employeeId: "", sort: "asc" });
+  const [filters, setFilters] = useState({ search: "", locationId: "", employeeIds: [], sort: "asc" });
   const setFilter = (key) => (value) => setFilters((f) => ({ ...f, [key]: value ?? "" }));
+  const setEmployeeIds = (ids) => setFilters((f) => ({ ...f, employeeIds: ids }));
   const locations = masters.filter((m) => m.type === "hrm_location");
   const actionLabel = tab === "chart" && canChart ? "hidden min-[1750px]:inline" : "hidden md:inline";
   const thisYear = Number(today.slice(0, 4));
@@ -488,7 +594,18 @@ export function HrmAttendance({ token, metadata, masters, can }) {
               <SearchableSelect aria-label="Branch" value={filters.locationId} onChange={setFilter("locationId")} options={[{ value: "", label: "All branches" }, ...locations.map((l) => ({ value: l.id, label: l.name }))]} triggerClassName={PILL} />
             </div>
             <div className="w-40 shrink-0">
-              <SearchableSelect aria-label="Employee" searchable value={filters.employeeId} onChange={setFilter("employeeId")} options={[{ value: "", label: "All employees" }, ...employees.map((e) => ({ value: e.id, label: e.fullName }))]} triggerClassName={PILL} />
+              <SearchableSelect
+                aria-label="Employee"
+                searchable
+                value={filters.employeeIds.length === 1 ? filters.employeeIds[0] : filters.employeeIds.length ? "__many" : ""}
+                onChange={(v) => v !== "__many" && setEmployeeIds(v ? [v] : [])}
+                options={[
+                  { value: "", label: "All employees" },
+                  ...(filters.employeeIds.length > 1 ? [{ value: "__many", label: `${filters.employeeIds.length} employees` }] : []),
+                  ...employees.map((e) => ({ value: e.id, label: e.fullName })),
+                ]}
+                triggerClassName={PILL}
+              />
             </div>
             <div className="w-32 shrink-0">
               <SearchableSelect aria-label="Month" value={month.slice(5)} onChange={(v) => v && setMonth(`${month.slice(0, 4)}-${v}`)} options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, "0"), label: name }))} triggerClassName={PILL} />
@@ -496,7 +613,7 @@ export function HrmAttendance({ token, metadata, masters, can }) {
             <div className="w-24 shrink-0">
               <SearchableSelect aria-label="Year" value={month.slice(0, 4)} onChange={(v) => v && setMonth(`${v}-${month.slice(5)}`)} options={years.map((v) => ({ value: v, label: v }))} triggerClassName={PILL} />
             </div>
-            <Button size="sm" variant="ghost" aria-label="Reset filters" title="Reset filters" onClick={() => setFilters({ search: "", locationId: "", employeeId: "", sort: "asc" })}>
+            <Button size="sm" variant="ghost" aria-label="Reset filters" title="Reset filters" onClick={() => setFilters({ search: "", locationId: "", employeeIds: [], sort: "asc" })}>
               <RotateCcw size={14} />
             </Button>
           </>
@@ -546,7 +663,7 @@ export function HrmAttendance({ token, metadata, masters, can }) {
         </div>
       </Card>
       {tab === "chart" && canChart ? (
-        <AttendanceChart token={token} filters={filters} setSort={(update) => setFilters((f) => ({ ...f, sort: typeof update === "function" ? update(f.sort) : update }))} month={month} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
+        <AttendanceChart token={token} filters={filters} employees={employees} setEmployeeIds={setEmployeeIds} setSort={(update) => setFilters((f) => ({ ...f, sort: typeof update === "function" ? update(f.sort) : update }))} month={month} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
       ) : (
         <MyAttendance token={token} metadata={metadata} employees={employees} employeeId={mineEmployee} month={month} setMonth={setMonth} years={years} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
       )}

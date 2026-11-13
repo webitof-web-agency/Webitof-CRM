@@ -1,7 +1,7 @@
 // Day codes and totals of the attendance calendar / chart. No database.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { dayCell, totals, monthRange } = require('../services/hrm/attendanceMonth');
+const { dayCell, totals, monthRange, employeeIdList } = require('../services/hrm/attendanceMonth');
 
 const TODAY = '2026-11-13';
 const working = (date) => ({ date, kind: 'Working', hours: 8 });
@@ -71,6 +71,13 @@ test('totals: present counts half days as half and off-day work as a day; leave 
   assert.equal(t.offDayWorked, 1);
   assert.equal(t.holidays, 1);
   assert.equal(t.workingDays, 3);
+});
+
+test('employee column filter: comma list, trimmed, unique, capped', () => {
+  assert.deepEqual(employeeIdList('a, b,,a'), ['a', 'b']);
+  assert.deepEqual(employeeIdList(['x', ' y ']), ['x', 'y']);
+  assert.deepEqual(employeeIdList(undefined), []);
+  assert.throws(() => employeeIdList(Array.from({ length: 501 }, (_, i) => `e${i}`)));
 });
 
 test('month must be YYYY-MM', () => {
