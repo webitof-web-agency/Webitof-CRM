@@ -4,7 +4,6 @@ import { AlertTriangle, Building2, Clock3, Crosshair, ExternalLink, Home, Pencil
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
-import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
 import { GeoMap, distanceMeters, mapsLink } from "./GeoMap";
 import { hrm } from "./hrmApi";
@@ -227,13 +226,6 @@ export function HrmGeofences({ token, metadata, masters, can }) {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        className="mb-0"
-        eyebrow="Attendance"
-        title="Work locations & geofences"
-        description="Inside an office radius clock-in is Work From Office, inside an approved home radius it is Work From Home; outside both it is blocked (client visits need a reason)."
-        actions={manage ? [{ label: "Add office", icon: Plus, onClick: () => setEditing(blank(defaultRadius)) }] : []}
-      />
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
