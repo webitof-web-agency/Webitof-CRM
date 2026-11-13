@@ -60,6 +60,19 @@ const shiftMonth = (ym, delta) => {
 // Toolbar controls share one pill shape (the select keeps its own radius unless overridden).
 const PILL = "h-10 py-2 text-sm! rounded-full!";
 const PICKER = "h-8 py-1 text-sm! rounded-full!";
+// "09:42 am" -> "9:42" for the small in–out line inside a calendar day.
+const shortClock = (iso, timezone) =>
+  iso ? new Date(iso).toLocaleTimeString("en-IN", { timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s*[ap]m$/i, "") : "";
+// Minutes after midnight in the policy timezone, for the average check-in.
+const minuteOfDay = (iso, timezone) => {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(iso));
+  const get = (type) => Number(parts.find((x) => x.type === type)?.value || 0);
+  return (get("hour") % 24) * 60 + get("minute");
+};
+const clockOfMinutes = (m) => {
+  const h = Math.floor(m / 60);
+  return `${((h + 11) % 12) + 1}:${String(Math.round(m % 60)).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+};
 const fmtDays = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 // "Morning Shift (10:00 – 19:00)" -> "Morning Shift"; the full name stays in the tooltip.
 const shortShift = (name) => String(name || "").replace(/\s*\(.*\)\s*$/, "") || "—";
@@ -213,13 +226,67 @@ function DayDetail({ day, employee, timezone, can, isSelf, onClose, onAction }) 
 }
 
 /** Calendar + day list for one employee. */
-function MyAttendance({ token, metadata, employees, employeeId, month, setMonth, years, onDay, refresh }) {
+/** The clicked day, shown under the "My attendance" calendar (no popup). */
+function SelectedDay({ day, employee, timezone, today, can, isSelf, onAction }) {
+  const values = [
+    ["In", day.checkIn ? clock(day.checkIn, timezone) : "—", ""],
+    ["Out", day.checkIn && !day.checkOut ? (day.live ? "Working" : "Not out") : day.checkOut ? clock(day.checkOut, timezone) : "—", ""],
+    ["Worked", day.workedMinutes ? hm(day.workedMinutes) : "—", ""],
+    ["Late", day.lateMinutes ? hm(day.lateMinutes) : "—", day.lateMinutes ? "text-orange-600" : ""],
+    ["Early out", day.earlyMinutes ? hm(day.earlyMinutes) : "—", day.earlyMinutes ? "text-rose-600" : ""],
+    ["Overtime", day.overtimeMinutes ? hm(day.overtimeMinutes) : "—", day.overtimeMinutes ? "text-sky-600" : ""],
+  ];
+  const past = day.date <= today;
+  const notes = [
+    day.shift && shortShift(day.shift),
+    day.workMode,
+    day.unmarked && "Nothing recorded",
+    day.leave && `${day.leave.fraction === 1 ? "Full day" : "Half day"} ${day.leave.paid ? "paid" : "unpaid"} leave`,
+  ].filter(Boolean);
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="text-sm font-bold">{prettyDate(day.date)}</span>
+          <Chip code={day.code} />
+          <DayFlags day={day} size={13} />
+        </div>
+        {past && (
+          <div className="flex gap-1.5">
+            {can("hr_approve") && (
+              <Button size="xs" variant="secondary" onClick={() => onAction("attendance-mark", { employeeId: employee.id, workDate: day.date })}>
+                <PenLine size={12} /> Mark
+              </Button>
+            )}
+            {isSelf && can("self_service") && (
+              <Button size="xs" variant="secondary" onClick={() => onAction("regularization", { employeeId: employee.id, startDate: day.date, endDate: day.date, title: `Correction for ${day.date}` })}>
+                <FilePenLine size={12} /> Request correction
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+      <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 @md:grid-cols-6">
+        {values.map(([label, value, color]) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">{label}</dt>
+            <dd className={cn("truncate text-[13px] font-semibold tabular-nums", color)}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {notes.length > 0 && <p className="mt-1.5 truncate text-[11px] text-[var(--text-muted)]" title={day.shift || ""}>{notes.join(" · ")}</p>}
+    </div>
+  );
+}
+
+function MyAttendance({ token, metadata, employees, employeeId, month, setMonth, years, can, onAction, refresh }) {
   const timezone = metadata.policy.timezone || "Asia/Kolkata";
   const own = metadata.ownEmployeeId || "";
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
+  const [picked, setPicked] = useState("");
   const chosen = employeeId || own || employees[0]?.id || "";
   useEffect(() => {
     if (!chosen) return undefined;
@@ -234,54 +301,85 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
   useEffect(() => setPage(1), [month, chosen]);
   const row = data?.rows?.[0];
   const listed = useMemo(() => (row ? row.days.filter((d) => d.date <= data.today && d.code).slice().reverse() : []), [row, data]);
+  const avgIn = useMemo(() => {
+    const ins = (row?.days || []).filter((d) => d.checkIn).map((d) => minuteOfDay(d.checkIn, timezone));
+    return ins.length ? clockOfMinutes(ins.reduce((a, b) => a + b, 0) / ins.length) : "—";
+  }, [row, timezone]);
   if (!chosen)
     return <Card className="p-5 text-sm text-[var(--text-muted)]">No employee profile is linked to your login, and there is no employee to show.</Card>;
   const firstWeekday = (new Date(`${month}-01T00:00:00Z`).getUTCDay() + 6) % 7; // Monday first
   const t = row?.totals;
+  const days = row?.days || data?.dates?.map((date) => ({ date })) || [];
+  // The day shown under the calendar: the one clicked, else today, else the last day so far.
+  const selected =
+    days.find((d) => d.date === picked) ||
+    days.find((d) => d.date === data?.today) ||
+    [...days].reverse().find((d) => d.date <= (data?.today || "")) ||
+    days[0];
+  const isSelf = chosen === own;
+  const tiles = t
+    ? [
+        ["Present", `${fmtDays(t.present)}/${fmtDays(t.workingDays)}`, "text-emerald-600"],
+        ["Absent", t.absent, "text-rose-600"],
+        ["Leave", fmtDays(t.leave), "text-violet-600"],
+        ["Late", t.late, "text-orange-600"],
+        ["Missing punch", t.missingPunch, "text-pink-600"],
+        ["Worked", hm(t.workedMinutes), "text-[var(--text-main)]"],
+        ["Overtime", hm(t.overtimeMinutes), "text-sky-600"],
+        ["Avg check-in", avgIn, "text-[var(--text-main)]"],
+      ]
+    : [];
   return (
     <div className="space-y-4">
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
-      <div className="grid gap-3 xl:h-[clamp(560px,calc(100dvh-12.5rem),700px)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
-        <Card className="flex flex-col gap-2.5 p-3 xl:min-h-0">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <MonthPicker month={month} onChange={setMonth} years={years} />
-            {t && (
-              <p className="flex flex-wrap gap-3 text-[13px]">
-                <span>Present <b className="text-emerald-600">{fmtDays(t.present)}</b></span>
-                <span>Absent <b className="text-rose-600">{t.absent}</b></span>
-                <span>Leave <b className="text-violet-600">{fmtDays(t.leave)}</b></span>
-                {t.missingPunch > 0 && <span>Missing punch <b className="text-pink-600">{t.missingPunch}</b></span>}
-              </p>
-            )}
-          </div>
+      <div className="grid gap-3 xl:h-[clamp(600px,calc(100dvh-12.5rem),700px)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
+        <Card className="@container flex flex-col gap-2.5 p-3 xl:min-h-0 xl:overflow-y-auto">
+          <MonthPicker month={month} onChange={setMonth} years={years} />
           <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             {WEEKDAYS.map((d) => <div key={d}>{d}</div>)}
           </div>
-          <div className="grid flex-1 auto-rows-fr grid-cols-7 gap-1.5 xl:min-h-0">
+          <div className="grid grid-cols-7 gap-1.5">
             {Array.from({ length: firstWeekday }, (_, i) => <div key={`pad-${i}`} />)}
-            {(row?.days || data?.dates?.map((date) => ({ date })) || []).map((day) => {
+            {days.map((day) => {
               const style = CODES[day.code]?.cell;
               const isToday = day.date === data?.today;
+              const isSelected = day.date === selected?.date;
+              const times = day.checkIn ? `${shortClock(day.checkIn, timezone)}–${day.checkOut ? shortClock(day.checkOut, timezone) : day.live ? "…" : "?"}` : "";
               return (
                 <button
                   key={day.date}
                   type="button"
                   disabled={!row}
-                  onClick={() => row && onDay(day, row.employee, chosen === own)}
-                  title={CODES[day.code]?.label || "Nothing yet"}
+                  aria-pressed={isSelected}
+                  onClick={() => setPicked(day.date)}
+                  title={[prettyDate(day.date), CODES[day.code]?.label || "Nothing yet", times].filter(Boolean).join(" · ")}
                   className={cn(
-                    "flex h-full min-h-12 flex-col items-center justify-center gap-0.5 rounded-[10px] border text-[15px] font-bold transition hover:brightness-95",
+                    "relative flex h-12 flex-col items-center justify-center gap-px rounded-[10px] border text-sm font-bold leading-none transition hover:brightness-95",
                     style || "border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]",
-                    isToday && "ring-2 ring-[var(--primary)] ring-offset-1 ring-offset-[var(--surface)]",
+                    isSelected && "ring-2 ring-[var(--primary)] ring-offset-1 ring-offset-[var(--surface)]",
                   )}
                 >
+                  {isToday && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-[var(--primary)]" aria-label="Today" />}
                   {Number(day.date.slice(8))}
-                  <DayFlags day={day} />
+                  {times && <span className="hidden whitespace-nowrap text-[9px] font-medium tracking-tight tabular-nums opacity-80 sm:block">{times}</span>}
+                  <DayFlags day={day} size={9} />
                 </button>
               );
             })}
           </div>
-          <p className="text-[11px] text-[var(--text-muted)]">Click a day for its status, punches and actions.</p>
+          {selected && row && (
+            <SelectedDay day={selected} employee={row.employee} timezone={timezone} today={data.today} can={can} isSelf={isSelf} onAction={onAction} />
+          )}
+          {tiles.length > 0 && (
+            <div className="mt-auto grid grid-cols-2 gap-1.5 @[340px]:grid-cols-4">
+              {tiles.map(([label, value, color]) => (
+                <div key={label} className="rounded-xl bg-[var(--surface-2)] px-2.5 py-1.5">
+                  <p className="truncate text-[11px] font-medium text-[var(--text-muted)]" title={label}>{label}</p>
+                  <p className={cn("text-sm font-bold tabular-nums", color)}>{value}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
         <Card className="flex flex-col overflow-hidden p-0 xl:min-h-0">
           <div className="min-h-0 flex-1 overflow-auto">
@@ -296,7 +394,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {listed.slice((page - 1) * limit, page * limit).map((d) => (
-                  <tr key={d.date} className="cursor-pointer hover:bg-[var(--hover-bg)]" onClick={() => onDay(d, row.employee, chosen === own)}>
+                  <tr key={d.date} className={cn("cursor-pointer hover:bg-[var(--hover-bg)]", d.date === selected?.date && "bg-[var(--hover-bg)]")} onClick={() => setPicked(d.date)}>
                     <td className="whitespace-nowrap px-2.5 py-2 font-semibold">{prettyDate(d.date)}</td>
                     <td className="hidden whitespace-nowrap px-2.5 py-2 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
                     <td className="whitespace-nowrap px-2.5 py-2 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
@@ -667,7 +765,7 @@ export function HrmAttendance({ token, metadata, masters, can }) {
       {tab === "chart" && canChart ? (
         <AttendanceChart token={token} filters={filters} employees={employees} setEmployeeIds={setEmployeeIds} setSort={(update) => setFilters((f) => ({ ...f, sort: typeof update === "function" ? update(f.sort) : update }))} month={month} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
       ) : (
-        <MyAttendance token={token} metadata={metadata} employees={employees} employeeId={mineEmployee} month={month} setMonth={setMonth} years={years} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
+        <MyAttendance token={token} metadata={metadata} employees={employees} employeeId={mineEmployee} month={month} setMonth={setMonth} years={years} can={can} refresh={refresh} onAction={(form, initial) => setEditor({ config: forms[form], initial })} />
       )}
       {day && (
         <DayDetail
