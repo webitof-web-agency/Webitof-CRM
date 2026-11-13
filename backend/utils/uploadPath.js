@@ -3,7 +3,7 @@
 //   Site/<file>                                         logos, watermarks, branding
 //   Users/<record>/<file>                               profile photos
 //   HRM/Employees/<Name>-<EMP-no>/<file>                HR documents (employeeFolder)
-//   <Category>/<Section>/<record>/<file>                CRM, Finance, General ...
+//   <Category>/<Section>/<record>/<file>                CRM, Services, Finance, General ...
 //   <Category>/<Section>/<year>/<MM-Mon>/<file>         when there is no record
 // <record> is "<Readable-Name>-<last 4 of id>" when the record's name is known, else the id.
 // The name is fixed at upload time; renaming the record later does not move old files.
@@ -38,10 +38,11 @@ const SECTION_ALIASES = {
   renewal: 'renewals'
 };
 
-// Top-level folders. A section not listed here goes to General.
+// Top-level folders, one per ERP area. A section not listed here goes to General.
 const CATEGORIES = {
-  CRM: ['leads', 'lead-events', 'lead-commissions', 'clients', 'projects', 'events', 'calls', 'quotations', 'amc', 'renewals', 'outsourcing', 'follow-ups'],
-  Finance: ['invoices', 'payments', 'expenses', 'credit-notes'],
+  CRM: ['leads', 'lead-events', 'clients', 'projects', 'events', 'calls', 'quotations', 'follow-ups'],
+  Services: ['amc', 'renewals'],
+  Finance: ['invoices', 'payments', 'expenses', 'credit-notes', 'lead-commissions', 'outsourcing'],
   HRM: ['hrm', 'employees'],
   Users: ['users']
 };

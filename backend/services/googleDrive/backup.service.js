@@ -1,4 +1,4 @@
-// Daily PostgreSQL backups: pg_dump → upload to <Drive backup folder>/<year>/<MM-Mon>/ → keep the newest N.
+// Daily PostgreSQL backups: pg_dump → upload to <Drive backup folder>/<year>/<MM-Mon>/<YYYY-MM-DD>/ → keep the newest N.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -177,10 +177,12 @@ async function makeDump({ kind = 'scheduled' } = {}) {
   }
 }
 
-// Backups are filed as <backup folder>/<year>/<MM-Mon>/<file>. Older backups may still sit
-// directly in the backup folder; they are listed (and pruned) too.
+// Backups are filed as <backup folder>/<year>/<MM-Mon>/<YYYY-MM-DD>/<file> (India time).
+// Backups from earlier layouts may sit in a month folder or directly in the backup folder;
+// they are listed (and pruned) too.
 const YEAR_FOLDER = /^\d{4}$/;
 const MONTH_FOLDER = /^\d{2}-[A-Za-z]{3}$/;
+const DAY_FOLDER = /^\d{4}-\d{2}-\d{2}$/;
 
 async function childFolders(client, parentId, pattern) {
   const folders = await client.listFiles({
@@ -195,22 +197,33 @@ async function ensureChild(client, parentId, name) {
   return (found || await client.createFolder(name, parentId)).id;
 }
 
-async function monthFolderFor(client, rootId, now = new Date()) {
-  const { year, monthFolder } = istParts(now);
-  return ensureChild(client, await ensureChild(client, rootId, year), monthFolder);
+async function dayFolderFor(client, rootId, now = new Date()) {
+  const { year, monthFolder, date } = istParts(now);
+  const yearId = await ensureChild(client, rootId, year);
+  const monthId = await ensureChild(client, yearId, monthFolder);
+  return ensureChild(client, monthId, date);
+}
+
+// Every folder that can hold backups, with its parent, so emptied folders can be removed upwards.
+async function backupFolders(client, rootId) {
+  const folders = [{ id: rootId, parentId: null }];
+  for (const year of await childFolders(client, rootId, YEAR_FOLDER)) {
+    folders.push({ id: year.id, parentId: rootId, holdsFiles: false });
+    for (const month of await childFolders(client, year.id, MONTH_FOLDER)) {
+      folders.push({ id: month.id, parentId: year.id });
+      for (const day of await childFolders(client, month.id, DAY_FOLDER)) {
+        folders.push({ id: day.id, parentId: month.id });
+      }
+    }
+  }
+  return folders;
 }
 
 async function listOwnBackups(client, rootId) {
-  const folders = [{ id: rootId, parentId: null }];
-  for (const year of await childFolders(client, rootId, YEAR_FOLDER)) {
-    folders.push({ id: year.id, parentId: rootId, isYear: true });
-    for (const month of await childFolders(client, year.id, MONTH_FOLDER)) {
-      folders.push({ id: month.id, parentId: year.id });
-    }
-  }
+  const folders = await backupFolders(client, rootId);
   const files = [];
   for (const folder of folders) {
-    if (folder.isYear) continue;
+    if (folder.holdsFiles === false) continue;
     const inFolder = await client.listFiles({
       q: `'${escapeQueryValue(folder.id)}' in parents and trashed = false`,
       fields: 'id,name,size,createdTime,mimeType',
@@ -235,13 +248,17 @@ async function applyRetention(client, rootId, keep) {
   for (const file of toRemove) {
     await client.deleteFile(file.id);
   }
-  // Month folders emptied by the pruning go too, and then their year folder if it is empty.
-  const emptied = new Set(toRemove.map((file) => file.folderId).filter((id) => id !== rootId));
-  for (const monthId of emptied) {
-    if (!(await isEmptyFolder(client, monthId))) continue;
-    await client.deleteFile(monthId);
-    const yearId = own.folders.find((folder) => folder.id === monthId)?.parentId;
-    if (yearId && yearId !== rootId && await isEmptyFolder(client, yearId)) await client.deleteFile(yearId);
+  // Day, month and year folders emptied by the pruning go too, walking up to (not including) the root.
+  const parentOf = new Map(own.folders.map((folder) => [folder.id, folder.parentId]));
+  const removed = new Set();
+  for (const start of new Set(toRemove.map((file) => file.folderId))) {
+    let folderId = start;
+    while (folderId && folderId !== rootId && !removed.has(folderId)) {
+      if (!(await isEmptyFolder(client, folderId))) break;
+      await client.deleteFile(folderId);
+      removed.add(folderId);
+      folderId = parentOf.get(folderId);
+    }
   }
   return toRemove.length;
 }
@@ -259,7 +276,7 @@ async function performBackup({ trigger, userId, kind }) {
     const buffer = await fs.promises.readFile(dump.filePath);
     const uploaded = await client.uploadFile({
       name: dump.fileName,
-      parentId: await monthFolderFor(client, folderId),
+      parentId: await dayFolderFor(client, folderId),
       mimeType: 'application/octet-stream',
       buffer,
       description: `Webitof CRM database backup (${trigger})`

@@ -200,6 +200,8 @@ export function HrmTable({
   error,
   onRetry,
   actions,
+  rowActionsClassName,
+  toolbar,
 }) {
   if (error)
     return (
@@ -213,7 +215,8 @@ export function HrmTable({
       </Card>
     );
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden p-0">
+      {toolbar ? <div className="overflow-x-auto border-b border-[var(--border)] px-4 py-2">{toolbar}</div> : null}
       <SimpleTable
         bordered={false}
         roomy
@@ -221,10 +224,12 @@ export function HrmTable({
         loading={loading}
         rows={rows}
         rowActions={actions}
+        rowActionsClassName={rowActionsClassName}
         columns={columns.map((col) => ({
           key: col.key,
           label: col.title || label(col.key),
-          className: "max-w-xs",
+          className: `max-w-xs ${col.className || ""}`,
+          nowrap: col.nowrap,
           render:
             col.render ||
             ((row) =>

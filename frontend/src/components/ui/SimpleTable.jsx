@@ -13,6 +13,7 @@ export function SimpleTable({
   emptyText = '',
   loading = false,
   rowActions,
+  rowActionsClassName = '',
   compact = false,
   roomy = false,
   stickyHeader = false,
@@ -103,7 +104,7 @@ export function SimpleTable({
                 ))}
                 {rowActions ? (
                   <td className={cell} onClick={(event) => event.stopPropagation()}>
-                    <div className="flex flex-wrap gap-1">{rowActions(row, index)}</div>
+                    <div className={cn('flex flex-wrap gap-1', rowActionsClassName)}>{rowActions(row, index)}</div>
                   </td>
                 ) : null}
               </tr>

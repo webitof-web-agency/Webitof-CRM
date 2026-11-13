@@ -2,9 +2,13 @@ import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../../components/ui/Button";
+import { IconButton } from "../../components/ui/IconButton";
+import { Input } from "../../components/ui/Input";
+import { FloatingDropdown } from "../../components/ui/FloatingDropdown";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Modal } from "../../components/ui/Modal";
 import { formatDate, formatDateTime } from "../../lib/format";
+import { Download, Eye, MoreVertical, Pencil, Search, UserPlus } from "lucide-react";
 function payrollMoney(value, currency = "INR") {
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "—";
@@ -56,6 +60,64 @@ const dateKinds = [
   "allocations",
   ...requestKinds,
 ];
+
+function EmployeeActionsMenu({ onView, onEdit }) {
+  return (
+    <FloatingDropdown
+      className="min-w-40 p-1.5 text-left"
+      trigger={({ ref, open, toggle }) => (
+        <IconButton
+          ref={ref}
+          box="8"
+          shape="full"
+          variant="outline"
+          tone="primary"
+          title="Employee actions"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={(event) => {
+            event.stopPropagation();
+            toggle();
+          }}
+        >
+          <MoreVertical size={16} />
+        </IconButton>
+      )}
+    >
+      {({ close }) => (
+        <>
+          <button
+            type="button"
+            role="menuitem"
+            className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--text-main)] transition-colors hover:bg-[var(--hover-bg)]"
+            onClick={() => {
+              close();
+              onView();
+            }}
+          >
+            <Eye size={14} className="text-[var(--primary)]" />
+            View details
+          </button>
+          {onEdit && (
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-semibold text-[var(--text-main)] transition-colors hover:bg-[var(--hover-bg)]"
+              onClick={() => {
+                close();
+                onEdit();
+              }}
+            >
+              <Pencil size={14} className="text-amber-500" />
+              Edit employee
+            </button>
+          )}
+        </>
+      )}
+    </FloatingDropdown>
+  );
+}
+
 export function HrmCollection({
   kind,
   token,
@@ -165,24 +227,36 @@ export function HrmCollection({
           {
             key: "fullName",
             title: "Employee",
+            className: "min-w-48",
             render: (r) => (
-              <Link
-                className="font-semibold text-[var(--primary)]"
-                to={employeePath(r)}
-              >
-                {r.fullName}
-                <span className="mt-0.5 block text-xs font-normal text-[var(--text-muted)]">
-                  {r.employeeNumber}
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)]/10 text-xs font-bold text-[var(--primary)] ring-1 ring-inset ring-[var(--primary)]/15">
+                  {String(r.fullName || "E")
+                    .trim()
+                    .split(/\s+/)
+                    .slice(0, 2)
+                    .map((part) => part[0])
+                    .join("")
+                    .toUpperCase()}
                 </span>
-              </Link>
+                <Link
+                  className="min-w-0 font-semibold text-[var(--text-main)] transition-colors hover:text-[var(--primary)]"
+                  to={employeePath(r)}
+                >
+                  <span className="block truncate">{r.fullName}</span>
+                  <span className="mt-0.5 block text-xs font-normal text-[var(--text-muted)]">
+                    {r.employeeNumber}
+                  </span>
+                </Link>
+              </div>
             ),
           },
           { key: "departmentName" },
           { key: "designationName" },
           { key: "managerName" },
-          { key: "workMode" },
-          { key: "status", render: (r) => <Status value={r.status} /> },
-          { key: "joiningDate" },
+          { key: "workMode", nowrap: true },
+          { key: "status", nowrap: true, render: (r) => <Status value={r.status} /> },
+          { key: "joiningDate", nowrap: true, render: (r) => formatDate(r.joiningDate) },
         ]
       : kind === "attendance"
         ? [
@@ -339,6 +413,21 @@ export function HrmCollection({
         : config &&
           (can(config.permission) ||
             (config.self && own && can("self_service")));
+    const canEditRow =
+      editAllowed &&
+      !["Approved", "Posted", "Processed", "Published", "Joined"].includes(row.status) &&
+      !["salary-history", "timesheets"].includes(kind) &&
+      (!requestKinds.includes(kind) || ["Draft", "Revision Requested"].includes(row.status));
+
+    if (kind === "employees") {
+      return (
+        <EmployeeActionsMenu
+          onView={() => setDetail(row)}
+          onEdit={canEditRow ? () => navigate(employeePath(row, "/edit")) : null}
+        />
+      );
+    }
+
     return (
       <>
         <Button
@@ -360,27 +449,15 @@ export function HrmCollection({
         >
           View
         </Button>
-        {editAllowed &&
-          !["Approved", "Posted", "Processed", "Published", "Joined"].includes(
-            row.status,
-          ) &&
-          // Timesheet PUT is the approver action; a rejected timesheet is resubmitted as a new one.
-          !["salary-history", "timesheets"].includes(kind) &&
-          (!requestKinds.includes(kind) ||
-            ["Draft", "Revision Requested"].includes(row.status)) && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                // Employees are created and edited in the step-by-step employee form.
-                kind === "employees"
-                  ? navigate(employeePath(row, "/edit"))
-                  : setEditor({ config, initial: row })
-              }
-            >
-              Edit
-            </Button>
-          )}
+        {canEditRow && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setEditor({ config, initial: row })}
+          >
+            Edit
+          </Button>
+        )}
         {kind === "work-reports" &&
           own &&
           ["Draft", "Revision Requested"].includes(row.status) &&
@@ -707,42 +784,82 @@ export function HrmCollection({
       </>
     );
   }
+  const employeeToolbar =
+    kind === "employees" ? (
+      <div className="grid min-w-max grid-cols-[auto_minmax(15rem,1fr)_auto] items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex h-8 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-600 dark:border-white/10 dark:bg-white/[0.06] dark:text-slate-300">
+            Total Employees <strong className="text-sm text-[var(--text-main)]">{result.summary?.total ?? result.total}</strong>
+          </span>
+          <span className="inline-flex h-8 items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300">
+            Active <strong className="text-sm">{result.summary?.active ?? 0}</strong>
+          </span>
+          <span className="inline-flex h-8 items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300">
+            Notice Period <strong className="text-sm">{result.summary?.noticePeriod ?? 0}</strong>
+          </span>
+        </div>
+
+        <Input
+          aria-label="Search employee / title"
+          className="h-8.5 min-w-60 py-1.5 shadow-none"
+          iconLeft={Search}
+          placeholder="Search employee / title"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
+
+        <div className="flex items-center justify-end gap-2">
+          {canCreate && (
+            <Button
+              size="sm"
+              onClick={() => navigate("/app/hrm/employees/new")}
+            >
+              <UserPlus size={15} />
+              New Employee
+            </Button>
+          )}
+          {can("export") && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                downloadHrm(
+                  token,
+                  `/export/employees?${queryString({ employeeId, search })}`,
+                  "hrm-employees.csv",
+                ).catch((e) => toast.error(e.message))
+              }
+            >
+              <Download size={15} />
+              Export CSV
+            </Button>
+          )}
+        </div>
+      </div>
+    ) : null;
   return (
     <div className="space-y-4">
-      <PageHeader
-        title={kind === "employees" ? null : titles[kind] || metadata.records[kind]?.label || label(kind)}
-        description={
-          kind === "employees"
-            ? null
-            : kind === "timesheets"
+      {kind !== "employees" && (
+        <PageHeader
+          title={titles[kind] || metadata.records[kind]?.label || label(kind)}
+          description={
+            kind === "timesheets"
               ? "Generated from approved daily work reports."
               : kind === "documents"
                 ? "Private employee documents and receipts with authenticated downloads."
                 : kind === "salary-history"
                   ? "Effective-dated compensation. Each revision preserves the previous record."
                   : "Manage records within your assigned HR scope."
-        }
-      >
-        <div className={kind === "employees" ? "flex w-full flex-wrap items-end gap-2" : "flex flex-wrap gap-2"}>
-          {kind === "employees" && (
-            <div className="min-w-[16rem] flex-1">
-              <Field
-                name="recordSearch"
-                title="Search employee / title"
-                value={search}
-                onChange={(v) => {
-                  setSearch(v);
-                  setPage(1);
-                }}
-              />
-            </div>
-          )}
+          }
+        >
+          <div className="flex flex-wrap gap-2">
           {canCreate && (
             <Button
               onClick={() =>
-                kind === "employees"
-                  ? navigate("/app/hrm/employees/new")
-                  : setEditor(kind === "work-reports" ? { work: true } : { config })
+                setEditor(kind === "work-reports" ? { work: true } : { config })
               }
             >
               New {config?.title || "report"}
@@ -807,8 +924,9 @@ export function HrmCollection({
                 Export CSV
               </Button>
             )}
-        </div>
-      </PageHeader>
+          </div>
+        </PageHeader>
+      )}
       {kind !== "employees" && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Field
@@ -855,6 +973,8 @@ export function HrmCollection({
         onPage={setPage}
         onRetry={reload}
         actions={actions}
+        rowActionsClassName={kind === "employees" ? "flex-nowrap" : ""}
+        toolbar={employeeToolbar}
       />
       {editor?.work ? (
         <WorkReportForm

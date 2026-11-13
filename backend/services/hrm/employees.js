@@ -505,7 +505,10 @@ async function list(user, q = {}, db = c.dbDefault) {
   }
   const where = clauses.join(" AND ");
   const count = await db.query(
-    `SELECT count(*)::int AS total FROM hrm_employees e WHERE ${where}`,
+    `SELECT count(*)::int AS total,
+            count(*) FILTER (WHERE e.status='Active')::int AS active,
+            count(*) FILTER (WHERE e.status='Notice Period')::int AS notice_period
+       FROM hrm_employees e WHERE ${where}`,
     values,
   );
   values.push(limit, (page - 1) * limit);
@@ -516,6 +519,11 @@ async function list(user, q = {}, db = c.dbDefault) {
   return {
     rows: rows.rows.map((r) => publicEmployee(c.camel(r))),
     total: count.rows[0].total,
+    summary: {
+      total: count.rows[0].total,
+      active: count.rows[0].active ?? 0,
+      noticePeriod: count.rows[0].notice_period ?? 0,
+    },
     page,
     limit,
   };

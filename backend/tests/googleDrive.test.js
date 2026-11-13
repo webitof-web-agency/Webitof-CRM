@@ -278,31 +278,51 @@ test('retention keeps the newest 15 of this database and never touches other fil
   for (const other of others) assert.ok(fake.files.has(other.id), `${other.name} must be kept`);
 });
 
-test('backups are filed in year/month folders; pruning removes month and year folders it empties', async () => {
+test('backups are filed in year/month/date folders; pruning removes the folders it empties', async () => {
   setup();
   await connect();
   const rootId = await connection.ensureFolder('backup');
   const folder = (name, parentId) => fake.addFile({ name, parents: [parentId], mimeType: 'application/vnd.google-apps.folder' });
+  // Current layout: year / month / date.
   const y2025 = folder('2025', rootId);
   const dec = folder('12-Dec', y2025.id);
+  const dec31 = folder('2025-12-31', dec.id);
+  const old = fake.addFile({ name: 'crm-backup-crm-2025-12-31_02-00-00-IST.dump', parents: [dec31.id] });
   const y2026 = folder('2026', rootId);
   const sep = folder('09-Sep', y2026.id);
-  const old = fake.addFile({ name: 'crm-backup-crm-2025-12-31_02-00-00-IST.dump', parents: [dec.id] });
-  for (let day = 1; day <= 13; day += 1) {
-    fake.addFile({ name: `crm-backup-crm-2026-09-${String(day).padStart(2, '0')}_02-00-00-IST.dump`, parents: [sep.id] });
+  for (let day = 1; day <= 12; day += 1) {
+    const date = `2026-09-${String(day).padStart(2, '0')}`;
+    fake.addFile({ name: `crm-backup-crm-${date}_02-00-00-IST.dump`, parents: [folder(date, sep.id).id] });
   }
+  // Earlier layouts: directly in a month folder, and directly in the backup folder.
+  const inMonth = fake.addFile({ name: 'crm-backup-crm-2026-09-13_02-00-00-IST.dump', parents: [sep.id] });
   const flat = fake.addFile({ name: 'crm-backup-crm-2026-09-14_02-00-00-IST.dump', parents: [rootId] });
-  assert.equal((await backups.listBackups()).length, 15, 'backups in month folders and directly in the root are listed');
+  assert.equal((await backups.listBackups()).length, 15, 'backups in date, month and root folders are listed');
 
   const result = await backups.runBackup({ trigger: 'schedule' });
   assert.equal(result.status, 'SUCCESS');
-  assert.match(fake.pathOf(fake.files.get(result.fileId)), /^Webitof Backups\/\d{4}\/\d{2}-[A-Z][a-z]{2}\/crm-backup-crm-/);
+  assert.match(
+    fake.pathOf(fake.files.get(result.fileId)),
+    /^Webitof Backups\/\d{4}\/\d{2}-[A-Z][a-z]{2}\/\d{4}-\d{2}-\d{2}\/crm-backup-crm-/
+  );
   assert.equal(result.removed, 1);
   assert.ok(!fake.files.has(old.id));
+  assert.ok(!fake.files.has(dec31.id), 'emptied date folder is removed');
   assert.ok(!fake.files.has(dec.id), 'emptied month folder is removed');
   assert.ok(!fake.files.has(y2025.id), 'emptied year folder is removed');
-  assert.ok(fake.files.has(sep.id) && fake.files.has(y2026.id) && fake.files.has(flat.id));
+  assert.ok(fake.files.has(sep.id) && fake.files.has(y2026.id) && fake.files.has(inMonth.id) && fake.files.has(flat.id));
+  assert.ok(fake.files.has(rootId), 'the backup folder itself is never removed');
   assert.equal((await backups.listBackups()).length, 15);
+});
+
+test('two backups on the same day share one date folder', async () => {
+  setup();
+  await connect();
+  const first = await backups.runBackup({ trigger: 'manual' });
+  const second = await backups.runBackup({ trigger: 'manual' });
+  const parentOf = (id) => fake.files.get(id).parents[0];
+  assert.equal(parentOf(first.fileId), parentOf(second.fileId));
+  assert.match(fake.files.get(parentOf(first.fileId)).name, /^\d{4}-\d{2}-\d{2}$/);
 });
 
 test('a pre-restore backup is named and listed as its own kind and counts toward retention', async () => {
@@ -583,6 +603,10 @@ test('uploads are filed by category/section/record; without a record by year/mon
   assert.equal(buildFolderPath({ moduleName: 'settings' }), 'Site');
   assert.equal(buildFolderPath({ moduleName: 'call', entityId: 'call_1' }), 'CRM/Calls/call_1');
   assert.equal(buildFolderPath({ moduleName: 'invoices', entityId: 'inv_1' }), 'Finance/Invoices/inv_1');
+  assert.equal(buildFolderPath({ moduleName: 'outsourcing', entityId: 'out_1' }), 'Finance/Outsourcing/out_1');
+  assert.equal(buildFolderPath({ moduleName: 'lead-commissions', entityId: 'lc_1' }), 'Finance/Lead-Commissions/lc_1');
+  assert.equal(buildFolderPath({ moduleName: 'amc', entityId: 'amc_1' }), 'Services/AMC/amc_1');
+  assert.equal(buildFolderPath({ moduleName: 'renewals', entityId: 'rn_1' }), 'Services/Renewals/rn_1');
   assert.equal(buildFolderPath({ moduleName: 'avatar', entityId: 'user_1' }), 'Users/user_1');
   assert.equal(buildFolderPath({ moduleName: 'something-new', entityId: 'x_1' }), 'General/Something-New/x_1');
   // 2026-10-31T20:00Z is already 1 November in India.

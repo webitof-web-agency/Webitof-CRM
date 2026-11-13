@@ -78,7 +78,9 @@ function notifyBrowser(title, body, tag) {
   }
 }
 
-export function HrmMyDay({ token }) {
+// compact: the dashboard card. Same clock-in / job / lunch / clock-out actions, popups and
+// location pings; the detail cards (reports list, today's stats, home location) stay on My day.
+export function HrmMyDay({ token, compact = false }) {
   const [t, setT] = useState(null),
     [error, setError] = useState(""),
     [now, setNow] = useState(Date.now()),
@@ -214,12 +216,12 @@ export function HrmMyDay({ token }) {
 
   if (error)
     return (
-      <Card className="p-5">
+      <Card className={compact ? "p-4" : "p-5"}>
         <p role="alert" className="text-sm text-rose-600">{error}</p>
         <Button className="mt-3" size="sm" onClick={load}>Retry</Button>
       </Card>
     );
-  if (!t) return <Card className="h-56 animate-pulse bg-[var(--surface-2)]" />;
+  if (!t) return <Card className={compact ? "h-44 animate-pulse bg-[var(--surface-2)]" : "h-56 animate-pulse bg-[var(--surface-2)]"} />;
 
   const tz = p.timezone;
   let timer = 0;
@@ -253,7 +255,7 @@ export function HrmMyDay({ token }) {
   const white = "!bg-white !text-[var(--primary)] hover:!bg-white/90";
 
   return (
-    <div className="space-y-4">
+    <div className={compact ? "space-y-3" : "space-y-4"}>
       {!p.allowWebAttendance && (
         <Banner tone="amber">Web attendance is turned off by HR. Use the Webitof Employee app to clock in.</Banner>
       )}
@@ -263,7 +265,7 @@ export function HrmMyDay({ token }) {
       ))}
       {a?.autoCheckoutAt && open && <Banner tone="amber">Half-day leave approved: you will be clocked out at {clock(a.autoCheckoutAt, tz)}.</Banner>}
 
-      <div className="rounded-3xl bg-gradient-to-br from-[#0077ed] via-[var(--primary)] to-[#005bb5] p-6 text-white shadow-lg">
+      <div className={`rounded-3xl bg-gradient-to-br from-[#0077ed] via-[var(--primary)] to-[#005bb5] text-white shadow-lg ${compact ? "p-5" : "p-6"}`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-bold">{state}</span>
           <span className="text-sm font-bold">
@@ -271,7 +273,7 @@ export function HrmMyDay({ token }) {
             {a?.source === "web" ? " · Web" : a?.source === "app" ? " · App" : ""}
           </span>
         </div>
-        <p className="mt-4 text-5xl font-extrabold tabular-nums tracking-tight">{stopwatch(timer)}</p>
+        <p className={`mt-4 font-extrabold tabular-nums tracking-tight ${compact ? "text-4xl" : "text-5xl"}`}>{stopwatch(timer)}</p>
         <p className="mt-1 text-sm text-white/75">{sub}</p>
         <div className="mt-5 flex flex-wrap gap-2">
           {(!a?.checkIn && a?.status !== "Absent") && (
@@ -364,7 +366,7 @@ export function HrmMyDay({ token }) {
 
       {running && t.slot && <SlotCard slot={t.slot} now={now} tz={tz} interval={p.reportIntervalMinutes} />}
 
-      {s && a?.jobStartedAt && (
+      {!compact && s && a?.jobStartedAt && (
         <Card className="p-5">
           <h3 className="mb-3 font-semibold">Today so far</h3>
           <Stats
@@ -389,6 +391,7 @@ export function HrmMyDay({ token }) {
           </Card>
         ))}
 
+      {!compact && (
       <Card className="p-5">
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-semibold">Today&apos;s work reports</h3>
@@ -397,7 +400,9 @@ export function HrmMyDay({ token }) {
         {!t.entries.length && <p className="text-sm text-[var(--text-muted)]">Your hourly updates appear here after you start the job.</p>}
         <EntryList entries={t.entries} tz={tz} onEdit={editable ? (x) => editEntry(x) : null} />
       </Card>
+      )}
 
+      {!compact && (
       <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
         <div className="flex items-start gap-3">
           <Home size={18} className={t.home?.status === "Approved" ? "text-emerald-500" : "text-[var(--text-muted)]"} />
@@ -420,6 +425,7 @@ export function HrmMyDay({ token }) {
           </Button>
         )}
       </Card>
+      )}
 
       {modal?.type === "clockin" && (
         <ClockInModal

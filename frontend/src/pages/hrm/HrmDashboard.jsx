@@ -16,6 +16,7 @@ import { Field, Lookup, HrmTable, Status } from "./HrmShared";
 import { hrm, localDay, queryString } from "./hrmApi";
 import { HrmLive } from "./HrmLive";
 import { HrmMyDay } from "./HrmMyDay";
+import { HrmAdminOverview } from "./HrmAdminOverview";
 export function HrmDashboard({
   token,
   metadata,
@@ -25,6 +26,9 @@ export function HrmDashboard({
   employeeId = "",
 }) {
   const today = localDay(metadata.policy.timezone);
+  // Managers and HR get the full overview (today, approvals, alerts, dates...); others the summary.
+  const adminView =
+    !analytics && ["approve", "hr_approve", "view_team", "view_all", "view_projects"].some((p) => can(p));
   const [filters, setFilters] = useState({
     startDate: `${today.slice(0, 7)}-01`,
     endDate: today,
@@ -44,7 +48,7 @@ export function HrmDashboard({
     setLoading(true);
     hrm(
       token,
-      `/${analytics ? "analytics" : "dashboard"}?${queryString({ ...filters, page })}`,
+      `/${analytics ? "analytics" : adminView ? "dashboard/overview" : "dashboard"}?${queryString({ ...filters, page })}`,
     )
       .then((r) => {
         if (active) {
@@ -57,7 +61,13 @@ export function HrmDashboard({
     return () => {
       active = false;
     };
-  }, [token, filters, page, refresh, analytics]);
+  }, [token, filters, page, refresh, analytics, adminView]);
+  // The overview is a live screen: refresh it every minute while the tab is visible.
+  useEffect(() => {
+    if (!adminView) return undefined;
+    const id = setInterval(() => !document.hidden && setRefresh((n) => n + 1), 60000);
+    return () => clearInterval(id);
+  }, [adminView]);
   async function clock(action) {
     try {
       await hrm(token, "/attendance/clock", {
@@ -72,6 +82,26 @@ export function HrmDashboard({
   }
   return (
     <div className="space-y-5">
+      {!analytics && metadata.ownEmployeeId && can("self_service") && !metadata.policy.geofenceRequired && (
+        <div className="flex flex-wrap justify-end gap-2">
+          {[
+            ["check-in", "Check in"],
+            ["break-start", "Start break"],
+            ["break-end", "End break"],
+            ["check-out", "Check out"],
+          ].map(([action, title]) => (
+            <Button
+              key={action}
+              variant={action === "check-in" ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => clock(action)}
+            >
+              {title}
+            </Button>
+          ))}
+        </div>
+      )}
+      {analytics && (
       <PageHeader
         eyebrow="People & delivery"
         title={analytics ? "Employee analytics" : "HRM overview"}
@@ -81,32 +111,15 @@ export function HrmDashboard({
             : "Workforce operations connected to projects and finance."
         }
       >
-        {!analytics && metadata.ownEmployeeId && can("self_service") && !metadata.policy.geofenceRequired && (
-          <div className="flex flex-wrap gap-2">
-            {[
-              ["check-in", "Check in"],
-              ["break-start", "Start break"],
-              ["break-end", "End break"],
-              ["check-out", "Check out"],
-            ].map(([action, title]) => (
-              <Button
-                key={action}
-                variant={action === "check-in" ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => clock(action)}
-              >
-                {title}
-              </Button>
-            ))}
-          </div>
-        )}
       </PageHeader>
+      )}
       {!analytics && metadata.ownEmployeeId && can("self_service") && metadata.policy.geofenceRequired && (
         <HrmMyDay token={token} />
       )}
-      {!analytics && (can("approve") || can("hr_approve")) && (
+      {!analytics && !adminView && (can("approve") || can("hr_approve")) && (
         <HrmLive token={token} metadata={metadata} can={can} />
       )}
+      {analytics && (
       <Card className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field
           name="analyticsStart"
@@ -140,6 +153,7 @@ export function HrmDashboard({
           onChange={(v) => set("employeeId", v)}
         />
       </Card>
+      )}
       {error && (
         <Card className="p-5">
           <p role="alert" className="text-rose-600">
@@ -158,7 +172,17 @@ export function HrmDashboard({
           ))}
         </div>
       )}
-      {data &&
+      {data && adminView && data.board !== undefined && (
+        <>
+          <HrmAdminOverview data={data} token={token} onChanged={() => setRefresh((n) => n + 1)} HoursChart={HoursChart} />
+          {(can("approve") || can("hr_approve")) && (
+            <div id="hrm-live-board" className="scroll-mt-20">
+              <HrmLive token={token} metadata={metadata} can={can} />
+            </div>
+          )}
+        </>
+      )}
+      {data && !adminView &&
         (analytics ? (
           <AnalyticsBody
             data={data}

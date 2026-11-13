@@ -42,6 +42,7 @@ import {
 } from '../config/leadManagement';
 import { leadRoute } from '../utils/entityRoutes';
 import { IconButton } from '../components/ui/IconButton';
+import { FloatingDropdown } from '../components/ui/FloatingDropdown';
 
 function normalizeLabels(value) {
   if (Array.isArray(value)) {
@@ -192,50 +193,32 @@ function InlineStatusCell({ status, leadId, statusColors, statusOptions = [], on
 }
 
 function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportClick, onLabelsClick, onPipelinesClick }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpen(false);
-      }
-    }
-    if (open) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [open]);
-
   return (
-    <div
-      className="relative inline-flex items-center"
-      ref={menuRef}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-    >
-      <button
-        type="button"
-        onClick={() => setOpen((prev) => !prev)}
-        className={cn(
-          "flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] transition-all hover:bg-[var(--surface-2)] hover:text-[var(--text-main)] cursor-pointer select-none",
-          open && "bg-[var(--surface-2)] text-[var(--text-main)] border-[var(--primary)]/30 ring-2 ring-[var(--primary)]/10"
-        )}
-        title="More actions (Export CSV, Import CSV, Labels, Pipelines)"
-      >
-        <MoreVertical size={16} />
-      </button>
-
-      {open && (
-        <div
-          className="animate-in fade-in zoom-in-95 duration-150 absolute right-0 top-full mt-1.5 z-50 min-w-[190px] rounded-2xl bg-white/95 dark:bg-slate-900/95 p-1.5 backdrop-blur-2xl border border-slate-200/80 dark:border-slate-800 shadow-xl shadow-black/10 dark:shadow-black/50 space-y-0.5"
+    <FloatingDropdown
+      className="min-w-[190px] space-y-0.5 rounded-2xl border-slate-200/80 bg-white/95 p-1.5 shadow-xl shadow-black/10 backdrop-blur-2xl dark:border-slate-800 dark:bg-slate-900/95 dark:shadow-black/50"
+      trigger={({ ref, open, toggle }) => (
+        <button
+          ref={ref}
+          type="button"
+          onClick={toggle}
+          className={cn(
+            "flex h-9 w-9 cursor-pointer select-none items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] transition-all hover:bg-[var(--surface-2)] hover:text-[var(--text-main)]",
+            open && "border-[var(--primary)]/30 bg-[var(--surface-2)] text-[var(--text-main)] ring-2 ring-[var(--primary)]/10"
+          )}
+          title="More actions (Export CSV, Import CSV, Labels, Pipelines)"
+          aria-haspopup="menu"
+          aria-expanded={open}
         >
+          <MoreVertical size={16} />
+        </button>
+      )}
+    >
+      {({ close }) => (
+        <>
           <button
             type="button"
             onClick={() => {
-              setOpen(false);
+              close();
               onExportClick?.();
             }}
             className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
@@ -248,7 +231,7 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
             <button
               type="button"
               onClick={() => {
-                setOpen(false);
+                close();
                 onImportClick();
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
@@ -262,7 +245,7 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
             <button
               type="button"
               onClick={() => {
-                setOpen(false);
+                close();
                 onLabelsClick();
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
@@ -276,7 +259,7 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
             <button
               type="button"
               onClick={() => {
-                setOpen(false);
+                close();
                 onPipelinesClick();
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-[var(--surface-2)] dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
@@ -285,9 +268,9 @@ function LeadsMoreMenu({ canCreate, canManagePipelines, onExportClick, onImportC
               <span>Manage Pipelines</span>
             </button>
           )}
-        </div>
+        </>
       )}
-    </div>
+    </FloatingDropdown>
   );
 }
 
@@ -574,49 +557,34 @@ function WhatsAppIcon({ className = "h-4 w-4" }) {
 }
 
 function RowActionsDropdown({ row, navigate, canCreate, canDelete, setEditingData, setFormOpen, setDeleteTarget }) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef(null);
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setOpen(false);
-      }
-    }
-    if (open) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [open]);
-
   return (
-    <div
-      ref={menuRef}
-      className="relative inline-block text-left"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onClick={(e) => e.stopPropagation()}
+    <FloatingDropdown
+      className="w-36 p-1.5 text-left"
+      trigger={({ ref, open, toggle }) => (
+        <IconButton
+          ref={ref}
+          box="8"
+          shape="full"
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            toggle();
+          }}
+          title="Actions"
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          <MoreVertical className="h-4 w-4" />
+        </IconButton>
+      )}
     >
-      <IconButton box="8" shape="full"
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((prev) => !prev);
-        }}
-        title="Actions"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </IconButton>
-
-      {open && (
-        <div className="absolute right-0 top-full mt-1 w-36 rounded-xl bg-[var(--surface)] p-1.5 shadow-modal border border-[var(--border)] z-50 text-left animate-in fade-in zoom-in-95 duration-100">
+      {({ close }) => (
+        <>
           <Link
             to={leadRoute(row)}
             onClick={(e) => {
               e.stopPropagation();
-              setOpen(false);
+              close();
             }}
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--text-main)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
           >
@@ -629,7 +597,7 @@ function RowActionsDropdown({ row, navigate, canCreate, canDelete, setEditingDat
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setOpen(false);
+                close();
                 setEditingData(row);
                 setFormOpen(true);
               }}
@@ -645,7 +613,7 @@ function RowActionsDropdown({ row, navigate, canCreate, canDelete, setEditingDat
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setOpen(false);
+                close();
                 setDeleteTarget(row);
               }}
               className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
@@ -654,9 +622,9 @@ function RowActionsDropdown({ row, navigate, canCreate, canDelete, setEditingDat
               Delete
             </button>
           )}
-        </div>
+        </>
       )}
-    </div>
+    </FloatingDropdown>
   );
 }
 

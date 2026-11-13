@@ -47,6 +47,7 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/cn';
+import { EmployeeDashboard } from '../components/dashboard/EmployeeDashboard';
 
 function formatAmount(value) {
   const number = Number(value || 0);
@@ -170,34 +171,10 @@ export function DashboardPage() {
   const dummyPoints = [10, 20, 15, 25, 20, 30, 15];
   const quickActions = QUICK_ACTIONS.filter((action) => hasPermission(action.permission));
 
-  // Without reports.view every KPI would read 0, which looks like real (wrong) numbers.
+  // Without reports.view every KPI would read 0, which looks like real (wrong) numbers:
+  // these users get their own dashboard instead.
   if (!canViewReports) {
-    return (
-      <div className="space-y-6">
-        <Card className="p-6 bg-[var(--surface)] border border-[var(--border)] shadow-[var(--shadow-card)]">
-          <h2 className="text-base font-bold text-[var(--text-main)]">Welcome back</h2>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            Business metrics are visible to roles with report access. Jump into your work below.
-          </p>
-          {quickActions.length ? (
-            <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-              {quickActions.map((action) => (
-                <Link
-                  key={action.label}
-                  to={action.link}
-                  className="flex flex-col items-center justify-center p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--hover-bg)] hover:border-[var(--primary)] transition-all duration-150 gap-2 text-center"
-                >
-                  <div className={cn('flex h-9 w-9 items-center justify-center rounded-lg border', action.bg, action.color)}>
-                    <action.icon size={16} strokeWidth={2} />
-                  </div>
-                  <span className="text-[11px] font-bold text-[var(--text-main)]">{action.label}</span>
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </Card>
-      </div>
-    );
+    return <EmployeeDashboard token={token} quickActions={quickActions} hasPermission={hasPermission} />;
   }
 
   return (

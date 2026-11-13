@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { Fragment, useMemo, useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronRight, Menu, X } from 'lucide-react';
 import { navigationGroups } from '../../config/navigation';
@@ -193,16 +193,29 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
         )}
       >
         <div className="ml-6 pl-2.5 border-l-2 border-slate-200/80 dark:border-slate-800/80 space-y-0.5 my-1">
-          {item.children.map((child) => (
-            <SidebarLink
-              key={child.path}
-              item={child}
-              open={open}
-              isChild={true}
-              onNavigate={() => {
-                if (window.innerWidth < 1024) onNavigate();
-              }}
-            />
+          {item.children.map((child, index) => (
+            <Fragment key={child.path}>
+              {/* A child's `section` starts a small heading; only visible children reach here, so
+                  a heading never shows for a group the user cannot open. */}
+              {child.section && child.section !== item.children[index - 1]?.section && (
+                <p
+                  className={cn(
+                    'px-3 pb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--sidebar-text)] opacity-60 select-none',
+                    index === 0 ? 'pt-1' : 'pt-3'
+                  )}
+                >
+                  {child.section}
+                </p>
+              )}
+              <SidebarLink
+                item={child}
+                open={open}
+                isChild={true}
+                onNavigate={() => {
+                  if (window.innerWidth < 1024) onNavigate();
+                }}
+              />
+            </Fragment>
           ))}
         </div>
       </div>

@@ -102,6 +102,7 @@ router.use('/renewals', renewalsRoutes);
 router.use('/masters', mastersRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/reports', reportsRoutes);
+router.use('/dashboard', require('./dashboard.routes'));
 router.use('/files', filesRoutes);
 router.use('/google-drive', require('./googleDrive.routes'));
 router.get('/backup/download', requirePermission('settings.write'), googleDriveController.downloadLocalBackup);

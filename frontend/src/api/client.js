@@ -187,6 +187,10 @@ export const api = {
   search: {
     global: (token, q) => request(`/leads/search/global?q=${encodeURIComponent(q)}`, { token, skipCache: true })
   },
+  dashboard: {
+    // The signed-in user's own dashboard (today's work, leads, leave, month).
+    me: (token) => request('/dashboard/me', { token, skipCache: true })
+  },
   reports: {
     dashboard: (token) => request('/reports/dashboard', { token, skipCache: true }),
     // Both take an optional period: { period: 'thisFy' | 'lastFy' | 'thisMonth' | 'lastMonth' } or { from, to } (YYYY-MM-DD).
