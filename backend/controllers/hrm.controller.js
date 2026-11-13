@@ -235,6 +235,7 @@ const controller = {
   override: respond((req) => workday.override(req.user, req.body)),
   adminReport: respond((req) => workday.adminReport(req.user, req.body)),
   day: respond((req) => workday.day(req.user, req.query)),
+  attendanceMonth: respond((req) => require("../services/hrm/attendanceMonth").month(req.user, req.query)),
   live: respond((req) => workday.live(req.user)),
   export: async (req, res, next) => {
     try {

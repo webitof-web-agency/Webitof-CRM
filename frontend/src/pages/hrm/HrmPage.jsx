@@ -15,6 +15,7 @@ import { EmployeeWizard } from "./EmployeeWizard";
 import { employeePath, useEmployeeId } from "./employeeShared";
 import { HrmRecruitment } from "./HrmRecruitment";
 import { HrmPayrollLive } from "./HrmPayrollLive";
+import { HrmAttendance } from "./HrmAttendance";
 const sections = [
   ["overview", "Overview"],
   ["my-day", "My day", "self_service"],
@@ -154,6 +155,9 @@ export function HrmPage() {
         <HrmRecruitment {...props} />
       ) : kind === "geofences" && (can("approve") || can("manage_settings")) ? (
         <HrmGeofences {...props} />
+      ) : kind === "attendance" ? (
+        // Calendar for one person and the month chart for the team (replaces the generic list).
+        <HrmAttendance {...props} />
       ) : kind === "payroll" && available.some(([key]) => key === kind) ? (
         // This month's payroll so far sits above the list of past payroll runs.
         <div className="space-y-5">
