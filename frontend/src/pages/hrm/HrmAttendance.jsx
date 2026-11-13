@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  FilePenLine,
   Download,
   LogOut,
   PenLine,
@@ -17,7 +18,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { cn } from "../../lib/cn";
-import { Field } from "./HrmShared";
+import { SearchableSelect } from "../../components/forms/SearchableSelect";
 import { HrmForm } from "./HrmForm";
 import { forms } from "./hrmForms";
 import { downloadHrm, hrm, queryString } from "./hrmApi";
@@ -203,11 +204,9 @@ function DayDetail({ day, employee, timezone, can, isSelf, onClose, onAction }) 
 }
 
 /** Calendar + day list for one employee. */
-function MyAttendance({ token, metadata, can, employees, month, setMonth, years, onDay, refresh }) {
+function MyAttendance({ token, metadata, employees, employeeId, month, setMonth, years, onDay, refresh }) {
   const timezone = metadata.policy.timezone || "Asia/Kolkata";
-  const canPick = can("approve") || can("hr_approve") || can("view_team") || can("view_all");
   const own = metadata.ownEmployeeId || "";
-  const [employeeId, setEmployeeId] = useState(own);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
@@ -232,26 +231,6 @@ function MyAttendance({ token, metadata, can, employees, month, setMonth, years,
   const t = row?.totals;
   return (
     <div className="space-y-4">
-      {canPick && (
-        <Card className="flex flex-wrap items-end gap-3 p-4">
-          <div className="w-full max-w-sm">
-            <Field
-              name="attendanceEmployee"
-              title="Employee"
-              type="select"
-              searchable
-              value={chosen}
-              onChange={(v) => setEmployeeId(v || own)}
-              options={employees.map((e) => ({ value: e.id, label: `${e.fullName} · ${e.employeeNumber}` }))}
-            />
-          </div>
-          {own && chosen !== own && (
-            <Button size="sm" variant="ghost" onClick={() => setEmployeeId(own)}>
-              Back to my attendance
-            </Button>
-          )}
-        </Card>
-      )}
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)]">
         <Card className="space-y-3 p-4">
@@ -334,12 +313,9 @@ function MyAttendance({ token, metadata, can, employees, month, setMonth, years,
 }
 
 /** Employees x days for the month. */
-function AttendanceChart({ token, masters, employees, month, setMonth, years, onDay, refresh }) {
-  const [search, setSearch] = useState("");
+function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
+  const { search, locationId, employeeId, sort } = filters;
   const [query, setQuery] = useState("");
-  const [locationId, setLocationId] = useState("");
-  const [employeeId, setEmployeeId] = useState("");
-  const [sort, setSort] = useState("asc");
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
   const [data, setData] = useState(null);
@@ -358,38 +334,10 @@ function AttendanceChart({ token, masters, employees, month, setMonth, years, on
       active = false;
     };
   }, [token, month, query, locationId, employeeId, sort, page, limit, refresh]);
-  const locations = masters.filter((m) => m.type === "hrm_location");
-  const reset = () => {
-    setSearch("");
-    setLocationId("");
-    setEmployeeId("");
-    setSort("asc");
-  };
   const [y, m] = month.split("-");
   const monthName = `${MONTHS[Number(m) - 1]} ${y}`;
   return (
     <div className="space-y-4">
-      <Card className="grid gap-3 p-4 lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))_auto] lg:items-end">
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-semibold">Search</span>
-          <span className="relative block">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <input
-              className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] pl-9 pr-3 text-sm outline-none focus:border-[var(--primary)]"
-              placeholder="Search by name, email or code…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </span>
-        </label>
-        <Field name="chartBranch" title="Branch" type="select" required value={locationId} onChange={setLocationId} options={[{ value: "", label: "All branches" }, ...locations.map((l) => ({ value: l.id, label: l.name }))]} />
-        <Field name="chartEmployee" title="Employee" type="select" required searchable value={employeeId} onChange={setEmployeeId} options={[{ value: "", label: "All employees" }, ...employees.map((e) => ({ value: e.id, label: e.fullName }))]} />
-        <Field name="chartMonth" title="Month" type="select" required value={m} onChange={(v) => setMonth(`${y}-${v}`)} options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, "0"), label: name }))} />
-        <Field name="chartYear" title="Year" type="select" required value={y} onChange={(v) => setMonth(`${v}-${m}`)} options={years.map((v) => ({ value: v, label: v }))} />
-        <Button variant="secondary" onClick={reset}>
-          <RotateCcw size={14} /> Reset
-        </Button>
-      </Card>
       <Card className="p-4">
         <Legend />
       </Card>
@@ -478,6 +426,12 @@ export function HrmAttendance({ token, metadata, masters, can }) {
   const [day, setDay] = useState(null);
   const [editor, setEditor] = useState(null);
   const [refresh, setRefresh] = useState(0);
+  const own = metadata.ownEmployeeId || "";
+  const [mineEmployee, setMineEmployee] = useState(own);
+  const [filters, setFilters] = useState({ search: "", locationId: "", employeeId: "", sort: "asc" });
+  const setFilter = (key) => (value) => setFilters((f) => ({ ...f, [key]: value ?? "" }));
+  const locations = masters.filter((m) => m.type === "hrm_location");
+  const actionLabel = tab === "chart" && canChart ? "hidden min-[1750px]:inline" : "hidden md:inline";
   const thisYear = Number(today.slice(0, 4));
   const years = Array.from({ length: 6 }, (_, i) => String(thisYear - 4 + i));
   useEffect(() => {
@@ -494,45 +448,97 @@ export function HrmAttendance({ token, metadata, masters, can }) {
   const monthEnd = new Date(Date.UTC(Number(month.slice(0, 4)), Number(monthNo), 0)).toISOString().slice(0, 10);
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-1">
+      {/* Tabs, filters and actions share one row; it wraps on narrow screens. */}
+      <Card className="flex flex-wrap items-center gap-2 p-2">
+        <div className="inline-flex shrink-0 rounded-2xl bg-[var(--surface-2)] p-1">
           {[["mine", "My attendance"], ...(canChart ? [["chart", "Attendance chart"]] : [])].map(([key, label]) => (
             <button
               key={key}
               type="button"
               onClick={() => setTab(key)}
-              className={cn("rounded-xl px-4 py-1.5 text-sm font-semibold transition", tab === key ? "bg-[var(--primary)] text-white shadow" : "text-[var(--text-muted)] hover:text-[var(--text-main)]")}
+              className={cn("whitespace-nowrap rounded-xl px-3.5 py-1.5 text-sm font-semibold transition", tab === key ? "bg-[var(--primary)] text-white shadow" : "text-[var(--text-muted)] hover:text-[var(--text-main)]")}
             >
               {label}
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap gap-2">
+        {tab === "chart" && canChart ? (
+          <>
+            <label className="relative min-w-[160px] flex-1">
+              <span className="sr-only">Search</span>
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+              <input
+                className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] pl-9 pr-3 text-sm outline-none focus:border-[var(--primary)]"
+                placeholder="Search name, email or code…"
+                value={filters.search}
+                onChange={(e) => setFilter("search")(e.target.value)}
+              />
+            </label>
+            <div className="w-36 shrink-0">
+              <SearchableSelect aria-label="Branch" value={filters.locationId} onChange={setFilter("locationId")} options={[{ value: "", label: "All branches" }, ...locations.map((l) => ({ value: l.id, label: l.name }))]} triggerClassName="h-10 py-2 text-sm" />
+            </div>
+            <div className="w-40 shrink-0">
+              <SearchableSelect aria-label="Employee" searchable value={filters.employeeId} onChange={setFilter("employeeId")} options={[{ value: "", label: "All employees" }, ...employees.map((e) => ({ value: e.id, label: e.fullName }))]} triggerClassName="h-10 py-2 text-sm" />
+            </div>
+            <div className="w-32 shrink-0">
+              <SearchableSelect aria-label="Month" value={month.slice(5)} onChange={(v) => v && setMonth(`${month.slice(0, 4)}-${v}`)} options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, "0"), label: name }))} triggerClassName="h-10 py-2 text-sm" />
+            </div>
+            <div className="w-24 shrink-0">
+              <SearchableSelect aria-label="Year" value={month.slice(0, 4)} onChange={(v) => v && setMonth(`${v}-${month.slice(5)}`)} options={years.map((v) => ({ value: v, label: v }))} triggerClassName="h-10 py-2 text-sm" />
+            </div>
+            <Button size="sm" variant="ghost" aria-label="Reset filters" title="Reset filters" onClick={() => setFilters({ search: "", locationId: "", employeeId: "", sort: "asc" })}>
+              <RotateCcw size={14} />
+            </Button>
+          </>
+        ) : (
+          canChart && (
+            <>
+              <div className="w-72 max-w-full shrink-0">
+                <SearchableSelect
+                  aria-label="Employee"
+                  searchable
+                  value={mineEmployee || employees[0]?.id || ""}
+                  onChange={(v) => setMineEmployee(v || own)}
+                  options={employees.map((e) => ({ value: e.id, label: `${e.fullName} · ${e.employeeNumber}` }))}
+                  triggerClassName="h-10 py-2 text-sm"
+                />
+              </div>
+              {own && mineEmployee && mineEmployee !== own && (
+                <Button size="sm" variant="ghost" onClick={() => setMineEmployee(own)}>
+                  Back to mine
+                </Button>
+              )}
+            </>
+          )
+        )}
+        <div className="ml-auto flex shrink-0 flex-wrap gap-2">
           {can("hr_approve") && (
-            <Button size="sm" variant="secondary" onClick={() => setEditor({ config: forms["attendance-mark"] })}>
-              <PenLine size={14} /> Mark attendance
+            <Button size="sm" variant="secondary" title="Mark attendance" aria-label="Mark attendance" onClick={() => setEditor({ config: forms["attendance-mark"] })}>
+              <PenLine size={14} /> <span className={actionLabel}>Mark attendance</span>
             </Button>
           )}
-          {can("self_service") && metadata.ownEmployeeId && (
-            <Button size="sm" variant="secondary" onClick={() => setEditor({ config: forms.regularization, initial: { employeeId: metadata.ownEmployeeId } })}>
-              Request correction
+          {can("self_service") && own && (
+            <Button size="sm" variant="secondary" title="Request correction" aria-label="Request correction" onClick={() => setEditor({ config: forms.regularization, initial: { employeeId: own } })}>
+              <FilePenLine size={14} /> <span className={actionLabel}>Request correction</span>
             </Button>
           )}
           {can("export") && (
             <Button
               size="sm"
               variant="secondary"
+              title="Export"
+              aria-label="Export"
               onClick={() => downloadHrm(token, `/export/attendance?${queryString({ startDate: `${month}-01`, endDate: monthEnd })}`, `attendance-${month}.csv`)}
             >
-              <Download size={14} /> Export
+              <Download size={14} /> <span className={actionLabel}>Export</span>
             </Button>
           )}
         </div>
-      </div>
+      </Card>
       {tab === "chart" && canChart ? (
-        <AttendanceChart token={token} masters={masters} employees={employees} month={month} setMonth={setMonth} years={years} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
+        <AttendanceChart token={token} filters={filters} setSort={(update) => setFilters((f) => ({ ...f, sort: typeof update === "function" ? update(f.sort) : update }))} month={month} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
       ) : (
-        <MyAttendance token={token} metadata={metadata} can={can} employees={employees} month={month} setMonth={setMonth} years={years} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
+        <MyAttendance token={token} metadata={metadata} employees={employees} employeeId={mineEmployee} month={month} setMonth={setMonth} years={years} refresh={refresh} onDay={(d, employee, isSelf) => setDay({ d, employee, isSelf })} />
       )}
       {day && (
         <DayDetail
