@@ -1219,6 +1219,29 @@ async function day(user, q = {}, db = c.dbDefault) {
   const p = await c.policy(db);
   return { employee: { id: e.id, fullName: e.fullName, employeeNumber: e.employeeNumber }, ...(await dayState(db, e, p, c.date(q.date || c.today(p)))) };
 }
+// Where the employee app last reported this person, for the live map. Only while the session is
+// open: once they clock out, their position is no longer anyone's business.
+function liveLocation(att) {
+  if (!att?.checkIn || att.checkOut) return null;
+  let loc = att.lastLocation;
+  if (typeof loc === "string") {
+    try {
+      loc = JSON.parse(loc);
+    } catch {
+      return null;
+    }
+  }
+  const latitude = Number(loc?.latitude);
+  const longitude = Number(loc?.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return {
+    latitude,
+    longitude,
+    accuracy: Number.isFinite(Number(loc.accuracy)) ? Number(loc.accuracy) : null,
+    inside: typeof loc.inside === "boolean" ? loc.inside : null,
+    at: att.lastPingAt || att.checkIn,
+  };
+}
 async function live(user, db = c.dbDefault) {
   c.permit(user, "approve", "hr_approve", "view_team", "view_all");
   const p = await c.policy(db);
@@ -1298,6 +1321,9 @@ async function live(user, db = c.dbDefault) {
       source: att?.source || null,
       offline,
       lastPingAt: att?.lastPingAt || null,
+      clockIn: att?.checkIn || null,
+      clockOut: att?.checkOut || null,
+      location: liveLocation(att),
       openAlerts: r.openAlerts,
       reportStatus: r.reportStatus,
       reportEdits: r.reportEdits || 0,

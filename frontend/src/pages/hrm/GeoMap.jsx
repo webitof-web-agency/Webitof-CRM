@@ -37,8 +37,67 @@ export function distanceMeters(a, b) {
  * center: {latitude, longitude}; radius in metres; onPick(point) makes the map
  * editable (click / drag the marker). `others` draws extra fences for context.
  * fallback: {latitude, longitude} to open on while center is still empty.
+ * people: live dots [{ id, latitude, longitude, color, lines: [title, ...details] }]; hovering a dot
+ *   shows its lines. fitRequest: bump it to zoom the map to every fence and dot.
  */
-export function GeoMap({ center, radius, onPick, others = [], height = 280, fallback = null }) {
+// Live dots: a filled circle per person. Hover opens one shared info window built from text nodes
+// (names and notes come from the database, so nothing is inserted as HTML).
+function drawPeople(maps, s, people = []) {
+  (s.people || []).forEach((m) => m.setMap(null));
+  // headerDisabled: a hover card needs no close button.
+  s.info ??= new maps.InfoWindow({ disableAutoPan: true, headerDisabled: true });
+  s.people = people
+    .filter((o) => Number.isFinite(Number(o.latitude)) && Number.isFinite(Number(o.longitude)))
+    .map((o) => {
+      const marker = new maps.Marker({
+        map: s.map,
+        position: { lat: Number(o.latitude), lng: Number(o.longitude) },
+        zIndex: 1000,
+        icon: {
+          path: maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: o.color || "#0ea5e9",
+          fillOpacity: 1,
+          strokeColor: "#ffffff",
+          strokeWeight: 2.5,
+        },
+      });
+      const content = document.createElement("div");
+      content.style.cssText = "font:12px/1.45 system-ui,sans-serif;color:#0f172a;min-width:170px;padding:2px 2px 0";
+      (o.lines || []).forEach((line, index) => {
+        const row = document.createElement("div");
+        row.textContent = line;
+        if (index === 0) row.style.cssText = "font-weight:700;font-size:13px;margin-bottom:2px";
+        else row.style.color = "#475569";
+        content.appendChild(row);
+      });
+      marker.addListener("mouseover", () => {
+        s.info.setContent(content);
+        s.info.open({ map: s.map, anchor: marker });
+      });
+      marker.addListener("mouseout", () => s.info.close());
+      marker.addListener("click", () => {
+        s.info.setContent(content);
+        s.info.open({ map: s.map, anchor: marker });
+      });
+      return marker;
+    });
+}
+function fitAll(maps, s, position, others = [], people = []) {
+  const bounds = new maps.LatLngBounds();
+  bounds.extend(position);
+  [...others, ...people].forEach((o) => {
+    if (Number.isFinite(Number(o.latitude)) && Number.isFinite(Number(o.longitude)))
+      bounds.extend({ lat: Number(o.latitude), lng: Number(o.longitude) });
+  });
+  s.map.fitBounds(bounds, 60);
+  // One point (or several in one building) would zoom in to street furniture.
+  maps.event.addListenerOnce(s.map, "idle", () => {
+    if (s.map.getZoom() > 17) s.map.setZoom(17);
+  });
+}
+
+export function GeoMap({ center, radius, onPick, others = [], height = 280, fallback = null, people = [], fitRequest = 0 }) {
   const box = useRef(null);
   const state = useRef({});
   const [error, setError] = useState(KEY ? "" : "missing");
@@ -58,6 +117,9 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280, fall
   const othersRef = useRef(others);
   othersRef.current = others;
   const othersKey = JSON.stringify((others || []).map((o) => [o.latitude, o.longitude, o.radiusMeters, o.color]));
+  const peopleRef = useRef(people);
+  peopleRef.current = people;
+  const peopleKey = JSON.stringify((people || []).map((o) => [o.id, o.latitude, o.longitude, o.color, o.lines]));
   useEffect(() => {
     let active = true;
     if (!KEY) return undefined;
@@ -118,6 +180,11 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280, fall
                 clickable: false,
               }),
           );
+        drawPeople(maps, s, peopleRef.current);
+        if (fitRequest && s.fitRequest !== fitRequest) {
+          s.fitRequest = fitRequest;
+          fitAll(maps, s, position, othersRef.current, peopleRef.current);
+        }
         setError("");
       })
       .catch((e) => active && setError(e.message));
@@ -126,7 +193,7 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280, fall
     };
     // start is derived from the fallback numbers listed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lat, lng, radius, valid, othersKey, start.lat, start.lng]);
+  }, [lat, lng, radius, valid, othersKey, peopleKey, fitRequest, start.lat, start.lng]);
   if (error)
     return (
       <div

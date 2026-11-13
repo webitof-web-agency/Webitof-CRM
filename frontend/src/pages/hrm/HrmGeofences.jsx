@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Building2, Clock3, Crosshair, ExternalLink, Home, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, Crosshair, ExternalLink, Home, Maximize2, Pencil, Plus } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { Field, Status } from "./HrmShared";
 import { GeoMap, distanceMeters, mapsLink } from "./GeoMap";
 import { hrm } from "./hrmApi";
+import { clock } from "./hrmTime";
 import { formatDate } from "../../lib/format";
 import { cn } from "../../lib/cn";
 
@@ -16,6 +17,33 @@ const blank = (radius) => ({ label: "", address: "", latitude: "", longitude: ""
 const SMALL_OFFICE_RADIUS = 50;
 // Map colours: the selected fence uses the map's own indigo marker + circle.
 const COLORS = { office: "#4f46e5", home: "#10b981", pending: "#f59e0b" };
+// Live employee dots.
+const LIVE = { working: "#0ea5e9", outside: "#ef4444", lunch: "#a855f7", offline: "#94a3b8" };
+const MODE_LABELS = { WFO: "Work from office", WFH: "Work from home", "Client Visit": "Client visit" };
+const LIVE_REFRESH_MS = 30000;
+
+function minutesAgo(iso) {
+  if (!iso) return "";
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  return minutes < 1 ? "just now" : minutes < 60 ? `${minutes} min ago` : `${Math.floor(minutes / 60)} h ${minutes % 60} min ago`;
+}
+/** One dot per clocked-in employee whose app has reported a position today. */
+function livePeople(rows = [], timezone) {
+  return rows
+    .filter((r) => r.location)
+    .map((r) => {
+      const l = r.location;
+      const color = r.offline ? LIVE.offline : l.inside === false ? LIVE.outside : r.state === "On lunch" ? LIVE.lunch : LIVE.working;
+      const lines = [
+        `${r.fullName}${r.employeeNumber ? ` (${r.employeeNumber})` : ""}`,
+        [r.state, MODE_LABELS[r.workMode] || r.workMode].filter(Boolean).join(" · "),
+        `Clocked in ${clock(r.clockIn, timezone)}`,
+        `Last location ${clock(l.at, timezone)} (${minutesAgo(l.at)})${r.offline ? " · app offline" : ""}`,
+        [l.accuracy != null ? `GPS ±${l.accuracy} m` : "", l.inside === true ? "inside work zone" : l.inside === false ? "OUTSIDE work zone" : ""].filter(Boolean).join(" · "),
+      ].filter(Boolean);
+      return { id: r.employeeId, latitude: l.latitude, longitude: l.longitude, color, lines, offline: r.offline, outside: l.inside === false };
+    });
+}
 
 /** Why a home location needs a second look: it overlaps an office, or its GPS fix was too rough. */
 function homeWarnings(home, offices) {
@@ -154,9 +182,29 @@ export function HrmGeofences({ token, metadata, masters, can }) {
     [homeBusy, setHomeBusy] = useState(false),
     [loaded, setLoaded] = useState(false),
     [focusId, setFocusId] = useState(""),
-    [homeFilter, setHomeFilter] = useState("all");
+    [homeFilter, setHomeFilter] = useState("all"),
+    [live, setLive] = useState(null),
+    [fitRequest, setFitRequest] = useState(0);
   const manage = can("manage_settings");
   const approve = can("approve");
+  // The live board is open to approvers and to anyone who can see team or all employees.
+  const canLive = approve || can("hr_approve") || can("view_team") || can("view_all");
+  const timezone = metadata.policy.timezone || "Asia/Kolkata";
+  useEffect(() => {
+    if (!canLive) return undefined;
+    let active = true;
+    const load = () =>
+      hrm(token, "/live")
+        .then((r) => active && setLive(r))
+        .catch(() => {}); // the map still shows fences without the live layer
+    load();
+    // Do not poll hidden tabs.
+    const timer = setInterval(() => !document.hidden && load(), LIVE_REFRESH_MS);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [token, canLive]);
   useEffect(() => {
     let active = true;
     hrm(token, "/geofences")
@@ -182,6 +230,9 @@ export function HrmGeofences({ token, metadata, masters, can }) {
   const visibleHomes = homes.filter((h) =>
     homeFilter === "all" ? true : homeFilter === "other" ? ["Rejected", "Retired"].includes(h.status) : h.status === homeFilter,
   );
+  const people = useMemo(() => livePeople(live?.rows, timezone), [live, timezone]);
+  const clockedIn = (live?.rows || []).filter((r) => r.clockIn && !r.clockOut).length;
+  const outsideNow = people.filter((p) => p.outside).length;
   const overviewOthers = rows
     .filter((r) => r.id !== focus?.id && !["Rejected", "Retired"].includes(r.status))
     .map((r) => ({ ...r, color: r.kind === "office" ? COLORS.office : r.status === "Pending" ? COLORS.pending : COLORS.home }));
@@ -366,22 +417,48 @@ export function HrmGeofences({ token, metadata, masters, can }) {
                 {focus ? `${focus.kind === "office" ? focus.label : `${focus.employeeName} · home`} · ${focus.radiusMeters} m` : "No locations yet"}
               </p>
             </div>
-            <div className="flex flex-wrap gap-3 text-xs text-[var(--text-muted)]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
               {[["Office", COLORS.office], ["Home", COLORS.home], ["Pending", COLORS.pending]].map(([label, color]) => (
                 <span key={label} className="inline-flex items-center gap-1.5">
                   <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} /> {label}
                 </span>
               ))}
+              {canLive &&
+                [["Working", LIVE.working], ["Outside zone", LIVE.outside], ["Lunch", LIVE.lunch], ["Offline", LIVE.offline]].map(([label, color]) => (
+                  <span key={label} className="inline-flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full ring-2 ring-white" style={{ background: color }} /> {label}
+                  </span>
+                ))}
+              <Button size="xs" variant="ghost" onClick={() => setFitRequest((n) => n + 1)} aria-label="Show every location on the map">
+                <Maximize2 size={12} /> Show all
+              </Button>
             </div>
           </div>
+          {canLive && live && (
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-xs">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Live
+              </span>
+              <span>{clockedIn} clocked in</span>
+              <span>{people.length} on map</span>
+              {outsideNow > 0 && <span className="font-semibold text-rose-600">{outsideNow} outside zone</span>}
+              <span className="text-[var(--text-muted)]">updated {clock(live.serverTime, timezone)} · hover a dot for details</span>
+            </p>
+          )}
           <GeoMap
             center={focus ? { latitude: focus.latitude, longitude: focus.longitude } : null}
             radius={focus?.radiusMeters}
             others={overviewOthers}
             fallback={mapFallback}
+            people={people}
+            fitRequest={fitRequest}
             height={520}
           />
-          <p className="px-1 text-xs text-[var(--text-muted)]">Click an office or home on the left to centre it here.</p>
+          <p className="px-1 text-xs text-[var(--text-muted)]">Click an office or home on the left to centre it here. Employee dots show where the app last reported each clocked-in person (refreshes every 30 s).</p>
         </Card>
       </div>
 
