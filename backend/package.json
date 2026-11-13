@@ -10,6 +10,7 @@
     "test:hrm": "node --test --test-concurrency=1 tests/hrm.test.js tests/hrm.workday.test.js tests/hrmPayroll.test.js tests/hrmLeaveCancel.test.js tests/hrmLiveBoard.test.js tests/hrmCore.test.js tests/hrmGeofenceDebounce.test.js tests/hrmHolidayDelete.test.js tests/hrmAllocation.test.js tests/hrmMasters.test.js tests/hrmAlertHistory.test.js tests/hrmRecruitment.test.js tests/hrmValidators.test.js tests/hrm.integration.js tests/hrmLinkLogin.integration.js tests/hrmAccess.integration.js",
     "seed:hrm-demo": "node database/seed-hrm-demo.js --yes-seed-hrm",
     "seed:hrm-it": "node database/seed-hrm-it-masters.js --yes",
+    "seed:hrm-holidays-leave": "node database/seed-hrm-holidays-leave.js --yes",
     "seed:website-services": "node database/seed-website-services.js --yes",
     "test:finance": "node --test tests/financeReports.test.js tests/paymentStatusCounting.test.js tests/paymentValidation.test.js tests/invoiceGst.test.js tests/invoiceGuards.test.js tests/invoiceNumbering.test.js tests/invoicePreview.test.js tests/reportPeriod.test.js tests/creditNoteMaths.test.js tests/creditNotes.test.js tests/paymentMilestoneEngine.test.js",
     "test:storage": "node --test tests/googleDrive.test.js tests/fileAccess.test.js tests/uploadFolders.test.js tests/maintenance.test.js tests/backupRestore.test.js",

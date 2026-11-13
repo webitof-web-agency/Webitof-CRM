@@ -90,6 +90,7 @@ router.post("/allocations", c.allocation);
 router.put("/allocations/:id", c.allocation);
 router.post("/salary-history", c.salary);
 router.get("/payroll", c.payroll);
+router.get("/payroll/live", c.payrollLive);
 router.post("/payroll", c.payrollDraft);
 router.post("/payroll/:id/action", c.payrollAction);
 router.get("/payslips/:id", c.payslip);

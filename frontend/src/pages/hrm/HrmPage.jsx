@@ -14,6 +14,7 @@ import { EmployeeProfile } from "./EmployeeProfile";
 import { EmployeeWizard } from "./EmployeeWizard";
 import { employeePath, useEmployeeId } from "./employeeShared";
 import { HrmRecruitment } from "./HrmRecruitment";
+import { HrmPayrollLive } from "./HrmPayrollLive";
 const sections = [
   ["overview", "Overview"],
   ["my-day", "My day", "self_service"],
@@ -153,6 +154,12 @@ export function HrmPage() {
         <HrmRecruitment {...props} />
       ) : kind === "geofences" && (can("approve") || can("manage_settings")) ? (
         <HrmGeofences {...props} />
+      ) : kind === "payroll" && available.some(([key]) => key === kind) ? (
+        // This month's payroll so far sits above the list of past payroll runs.
+        <div className="space-y-5">
+          <HrmPayrollLive {...props} />
+          <HrmCollection key={kind} {...props} kind={kind} />
+        </div>
       ) : available.some(([key]) => key === kind) ? (
         <HrmCollection key={kind} {...props} kind={kind} />
       ) : (

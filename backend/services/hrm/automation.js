@@ -11,6 +11,93 @@ const SYSTEM_USER = Object.freeze({
   permissions: Object.freeze(["hrm.automation", "hrm.view_all"]),
 });
 
+const addDays = (date, days) => new Date(Date.parse(`${date}T00:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
+
+// Leave a type earns by `day` in day's calendar year. Credit starts once the employee has been
+// with the company `eligibleAfterDays` days (e.g. 45): monthly types earn annualDays/12 for each
+// month from the month that date falls in, yearly types the pro-rated year at once. Types marked
+// autoCredit:false (maternity, bereavement...) are only ever granted by HR.
+function accrualEntitlement(policy, employee, day) {
+  if (!policy.annualDays || policy.paid === false || policy.autoCredit === false) return 0;
+  const eligibleFrom = addDays(employee.joiningDate, Number(policy.eligibleAfterDays || 0));
+  if (eligibleFrom > day) return 0;
+  const startMonth = eligibleFrom.slice(0, 4) === day.slice(0, 4) ? Number(eligibleFrom.slice(5, 7)) : 1;
+  const month = Number(day.slice(5, 7));
+  return policy.accrual === "monthly"
+    ? (Number(policy.annualDays) / 12) * Math.max(0, month - startMonth + 1)
+    : (Number(policy.annualDays) * (13 - startMonth)) / 12;
+}
+
+// Brings one employee's accrued leave and carry-forward up to `day`. Idempotent: it credits only
+// the difference from what earlier runs granted this year. Returns the number of credits written.
+async function accrueEmployeeLeave(tx, user, e, types, day) {
+  let grants = 0;
+  const year = Number(day.slice(0, 4));
+  for (const t of types) {
+    const policy = t.payload || {};
+    if (
+      (e.status === "Probation" && policy.probationAllowed === false) ||
+      (policy.employmentTypeIds?.length && !policy.employmentTypeIds.includes(e.employmentTypeId))
+    )
+      continue;
+    const entitlement = accrualEntitlement(policy, e, day);
+    if (entitlement > 0) {
+      const prior = await tx.query(
+        "SELECT coalesce(sum(amount),0)::numeric AS total FROM hrm_leave_ledger WHERE employee_id=$1 AND leave_type_id=$2 AND year=$3 AND source_key LIKE 'accrual:%'",
+        [e.id, t.id, year],
+      );
+      const amount = calc.round(entitlement - Number(prior.rows[0].total));
+      if (amount > 0) {
+        await c.insert(tx, "hrm_leave_ledger", {
+          employeeId: e.id,
+          leaveTypeId: t.id,
+          year,
+          amount,
+          reason: policy.accrual === "monthly" ? "Monthly leave credit" : "Yearly leave credit",
+          sourceKey: `accrual:${e.id}:${t.id}:${day}`,
+          createdBy: user.id,
+        });
+        grants++;
+      }
+    }
+    if (policy.carryForward && policy.autoCredit !== false) {
+      const balance = (
+        await tx.query(
+          "SELECT coalesce(sum(amount),0)::numeric AS total FROM hrm_leave_ledger WHERE employee_id=$1 AND leave_type_id=$2 AND year=$3",
+          [e.id, t.id, year - 1],
+        )
+      ).rows[0].total;
+      const carry = Math.max(0, Math.min(Number(policy.carryForwardLimit || 0), Number(balance)));
+      if (carry)
+        await tx.query(
+          "INSERT INTO hrm_leave_ledger(id,employee_id,leave_type_id,year,amount,reason,source_key,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(source_key) DO NOTHING",
+          [require("../../utils/format").createId("leave"), e.id, t.id, year, carry, "Carried forward from last year", `carry:${e.id}:${t.id}:${year}`, user.id],
+        );
+    }
+  }
+  return grants;
+}
+
+// Leave credits on their own, without the rest of the daily HR automation (reminders, absences).
+// Runs every night and at start-up, so a server that was down still catches up.
+async function leaveAccrual(db = null) {
+  return c.transaction(async (tx) => {
+    await tx.query("SELECT pg_advisory_xact_lock(hashtext('hrm-leave-accrual'))");
+    const p = await c.policy(tx);
+    const day = c.today(p);
+    const types = (await tx.query("SELECT * FROM master_items WHERE type='hrm_leave_type' AND is_active=true")).rows.map(c.camel);
+    const employees = (
+      await tx.query(
+        "SELECT * FROM hrm_employees WHERE archived_at IS NULL AND status IN ('Active','Probation','Confirmed','Notice Period') AND joining_date<=$1 AND (exit_date IS NULL OR exit_date>=$1) ORDER BY id FOR UPDATE",
+        [day],
+      )
+    ).rows.map(c.camel);
+    let grants = 0;
+    for (const e of employees) grants += await accrueEmployeeLeave(tx, SYSTEM_USER, e, types, day);
+    return { date: day, employees: employees.length, leaveGrants: grants };
+  }, db);
+}
+
 async function run(user, db = null) {
   c.permit(user, "automation");
   return c.transaction(async (tx) => {
@@ -51,71 +138,7 @@ async function run(user, db = null) {
         await tx.query("SELECT id FROM hrm_employees WHERE id=$1 FOR UPDATE", [
           e.id,
         ]);
-        for (const t of types) {
-          const policy = t.payload || {};
-          if (
-            !policy.annualDays ||
-            policy.paid === false ||
-            (e.status === "Probation" && policy.probationAllowed === false) ||
-            (policy.employmentTypeIds?.length &&
-              !policy.employmentTypeIds.includes(e.employmentTypeId))
-          )
-            continue;
-          const month = Number(day.slice(5, 7));
-          const joinMonth =
-            e.joiningDate.slice(0, 4) === day.slice(0, 4)
-              ? Number(e.joiningDate.slice(5, 7))
-              : 1;
-          const entitlement =
-            policy.accrual === "monthly"
-              ? (Number(policy.annualDays) / 12) *
-                Math.max(0, month - joinMonth + 1)
-              : (Number(policy.annualDays) * (13 - joinMonth)) / 12;
-          const prior = await tx.query(
-            "SELECT coalesce(sum(amount),0)::numeric AS total FROM hrm_leave_ledger WHERE employee_id=$1 AND leave_type_id=$2 AND year=$3 AND source_key LIKE 'accrual:%'",
-            [e.id, t.id, Number(day.slice(0, 4))],
-          );
-          const amount = calc.round(entitlement - Number(prior.rows[0].total));
-          if (amount > 0) {
-            await c.insert(tx, "hrm_leave_ledger", {
-              employeeId: e.id,
-              leaveTypeId: t.id,
-              year: Number(day.slice(0, 4)),
-              amount,
-              reason: "Configured leave allocation / accrual",
-              sourceKey: `accrual:${e.id}:${t.id}:${day}`,
-              createdBy: user.id,
-            });
-            result.leaveGrants++;
-          }
-          if (policy.carryForward) {
-            const year = Number(day.slice(0, 4));
-            const balance = (
-              await tx.query(
-                "SELECT coalesce(sum(amount),0)::numeric AS total FROM hrm_leave_ledger WHERE employee_id=$1 AND leave_type_id=$2 AND year=$3",
-                [e.id, t.id, year - 1],
-              )
-            ).rows[0].total;
-            const carry = Math.max(
-              0,
-              Math.min(Number(policy.carryForwardLimit || 0), Number(balance)),
-            );
-            if (carry)
-              await tx.query(
-                "INSERT INTO hrm_leave_ledger(id,employee_id,leave_type_id,year,amount,reason,source_key,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(source_key) DO NOTHING",
-                [
-                  require("../../utils/format").createId("leave"),
-                  e.id,
-                  t.id,
-                  year,
-                  carry,
-                  "Configured carry forward",
-                  `carry:${e.id}:${t.id}:${year}`,
-                  user.id,
-                ],
-              );
-          }
-        }
+        result.leaveGrants += await accrueEmployeeLeave(tx, user, e, types, day);
         const yesterday = new Date(Date.parse(day) - 86400000)
           .toISOString()
           .slice(0, 10);
@@ -407,10 +430,22 @@ async function realtime(now = new Date()) {
     ticking = false;
   }
 }
+function scheduleLeaveAccrual(cron) {
+  const tick = () => {
+    if (require("../maintenance.service").skipDuringMaintenance("HRM leave accrual")) return;
+    leaveAccrual()
+      .then((r) => r.leaveGrants && console.log(`HRM leave accrual: ${r.leaveGrants} credit(s) for ${r.date}`))
+      .catch((error) => console.error("HRM leave accrual failed:", error.message));
+  };
+  cron.schedule(process.env.HRM_LEAVE_ACCRUAL_CRON || "15 0 * * *", tick, { timezone: process.env.HRM_TIMEZONE || "Asia/Kolkata" });
+  setTimeout(tick, 30000).unref?.();
+}
 function schedule() {
+  const cron = require("node-cron");
+  // Monthly leave credit is payroll-relevant, so it runs even with the rest of HRM automation off.
+  if (String(process.env.HRM_LEAVE_ACCRUAL_ENABLED || "true").toLowerCase() !== "false") scheduleLeaveAccrual(cron);
   if (String(process.env.HRM_AUTOMATION_ENABLED).toLowerCase() !== "true")
     return;
-  const cron = require("node-cron");
   cron.schedule(
     process.env.HRM_REALTIME_CRON || "*/5 * * * *",
     () => {
@@ -436,4 +471,4 @@ function schedule() {
     { timezone: process.env.HRM_TIMEZONE || "Asia/Kolkata" },
   );
 }
-module.exports = { run, schedule, SYSTEM_USER, realtime, closeDay, sessionTick };
+module.exports = { run, schedule, SYSTEM_USER, realtime, closeDay, sessionTick, leaveAccrual, accrualEntitlement };

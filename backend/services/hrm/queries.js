@@ -228,6 +228,8 @@ async function masters(user, type, body, id = null, db = null) {
         "carryForward",
         "carryForwardLimit",
         "encashmentAllowed",
+        "eligibleAfterDays",
+        "autoCredit",
       ],
       salary_structure: ["components"],
       kpi_template: ["factors", "weights"],
@@ -244,6 +246,7 @@ async function masters(user, type, body, id = null, db = null) {
     for (const k of [
       "annualDays",
       "carryForwardLimit",
+      "eligibleAfterDays",
       "graceMinutes",
       "breakMinutes",
     ])
@@ -257,6 +260,7 @@ async function masters(user, type, body, id = null, db = null) {
       "probationAllowed",
       "carryForward",
       "encashmentAllowed",
+      "autoCredit",
       "overtimeEnabled",
       "certificate",
       "geofenceRequired",

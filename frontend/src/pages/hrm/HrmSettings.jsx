@@ -69,6 +69,8 @@ const masterFields = {
     ],
     ["probationAllowed", "Available during probation", "checkbox"],
     ["accrual", "Allocation frequency", "accrual"],
+    ["autoCredit", "Credit automatically (off = HR grants it by hand)", "checkbox"],
+    ["eligibleAfterDays", "Credit starts after joining (days)", "number"],
     ["carryForward", "Carry forward", "checkbox"],
     ["carryForwardLimit", "Maximum carry forward (days)", "number"],
     ["encashmentAllowed", "Encashment allowed", "checkbox"],

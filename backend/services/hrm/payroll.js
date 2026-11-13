@@ -386,4 +386,123 @@ async function payslip(user, id, db = c.dbDefault) {
     c.fail("Payslip not yet approved", 404);
   return r;
 }
-module.exports = { salary, monthBounds, draft, action, payslip };
+// This month's payroll so far, worked out the same way as a draft run (scheduled hours,
+// effective-dated salary, attendance and leave) but read-only: nothing is saved or locked, and
+// days not yet resolved are counted instead of failing. `earned` covers 1st..today, `projected`
+// adds the remaining working days as fully paid.
+async function live(user, q = {}, db = c.dbDefault) {
+  c.permit(user, "view_salary");
+  const p = await c.policy(db);
+  const today = c.today(p);
+  const { start, end } = monthBounds(today);
+  const values = [];
+  const scope = c.scope(user, values);
+  values.push(end, start);
+  const employees = (
+    await db.query(
+      `SELECT e.* FROM hrm_employees e WHERE ${scope} AND e.archived_at IS NULL AND e.status<>'Draft'
+       AND e.joining_date<=$${values.length - 1} AND (e.exit_date IS NULL OR e.exit_date>=$${values.length})
+       ORDER BY e.full_name LIMIT 500`,
+      values,
+    )
+  ).rows.map(c.camel);
+  const rows = [];
+  for (const e of employees) {
+    const history = (
+      await db.query("SELECT * FROM hrm_salary_history WHERE employee_id=$1 AND effective_date<=$2 ORDER BY effective_date", [e.id, end])
+    ).rows.map(c.camel);
+    const data = await calendarData(db, e.id, start, end);
+    const scheduled = calc.calendar({ ...e, joiningDate: start, exitDate: null }, start, end, p, { ...data, leave: [] });
+    const denominator = scheduled.reduce((s, d) => s + d.hours, 0);
+    const attendance = (
+      await db.query("SELECT * FROM hrm_attendance WHERE employee_id=$1 AND work_date BETWEEN $2 AND $3", [e.id, start, end])
+    ).rows.map(c.camel);
+    const counts = { workingDays: 0, elapsedDays: 0, present: 0, halfDays: 0, absent: 0, paidLeave: 0, unpaidLeave: 0, unmarked: 0, remaining: 0, holidays: 0 };
+    const unmarkedDates = [];
+    const sums = { earnedGross: 0, earnedDeductions: 0, projectedGross: 0, projectedDeductions: 0 };
+    let current = null;
+    for (const d of scheduled) {
+      if (d.date < e.joiningDate || (e.exitDate && d.date > e.exitDate)) continue;
+      if (d.kind === "Holiday") counts.holidays++;
+      if (!(d.hours > 0)) continue;
+      counts.workingDays++;
+      // Days are counted even without a salary on record; their amount is then 0.
+      const s = calc.effective(history, d.date);
+      if (s) current = s;
+      const earnings = (s?.components || []).filter((x) => x.type === "earning");
+      const base = !s ? 0 : earnings.length ? earnings.reduce((v, x) => v + Number(x.amount), 0) : Number(s.monthlyCost);
+      const monthlyDeduction = (s?.components || []).filter((x) => x.type === "deduction").reduce((v, x) => v + Number(x.amount), 0);
+      const share = denominator ? d.hours / denominator : 0;
+      const a = attendance.find((x) => x.workDate === d.date);
+      const leaves = data.leave.filter((l) => l.startDate <= d.date && l.endDate >= d.date);
+      const future = d.date > today || (d.date === today && !a?.checkIn && !leaves.length);
+      let paidFraction = 1;
+      if (future) {
+        counts.remaining++;
+      } else {
+        counts.elapsedDays++;
+        const unpaid = Math.min(1, leaves.filter((l) => l.details.paid === false).reduce((v, l) => v + Number(l.details.fraction || 1), 0));
+        if (a?.status === "Absent") {
+          paidFraction = 0;
+          counts.absent++;
+        } else if (a?.status === "Half Day" && !leaves.length) {
+          paidFraction = 0.5;
+          counts.halfDays++;
+        } else if (!a && !leaves.length) {
+          // Unresolved: nothing recorded yet. Not earned until HR marks it; projected as paid.
+          paidFraction = 0;
+          counts.unmarked++;
+          unmarkedDates.push(d.date);
+        } else {
+          paidFraction = 1 - unpaid;
+          if (leaves.length) {
+            if (unpaid) counts.unpaidLeave += unpaid;
+            if (unpaid < 1) counts.paidLeave += 1 - unpaid;
+          } else counts.present++;
+        }
+        sums.earnedGross += base * share * paidFraction;
+        sums.earnedDeductions += monthlyDeduction * share * paidFraction;
+      }
+      const projectedFraction = future || unmarkedDates.at(-1) === d.date ? 1 : paidFraction;
+      sums.projectedGross += base * share * projectedFraction;
+      sums.projectedDeductions += monthlyDeduction * share * projectedFraction;
+    }
+    const salaryNow = calc.effective(history, today) || current;
+    const monthly = salaryNow
+      ? (salaryNow.components || []).filter((x) => x.type === "earning").reduce((v, x) => v + Number(x.amount), 0) || Number(salaryNow.monthlyCost)
+      : null;
+    const net = (g, d) => calc.round(Math.max(0, g - d));
+    rows.push({
+      employeeId: e.id,
+      fullName: e.fullName,
+      employeeNumber: e.employeeNumber,
+      status: e.status,
+      joiningDate: e.joiningDate,
+      monthlySalary: monthly,
+      missingSalary: !salaryNow,
+      ...counts,
+      unmarkedDates,
+      earned: { gross: calc.round(sums.earnedGross), deductions: calc.round(sums.earnedDeductions), net: net(sums.earnedGross, sums.earnedDeductions) },
+      projected: { gross: calc.round(sums.projectedGross), deductions: calc.round(sums.projectedDeductions), net: net(sums.projectedGross, sums.projectedDeductions) },
+    });
+  }
+  const total = (key, field) => calc.round(rows.reduce((s, r) => s + r[key][field], 0));
+  return {
+    month: start.slice(0, 7),
+    startDate: start,
+    endDate: end,
+    today,
+    currency: p.currency,
+    generatedAt: new Date().toISOString(),
+    rows,
+    totals: {
+      employees: rows.length,
+      earnedNet: total("earned", "net"),
+      projectedNet: total("projected", "net"),
+      unmarked: rows.reduce((s, r) => s + r.unmarked, 0),
+      missingSalary: rows.filter((r) => r.missingSalary).length,
+    },
+  };
+}
+
+module.exports = { salary, monthBounds, draft, action, payslip, live };

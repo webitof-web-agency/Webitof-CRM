@@ -116,6 +116,7 @@ const controller = {
   ),
   salary: respond((req) => finance.salary(req.user, req.body)),
   payrollDraft: respond((req) => finance.draft(req.user, req.body)),
+  payrollLive: respond((req) => finance.live(req.user, req.query)),
   payrollAction: respond((req) =>
     finance.action(req.user, req.params.id, req.body),
   ),
