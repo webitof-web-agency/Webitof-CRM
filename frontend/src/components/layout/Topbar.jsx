@@ -57,7 +57,7 @@ export function Topbar({
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 h-16 px-4 md:px-8 glass-header flex items-center justify-between gap-4 print:hidden transition-all duration-200">
+    <header className="sticky top-0 z-30 h-16 px-3 md:px-5 glass-header flex items-center justify-between gap-4 print:hidden transition-all duration-200">
       {/* Left section: Sidebar toggle & Context Title */}
       <div className="flex items-center gap-3.5 min-w-0">
         <SidebarToggle onClick={onMenuClick} />

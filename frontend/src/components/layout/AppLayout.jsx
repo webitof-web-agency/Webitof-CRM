@@ -140,7 +140,7 @@ export function AppLayout() {
           onCalendarClick={() => setEventsOpen(true)}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         />
-        <main className="w-full flex-1 px-4 md:px-8 py-6 transition-all duration-200 print:px-0 print:pt-0 print:pb-0">
+        <main className="w-full flex-1 px-3 md:px-5 py-5 transition-all duration-200 print:px-0 print:pt-0 print:pb-0">
           {/* Pages load inside the layout, so the sidebar and top bar stay while a page's code downloads. */}
           <Suspense fallback={<SuspenseLoading />}>
             <Outlet />

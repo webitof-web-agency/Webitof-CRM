@@ -101,7 +101,7 @@ export function FilesPage() {
         )}
       </div>
 
-      <div className="flex flex-col h-[calc(100vh-8rem)] min-h-[600px] overflow-hidden -mx-4 md:-mx-8 px-4 md:px-8">
+      <div className="flex flex-col h-[calc(100vh-8rem)] min-h-[600px] overflow-hidden -mx-3 md:-mx-5 px-3 md:px-5">
         <FileBrowser 
           onViewFile={(file) => setViewingFile(file)}
           refreshTrigger={refreshTrigger}
