@@ -607,38 +607,38 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
         <div className="relative min-h-[420px] xl:min-h-0">
         <Card className="@container flex flex-col overflow-hidden p-0 xl:absolute xl:inset-0">
           <div className="max-h-[70vh] min-h-0 flex-1 overflow-auto xl:max-h-none">
-            <table className="w-full min-w-[800px] text-[12.5px]">
-              <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[10.5px] uppercase tracking-wide text-[var(--text-muted)]">
+            <table className="w-full min-w-[760px] text-[11.5px]">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
                 <tr>
                   {["Date", "Shift", "In", "Out", "Lunch in", "Lunch out", "Hours", "Status", "Late", "Early out", "Overtime"].map((h) => (
                     // Shift only on wide screens, so In/Out/Late/Early/Overtime always fit.
-                    <th key={h} className={cn("whitespace-nowrap px-2 py-2 font-semibold", h === "Shift" && "hidden min-[1800px]:table-cell")}>{h}</th>
+                    <th key={h} className={cn("whitespace-nowrap px-2 py-1.5 font-semibold", h === "Shift" && "hidden min-[1800px]:table-cell")}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {listed.map((d) => (
                   <tr key={d.date} data-day-row={d.date} className={cn("cursor-pointer hover:bg-[var(--hover-bg)]", d.date === selected?.date && "bg-[var(--hover-bg)]", d.date > data.today && "text-[var(--text-muted)] opacity-70", d.date === data.today && "font-semibold")} onClick={() => setPicked(d.date)}>
-                    <td className="whitespace-nowrap px-2 py-2 font-semibold">{prettyDate(d.date)}</td>
-                    <td className="hidden whitespace-nowrap px-2 py-2 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
-                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
-                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{d.checkOut ? clock(d.checkOut, timezone) : d.checkIn ? (d.live ? "Working" : "—") : "—"}</td>
-                    <td className={cn("whitespace-nowrap px-2 py-2 tabular-nums", d.lunchStart && "text-amber-600")} title={d.lunchMinutes ? `Lunch ${hm(d.lunchMinutes)}` : ""}>{d.lunchStart ? clock(d.lunchStart, timezone) : "—"}</td>
-                    <td className={cn("whitespace-nowrap px-2 py-2 tabular-nums", d.lunchEnd && "text-amber-600")} title={d.lunchMinutes ? `Lunch ${hm(d.lunchMinutes)}` : ""}>{d.lunchEnd ? clock(d.lunchEnd, timezone) : d.lunchStart ? (d.live ? "On lunch" : "—") : "—"}</td>
-                    <td className="whitespace-nowrap px-2 py-2 font-semibold tabular-nums">{d.workedMinutes ? hm(d.workedMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2 py-2">
-                      <span className="inline-flex items-center gap-1.5"><Chip code={d.code} /><DayFlags day={d} size={12} /></span>
+                    <td className="whitespace-nowrap px-2 py-1.5 font-medium">{prettyDate(d.date)}</td>
+                    <td className="hidden whitespace-nowrap px-2 py-1.5 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 tabular-nums">{d.checkOut ? clock(d.checkOut, timezone) : d.checkIn ? (d.live ? "Working" : "—") : "—"}</td>
+                    <td className={cn("whitespace-nowrap px-2 py-1.5 tabular-nums", d.lunchStart && "text-amber-600")} title={d.lunchMinutes ? `Lunch ${hm(d.lunchMinutes)}` : ""}>{d.lunchStart ? clock(d.lunchStart, timezone) : "—"}</td>
+                    <td className={cn("whitespace-nowrap px-2 py-1.5 tabular-nums", d.lunchEnd && "text-amber-600")} title={d.lunchMinutes ? `Lunch ${hm(d.lunchMinutes)}` : ""}>{d.lunchEnd ? clock(d.lunchEnd, timezone) : d.lunchStart ? (d.live ? "On lunch" : "—") : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 font-medium tabular-nums">{d.workedMinutes ? hm(d.workedMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5">
+                      <span className="inline-flex items-center gap-1"><Chip code={d.code} className="px-1.5! py-px! text-[10.5px]!" /><DayFlags day={d} size={11} /></span>
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-orange-600 tabular-nums">{d.lateMinutes ? hm(d.lateMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2 py-2 text-rose-600 tabular-nums">{d.earlyMinutes ? hm(d.earlyMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2 py-2 text-sky-600 tabular-nums">{d.overtimeMinutes ? hm(d.overtimeMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-orange-600 tabular-nums">{d.lateMinutes ? hm(d.lateMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-rose-600 tabular-nums">{d.earlyMinutes ? hm(d.earlyMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-sky-600 tabular-nums">{d.overtimeMinutes ? hm(d.overtimeMinutes) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           {listed.length > 0 && (
-            <div className="border-t border-[var(--border)] px-4 py-2 text-xs text-[var(--text-muted)]">
+            <div className="border-t border-[var(--border)] px-3 py-1.5 text-[11px] text-[var(--text-muted)]">
               {listed.length} days · {listed.filter((d) => d.date <= data.today).length} so far
             </div>
           )}
