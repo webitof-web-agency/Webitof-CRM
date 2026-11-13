@@ -59,6 +59,7 @@ const shiftMonth = (ym, delta) => {
 };
 // Toolbar controls share one pill shape (the select keeps its own radius unless overridden).
 const PILL = "h-10 py-2 text-sm! rounded-full!";
+const PICKER = "h-8 py-1 text-sm! rounded-full!";
 const fmtDays = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 // "Morning Shift (10:00 – 19:00)" -> "Morning Shift"; the full name stays in the tooltip.
 const shortShift = (name) => String(name || "").replace(/\s*\(.*\)\s*$/, "") || "—";
@@ -105,26 +106,27 @@ function MonthPicker({ month, onChange, years }) {
       <Button size="xs" variant="secondary" aria-label="Previous month" onClick={() => onChange(shiftMonth(month, -1))}>
         <ChevronLeft size={14} />
       </Button>
-      <select
-        aria-label="Month"
-        className="h-8 rounded-full border border-[var(--input-border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--primary)]"
-        value={m}
-        onChange={(e) => onChange(`${y}-${e.target.value}`)}
-      >
-        {MONTHS.map((name, i) => (
-          <option key={name} value={String(i + 1).padStart(2, "0")}>{name}</option>
-        ))}
-      </select>
-      <select
-        aria-label="Year"
-        className="h-8 rounded-full border border-[var(--input-border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--primary)]"
-        value={y}
-        onChange={(e) => onChange(`${e.target.value}-${m}`)}
-      >
-        {years.map((year) => (
-          <option key={year} value={year}>{year}</option>
-        ))}
-      </select>
+      {/* Themed dropdowns, same as the toolbar selects. */}
+      <div className="w-36">
+        <SearchableSelect
+          aria-label="Month"
+          searchable={false}
+          value={m}
+          onChange={(v) => v && onChange(`${y}-${v}`)}
+          options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, "0"), label: name }))}
+          triggerClassName={PICKER}
+        />
+      </div>
+      <div className="w-24">
+        <SearchableSelect
+          aria-label="Year"
+          searchable={false}
+          value={y}
+          onChange={(v) => v && onChange(`${v}-${m}`)}
+          options={years.map((year) => ({ value: year, label: year }))}
+          triggerClassName={PICKER}
+        />
+      </div>
       <Button size="xs" variant="secondary" aria-label="Next month" onClick={() => onChange(shiftMonth(month, 1))}>
         <ChevronRight size={14} />
       </Button>
