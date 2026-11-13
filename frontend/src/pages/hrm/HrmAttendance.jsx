@@ -107,7 +107,7 @@ function MonthPicker({ month, onChange, years }) {
       </Button>
       <select
         aria-label="Month"
-        className="h-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2 text-sm"
+        className="h-8 rounded-full border border-[var(--input-border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--primary)]"
         value={m}
         onChange={(e) => onChange(`${y}-${e.target.value}`)}
       >
@@ -117,7 +117,7 @@ function MonthPicker({ month, onChange, years }) {
       </select>
       <select
         aria-label="Year"
-        className="h-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2 text-sm"
+        className="h-8 rounded-full border border-[var(--input-border)] bg-[var(--surface)] px-3 text-sm outline-none focus:border-[var(--primary)]"
         value={y}
         onChange={(e) => onChange(`${e.target.value}-${m}`)}
       >
@@ -217,7 +217,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const [limit, setLimit] = useState(20);
   const chosen = employeeId || own || employees[0]?.id || "";
   useEffect(() => {
     if (!chosen) return undefined;
@@ -239,12 +239,12 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
   return (
     <div className="space-y-4">
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.3fr)]">
-        <Card className="space-y-3 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid gap-3 xl:h-[clamp(560px,calc(100dvh-12.5rem),700px)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
+        <Card className="flex flex-col gap-2.5 p-3 xl:min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <MonthPicker month={month} onChange={setMonth} years={years} />
             {t && (
-              <p className="flex gap-3 text-sm">
+              <p className="flex flex-wrap gap-3 text-[13px]">
                 <span>Present <b className="text-emerald-600">{fmtDays(t.present)}</b></span>
                 <span>Absent <b className="text-rose-600">{t.absent}</b></span>
                 <span>Leave <b className="text-violet-600">{fmtDays(t.leave)}</b></span>
@@ -252,10 +252,10 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
               </p>
             )}
           </div>
-          <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             {WEEKDAYS.map((d) => <div key={d}>{d}</div>)}
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid flex-1 auto-rows-fr grid-cols-7 gap-1.5 xl:min-h-0">
             {Array.from({ length: firstWeekday }, (_, i) => <div key={`pad-${i}`} />)}
             {(row?.days || data?.dates?.map((date) => ({ date })) || []).map((day) => {
               const style = CODES[day.code]?.cell;
@@ -268,7 +268,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
                   onClick={() => row && onDay(day, row.employee, chosen === own)}
                   title={CODES[day.code]?.label || "Nothing yet"}
                   className={cn(
-                    "flex h-14 flex-col items-center justify-center gap-0.5 rounded-[12px] border text-base font-bold transition hover:brightness-95",
+                    "flex h-full min-h-12 flex-col items-center justify-center gap-0.5 rounded-[10px] border text-[15px] font-bold transition hover:brightness-95",
                     style || "border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]",
                     isToday && "ring-2 ring-[var(--primary)] ring-offset-1 ring-offset-[var(--surface)]",
                   )}
@@ -279,33 +279,33 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
               );
             })}
           </div>
-          <p className="text-xs text-[var(--text-muted)]">Click a day for its status, punches and actions.</p>
+          <p className="text-[11px] text-[var(--text-muted)]">Click a day for its status, punches and actions.</p>
         </Card>
-        <Card className="overflow-hidden p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-sm">
-              <thead className="bg-[var(--surface-2)] text-left text-xs uppercase tracking-wider text-[var(--text-muted)]">
+        <Card className="flex flex-col overflow-hidden p-0 xl:min-h-0">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <table className="w-full min-w-[680px] text-[13px]">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
                 <tr>
                   {["Date", "Shift", "In", "Out", "Hours", "Status", "Late", "Early out", "Overtime"].map((h) => (
                     // Shift only on wide screens, so In/Out/Late/Early/Overtime always fit.
-                    <th key={h} className={cn("px-2.5 py-2.5 font-semibold", h === "Shift" && "hidden min-[1800px]:table-cell")}>{h}</th>
+                    <th key={h} className={cn("px-2.5 py-2 font-semibold", h === "Shift" && "hidden min-[1800px]:table-cell")}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {listed.slice((page - 1) * limit, page * limit).map((d) => (
                   <tr key={d.date} className="cursor-pointer hover:bg-[var(--hover-bg)]" onClick={() => onDay(d, row.employee, chosen === own)}>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-semibold">{prettyDate(d.date)}</td>
-                    <td className="hidden whitespace-nowrap px-2.5 py-2.5 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 tabular-nums">{d.checkOut ? clock(d.checkOut, timezone) : d.checkIn ? (d.live ? "Working" : "—") : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 font-semibold tabular-nums">{d.workedMinutes ? hm(d.workedMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5">
+                    <td className="whitespace-nowrap px-2.5 py-2 font-semibold">{prettyDate(d.date)}</td>
+                    <td className="hidden whitespace-nowrap px-2.5 py-2 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2 tabular-nums">{d.checkOut ? clock(d.checkOut, timezone) : d.checkIn ? (d.live ? "Working" : "—") : "—"}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2 font-semibold tabular-nums">{d.workedMinutes ? hm(d.workedMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2">
                       <span className="inline-flex items-center gap-1.5"><Chip code={d.code} /><DayFlags day={d} size={12} /></span>
                     </td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 text-orange-600 tabular-nums">{d.lateMinutes ? hm(d.lateMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 text-rose-600 tabular-nums">{d.earlyMinutes ? hm(d.earlyMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2.5 text-sky-600 tabular-nums">{d.overtimeMinutes ? hm(d.overtimeMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2 text-orange-600 tabular-nums">{d.lateMinutes ? hm(d.lateMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2 text-rose-600 tabular-nums">{d.earlyMinutes ? hm(d.earlyMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2.5 py-2 text-sky-600 tabular-nums">{d.overtimeMinutes ? hm(d.overtimeMinutes) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
