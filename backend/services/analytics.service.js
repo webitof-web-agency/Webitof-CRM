@@ -75,8 +75,11 @@ function getComputedRenewalStatus(record = {}, compareDate = new Date()) {
   return record.status || 'Pending';
 }
 
-async function loadBusinessState() {
+// includeCrm: false skips leads, contacts, lead events and follow-ups (the largest tables), which no
+// finance report reads; only the client/lead/project summaries need them.
+async function loadBusinessState({ includeCrm = true } = {}) {
   const settings = (await getSettings()) || {};
+  const crm = (load) => (includeCrm ? load() : Promise.resolve([]));
   const [
     clients,
     projects,
@@ -104,10 +107,10 @@ async function loadBusinessState() {
     paymentModel.list(),
     expenseModel.list(),
     outsourcingModel.list(),
-    leadModel.list(),
-    leadContactModel.list(),
-    clientContactModel.list(),
-    leadEventModel.list(),
+    crm(() => leadModel.list()),
+    crm(() => leadContactModel.list()),
+    crm(() => clientContactModel.list()),
+    crm(() => leadEventModel.list()),
     userModel.list(),
     leadCommissionModel.list(),
     bankAccountModel.list(),
@@ -115,7 +118,7 @@ async function loadBusinessState() {
     amcModel.list(),
     renewalModel.list(),
     masterItemModel.listByType('vendor'),
-    followUpModel.list(),
+    crm(() => followUpModel.list()),
     creditNoteModel.list()
   ]);
 

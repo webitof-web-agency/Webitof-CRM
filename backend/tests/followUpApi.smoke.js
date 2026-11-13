@@ -1,10 +1,17 @@
+// Writes through a running API and reads the database directly, so it needs an explicit disposable
+// stack: TEST_DATABASE_URL (see helpers/requireTestDb) and TEST_API_URL for the API serving it.
+require('./helpers/requireTestDb');
+if (!process.env.TEST_API_URL) {
+  console.log('# skipped: set TEST_API_URL to the API that serves TEST_DATABASE_URL');
+  process.exit(0);
+}
 const assert = require('node:assert/strict');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { closePool, query } = require('../config/db');
 
-const baseUrl = process.env.TEST_API_URL || 'http://127.0.0.1:5000/api';
+const baseUrl = process.env.TEST_API_URL;
 
 async function api(pathname, token) {
   const response = await fetch(`${baseUrl}${pathname}`, {

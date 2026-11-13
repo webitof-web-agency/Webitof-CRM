@@ -89,14 +89,7 @@ function isWonStatus(settings, status) {
   return wonLabels.includes(normalized) || normalized === 'won';
 }
 
-function normalizePhone(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  if (raw.startsWith('+')) return raw;
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return '';
-  return `+${digits}`;
-}
+const { normalizePhone, phoneMatchSql } = require('../utils/phone');
 
 // Calendar date/time in the business timezone; toISOString()/toTimeString() follow the
 // server clock (UTC in production), which shifts IST evenings and early mornings.
@@ -375,7 +368,7 @@ async function findDuplicateLeads({ phone = '', email = '', excludeId = '' } = {
 
   if (digits.length >= 7) {
     values.push(digits);
-    clauses.push(`regexp_replace(coalesce(phone, ''), '\\D', '', 'g') = $${values.length}`);
+    clauses.push(phoneMatchSql('phone', `$${values.length}`));
   }
   if (normalizedEmail) {
     values.push(normalizedEmail);
@@ -401,7 +394,7 @@ async function findDuplicateClients(lead, db = null) {
   const email = String(lead?.email || '').trim().toLowerCase();
   if (digits.length >= 7) {
     values.push(digits);
-    clauses.push(`regexp_replace(coalesce(mobile, ''), '\\D', '', 'g') = $${values.length}`);
+    clauses.push(phoneMatchSql('mobile', `$${values.length}`));
   }
   if (email) {
     values.push(email);
@@ -549,7 +542,12 @@ function buildClientFromLead(lead, settings, primaryContactName = '') {
 }
 
 async function convertLeadRecord(leadId, settings, db, req, options = {}) {
-  const current = await leadModel.findById(leadId, db);
+  const found = await leadModel.findById(leadId, db);
+  if (!found) return null;
+  // Two convert clicks at once would both see "not converted yet" and create two clients. Lock the
+  // lead and read it again: the second request then finds the client the first one made.
+  await db.query('select id from leads where id = $1 for update', [found.id]);
+  const current = await leadModel.findById(found.id, db);
   if (!current) return null;
   const resolvedLeadId = current.id;
 
@@ -1020,7 +1018,7 @@ const leadsController = {
         const primary = await findAccessibleLeadById(primaryLeadId, req, db);
         const duplicate = await findAccessibleLeadById(duplicateLeadId, req, db);
         if (!primary || !duplicate) {
-          throw new Error('One or both leads were not found');
+          throw Object.assign(new Error('One or both leads were not found'), { statusCode: 404 });
         }
 
         // 1. Migrate lead_events from duplicate to primary
@@ -1764,11 +1762,12 @@ const leadsController = {
       const none = Promise.resolve({ rows: [] });
       const [leadsRes, clientsRes, invoicesRes, projectsRes] = await Promise.all([
         !can('leads.read') ? none : query(
-          `SELECT id, name, company_name, phone, email, status, lead_number, pipeline_id,
+          `SELECT id, name, company_name, contact_person, phone, email, status, lead_number, pipeline_id,
                   assigned_to, lead_owner, created_by, secondary_assignees, managers
            FROM leads
            WHERE lower(coalesce(name, '')) LIKE $1 
               OR lower(coalesce(company_name, '')) LIKE $1 
+              OR lower(coalesce(contact_person, '')) LIKE $1 
               OR lower(coalesce(phone, '')) LIKE $1 
               OR lower(coalesce(email, '')) LIKE $1 
               OR lower(coalesce(lead_number, '')) LIKE $1 
@@ -1811,7 +1810,7 @@ const leadsController = {
             .slice(0, 5)
             .map((row) => ({
             id: row.id,
-            title: row.name || row.company_name,
+            title: row.name || row.company_name || row.contact_person || row.lead_number,
             subtitle: `${row.lead_number || ''} • ${row.phone || row.email || ''} • ${row.status || ''}`.trim(),
             type: 'Lead',
             path: `/app/leads/${row.id}`

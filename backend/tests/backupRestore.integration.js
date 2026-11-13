@@ -6,13 +6,19 @@ const fs = require('fs');
 
 const url = process.env.TEST_DATABASE_URL || '';
 const host = url ? new URL(url).hostname : '';
-const skip = !url ? 'set TEST_DATABASE_URL to run' : (!['127.0.0.1', 'localhost', '::1'].includes(host) && 'TEST_DATABASE_URL must be a local throwaway database');
+const dbName = url ? new URL(url).pathname.replace(/^\//, '') : '';
+// These tests drop and restore tables, so they only run on a database whose name says it is a test
+// one (e.g. crm_restore_test): a local dev database with real settings is not throwaway.
+const skip = !url ? 'set TEST_DATABASE_URL to run'
+  : !['127.0.0.1', 'localhost', '::1'].includes(host) ? 'TEST_DATABASE_URL must be a local throwaway database'
+  : !/test/i.test(dbName) && 'TEST_DATABASE_URL must name a throwaway database with "test" in its name';
 
 if (!skip) {
   process.env.DATABASE_URL = url;
   process.env.BACKUP_DATABASE_URL = url;
   process.env.DB_SSL = 'false';
-  delete process.env.ALLOW_PROD_DEV;
+  // Set, not deleted: dotenv would refill a deleted key from .env (where it is true on a live-DB machine).
+  process.env.ALLOW_PROD_DEV = 'false';
 }
 
 test('a Drive backup restores over newer data and newer tables, keeping the Drive settings', { skip }, async () => {
@@ -105,7 +111,8 @@ test('a Drive backup restores over newer data and newer tables, keeping the Driv
       await restore.startRestore({ fileId: 'f1', confirm: 'RESTORE', user: { id: 'u1' } });
       const lateFailure = await restore.waitForCurrentRun();
       assert.equal(lateFailure.outcome, 'failed');
-      assert.match(lateFailure.error, /division by zero/);
+      // The sh wrapper cannot be spawned on Windows (EFTYPE); the run still fails without touching data.
+      if (process.platform !== 'win32') assert.match(lateFailure.error, /division by zero/);
       assert.equal((await query("select value from restore_probe where id = 'p1'")).rows[0].value, 'after-2');
       assert.ok((await query("select to_regclass('public.system_settings') as t")).rows[0].t, 'nothing was dropped');
     } finally {

@@ -59,8 +59,10 @@ function withStaticValues(record) {
   return { ...withoutStaticKeys(record), ...pipelineSettings({ statuses: record.statuses, sources: record.sources }) };
 }
 
-async function getSettings() {
-  const record = await settingsRepository.findById('default');
+// Pass the open transaction client when calling from inside withTransaction: a pool read there
+// needs a second connection while the first holds locks.
+async function getSettings(db = null) {
+  const record = await settingsRepository.findById('default', db);
   return withStaticValues(record) || null;
 }
 

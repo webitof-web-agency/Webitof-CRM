@@ -11,7 +11,7 @@ const { generateInvoiceNumber, getFinancialYear, normalizeInvoiceNumber } = requ
 const { getInvoiceSnapshot, syncInvoiceFinancialState, isPaymentCounted, groupCreditNotesByInvoice } = require('../services/finance.service');
 const { notifyBusinessEvent } = require('../services/notification.service');
 const { hasPermission } = require('../middlewares/auth');
-const { withTransaction } = require('../config/db');
+const { query, withTransaction } = require('../config/db');
 const { safeOrderBy } = require('../utils/orderBy');
 const followUpEngine = require('../services/followUpEngine.service');
 
@@ -30,9 +30,10 @@ function resolveInvoiceTemplate(settings = {}, invoice = {}) {
   return templates.find((template) => String(template.id) === String(invoice?.templateId)) || templates.find((template) => template.isDefault) || templates[0] || null;
 }
 
-async function getNextInvoiceSequence(currentId = null) {
-  const records = await invoiceModel.list({ orderBy: 'invoice_date ASC, created_at ASC' });
-  const maxSequence = records.reduce((max, record) => {
+async function getNextInvoiceSequence(currentId = null, db = null) {
+  const exec = db?.query ? db.query.bind(db) : query;
+  const { rows } = await exec('select id, invoice_number as "invoiceNumber" from invoices');
+  const maxSequence = rows.reduce((max, record) => {
     if (currentId && String(record.id) === String(currentId)) return max;
     const match = String(record.invoiceNumber || '').match(/(\d+)\s*$/);
     const sequence = match ? Number(match[1]) : 0;
@@ -194,7 +195,25 @@ function normalizeInvoiceItems(items = [], serviceMap = new Map(), user = null) 
   });
 }
 
+// Saved invoices refuse impossible lines outright, so the books never hold a negative or inflated line.
+function validateInvoiceItems(items = []) {
+  items.forEach((item = {}, index) => {
+    const label = `Line ${index + 1}`;
+    const fail = (message) => { throw Object.assign(new Error(`${label}: ${message}`), { statusCode: 400 }); };
+    const num = (value) => (value === undefined || value === null || value === '' ? null : Number(value));
+    const quantity = num(item.quantity ?? item.qty);
+    const rate = num(item.rate);
+    const discount = num(item.discount);
+    const gstRate = num(item.gstRate ?? item.taxRate);
+    if (quantity !== null && (!Number.isFinite(quantity) || quantity < 0)) fail('quantity cannot be negative.');
+    if (rate !== null && (!Number.isFinite(rate) || rate < 0)) fail('rate cannot be negative.');
+    if (discount !== null && (!Number.isFinite(discount) || discount < 0 || discount > 100)) fail('discount must be between 0 and 100 %.');
+    if (gstRate !== null && (!Number.isFinite(gstRate) || gstRate < 0 || gstRate > 40)) fail('GST rate must be between 0 and 40 %.');
+  });
+}
+
 async function normalizeInvoice(body = {}, current = null, user = null) {
+  if (Array.isArray(body.items)) validateInvoiceItems(body.items);
   const settings = (await getSettings()) || {};
   const clientId = body.clientId || current?.clientId || null;
   const client = clientId ? await clientModel.findById(clientId) : null;
@@ -343,8 +362,8 @@ invoicesController.create = async (req, res, next) => {
       // the one computed above came from a read that another invoice may already have used.
       await db.query(`select pg_advisory_xact_lock(hashtext('webitof-invoice-number'))`);
       if (!numberSupplied) {
-        const settings = await getSettings();
-        body.invoiceNumber = generateInvoiceNumber(settings || {}, await getNextInvoiceSequence(), body.invoiceDate);
+        const settings = await getSettings(db);
+        body.invoiceNumber = generateInvoiceNumber(settings || {}, await getNextInvoiceSequence(null, db), body.invoiceDate);
       }
       const record = await invoiceModel.create(body, db);
       const snapshot = await syncInvoiceFinancialState(record.id, db);

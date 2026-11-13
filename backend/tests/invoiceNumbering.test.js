@@ -4,13 +4,23 @@ const assert = require('node:assert/strict');
 
 const config = require('../config/db');
 const log = [];
+let listCalls = 0;
+// Invoice numbers are read with a plain query: through the pool while the request is prepared,
+// through the transaction once the lock is held. The first read is stale; by the time the lock is
+// held, INV-006 exists.
+function numberRows() {
+  listCalls += 1;
+  return [{ id: 'old', invoiceNumber: listCalls === 1 ? 'INV-005' : 'INV-006' }];
+}
 const db = {
   async query(sql) {
     log.push(sql.replace(/\s+/g, ' ').trim());
+    if (/from invoices/i.test(sql)) return { rows: numberRows(), rowCount: 1 };
     return { rows: [], rowCount: 0 };
   }
 };
 config.withTransaction = async (work) => work(db);
+config.query = async (sql) => (/from invoices/i.test(sql) ? { rows: numberRows(), rowCount: 1 } : { rows: [], rowCount: 0 });
 
 const invoiceModel = require('../models/invoice.model');
 const clientModel = require('../models/client.model');
@@ -20,13 +30,7 @@ const masterItemModel = require('../models/masterItem.model');
 const notifications = require('../services/notification.service');
 const followUps = require('../services/followUpEngine.service');
 
-let listCalls = 0;
 let created = null;
-invoiceModel.list = async () => {
-  listCalls += 1;
-  // The first read (while the request is being prepared) is stale; by the time the lock is held, INV-006 exists.
-  return [{ invoiceNumber: listCalls === 1 ? 'INV-005' : 'INV-006' }];
-};
 invoiceModel.create = async (body) => {
   log.push('create');
   created = { id: 'inv_new', ...body };

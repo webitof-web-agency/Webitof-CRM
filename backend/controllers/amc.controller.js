@@ -1,4 +1,5 @@
 const { createCrudController } = require('./crudController');
+const rules = require('../utils/recordRules');
 const amcModel = require('../models/amc.model');
 const amcAutomationLogModel = require('../models/amcAutomationLog.model');
 const masterItemModel = require('../models/masterItem.model');
@@ -145,6 +146,8 @@ async function normalizeAmc(body = {}, current = null) {
   const title = String(base.title || current?.title || base.amcType || '').trim() || 'AMC';
   const reminderDays = toNumber(base.reminderDays ?? current?.reminderDays ?? amcTypeMeta?.payload?.defaultReminderDays ?? 7, 7);
   const autoInvoice = base.autoInvoice ?? current?.autoInvoice ?? amcTypeMeta?.payload?.autoInvoice ?? false;
+  rules.nonNegative(base, { amcAmount: 'AMC amount', reminderDays: 'Reminder days', supportHours: 'Support hours', responseSlaHours: 'Response SLA hours' });
+  rules.dateOrder(startDate, endDate, 'The AMC end date cannot be before its start date.');
 
   return {
     ...base,

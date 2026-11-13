@@ -1,4 +1,5 @@
 const userModel = require('../models/user.model');
+const { query } = require('../config/db');
 const { createUser, deleteUser, findRoleByCode, getUserAccessProfile, listUsers, updateUser } = require('../services/auth.service');
 
 // users.manage alone must not create, promote, edit or remove a Super Admin: that would let
@@ -72,9 +73,40 @@ async function createController(req, res, next) {
   }
 }
 
+// The system must always keep one active Super Admin, or nobody can manage users and roles again.
+// A user also cannot switch off their own login (the next request would lock them out mid-session).
+async function assertKeepsASuperAdmin(actor, targetUserId, body = {}) {
+  const deactivating = body.isActive === false || body.isActive === 'false';
+  if (deactivating && String(targetUserId) === String(actor?.id)) {
+    const error = new Error('You cannot deactivate your own account');
+    error.statusCode = 400;
+    throw error;
+  }
+  const target = await getUserAccessProfile(targetUserId);
+  if (!target?.isSuperAdmin || !target.isActive) return;
+  let losesAdmin = deactivating;
+  if (!losesAdmin && Array.isArray(body.roleIds)) {
+    const adminRole = await findRoleByCode('admin');
+    losesAdmin = Boolean(adminRole) && !body.roleIds.map(String).includes(String(adminRole.id));
+  }
+  if (!losesAdmin) return;
+  const result = await query(
+    `select count(distinct u.id)::int as others
+       from users u join user_roles ur on ur.user_id = u.id join roles r on r.id = ur.role_id
+      where r.code = 'admin' and u.is_active = true and u.id <> $1`,
+    [String(target.id)]
+  );
+  if (!result.rows[0]?.others) {
+    const error = new Error('This is the only active Super Admin. Make another user Super Admin first.');
+    error.statusCode = 409;
+    throw error;
+  }
+}
+
 async function updateController(req, res, next) {
   try {
     await assertCanManageAdmins(req.user, { roleIds: req.body?.roleIds, targetUserId: req.params.id });
+    await assertKeepsASuperAdmin(req.user, req.params.id, req.body || {});
     const result = await updateUser(req.params.id, req.body || {}, { assignedBy: req.user?.id || null });
     if (!result) {
       return res.status(404).json({ success: false, message: 'User not found' });

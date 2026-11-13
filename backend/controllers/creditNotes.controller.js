@@ -106,7 +106,7 @@ async function create(req, res, next) {
         throw httpError('A credit note cannot be dated before its invoice.');
       }
       const [settings, client, existing] = await Promise.all([
-        getSettings(),
+        getSettings(db),
         invoice.clientId ? clientModel.findById(invoice.clientId, db) : Promise.resolve(null),
         finance.loadCreditNotesForInvoice(invoiceId, db)
       ]);

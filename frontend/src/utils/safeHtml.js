@@ -1,4 +1,6 @@
-const BLOCKED_TAGS = 'script,style,iframe,frame,frameset,object,embed,applet,form,input,button,textarea,select,meta,link,base,svg,math,template';
+// noscript/noembed/noframes/xmp/plaintext/title/listing hold raw text that parses differently once the
+// result is put into a live page, so markup hidden inside them would come back as real elements (mXSS).
+const BLOCKED_TAGS = 'script,style,iframe,frame,frameset,object,embed,applet,form,input,button,textarea,select,meta,link,base,svg,math,template,noscript,noembed,noframes,xmp,plaintext,title,listing';
 const URL_ATTRIBUTES = new Set(['href', 'src', 'xlink:href', 'action', 'formaction', 'background', 'poster', 'srcset']);
 const MEDIA_ATTRIBUTES = new Set(['src', 'srcset', 'poster', 'background']);
 
@@ -31,6 +33,19 @@ export function safeRichHtml(value) {
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
     }[char]));
   }
+  // Clean until a pass changes nothing: serialising and re-parsing can surface new markup.
+  let current = html;
+  for (let pass = 0; pass < 4; pass += 1) {
+    const next = sanitizeOnce(current);
+    if (next === current) return next;
+    current = next;
+  }
+  return htmlToText(current).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+  }[char]));
+}
+
+function sanitizeOnce(html) {
   const template = document.createElement('template');
   template.innerHTML = html;
   template.content.querySelectorAll(BLOCKED_TAGS).forEach((node) => node.remove());

@@ -46,7 +46,7 @@ async function resolveSmtpConfig() {
 async function getTransporter() {
   const smtp = await resolveSmtpConfig();
   if (!smtp) {
-    throw new Error('SMTP configuration is missing. Please configure Hostinger SMTP in settings or environment variables.');
+    throw Object.assign(new Error('SMTP configuration is missing. Please configure Hostinger SMTP in settings or environment variables.'), { statusCode: 503 });
   }
 
   const cacheKey = JSON.stringify({

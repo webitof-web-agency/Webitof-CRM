@@ -334,7 +334,7 @@ async function ensureInvoiceForApprovedQuotation({ event, req, db }) {
     error.statusCode = 404;
     throw error;
   }
-  const settings = (await getSettings()) || {};
+  const settings = (await getSettings(db)) || {};
   const quotation = getQuotationSnapshot(event, lead, settings);
   if (quotation.status.toLowerCase() !== 'approved') {
     return { quotation: event, invoice: null, reminder: null, created: false };

@@ -1,4 +1,5 @@
 const { createCrudController } = require('./crudController');
+const rules = require('../utils/recordRules');
 const renewalModel = require('../models/renewal.model');
 const masterItemModel = require('../models/masterItem.model');
 const workflowAutomationLogModel = require('../models/workflowAutomationLog.model');
@@ -8,6 +9,11 @@ const { notifyBusinessEvent } = require('../services/notification.service');
 
 async function normalizeRenewal(body = {}, current = null) {
   const base = current ? { ...current, ...body } : { ...body };
+  rules.nonNegative(base, {
+    purchasePrice: 'Purchase price', renewalPrice: 'Renewal price', renewalCost: 'Renewal cost',
+    clientCharge: 'Client charge', amount: 'Amount', seats: 'Seats', durationYears: 'Duration'
+  });
+  rules.dateOrder(base.purchaseDate, base.expiryDate, 'The expiry date cannot be before the purchase date.');
   const providerItem = base.providerId ? await masterItemModel.findOne('renewal_provider', base.providerId) : null;
   const providerValue = String(
     base.provider

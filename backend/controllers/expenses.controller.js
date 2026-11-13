@@ -1,4 +1,5 @@
 const { createCrudController } = require('./crudController');
+const rules = require('../utils/recordRules');
 const expenseModel = require('../models/expense.model');
 const masterItemModel = require('../models/masterItem.model');
 const clientModel = require('../models/client.model');
@@ -88,6 +89,12 @@ async function resolvePayee(base = {}, expenseType = 'Vendor Bill', payeeType = 
 async function normalizeExpense(body = {}, current = null) {
   const settings = (await getSettings()) || {};
   const base = current ? { ...current, ...body } : { ...body };
+  rules.nonNegative(base, {
+    amountBeforeGst: 'Amount before GST', gstAmount: 'GST amount', totalAmount: 'Total amount',
+    tdsAmount: 'TDS amount', paidAmount: 'Paid amount', amount: 'Amount'
+  });
+  rules.percent(base, 'gstRate', 'GST rate', 40);
+  rules.percent(base, 'tdsRate', 'TDS rate');
   const expenseType = String(base.expenseType || current?.expenseType || 'Vendor Bill').trim() || 'Vendor Bill';
   const payeeType = String(base.payeeType || current?.payeeType || EXPENSE_TYPE_DEFAULTS[expenseType] || 'Vendor').trim() || 'Vendor';
   const payee = await resolvePayee(base, expenseType, payeeType);
@@ -102,6 +109,8 @@ async function normalizeExpense(body = {}, current = null) {
   const tdsRate = toNumber(base.tdsRate ?? current?.tdsRate ?? 0);
   const tdsAmount = round2(toNumber(base.tdsAmount) || (base.tdsApplicable ? totalAmount * tdsRate / 100 : 0));
   const paidAmount = round2(toNumber(base.paidAmount ?? current?.paidAmount ?? 0));
+  if (paidAmount > totalAmount + 0.005) rules.fail('The paid amount cannot be more than the expense total.');
+  rules.dateOrder(normalizeDate(base.periodStart || current?.periodStart), normalizeDate(base.periodEnd || current?.periodEnd), 'The period end cannot be before the period start.');
   const balanceDue = round2(Math.max(0, totalAmount - paidAmount));
   const periodStart = normalizeDate(base.periodStart || current?.periodStart);
   const periodEnd = normalizeDate(base.periodEnd || current?.periodEnd);

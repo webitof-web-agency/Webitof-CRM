@@ -6,7 +6,8 @@ const { query } = require('../config/db');
 // login, which still works behind a reverse proxy where every request shares the proxy IP.
 // Counters live in Postgres (auth_rate_limits) so they survive restarts and are shared by every
 // API instance; if the table is unavailable the limiter falls back to process memory.
-function failedAttemptLimiter({ name = 'auth', windowMs = 15 * 60 * 1000, max = 10, message, countAll = false } = {}) {
+// ipOnly keys on the caller's IP alone, for public endpoints with no login (e.g. the lead webhook).
+function failedAttemptLimiter({ name = 'auth', windowMs = 15 * 60 * 1000, max = 10, message, countAll = false, ipOnly = false } = {}) {
   const memory = new Map();
   const windowSeconds = Math.ceil(windowMs / 1000);
 
@@ -49,7 +50,7 @@ function failedAttemptLimiter({ name = 'auth', windowMs = 15 * 60 * 1000, max = 
   };
 
   return async (req, res, next) => {
-    const identifier = String(req.body?.identifier || req.body?.email || req.body?.username || '').trim().toLowerCase();
+    const identifier = ipOnly ? '' : String(req.body?.identifier || req.body?.email || req.body?.username || '').trim().toLowerCase();
     const key = `${name}|${req.ip}|${identifier}`;
     const entry = await store.hit(key);
 

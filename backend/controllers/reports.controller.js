@@ -170,7 +170,9 @@ function getOutsourcingAlertState(record = {}, settings = {}) {
 
 async function dashboardSummary(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    // No period in the query means all time, the dashboard's default.
+    const period = parseReportPeriod(req.query);
+    const state = filterStateByPeriod(await loadBusinessState({ includeCrm: false }), period);
     const financeSummary = buildFinanceSummary(state);
     const invoiceTotals = state.invoices
       .filter(isIssuedInvoice)
@@ -303,7 +305,7 @@ async function dashboardSummary(req, res, next) {
 async function profitLoss(req, res, next) {
   try {
     const period = parseReportPeriod(req.query);
-    const state = filterStateByPeriod(await loadBusinessState(), period);
+    const state = filterStateByPeriod(await loadBusinessState({ includeCrm: false }), period);
     const invoiceTotals = state.invoices
       .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
@@ -341,7 +343,7 @@ async function profitLoss(req, res, next) {
 async function gstSummary(req, res, next) {
   try {
     const period = parseReportPeriod(req.query);
-    const state = filterStateByPeriod(await loadBusinessState(), period);
+    const state = filterStateByPeriod(await loadBusinessState({ includeCrm: false }), period);
     const invoiceTotals = state.invoices
       .filter(isIssuedInvoice)
       .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
@@ -377,7 +379,7 @@ async function gstSummary(req, res, next) {
 
 async function pendingPayables(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const state = await loadBusinessState({ includeCrm: false });
     const outsource = state.outsourcingExpenses
       .filter((expense) => expense.paymentStatus !== 'Paid')
       .map((expense) => ({
@@ -405,7 +407,7 @@ async function pendingPayables(req, res, next) {
 
 async function caAudit(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const state = await loadBusinessState({ includeCrm: false });
     const dashboard = await buildRenewalDashboard(state);
     const invoiceTotals = state.invoices
       .filter(isIssuedInvoice)
@@ -438,7 +440,7 @@ async function caAudit(req, res, next) {
 
 async function renewalDashboard(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const state = await loadBusinessState({ includeCrm: false });
     const dashboard = await buildRenewalDashboard(state);
     res.json({ success: true, data: dashboard });
   } catch (error) {
@@ -448,7 +450,7 @@ async function renewalDashboard(req, res, next) {
 
 async function payrollSummary(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const state = await loadBusinessState({ includeCrm: false });
     const rows = getPayrollUsers(state).map((user) => {
       const monthlySalary = calculatePayrollExpense(user);
       return {

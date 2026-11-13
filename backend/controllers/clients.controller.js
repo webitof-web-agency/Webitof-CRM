@@ -10,14 +10,7 @@ const clientsController = createCrudController(clientModel, {
   defaultOrder: 'updated_at DESC'
 });
 
-function normalizePhone(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  if (raw.startsWith('+')) return raw;
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return '';
-  return `+${digits}`;
-}
+const { normalizePhone } = require('../utils/phone');
 
 async function syncPrimaryClientContact(db, clientId, source = {}) {
   const contactName = String(source.contactPerson || source.name || '').trim();
@@ -64,7 +57,13 @@ async function syncPrimaryClientContact(db, clientId, source = {}) {
 clientsController.create = async (req, res, next) => {
   try {
     const record = await withTransaction(async (db) => {
-      const body = req.body || {};
+      const body = { ...(req.body || {}) };
+      // A client needs a name; a company-only client is named after the company.
+      body.name = String(body.name || body.companyName || '').trim();
+      if (!body.name) {
+        throw Object.assign(new Error('Client name or company name is required'), { statusCode: 400 });
+      }
+      if (body.mobile) body.mobile = normalizePhone(body.mobile);
       const created = await clientModel.create(body, db);
       await syncPrimaryClientContact(db, created.id, body);
       return created;

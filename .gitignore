@@ -81,3 +81,8 @@ public/uploads/
 scripts/temp-*
 *.backup.json
 *.backup.sql
+
+# Playwright role tests: generated logins, screenshots and reports
+frontend/e2e/.auth/
+frontend/test-results/
+frontend/playwright-report/

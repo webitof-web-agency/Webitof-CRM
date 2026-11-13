@@ -10,7 +10,12 @@ const path = require('path');
 
 const url = process.env.TEST_DATABASE_URL || '';
 const host = url ? new URL(url).hostname : '';
-const skip = !url ? 'set TEST_DATABASE_URL to run' : (!['127.0.0.1', 'localhost', '::1'].includes(host) && 'TEST_DATABASE_URL must be a local throwaway database');
+const dbName = url ? new URL(url).pathname.replace(/^\//, '') : '';
+// These tests drop and restore tables, so they only run on a database whose name says it is a test
+// one (e.g. crm_restore_test): a local dev database with real settings is not throwaway.
+const skip = !url ? 'set TEST_DATABASE_URL to run'
+  : !['127.0.0.1', 'localhost', '::1'].includes(host) ? 'TEST_DATABASE_URL must be a local throwaway database'
+  : !/test/i.test(dbName) && 'TEST_DATABASE_URL must name a throwaway database with "test" in its name';
 
 if (!skip) {
   process.env.DATABASE_URL = url;
@@ -18,7 +23,9 @@ if (!skip) {
   process.env.DB_SSL = 'false';
   process.env.AUTO_INIT_DB = 'true';
   process.env.SEED_DEFAULT_DATA = 'true';
-  for (const name of ['ALLOW_PROD_DEV', 'BOOTSTRAP_ADMIN_EMAIL', 'BOOTSTRAP_ADMIN_PASSWORD', 'PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE']) delete process.env[name];
+  // Blanked, not deleted: dotenv would refill a deleted key from .env.
+  for (const name of ['BOOTSTRAP_ADMIN_EMAIL', 'BOOTSTRAP_ADMIN_PASSWORD', 'PGHOST', 'PGPORT', 'PGUSER', 'PGPASSWORD', 'PGDATABASE']) process.env[name] = '';
+  process.env.ALLOW_PROD_DEV = 'false';
 }
 
 async function counts(query) {

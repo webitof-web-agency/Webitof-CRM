@@ -61,7 +61,16 @@ router.use('/invoices', invoicesPublicRouter);
 const settingsController = require('../controllers/settings.controller');
 router.get('/settings/public', settingsController.fetchPublicSettings);
 // Website forms post leads here with the webhook key instead of a user token.
-router.post('/leads/webhook', require('../controllers/leads.controller').captureWebhookLead);
+// The key sits in website form code, so anyone can find it: cap submissions per IP.
+const webhookLimiter = require('../middlewares/rateLimit').failedAttemptLimiter({
+  name: 'lead-webhook',
+  windowMs: 60 * 1000,
+  max: Number(process.env.LEAD_WEBHOOK_MAX_PER_MINUTE || 30),
+  countAll: true,
+  ipOnly: true,
+  message: 'Too many submissions. Please try again in a minute.'
+});
+router.post('/leads/webhook', webhookLimiter, require('../controllers/leads.controller').captureWebhookLead);
 // <audio> players and download links cannot send the Bearer header, so these routes sit before
 // requireAuth and instead require the short-lived signature that call-log responses embed in recordingUrl.
 router.get('/call-logs/recordings/:filename', callLogsController.streamRecording);

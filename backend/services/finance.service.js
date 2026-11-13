@@ -834,7 +834,7 @@ async function syncInvoiceFinancialState(invoiceId, dbClient = null) {
     exec
       ? exec.call(dbClient, 'select * from payments where invoice_id = $1 order by payment_date asc, created_at asc', [invoiceId])
       : paymentModel.list({ where: { invoiceId } }),
-    getSettings(),
+    getSettings(dbClient),
     loadCreditNotesForInvoice(invoiceId, dbClient)
   ]);
 
@@ -872,7 +872,7 @@ async function getInvoiceBalance(invoiceId, dbClient = null, { excludePaymentId 
     exec
       ? exec.call(dbClient, 'select * from payments where invoice_id = $1', [invoiceId])
       : paymentModel.list({ where: { invoiceId } }),
-    getSettings(),
+    getSettings(dbClient),
     loadCreditNotesForInvoice(invoiceId, dbClient)
   ]);
   if (!invoice) return null;

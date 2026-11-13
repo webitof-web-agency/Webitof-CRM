@@ -186,9 +186,10 @@ function calculateInvoiceTotals(invoice = {}, invoiceItems = [], settings = {}, 
   const rows = invoiceItems.filter((item) => !item?.hidden).map((item) => {
     const quantity = toNumber(item.quantity ?? item.qty ?? 1);
     const lineAmount = round2(quantity * toNumber(item.rate));
-    const lineDiscount = round2(lineAmount * toNumber(item.discount) / 100);
+    // A line discount is 0-100 %: a negative one would raise the price, over 100 % would go negative.
+    const lineDiscount = round2(lineAmount * Math.min(100, Math.max(0, toNumber(item.discount))) / 100);
     const grossLineAmount = round2(Math.max(0, lineAmount - lineDiscount));
-    const rate = gstEnabled ? toNumber(item.gstRate ?? item.taxRate, settings?.gst?.defaultRate ?? 18) : 0;
+    const rate = gstEnabled ? Math.max(0, toNumber(item.gstRate ?? item.taxRate, settings?.gst?.defaultRate ?? 18)) : 0;
     const preview = calculateGstBreakdown({
       taxableAmount: 0,
       gstRate: rate,

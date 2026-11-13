@@ -23,7 +23,17 @@ const connectionConfig = process.env.DATABASE_URL
       ssl: String(process.env.DB_SSL || '').toLowerCase() === 'true' ? { rejectUnauthorized: false } : false
     };
 
-const pool = new Pool(connectionConfig);
+// A request that waits for a pool connection gives up after DB_POOL_ACQUIRE_TIMEOUT_MS instead of
+// forever: code that runs a pool query while holding a transaction (and its locks) could otherwise
+// starve the pool and hang every request until a restart. A transaction left idle for
+// DB_IDLE_TX_TIMEOUT_MS is ended by Postgres, which frees its locks.
+const pool = new Pool({
+  ...connectionConfig,
+  max: Number(process.env.DB_POOL_MAX || 15),
+  connectionTimeoutMillis: Number(process.env.DB_POOL_ACQUIRE_TIMEOUT_MS || 15000),
+  idleTimeoutMillis: 30000,
+  idle_in_transaction_session_timeout: Number(process.env.DB_IDLE_TX_TIMEOUT_MS || 60000)
+});
 
 pool.on('error', (error) => {
   console.error('Unexpected database pool error:', error);

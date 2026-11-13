@@ -7,7 +7,7 @@ const {
 
 async function summary(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const state = await loadBusinessState({ includeCrm: false });
     res.json({
       success: true,
       data: buildFinanceSummary(state, req.query || {})
@@ -19,7 +19,7 @@ async function summary(req, res, next) {
 
 async function ledger(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const state = await loadBusinessState({ includeCrm: false });
     const result = buildFinanceLedger(state, req.query || {});
     res.json({
       success: true,
@@ -32,7 +32,7 @@ async function ledger(req, res, next) {
 
 async function reconciliation(req, res, next) {
   try {
-    const state = await loadBusinessState();
+    const state = await loadBusinessState({ includeCrm: false });
     const result = buildBankReconciliation(state, req.query || {});
     res.json({
       success: true,
