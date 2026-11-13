@@ -5,11 +5,27 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
-import { GeoMap, mapsLink } from "./GeoMap";
+import { GeoMap, distanceMeters, mapsLink } from "./GeoMap";
 import { hrm } from "./hrmApi";
 import { formatDate } from "../../lib/format";
 import { SimpleTable } from "../../components/ui/SimpleTable";
 const blank = (radius) => ({ label: "", address: "", latitude: "", longitude: "", radiusMeters: radius, locationId: "", status: "Approved" });
+// Below this an office fence is smaller than everyday GPS drift indoors, so staff inside the
+// building are often refused clock-in.
+const SMALL_OFFICE_RADIUS = 50;
+/** Why a home location needs a second look: it overlaps an office, or its GPS fix was too rough. */
+function homeWarnings(home, offices) {
+  const notes = [];
+  for (const office of offices) {
+    if (office.status !== "Approved") continue;
+    const apart = distanceMeters(home, office);
+    if (apart < Number(office.radiusMeters) + Number(home.radiusMeters))
+      notes.push(`Overlaps ${office.label} (${apart} m away): a clock-in near the office can count as Work From Home`);
+  }
+  if (home.requestAccuracy != null && Number(home.requestAccuracy) > Number(home.radiusMeters))
+    notes.push(`Registered with GPS accuracy ±${home.requestAccuracy} m, wider than its ${home.radiusMeters} m radius`);
+  return notes;
+}
 /** Office geofences (WFO) and employee home geofences (WFH). */
 export function HrmGeofences({ token, metadata, masters, can }) {
   const [rows, setRows] = useState([]),
@@ -31,6 +47,8 @@ export function HrmGeofences({ token, metadata, masters, can }) {
   }, [token, refresh]);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const offices = rows.filter((r) => r.kind === "office");
+  // An empty form opens the map on an existing office, not on 0,0.
+  const mapFallback = offices.find((o) => o.status === "Approved") || offices[0] || null;
   const homes = rows.filter((r) => r.kind === "home");
   async function submit(e) {
     e.preventDefault();
@@ -46,6 +64,7 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       setRefresh((n) => n + 1);
     } catch (err) {
       setError(err.message);
+      toast.error(err.message);
     } finally {
       setBusy(false);
     }
@@ -92,7 +111,11 @@ export function HrmGeofences({ token, metadata, masters, can }) {
                 <Field name="officeLat" title="Latitude" type="number" value={form.latitude} onChange={(v) => set("latitude", v)} required />
                 <Field name="officeLng" title="Longitude" type="number" value={form.longitude} onChange={(v) => set("longitude", v)} required />
               </div>
-              <Field name="officeRadius" title="Radius (metres)" type="number" min={20} max={5000} value={form.radiusMeters} onChange={(v) => set("radiusMeters", v)} required help="Keep 100–200 m for a building; GPS tolerance is added automatically." />
+              <Field name="officeRadius" title="Radius (metres)" type="number" min={20} max={5000} value={form.radiusMeters} onChange={(v) => set("radiusMeters", v)} required help={
+                  Number(form.radiusMeters) && Number(form.radiusMeters) < SMALL_OFFICE_RADIUS
+                    ? `Under ${SMALL_OFFICE_RADIUS} m is smaller than normal GPS drift indoors, so staff inside may be refused clock-in. Keep 100–200 m for a building.`
+                    : "Keep 100–200 m for a building; GPS tolerance is added automatically."
+                } />
               <Field
                 name="officeLocation"
                 title="Organization location (optional)"
@@ -121,6 +144,7 @@ export function HrmGeofences({ token, metadata, masters, can }) {
                 radius={form.radiusMeters}
                 onPick={(p) => setForm((f) => ({ ...f, ...p }))}
                 others={offices.filter((o) => o.id !== form.id && o.status === "Approved")}
+                fallback={mapFallback}
                 height={380}
               />
             </div>
@@ -135,10 +159,13 @@ export function HrmGeofences({ token, metadata, masters, can }) {
             <div key={o.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] p-3 text-sm">
               <div>
                 <p className="font-semibold">{o.label}</p>
-                <p className="text-xs text-[var(--text-muted)]">{o.address || "—"}</p>
+                <p className="text-xs text-[var(--text-muted)]">{[o.address, o.locationName].filter(Boolean).join(" · ") || "—"}</p>
                 <a className="text-xs text-[var(--primary)]" href={mapsLink(o)} target="_blank" rel="noreferrer">
                   {o.latitude.toFixed(5)}, {o.longitude.toFixed(5)} · {o.radiusMeters} m ↗
                 </a>
+                {o.status === "Approved" && o.radiusMeters < SMALL_OFFICE_RADIUS && (
+                  <p className="mt-1 text-xs text-amber-600">Radius {o.radiusMeters} m is very small; staff inside the building may be refused clock-in. 100–200 m is usual.</p>
+                )}
               </div>
               <div className="flex flex-col items-end gap-2">
                 <Status value={o.status} />
@@ -160,7 +187,22 @@ export function HrmGeofences({ token, metadata, masters, can }) {
           textSize="sm"
           rows={homes}
           columns={[
-            { key: "employee", label: "Employee", render: (h) => <>{h.employeeName}<span className="block text-xs text-[var(--text-muted)]">{h.employeeNumber}</span></> },
+            {
+              key: "employee",
+              label: "Employee",
+              render: (h) => {
+                const notes = h.status === "Rejected" || h.status === "Retired" ? [] : homeWarnings(h, offices);
+                return (
+                  <>
+                    {h.employeeName}
+                    <span className="block text-xs text-[var(--text-muted)]">{h.employeeNumber}</span>
+                    {notes.map((note) => (
+                      <span key={note} className="mt-1 block max-w-xs text-xs text-amber-600">⚠ {note}</span>
+                    ))}
+                  </>
+                );
+              },
+            },
             { key: "location", label: "Location", render: (h) => <a className="text-[var(--primary)]" href={mapsLink(h)} target="_blank" rel="noreferrer">{h.latitude.toFixed(5)}, {h.longitude.toFixed(5)} ↗</a> },
             { key: "radius", label: "Radius", render: (h) => <>{h.radiusMeters} m</> },
             { key: "accuracy", label: "GPS accuracy", render: (h) => <>±{h.requestAccuracy ?? "?"} m</> },

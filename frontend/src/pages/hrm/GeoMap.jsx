@@ -22,17 +22,35 @@ export function loadGoogleMaps() {
 }
 export const mapsLink = (p) =>
   `https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`;
+// Webitof head office (Currency Tower, Raipur): where an empty map opens.
+const DEFAULT_CENTER = { lat: 21.238, lng: 81.67922 };
+const present = (v) => v !== "" && v !== null && v !== undefined;
+/** Great-circle distance in metres between two {latitude, longitude} points. */
+export function distanceMeters(a, b) {
+  const rad = (d) => (Number(d) * Math.PI) / 180;
+  const h =
+    Math.sin(rad(b.latitude - a.latitude) / 2) ** 2 +
+    Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(rad(b.longitude - a.longitude) / 2) ** 2;
+  return Math.round(6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h)));
+}
 /**
  * center: {latitude, longitude}; radius in metres; onPick(point) makes the map
  * editable (click / drag the marker). `others` draws extra fences for context.
+ * fallback: {latitude, longitude} to open on while center is still empty.
  */
-export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
+export function GeoMap({ center, radius, onPick, others = [], height = 280, fallback = null }) {
   const box = useRef(null);
   const state = useRef({});
   const [error, setError] = useState(KEY ? "" : "missing");
-  const lat = Number(center?.latitude);
-  const lng = Number(center?.longitude);
+  // Empty inputs are "no point yet", not 0,0 (Number("") is 0, which is in the Atlantic Ocean).
+  const lat = present(center?.latitude) ? Number(center.latitude) : NaN;
+  const lng = present(center?.longitude) ? Number(center.longitude) : NaN;
   const valid = Number.isFinite(lat) && Number.isFinite(lng);
+  const fallbackLat = Number(fallback?.latitude);
+  const fallbackLng = Number(fallback?.longitude);
+  const start = Number.isFinite(fallbackLat) && Number.isFinite(fallbackLng) && present(fallback?.latitude)
+    ? { lat: fallbackLat, lng: fallbackLng }
+    : DEFAULT_CENTER;
   // Callers pass fresh arrays/functions every render (the clock page re-renders every second).
   // Keep the latest in refs and key the effect on content, so the map is not rebuilt or re-panned.
   const pickRef = useRef(onPick);
@@ -47,7 +65,7 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
       .then((maps) => {
         if (!active || !box.current) return;
         const s = state.current;
-        const position = valid ? { lat, lng } : { lat: 28.6139, lng: 77.209 };
+        const position = valid ? { lat, lng } : start;
         if (!s.map) {
           s.map = new maps.Map(box.current, {
             center: position,
@@ -80,8 +98,9 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
         s.marker.setPosition(position);
         s.circle.setCenter(position);
         s.circle.setRadius(Number(radius) || 100);
-        const positionKey = `${lat},${lng}`;
-        if (valid && s.positionKey !== positionKey) s.map.panTo(position);
+        // Pan when the point (or, with no point yet, the fallback such as a just-loaded office) moves.
+        const positionKey = `${position.lat},${position.lng}`;
+        if (s.positionKey !== positionKey) s.map.panTo(position);
         s.positionKey = positionKey;
         s.others.forEach((o) => o.setMap(null));
         s.others = (othersRef.current || [])
@@ -105,7 +124,9 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280 }) {
     return () => {
       active = false;
     };
-  }, [lat, lng, radius, valid, othersKey]);
+    // start is derived from the fallback numbers listed here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lng, radius, valid, othersKey, start.lat, start.lng]);
   if (error)
     return (
       <div
