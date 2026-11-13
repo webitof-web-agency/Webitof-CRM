@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Crosshair } from "lucide-react";
+import { AlertTriangle, Building2, Clock3, Crosshair, ExternalLink, Home, Pencil, Plus } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
@@ -9,11 +9,15 @@ import { Field, Status } from "./HrmShared";
 import { GeoMap, distanceMeters, mapsLink } from "./GeoMap";
 import { hrm } from "./hrmApi";
 import { formatDate } from "../../lib/format";
-import { SimpleTable } from "../../components/ui/SimpleTable";
+import { cn } from "../../lib/cn";
+
 const blank = (radius) => ({ label: "", address: "", latitude: "", longitude: "", radiusMeters: radius, locationId: "", status: "Approved" });
 // Below this an office fence is smaller than everyday GPS drift indoors, so staff inside the
 // building are often refused clock-in.
 const SMALL_OFFICE_RADIUS = 50;
+// Map colours: the selected fence uses the map's own indigo marker + circle.
+const COLORS = { office: "#4f46e5", home: "#10b981", pending: "#f59e0b" };
+
 /** Why a home location needs a second look: it overlaps an office, or its GPS fix was too rough. */
 function homeWarnings(home, offices) {
   const notes = [];
@@ -27,8 +31,14 @@ function homeWarnings(home, offices) {
     notes.push(`Registered with GPS accuracy ±${home.requestAccuracy} m, wider than its ${home.radiusMeters} m radius`);
   return notes;
 }
-/** Office fields + map. Used inline to add an office and inside the Edit popup. */
-function OfficeForm({ form, setForm, onSubmit, busy, masters, offices, fallback, submitLabel, onCancel, mapHeight = 380 }) {
+const officeWarnings = (office) =>
+  office.status === "Approved" && office.radiusMeters < SMALL_OFFICE_RADIUS
+    ? [`Radius ${office.radiusMeters} m is very small: staff inside the building may be refused clock-in (100–200 m is usual).`]
+    : [];
+const coords = (p) => `${Number(p.latitude).toFixed(5)}, ${Number(p.longitude).toFixed(5)}`;
+
+/** Office fields + map, used in the Add / Edit popup. */
+function OfficeForm({ form, setForm, onSubmit, busy, masters, offices, fallback, submitLabel, onCancel }) {
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const prefix = form.id ? "edit" : "office";
   function pickMyLocation() {
@@ -40,8 +50,8 @@ function OfficeForm({ form, setForm, onSubmit, busy, masters, offices, fallback,
     );
   }
   return (
-    <form className="grid gap-5 lg:grid-cols-[1fr_1.2fr]" onSubmit={onSubmit}>
-      <div className="space-y-4">
+    <form className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]" onSubmit={onSubmit}>
+      <div className="space-y-3">
         <Field name={`${prefix}Label`} title="Office name" value={form.label} onChange={(v) => set("label", v)} required />
         <Field name={`${prefix}Address`} title="Address" value={form.address} onChange={(v) => set("address", v)} />
         <div className="grid grid-cols-2 gap-3">
@@ -53,16 +63,18 @@ function OfficeForm({ form, setForm, onSubmit, busy, masters, offices, fallback,
               ? `Under ${SMALL_OFFICE_RADIUS} m is smaller than normal GPS drift indoors, so staff inside may be refused clock-in. Keep 100–200 m for a building.`
               : "Keep 100–200 m for a building; GPS tolerance is added automatically."
           } />
-        <Field
-          name={`${prefix}Location`}
-          title="Organization location (optional)"
-          type="select"
-          options={masters.filter((m) => m.type === "hrm_location").map((m) => ({ value: m.id, label: m.name }))}
-          value={form.locationId}
-          onChange={(v) => set("locationId", v)}
-        />
-        <Field name={`${prefix}Status`} title="Status" type="select" options={["Approved", "Retired"]} value={form.status} onChange={(v) => set("status", v)} />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-3">
+          <Field
+            name={`${prefix}Location`}
+            title="Organization location"
+            type="select"
+            options={masters.filter((m) => m.type === "hrm_location").map((m) => ({ value: m.id, label: m.name }))}
+            value={form.locationId}
+            onChange={(v) => set("locationId", v)}
+          />
+          <Field name={`${prefix}Status`} title="Status" type="select" options={["Approved", "Retired"]} value={form.status} onChange={(v) => set("status", v)} required />
+        </div>
+        <div className="flex flex-wrap gap-2 pt-1">
           <Button type="submit" loading={busy}>{submitLabel}</Button>
           <Button type="button" variant="secondary" onClick={pickMyLocation}>
             <Crosshair size={14} /> Use my location
@@ -74,7 +86,7 @@ function OfficeForm({ form, setForm, onSubmit, busy, masters, offices, fallback,
           )}
         </div>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <p className="text-xs text-[var(--text-muted)]">Click the map or drag the pin to set the office centre.</p>
         <GeoMap
           center={{ latitude: form.latitude, longitude: form.longitude }}
@@ -82,25 +94,70 @@ function OfficeForm({ form, setForm, onSubmit, busy, masters, offices, fallback,
           onPick={(p) => setForm((f) => ({ ...f, ...p }))}
           others={offices.filter((o) => o.id !== form.id && o.status === "Approved")}
           fallback={fallback}
-          height={mapHeight}
+          height={400}
         />
       </div>
     </form>
   );
 }
 
+function Stat({ icon: Icon, label, value, hint, tone = "primary" }) {
+  const tones = {
+    primary: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-300",
+    success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+    warning: "bg-amber-500/10 text-amber-600 dark:text-amber-300",
+    danger: "bg-rose-500/10 text-rose-600 dark:text-rose-300",
+  };
+  return (
+    <Card className="flex items-center gap-3 px-4 py-3">
+      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", tones[tone])}>
+        <Icon size={17} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase leading-tight tracking-wider text-[var(--text-muted)] sm:truncate">{label}</p>
+        <p className="text-lg font-bold leading-tight text-[var(--text-main)]">
+          {value}
+          {hint && <span className="ml-1.5 text-xs font-medium text-[var(--text-muted)]">{hint}</span>}
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+function Warnings({ notes }) {
+  if (!notes.length) return null;
+  return (
+    <div className="mt-1.5 space-y-0.5">
+      {notes.map((note) => (
+        <p key={note} className="flex items-start gap-1 text-xs leading-snug text-amber-600 dark:text-amber-400">
+          <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {note}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+const HOME_FILTERS = [
+  ["all", "All"],
+  ["Pending", "Pending"],
+  ["Approved", "Approved"],
+  ["other", "Rejected / reset"],
+];
+
 /** Office geofences (WFO) and employee home geofences (WFH). */
 export function HrmGeofences({ token, metadata, masters, can }) {
+  const defaultRadius = metadata.policy.defaultOfficeRadiusMeters || 150;
   const [rows, setRows] = useState([]),
-    [form, setForm] = useState(blank(metadata.policy.defaultOfficeRadiusMeters || 150)),
     [editing, setEditing] = useState(null),
-    [busy, setBusy] = useState(false),
-    [editBusy, setEditBusy] = useState(false),
+    [saving, setSaving] = useState(false),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0),
     [homeBusy, setHomeBusy] = useState(false),
-    [loaded, setLoaded] = useState(false);
+    [loaded, setLoaded] = useState(false),
+    [focusId, setFocusId] = useState(""),
+    [homeFilter, setHomeFilter] = useState("all");
   const manage = can("manage_settings");
+  const approve = can("approve");
   useEffect(() => {
     let active = true;
     hrm(token, "/geofences")
@@ -110,37 +167,45 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       active = false;
     };
   }, [token, refresh]);
-  const offices = rows.filter((r) => r.kind === "office");
-  // An empty form opens the map on an existing office, not on 0,0.
-  const mapFallback = offices.find((o) => o.status === "Approved") || offices[0] || null;
-  const homes = rows.filter((r) => r.kind === "home");
-  // Saves the add form or the edit popup. Returns true on success. Errors are shown as a toast
-  // so the popup stays open with what was typed.
-  async function saveOffice(values, setSaving) {
+
+  const offices = useMemo(() => rows.filter((r) => r.kind === "office"), [rows]);
+  const homes = useMemo(() => rows.filter((r) => r.kind === "home"), [rows]);
+  const homeNotes = useMemo(
+    () => new Map(homes.map((h) => [h.id, ["Rejected", "Retired"].includes(h.status) ? [] : homeWarnings(h, offices)])),
+    [homes, offices],
+  );
+  const approvedOffices = offices.filter((o) => o.status === "Approved");
+  const pending = homes.filter((h) => h.status === "Pending");
+  const warningCount = offices.reduce((n, o) => n + officeWarnings(o).length, 0) + [...homeNotes.values()].filter((n) => n.length).length;
+  // An empty form and the overview open on an existing office, not on 0,0.
+  const mapFallback = approvedOffices[0] || offices[0] || null;
+  const focus = rows.find((r) => r.id === focusId) || mapFallback;
+  const visibleHomes = homes.filter((h) =>
+    homeFilter === "all" ? true : homeFilter === "other" ? ["Rejected", "Retired"].includes(h.status) : h.status === homeFilter,
+  );
+  const overviewOthers = rows
+    .filter((r) => r.id !== focus?.id && !["Rejected", "Retired"].includes(r.status))
+    .map((r) => ({ ...r, color: r.kind === "office" ? COLORS.office : r.status === "Pending" ? COLORS.pending : COLORS.home }));
+
+  // Saves the add / edit popup. Errors show as a toast and the popup stays open with what was typed.
+  async function submit(e) {
+    e.preventDefault();
     setSaving(true);
     try {
-      const { id, ...body } = values;
-      await hrm(token, `/geofences${id ? `/${id}` : ""}`, {
+      const { id, ...body } = editing;
+      const saved = await hrm(token, `/geofences${id ? `/${id}` : ""}`, {
         method: id ? "PUT" : "POST",
         body: { ...body, latitude: Number(body.latitude), longitude: Number(body.longitude), radiusMeters: Number(body.radiusMeters), locationId: body.locationId || null },
       });
       toast.success(id ? "Office location updated" : "Office location added");
+      setEditing(null);
+      if (saved?.id) setFocusId(saved.id);
       setRefresh((n) => n + 1);
-      return true;
     } catch (err) {
       toast.error(err.message);
-      return false;
     } finally {
       setSaving(false);
     }
-  }
-  async function submitAdd(e) {
-    e.preventDefault();
-    if (await saveOffice(form, setBusy)) setForm(blank(metadata.policy.defaultOfficeRadiusMeters || 150));
-  }
-  async function submitEdit(e) {
-    e.preventDefault();
-    if (await saveOffice(editing, setEditBusy)) setEditing(null);
   }
   async function homeAction(row, action) {
     const comment = action === "approve" ? "" : window.prompt(action === "reject" ? "Reason for rejection" : "Reason for resetting this home location");
@@ -157,125 +222,195 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       setHomeBusy(false);
     }
   }
+  const editOffice = (o) =>
+    setEditing({ id: o.id, label: o.label, address: o.address || "", latitude: o.latitude, longitude: o.longitude, radiusMeters: o.radiusMeters, locationId: o.locationId || "", status: o.status });
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <PageHeader
+        className="mb-0"
         eyebrow="Attendance"
         title="Work locations & geofences"
-        description="Clock-in inside an office radius is Work From Office. Inside an approved home radius it is Work From Home. Outside both, clock-in is blocked (client visits need a reason and are reviewed)."
+        description="Inside an office radius clock-in is Work From Office, inside an approved home radius it is Work From Home; outside both it is blocked (client visits need a reason)."
+        actions={manage ? [{ label: "Add office", icon: Plus, onClick: () => setEditing(blank(defaultRadius)) }] : []}
       />
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
-      {manage && (
-        <Card className="p-5">
-          <h2 className="mb-4 font-semibold">Add office location</h2>
-          <OfficeForm
-            form={form}
-            setForm={setForm}
-            onSubmit={submitAdd}
-            busy={busy}
-            masters={masters}
-            offices={offices}
-            fallback={mapFallback}
-            submitLabel="Add office"
-          />
-        </Card>
-      )}
-      <Card className="space-y-3 p-5">
-        <h2 className="font-semibold">Offices ({offices.length})</h2>
-        {loaded && !offices.length && <p className="text-sm text-[var(--text-muted)]">Add at least one office so employees can clock in from the app.</p>}
-        <div className="grid gap-3 md:grid-cols-2">
-          {offices.map((o) => (
-            <div key={o.id} className="flex items-start justify-between gap-3 rounded-xl border border-[var(--border)] p-3 text-sm">
-              <div>
-                <p className="font-semibold">{o.label}</p>
-                <p className="text-xs text-[var(--text-muted)]">{[o.address, o.locationName].filter(Boolean).join(" · ") || "—"}</p>
-                <a className="text-xs text-[var(--primary)]" href={mapsLink(o)} target="_blank" rel="noreferrer">
-                  {o.latitude.toFixed(5)}, {o.longitude.toFixed(5)} · {o.radiusMeters} m ↗
-                </a>
-                {o.status === "Approved" && o.radiusMeters < SMALL_OFFICE_RADIUS && (
-                  <p className="mt-1 text-xs text-amber-600">Radius {o.radiusMeters} m is very small; staff inside the building may be refused clock-in. 100–200 m is usual.</p>
-                )}
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <Status value={o.status} />
-                {manage && (
-                  <Button size="xs" variant="secondary" onClick={() => setEditing({ id: o.id, label: o.label, address: o.address || "", latitude: o.latitude, longitude: o.longitude, radiusMeters: o.radiusMeters, locationId: o.locationId || "", status: o.status })}>
-                    Edit
-                  </Button>
-                )}
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat icon={Building2} label="Offices" value={approvedOffices.length} hint={offices.length > approvedOffices.length ? `of ${offices.length}` : "active"} />
+        <Stat icon={Home} label="Home locations" value={homes.filter((h) => h.status === "Approved").length} hint="approved" tone="success" />
+        <Stat icon={Clock3} label="Awaiting review" value={pending.length} hint={pending.length ? "home requests" : "all clear"} tone={pending.length ? "warning" : "success"} />
+        <Stat icon={AlertTriangle} label="Need attention" value={warningCount} hint={warningCount ? "see notes below" : "no issues"} tone={warningCount ? "danger" : "success"} />
+      </div>
+
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div className="min-w-0 space-y-4">
+          <Card className="overflow-hidden p-0">
+            <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+              <h2 className="text-sm font-semibold">Offices <span className="text-[var(--text-muted)]">({offices.length})</span></h2>
+              {manage && (
+                <Button size="xs" variant="secondary" onClick={() => setEditing(blank(defaultRadius))}>
+                  <Plus size={13} /> Add
+                </Button>
+              )}
+            </div>
+            {loaded && !offices.length && (
+              <p className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">Add at least one office so employees can clock in from the app.</p>
+            )}
+            <ul className="divide-y divide-[var(--border)]">
+              {offices.map((o) => (
+                <li
+                  key={o.id}
+                  className={cn("cursor-pointer px-4 py-3 transition-colors hover:bg-[var(--hover-bg)]", focus?.id === o.id && "bg-[var(--hover-bg)]")}
+                  onClick={() => setFocusId(o.id)}
+                >
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-sm font-semibold">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: COLORS.office }} />
+                        <span className="truncate">{o.label}</span>
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">{[o.address, o.locationName].filter(Boolean).join(" · ") || "No address"}</p>
+                      <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 font-semibold">{o.radiusMeters} m radius</span>
+                        <a className="inline-flex items-center gap-1 text-[var(--primary)]" href={mapsLink(o)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                          {coords(o)} <ExternalLink size={11} />
+                        </a>
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 sm:justify-end">
+                      <Status value={o.status} />
+                      {manage && (
+                        <Button size="xs" variant="secondary" aria-label={`Edit ${o.label}`} onClick={(e) => { e.stopPropagation(); editOffice(o); }}>
+                          <Pencil size={12} /> Edit
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <Warnings notes={officeWarnings(o)} />
+                </li>
+              ))}
+            </ul>
+          </Card>
+
+          <Card className="overflow-hidden p-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-3">
+              <h2 className="text-sm font-semibold">Employee home locations <span className="text-[var(--text-muted)]">({homes.length})</span></h2>
+              <div className="flex flex-wrap gap-1" role="tablist" aria-label="Filter home locations">
+                {HOME_FILTERS.map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={homeFilter === key}
+                    onClick={() => setHomeFilter(key)}
+                    className={cn(
+                      "rounded-full px-2.5 py-1 text-xs font-semibold transition-colors",
+                      homeFilter === key ? "bg-[var(--primary)] text-white" : "text-[var(--text-muted)] hover:bg-[var(--hover-bg)]",
+                    )}
+                  >
+                    {label}
+                    {key === "Pending" && pending.length ? ` (${pending.length})` : ""}
+                  </button>
+                ))}
               </div>
             </div>
-          ))}
-        </div>
-      </Card>
-      <Card className="space-y-3 p-5">
-        <h2 className="font-semibold">Employee home locations ({homes.length})</h2>
-        <p className="text-xs text-[var(--text-muted)]">Employees register their home once from the app. Pending requests can also be approved, with the radius adjusted on a map, from the HRM overview.</p>
-        <SimpleTable
-          bordered={false}
-          textSize="sm"
-          rows={homes}
-          columns={[
-            {
-              key: "employee",
-              label: "Employee",
-              render: (h) => {
-                const notes = h.status === "Rejected" || h.status === "Retired" ? [] : homeWarnings(h, offices);
+            {loaded && !visibleHomes.length && (
+              <p className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">
+                {homes.length ? "No home locations in this view." : "Employees register their home once from the Webitof Employee app."}
+              </p>
+            )}
+            <ul className="divide-y divide-[var(--border)]">
+              {visibleHomes.map((h) => {
+                const notes = homeNotes.get(h.id) || [];
                 return (
-                  <>
-                    {h.employeeName}
-                    <span className="block text-xs text-[var(--text-muted)]">{h.employeeNumber}</span>
-                    {notes.map((note) => (
-                      <span key={note} className="mt-1 block max-w-xs text-xs text-amber-600">⚠ {note}</span>
-                    ))}
-                  </>
+                  <li
+                    key={h.id}
+                    className={cn("cursor-pointer px-4 py-3 transition-colors hover:bg-[var(--hover-bg)]", focus?.id === h.id && "bg-[var(--hover-bg)]")}
+                    onClick={() => setFocusId(h.id)}
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 text-sm font-semibold">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: h.status === "Pending" ? COLORS.pending : COLORS.home }} />
+                          <span className="truncate">{h.employeeName}</span>
+                          <span className="text-xs font-normal text-[var(--text-muted)]">{h.employeeNumber}</span>
+                        </p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
+                          <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-[var(--text-main)]">{h.radiusMeters} m radius</span>
+                          <span>GPS ±{h.requestAccuracy ?? "?"} m</span>
+                          <a className="inline-flex items-center gap-1 text-[var(--primary)]" href={mapsLink(h)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                            {coords(h)} <ExternalLink size={11} />
+                          </a>
+                          {h.reviewedAt && <span>Reviewed {formatDate(h.reviewedAt)}{h.comment ? ` · ${h.comment}` : ""}</span>}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:justify-end" onClick={(e) => e.stopPropagation()}>
+                        <Status value={h.status} />
+                        {h.status === "Pending" && approve && (
+                          <>
+                            <Button size="xs" disabled={homeBusy} onClick={() => homeAction(h, "approve")}>Approve</Button>
+                            <Button size="xs" variant="secondary" disabled={homeBusy} onClick={() => homeAction(h, "reject")}>Reject</Button>
+                          </>
+                        )}
+                        {h.status === "Approved" && approve && (
+                          <Button size="xs" variant="ghost" disabled={homeBusy} onClick={() => homeAction(h, "retire")}>Reset</Button>
+                        )}
+                      </div>
+                    </div>
+                    <Warnings notes={notes} />
+                  </li>
                 );
-              },
-            },
-            { key: "location", label: "Location", render: (h) => <a className="text-[var(--primary)]" href={mapsLink(h)} target="_blank" rel="noreferrer">{h.latitude.toFixed(5)}, {h.longitude.toFixed(5)} ↗</a> },
-            { key: "radius", label: "Radius", render: (h) => <>{h.radiusMeters} m</> },
-            { key: "accuracy", label: "GPS accuracy", render: (h) => <>±{h.requestAccuracy ?? "?"} m</> },
-            { key: "status", label: "Status", render: (h) => <Status value={h.status} /> },
-            { key: "reviewed", label: "Reviewed", render: (h) => <>{formatDate(h.reviewedAt)}{h.comment ? ` · ${h.comment}` : ""}</> },
-            {
-              key: "actions",
-              label: "",
-              render: (h) => (
-                <div className="flex gap-1">
-                  {h.status === "Pending" && can("approve") && (
-                    <>
-                      <Button size="xs" disabled={homeBusy} onClick={() => homeAction(h, "approve")}>Approve</Button>
-                      <Button size="xs" variant="secondary" disabled={homeBusy} onClick={() => homeAction(h, "reject")}>Reject</Button>
-                    </>
-                  )}
-                  {h.status === "Approved" && can("approve") && (
-                    <Button size="xs" variant="ghost" disabled={homeBusy} onClick={() => homeAction(h, "retire")}>Reset</Button>
-                  )}
-                </div>
-              ),
-            },
-          ]}
-        />
-      </Card>
+              })}
+            </ul>
+          </Card>
+        </div>
+
+        <Card className="space-y-2 p-3 xl:sticky xl:top-20">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Map</p>
+              <p className="truncate text-sm font-semibold">
+                {focus ? `${focus.kind === "office" ? focus.label : `${focus.employeeName} · home`} · ${focus.radiusMeters} m` : "No locations yet"}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-[var(--text-muted)]">
+              {[["Office", COLORS.office], ["Home", COLORS.home], ["Pending", COLORS.pending]].map(([label, color]) => (
+                <span key={label} className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} /> {label}
+                </span>
+              ))}
+            </div>
+          </div>
+          <GeoMap
+            center={focus ? { latitude: focus.latitude, longitude: focus.longitude } : null}
+            radius={focus?.radiusMeters}
+            others={overviewOthers}
+            fallback={mapFallback}
+            height={520}
+          />
+          <p className="px-1 text-xs text-[var(--text-muted)]">Click an office or home on the left to centre it here.</p>
+        </Card>
+      </div>
+
       {editing && (
         <Modal
           open
-          title="Edit office location"
-          subtitle={editing.label}
+          title={editing.id ? "Edit office location" : "Add office location"}
+          subtitle={editing.id ? editing.label : undefined}
           width="min(1100px, 95vw)"
-          onClose={() => !editBusy && setEditing(null)}
+          onClose={() => !saving && setEditing(null)}
         >
           <OfficeForm
             form={editing}
             setForm={(update) => setEditing((current) => (typeof update === "function" ? update(current) : update))}
-            onSubmit={submitEdit}
-            busy={editBusy}
+            onSubmit={submit}
+            busy={saving}
             masters={masters}
             offices={offices}
             fallback={mapFallback}
-            submitLabel="Save changes"
+            submitLabel={editing.id ? "Save changes" : "Add office"}
             onCancel={() => setEditing(null)}
-            mapHeight={360}
           />
         </Modal>
       )}
