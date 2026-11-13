@@ -1,7 +1,7 @@
 // Day codes and totals of the attendance calendar / chart. No database.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { dayCell, totals, monthRange, employeeIdList } = require('../services/hrm/attendanceMonth');
+const { dayCell, totals, monthRange, employeeIdList, timelineEvents } = require('../services/hrm/attendanceMonth');
 
 const TODAY = '2026-11-13';
 const working = (date) => ({ date, kind: 'Working', hours: 8 });
@@ -71,6 +71,32 @@ test('totals: present counts half days as half and off-day work as a day; leave 
   assert.equal(t.offDayWorked, 1);
   assert.equal(t.holidays, 1);
   assert.equal(t.workingDays, 3);
+});
+
+test('lunch and shift times: snapshot first, then the employee shift', () => {
+  const shift = { name: 'Morning Shift (10:00 – 19:00)', start: '10:00', end: '19:00', breakMinutes: 45 };
+  const d = dayCell(working('2026-11-10'), att({ lunchStartedAt: '2026-11-10T08:00:00Z', lunchEndedAt: '2026-11-10T08:35:00Z', lunchMinutes: 35 }), [], TODAY, shift);
+  assert.deepEqual([d.lunchStart, d.lunchEnd, d.lunchMinutes, d.lunchAllowance], ['2026-11-10T08:00:00Z', '2026-11-10T08:35:00Z', 35, 45]);
+  assert.deepEqual([d.shift, d.shiftStart, d.shiftEnd], ['Morning Shift (10:00 – 19:00)', '10:00', '19:00']);
+  const snap = dayCell(working('2026-11-10'), att({ shiftSnapshot: { name: 'Night', start: '22:00', end: '06:00', breakMinutes: 30 } }), [], TODAY, shift);
+  assert.deepEqual([snap.shift, snap.shiftStart, snap.lunchAllowance], ['Night', '22:00', 30]);
+  // Older callers pass only a name.
+  const named = dayCell(working('2026-11-10'), null, [], TODAY, 'General');
+  assert.deepEqual([named.shift, named.shiftStart, named.lunchStart, named.lunchMinutes], ['General', null, null, 0]);
+});
+
+test('timeline keeps punches, lunch, zone and connection events in time order', () => {
+  const evs = timelineEvents([
+    { kind: 'clock_out', at: '2026-11-10T13:30:00Z' },
+    { kind: 'slot_prompt', at: '2026-11-10T06:00:00Z' },
+    { kind: 'lunch_start', at: '2026-11-10T08:00:00Z' },
+    { kind: 'clock_in', at: '2026-11-10T04:30:00Z', inside: true },
+    { kind: 'slot_submitted', at: '2026-11-10T07:00:00Z' },
+    { kind: 'exit', at: '2026-11-10T10:00:00Z', inside: false },
+  ]);
+  assert.deepEqual(evs.map((e) => e.kind), ['clock_in', 'lunch_start', 'exit', 'clock_out']);
+  assert.equal(evs[0].inside, true);
+  assert.deepEqual(timelineEvents(null), []);
 });
 
 test('employee column filter: comma list, trimmed, unique, capped', () => {

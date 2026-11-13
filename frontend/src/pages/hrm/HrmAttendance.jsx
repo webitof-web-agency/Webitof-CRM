@@ -12,6 +12,7 @@ import {
   ListFilter,
   LogOut,
   PenLine,
+  Plus,
   RotateCcw,
   Search,
   Timer,
@@ -225,23 +226,155 @@ function DayDetail({ day, employee, timezone, can, isSelf, onClose, onAction }) 
   );
 }
 
-/** Calendar + day list for one employee. */
+// Wall-clock "HH:MM" on a date in the policy timezone -> epoch ms.
+function zonedInstant(date, hhmm, timezone) {
+  if (!date || !/^\d{1,2}:\d{2}/.test(hhmm || "")) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  const guess = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m);
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date(guess));
+  const get = (type) => Number(parts.find((x) => x.type === type)?.value);
+  const wall = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"));
+  return guess - (wall - guess);
+}
+// "5:36 pm" (accepts an ISO string or epoch ms).
+const clock12 = (at, timezone) =>
+  at || at === 0 ? new Date(at).toLocaleTimeString("en-IN", { timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true }) : "—";
+// "1:30–2:05 pm", "11:50 am–12:30 pm", or "1:30 pm–now" while it is still running.
+function timeRange(a, b, timezone) {
+  const x = clock12(a, timezone);
+  if (!b) return `${x}–now`;
+  const y = clock12(b, timezone);
+  return x.slice(-2) === y.slice(-2) ? `${x.slice(0, -3)}–${y}` : `${x}–${y}`;
+}
+const dayMonth = (date) => new Date(`${date}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+const REQUEST_TONE = {
+  Pending: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  Submitted: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
+  Approved: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+  Rejected: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300",
+};
+
+// Re-renders every minute while `active`, for "working since … · 3h 12m so far".
+function useNow(active) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(t);
+  }, [active]);
+  return now;
+}
+
+/** One bar for the day: the shift window, time worked, lunch, and time outside the zone or offline. */
+function DayTimeline({ day, events, offlineMinutes, timezone, now }) {
+  const checkIn = day.checkIn ? Date.parse(day.checkIn) : null;
+  const end = day.checkOut ? Date.parse(day.checkOut) : day.live ? now : null;
+  const shiftStart = zonedInstant(day.date, day.shiftStart, timezone);
+  let shiftEnd = zonedInstant(day.date, day.shiftEnd, timezone);
+  if (shiftStart && shiftEnd && shiftEnd <= shiftStart) shiftEnd += 86400000;
+  const lunchStart = day.lunchStart ? Date.parse(day.lunchStart) : null;
+  const lunchEnd = day.lunchEnd ? Date.parse(day.lunchEnd) : lunchStart && day.live ? now : null;
+  const gaps = [];
+  const open = {};
+  for (const ev of events || []) {
+    const t = Date.parse(ev.at);
+    if (ev.kind === "exit") open.out = t;
+    if (ev.kind === "return" && open.out) gaps.push(["out", open.out, t]), (open.out = null);
+    if (ev.kind === "offline") open.off = t;
+    if (ev.kind === "online" && open.off) gaps.push(["off", open.off, t]), (open.off = null);
+  }
+  if (open.out && end) gaps.push(["out", open.out, end]);
+  if (open.off && end) gaps.push(["off", open.off, end]);
+  const points = [shiftStart, shiftEnd, checkIn, end].filter((v) => Number.isFinite(v));
+  if (points.length < 2) return null;
+  const lo = Math.min(...points);
+  const hi = Math.max(...points);
+  const pct = (t) => ((t - lo) / (hi - lo || 1)) * 100;
+  const seg = (a, b) => ({ left: `${pct(a)}%`, width: `${Math.max(1, pct(b) - pct(a))}%` });
+  const outside = gaps.filter(([k]) => k === "out").reduce((s, [, a, b]) => s + (b - a) / 60000, 0);
+  const keys = [
+    shiftStart && shiftEnd && ["bg-slate-300 dark:bg-slate-500/50", `Shift ${day.shiftStart}–${day.shiftEnd}`],
+    checkIn && ["bg-emerald-400", "Worked"],
+    lunchStart && ["bg-amber-400", `Lunch ${hm(day.lunchMinutes || (lunchEnd ? (lunchEnd - lunchStart) / 60000 : 0))}`],
+    outside > 0 && ["bg-rose-400", `Outside ${hm(outside)}`],
+    offlineMinutes > 0 && ["bg-slate-500", `Offline ${hm(offlineMinutes)}`],
+  ].filter(Boolean);
+  return (
+    <div className="mt-2.5">
+      <div className="relative h-3 overflow-hidden rounded-full bg-[var(--surface)] ring-1 ring-[var(--border)]">
+        {shiftStart && shiftEnd && <span className="absolute inset-y-0 bg-slate-200 dark:bg-slate-500/25" style={seg(shiftStart, shiftEnd)} title={`Shift ${day.shiftStart}–${day.shiftEnd}`} />}
+        {checkIn && end && <span className="absolute inset-y-[3px] rounded-full bg-emerald-400" style={seg(checkIn, end)} title={`Worked ${timeRange(day.checkIn, day.checkOut, timezone)}`} />}
+        {checkIn && !end && <span className="absolute inset-y-0 w-1.5 rounded-full bg-pink-500" style={{ left: `${pct(checkIn)}%` }} title={`In ${clock12(checkIn, timezone)}, no clock-out`} />}
+        {lunchStart && lunchEnd && <span className="absolute inset-y-0 bg-amber-400" style={seg(lunchStart, lunchEnd)} title={`Lunch ${timeRange(day.lunchStart, day.lunchEnd, timezone)}`} />}
+        {gaps.map(([kind, a, b]) => (
+          <span key={`${kind}-${a}`} className={cn("absolute inset-y-0", kind === "out" ? "bg-rose-400" : "bg-slate-500")} style={seg(a, b)} title={`${kind === "out" ? "Outside the zone" : "Offline"} ${timeRange(a, b, timezone)}`} />
+        ))}
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-2 text-[10px] tabular-nums text-[var(--text-muted)]">
+        <span className="whitespace-nowrap">{clock12(lo, timezone)}</span>
+        <span className="flex min-w-0 flex-wrap justify-center gap-x-2.5 gap-y-0.5">
+          {keys.map(([color, label]) => (
+            <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span className={cn("h-2 w-2 rounded-full", color)} />
+              {label}
+            </span>
+          ))}
+        </span>
+        <span className="whitespace-nowrap">{clock12(hi, timezone)}</span>
+      </div>
+    </div>
+  );
+}
+
 /** The clicked day, shown under the "My attendance" calendar (no popup). */
-function SelectedDay({ day, employee, timezone, today, can, isSelf, onAction }) {
+function SelectedDay({ token, day, employee, timezone, today, can, isSelf, onAction, refresh }) {
+  const isToday = day.date === today;
+  const now = useNow(isToday && (day.live || !day.checkIn));
+  const key = `${employee.id}|${day.date}|${day.checkIn || ""}|${day.checkOut || ""}|${refresh}`;
+  const [timeline, setTimeline] = useState({ key: "", data: null });
+  useEffect(() => {
+    if (!day.checkIn) return undefined;
+    let active = true;
+    hrm(token, `/attendance/day-timeline?${queryString({ employeeId: employee.id, date: day.date })}`)
+      .then((r) => active && setTimeline({ key, data: r }))
+      .catch(() => active && setTimeline({ key, data: null }));
+    return () => {
+      active = false;
+    };
+  }, [token, employee.id, day.date, day.checkIn, key]);
+  const info = timeline.key === key ? timeline.data : null;
+  const place = info?.attendance?.place || day.workMode || "—";
+  const lunch = day.lunchStart ? timeRange(day.lunchStart, day.lunchEnd, timezone) : day.checkIn ? "Not taken" : "—";
   const values = [
     ["In", day.checkIn ? clock(day.checkIn, timezone) : "—", ""],
     ["Out", day.checkIn && !day.checkOut ? (day.live ? "Working" : "Not out") : day.checkOut ? clock(day.checkOut, timezone) : "—", ""],
+    ["Lunch", lunch, day.lunchStart ? "text-amber-600" : ""],
     ["Worked", day.workedMinutes ? hm(day.workedMinutes) : "—", ""],
     ["Late", day.lateMinutes ? hm(day.lateMinutes) : "—", day.lateMinutes ? "text-orange-600" : ""],
     ["Early out", day.earlyMinutes ? hm(day.earlyMinutes) : "—", day.earlyMinutes ? "text-rose-600" : ""],
     ["Overtime", day.overtimeMinutes ? hm(day.overtimeMinutes) : "—", day.overtimeMinutes ? "text-sky-600" : ""],
+    ["Location", place, ""],
   ];
+  // Live line for today only.
+  let live = null;
+  if (isToday) {
+    const shiftStart = zonedInstant(day.date, day.shiftStart, timezone);
+    if (!day.checkIn)
+      live = shiftStart && now < shiftStart
+        ? ["text-[var(--text-muted)]", `Shift starts at ${clock12(shiftStart, timezone)}`]
+        : ["text-amber-600", `Not clocked in yet${shiftStart ? ` · shift started at ${clock12(shiftStart, timezone)}` : ""}`];
+    else if (day.live)
+      live = day.lunchStart && !day.lunchEnd
+        ? ["text-amber-600", `On lunch since ${clock12(day.lunchStart, timezone)}`]
+        : ["text-emerald-600", `Working since ${clock12(day.checkIn, timezone)} · ${hm((now - Date.parse(day.checkIn)) / 60000 - (day.lunchMinutes || 0))} so far`];
+  }
   const past = day.date <= today;
   const notes = [
     day.shift && shortShift(day.shift),
-    day.workMode,
     day.unmarked && "Nothing recorded",
     day.leave && `${day.leave.fraction === 1 ? "Full day" : "Half day"} ${day.leave.paid ? "paid" : "unpaid"} leave`,
+    info?.attendance?.autoCheckoutAt && `Auto clocked out at ${clock12(info.attendance.autoCheckoutAt, timezone)}`,
+    day.checkIn && !day.lunchStart && day.lunchAllowance > 0 && `Lunch allowance ${day.lunchAllowance}m`,
   ].filter(Boolean);
   return (
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-2.5">
@@ -266,15 +399,94 @@ function SelectedDay({ day, employee, timezone, today, can, isSelf, onAction }) 
           </div>
         )}
       </div>
-      <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 @md:grid-cols-6">
+      {live && (
+        <p className={cn("mt-1 flex items-center gap-1.5 text-xs font-semibold", live[0])}>
+          {day.live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />}
+          {live[1]}
+        </p>
+      )}
+      <DayTimeline day={day} events={info?.events} offlineMinutes={info?.attendance?.offlineMinutes || 0} timezone={timezone} now={now} />
+      <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 @md:grid-cols-4">
         {values.map(([label, value, color]) => (
           <div key={label} className="min-w-0">
             <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">{label}</dt>
-            <dd className={cn("truncate text-[13px] font-semibold tabular-nums", color)}>{value}</dd>
+            <dd className={cn("truncate text-[13px] font-semibold tabular-nums", color)} title={String(value)}>{value}</dd>
           </div>
         ))}
       </dl>
-      {notes.length > 0 && <p className="mt-1.5 truncate text-[11px] text-[var(--text-muted)]" title={day.shift || ""}>{notes.join(" · ")}</p>}
+      {notes.length > 0 && <p className="mt-1.5 truncate text-[11px] text-[var(--text-muted)]" title={notes.join(" · ")}>{notes.join(" · ")}</p>}
+    </div>
+  );
+}
+
+/** Leave balance for the year and this month's leave / correction requests. */
+function SideInfo({ token, employeeId, month, isSelf, can, onAction, refresh }) {
+  const key = `${employeeId}|${month}|${refresh}`;
+  const [side, setSide] = useState({ key: "", data: null });
+  useEffect(() => {
+    if (!employeeId) return undefined;
+    let active = true;
+    hrm(token, `/attendance/side?${queryString({ employeeId, month })}`)
+      .then((r) => active && setSide({ key, data: r }))
+      .catch(() => active && setSide({ key, data: null }));
+    return () => {
+      active = false;
+    };
+  }, [token, employeeId, month, key]);
+  const data = side.key === key ? side.data : null;
+  if (!data) return null;
+  const paid = data.balances.find((b) => b.monthly) || data.balances.find((b) => b.paid);
+  const others = data.balances.filter((b) => b !== paid && b.balance !== 0);
+  const shown = data.requests.slice(0, 3);
+  return (
+    <div className="grid gap-2 @md:grid-cols-2">
+      <div className="rounded-xl border border-[var(--border)] p-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Leave balance · {month.slice(0, 4)}</p>
+          {isSelf && can("self_service") && (
+            <Button size="xs" variant="secondary" onClick={() => onAction("leave", { employeeId })}>
+              <Plus size={12} /> Apply
+            </Button>
+          )}
+        </div>
+        {paid ? (
+          <p className="mt-1 flex items-baseline gap-1.5">
+            <span className="text-xl font-bold tabular-nums text-violet-600">{fmtDays(paid.balance)}</span>
+            <span className="text-xs text-[var(--text-muted)]">
+              {paid.name}
+              {paid.monthly ? " · +1 every month" : ""}
+            </span>
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-[var(--text-muted)]">No leave types set up.</p>
+        )}
+        {others.length > 0 && (
+          <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">{others.map((b) => `${b.name} ${fmtDays(b.balance)}`).join(" · ")}</p>
+        )}
+      </div>
+      <div className="rounded-xl border border-[var(--border)] p-2.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+          {isSelf ? "My requests" : "Requests"} · {MONTHS[Number(month.slice(5)) - 1].slice(0, 3)}
+        </p>
+        {shown.length ? (
+          <ul className="mt-1 space-y-1">
+            {shown.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="min-w-0 truncate" title={r.title}>
+                  <span className="font-semibold">{r.kind === "leave" ? "Leave" : "Correction"}</span>
+                  {r.startDate && (
+                    <span className="text-[var(--text-muted)]"> · {r.endDate && r.endDate !== r.startDate ? `${dayMonth(r.startDate)}–${dayMonth(r.endDate)}` : dayMonth(r.startDate)}</span>
+                  )}
+                </span>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold", REQUEST_TONE[r.status] || "bg-slate-200 text-slate-600 dark:bg-slate-500/20 dark:text-slate-300")}>{r.status}</span>
+              </li>
+            ))}
+            {data.requests.length > shown.length && <li className="text-[11px] text-[var(--text-muted)]">+{data.requests.length - shown.length} more</li>}
+          </ul>
+        ) : (
+          <p className="mt-1 text-xs text-[var(--text-muted)]">No leave or correction requests this month.</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -323,7 +535,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
         ["Absent", t.absent, "text-rose-600"],
         ["Leave", fmtDays(t.leave), "text-violet-600"],
         ["Late", t.late, "text-orange-600"],
-        ["Missing punch", t.missingPunch, "text-pink-600"],
+        ["Missed punch", t.missingPunch, "text-pink-600"],
         ["Worked", hm(t.workedMinutes), "text-[var(--text-main)]"],
         ["Overtime", hm(t.overtimeMinutes), "text-sky-600"],
         ["Avg check-in", avgIn, "text-[var(--text-main)]"],
@@ -332,7 +544,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
   return (
     <div className="space-y-4">
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
-      <div className="grid gap-3 xl:h-[clamp(600px,calc(100dvh-12.5rem),700px)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
+      <div className="grid gap-3 xl:h-[clamp(600px,calc(100dvh-12.5rem),720px)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
         <Card className="@container flex flex-col gap-2.5 p-3 xl:min-h-0 xl:overflow-y-auto">
           <MonthPicker month={month} onChange={setMonth} years={years} />
           <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
@@ -352,7 +564,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
                   disabled={!row}
                   aria-pressed={isSelected}
                   onClick={() => setPicked(day.date)}
-                  title={[prettyDate(day.date), CODES[day.code]?.label || "Nothing yet", times].filter(Boolean).join(" · ")}
+                  title={[prettyDate(day.date), CODES[day.code]?.label || "Nothing yet", times, day.lunchStart && `Lunch ${timeRange(day.lunchStart, day.lunchEnd, timezone)}`].filter(Boolean).join(" · ")}
                   className={cn(
                     "relative flex h-12 flex-col items-center justify-center gap-px rounded-[10px] border text-sm font-bold leading-none transition hover:brightness-95",
                     style || "border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]",
@@ -368,25 +580,30 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
             })}
           </div>
           {selected && row && (
-            <SelectedDay day={selected} employee={row.employee} timezone={timezone} today={data.today} can={can} isSelf={isSelf} onAction={onAction} />
+            <SelectedDay token={token} day={selected} employee={row.employee} timezone={timezone} today={data.today} can={can} isSelf={isSelf} onAction={onAction} refresh={refresh} />
           )}
+        </Card>
+        <Card className="@container flex flex-col overflow-hidden p-0 xl:min-h-0">
           {tiles.length > 0 && (
-            <div className="mt-auto grid grid-cols-2 gap-1.5 @[340px]:grid-cols-4">
+            <div className="grid grid-cols-2 gap-1.5 border-b border-[var(--border)] p-2 @md:grid-cols-4 @3xl:grid-cols-8">
               {tiles.map(([label, value, color]) => (
-                <div key={label} className="rounded-xl bg-[var(--surface-2)] px-2.5 py-1.5">
+                <div key={label} className="min-w-0 rounded-xl bg-[var(--surface-2)] px-2 py-1.5">
                   <p className="truncate text-[11px] font-medium text-[var(--text-muted)]" title={label}>{label}</p>
-                  <p className={cn("text-sm font-bold tabular-nums", color)}>{value}</p>
+                  <p className={cn("truncate text-sm font-bold tabular-nums", color)}>{value}</p>
                 </div>
               ))}
             </div>
           )}
-        </Card>
-        <Card className="flex flex-col overflow-hidden p-0 xl:min-h-0">
+          {row && (
+            <div className="border-b border-[var(--border)] p-2">
+              <SideInfo token={token} employeeId={row.employee.id} month={month} isSelf={isSelf} can={can} onAction={onAction} refresh={refresh} />
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-auto">
-            <table className="w-full min-w-[680px] text-[13px]">
+            <table className="w-full min-w-[760px] text-[13px]">
               <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
                 <tr>
-                  {["Date", "Shift", "In", "Out", "Hours", "Status", "Late", "Early out", "Overtime"].map((h) => (
+                  {["Date", "Shift", "In", "Out", "Lunch", "Hours", "Status", "Late", "Early out", "Overtime"].map((h) => (
                     // Shift only on wide screens, so In/Out/Late/Early/Overtime always fit.
                     <th key={h} className={cn("px-2.5 py-2 font-semibold", h === "Shift" && "hidden min-[1800px]:table-cell")}>{h}</th>
                   ))}
@@ -399,6 +616,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
                     <td className="hidden whitespace-nowrap px-2.5 py-2 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
                     <td className="whitespace-nowrap px-2.5 py-2 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
                     <td className="whitespace-nowrap px-2.5 py-2 tabular-nums">{d.checkOut ? clock(d.checkOut, timezone) : d.checkIn ? (d.live ? "Working" : "—") : "—"}</td>
+                    <td className={cn("whitespace-nowrap px-2.5 py-2 tabular-nums", d.lunchStart && "text-amber-600")} title={d.lunchMinutes ? hm(d.lunchMinutes) : ""}>{d.lunchStart ? timeRange(d.lunchStart, d.lunchEnd, timezone) : "—"}</td>
                     <td className="whitespace-nowrap px-2.5 py-2 font-semibold tabular-nums">{d.workedMinutes ? hm(d.workedMinutes) : "—"}</td>
                     <td className="whitespace-nowrap px-2.5 py-2">
                       <span className="inline-flex items-center gap-1.5"><Chip code={d.code} /><DayFlags day={d} size={12} /></span>

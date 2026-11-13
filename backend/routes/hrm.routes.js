@@ -51,6 +51,8 @@ router.post("/holidays", c.holidays);
 router.put("/holidays/:id", c.holidays);
 router.delete("/holidays/:id", c.removeHoliday);
 router.get("/attendance/month", c.attendanceMonth);
+router.get("/attendance/day-timeline", c.attendanceTimeline);
+router.get("/attendance/side", c.attendanceSide);
 router.post("/attendance/clock", c.clock);
 router.post("/attendance/override", c.override);
 // Employee app (location-verified workday)

@@ -30,7 +30,21 @@ function employeeIdList(raw) {
 
 const minutes = (v) => (v == null ? 0 : Math.max(0, Number(v) || 0));
 
-function dayCell(d, att, leaves, today, shiftName) {
+// The shift for the day: the snapshot taken at clock-in, else the employee's shift, else policy.
+// `shift` may be a plain name (older callers) or { name, start, end, breakMinutes }.
+function shiftFor(att, shift) {
+  const fallback = typeof shift === "string" ? { name: shift } : shift || {};
+  const snap = att?.shiftSnapshot && Object.keys(att.shiftSnapshot).length ? att.shiftSnapshot : null;
+  return {
+    name: snap?.name || fallback.name || null,
+    start: snap?.start || fallback.start || null,
+    end: snap?.end || fallback.end || null,
+    breakMinutes: minutes(snap?.breakMinutes ?? fallback.breakMinutes),
+  };
+}
+
+function dayCell(d, att, leaves, today, shift) {
+  const s = shiftFor(att, shift);
   const base = {
     date: d.date,
     kind: d.kind,
@@ -43,7 +57,14 @@ function dayCell(d, att, leaves, today, shiftName) {
     earlyMinutes: minutes(att?.earlyMinutes),
     overtimeMinutes: minutes(att?.overtimeMinutes),
     workMode: att?.workMode || null,
-    shift: att?.shiftSnapshot?.name || shiftName || null,
+    shift: s.name,
+    shiftStart: s.start,
+    shiftEnd: s.end,
+    // Lunch from the employee app; the shift's break is the allowance.
+    lunchStart: att?.lunchStartedAt || null,
+    lunchEnd: att?.lunchEndedAt || null,
+    lunchMinutes: minutes(att?.lunchMinutes),
+    lunchAllowance: s.breakMinutes,
     leave: null,
     unmarked: false,
     live: false,
@@ -145,8 +166,16 @@ async function month(user, q = {}, db = c.dbDefault) {
   ).rows.map(c.camel);
   const total = employees[0]?.listTotal || 0;
 
-  const shifts = (await db.query("SELECT id,name FROM master_items WHERE type='hrm_shift'")).rows;
-  const shiftName = (id) => shifts.find((s) => s.id === id)?.name || null;
+  const shifts = (await db.query("SELECT id,name,payload FROM master_items WHERE type='hrm_shift'")).rows;
+  const shiftOf = (id) => {
+    const s = shifts.find((x) => x.id === id);
+    return {
+      name: s?.name || null,
+      start: s?.payload?.start || p.shiftStart || null,
+      end: s?.payload?.end || p.shiftEnd || null,
+      breakMinutes: s?.payload?.breakMinutes ?? p.breakMinutes ?? 0,
+    };
+  };
   const rows = [];
   for (const e of employees) {
     const data = await calendarData(db, e.id, start, end);
@@ -161,7 +190,7 @@ async function month(user, q = {}, db = c.dbDefault) {
         byDate.get(d.date),
         data.leave.filter((l) => l.startDate <= d.date && l.endDate >= d.date),
         today,
-        shiftName(e.shiftId || p.defaultShiftId),
+        shiftOf(e.shiftId || p.defaultShiftId),
       ),
     );
     rows.push({
@@ -182,4 +211,85 @@ async function month(user, q = {}, db = c.dbDefault) {
   return { month: start.slice(0, 7), startDate: start, endDate: end, today, dates, rows, total, page, limit };
 }
 
-module.exports = { month, monthRange, dayCell, totals, employeeIdList };
+// Punch events worth drawing on a day's timeline (slot prompts and reminders are left out).
+const TIMELINE_KINDS = ["clock_in", "job_start", "lunch_start", "lunch_end", "exit", "return", "offline", "online", "job_end", "clock_out", "auto_checkout"];
+function timelineEvents(events) {
+  return (events || [])
+    .filter((ev) => TIMELINE_KINDS.includes(ev.kind))
+    .map((ev) => ({ kind: ev.kind, at: ev.at, inside: ev.inside ?? null }))
+    .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+}
+
+const READERS = ["view_own", "self_service", "approve", "hr_approve", "view_team", "view_all"];
+
+/** One day for the calendar panel: punches, lunch, where they clocked in. Same scope as the month. */
+async function timeline(user, q = {}, db = c.dbDefault) {
+  c.permit(user, ...READERS);
+  const e = await c.employee(db, user, String(q.employeeId || ""));
+  const date = c.date(q.date, "Date");
+  const att = c.camel(
+    (
+      await db.query(
+        `SELECT a.*, g.label AS geofence_label, g.kind AS geofence_kind
+           FROM hrm_attendance a LEFT JOIN hrm_geofences g ON g.id=a.geofence_id
+          WHERE a.employee_id=$1 AND a.work_date=$2`,
+        [e.id, date],
+      )
+    ).rows[0],
+  );
+  const events = att
+    ? (await db.query("SELECT kind,at,inside FROM hrm_attendance_events WHERE attendance_id=$1 ORDER BY at,id", [att.id])).rows.map(c.camel)
+    : [];
+  return {
+    date,
+    now: new Date().toISOString(),
+    attendance: att
+      ? {
+          checkIn: att.checkIn,
+          checkOut: att.checkOut,
+          lunchStart: att.lunchStartedAt || null,
+          lunchEnd: att.lunchEndedAt || null,
+          lunchMinutes: minutes(att.lunchMinutes),
+          workMode: att.workMode || null,
+          place: att.geofenceLabel || null,
+          placeKind: att.geofenceKind || null,
+          autoCheckoutAt: att.autoCheckoutAt || null,
+          outsideMinutes: minutes(att.outsideMinutes),
+          offlineMinutes: minutes(att.offlineMinutes),
+          source: att.source || null,
+        }
+      : null,
+    events: timelineEvents(events),
+  };
+}
+
+/** Leave balance for the year and this month's leave / correction requests, for the calendar card. */
+async function side(user, q = {}, db = c.dbDefault) {
+  c.permit(user, ...READERS);
+  const e = await c.employee(db, user, String(q.employeeId || ""));
+  const p = await c.policy(db);
+  const { start, end } = monthRange(q.month || c.today(p).slice(0, 7));
+  const balances = (
+    await db.query(
+      `SELECT m.id, m.name, m.payload, coalesce(sum(l.amount),0)::float AS balance
+         FROM master_items m
+         LEFT JOIN hrm_leave_ledger l ON l.leave_type_id=m.id AND l.employee_id=$1 AND l.year=$2
+        WHERE m.type='hrm_leave_type' AND m.is_active=true
+        GROUP BY m.id ORDER BY m.name`,
+      [e.id, Number(start.slice(0, 4))],
+    )
+  ).rows.map((r) => ({ id: r.id, name: r.name, balance: Number(r.balance) || 0, paid: r.payload?.paid !== false, monthly: r.payload?.accrual === "monthly" }));
+  const requests = (
+    await db.query(
+      `SELECT id,kind,title,start_date,end_date,status,created_at FROM hrm_requests
+        WHERE employee_id=$1 AND kind IN ('leave','regularization') AND status<>'Draft'
+          AND ((start_date IS NOT NULL AND start_date<=$3 AND coalesce(end_date,start_date)>=$2)
+               OR (created_at>=$2::date AND created_at<($3::date + 1)))
+        ORDER BY created_at DESC LIMIT 10`,
+      [e.id, start, end],
+    )
+  ).rows.map(c.camel);
+  return { month: start.slice(0, 7), balances, requests };
+}
+
+module.exports = { month, monthRange, dayCell, totals, employeeIdList, timelineEvents, timeline, side };

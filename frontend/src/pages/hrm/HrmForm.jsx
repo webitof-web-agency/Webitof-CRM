@@ -91,7 +91,7 @@ export function HrmForm({
   return (
     <Modal
       open
-      title={`${initial ? "Edit" : "New"} ${config.title}`}
+      title={`${initial?.id ? "Edit" : "New"} ${config.title}`}
       onClose={busy ? () => {} : onClose}
       width="min(820px,95vw)"
     >
