@@ -52,6 +52,8 @@ const shiftMonth = (ym, delta) => {
   d.setUTCMonth(d.getUTCMonth() + delta);
   return d.toISOString().slice(0, 7);
 };
+// Toolbar controls share one pill shape (the select keeps its own radius unless overridden).
+const PILL = "h-10 py-2 text-sm! rounded-full!";
 const fmtDays = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 // "Morning Shift (10:00 – 19:00)" -> "Morning Shift"; the full name stays in the tooltip.
 const shortShift = (name) => String(name || "").replace(/\s*\(.*\)\s*$/, "") || "—";
@@ -471,23 +473,23 @@ export function HrmAttendance({ token, metadata, masters, can }) {
               <span className="sr-only">Search</span>
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
               <input
-                className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] pl-9 pr-3 text-sm outline-none focus:border-[var(--primary)]"
+                className="h-10 w-full rounded-full border border-[var(--input-border)] bg-[var(--surface)] pl-9 pr-4 text-sm shadow-2xs outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-subtle)]"
                 placeholder="Search name, email or code…"
                 value={filters.search}
                 onChange={(e) => setFilter("search")(e.target.value)}
               />
             </label>
             <div className="w-36 shrink-0">
-              <SearchableSelect aria-label="Branch" value={filters.locationId} onChange={setFilter("locationId")} options={[{ value: "", label: "All branches" }, ...locations.map((l) => ({ value: l.id, label: l.name }))]} triggerClassName="h-10 py-2 text-sm" />
+              <SearchableSelect aria-label="Branch" value={filters.locationId} onChange={setFilter("locationId")} options={[{ value: "", label: "All branches" }, ...locations.map((l) => ({ value: l.id, label: l.name }))]} triggerClassName={PILL} />
             </div>
             <div className="w-40 shrink-0">
-              <SearchableSelect aria-label="Employee" searchable value={filters.employeeId} onChange={setFilter("employeeId")} options={[{ value: "", label: "All employees" }, ...employees.map((e) => ({ value: e.id, label: e.fullName }))]} triggerClassName="h-10 py-2 text-sm" />
+              <SearchableSelect aria-label="Employee" searchable value={filters.employeeId} onChange={setFilter("employeeId")} options={[{ value: "", label: "All employees" }, ...employees.map((e) => ({ value: e.id, label: e.fullName }))]} triggerClassName={PILL} />
             </div>
             <div className="w-32 shrink-0">
-              <SearchableSelect aria-label="Month" value={month.slice(5)} onChange={(v) => v && setMonth(`${month.slice(0, 4)}-${v}`)} options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, "0"), label: name }))} triggerClassName="h-10 py-2 text-sm" />
+              <SearchableSelect aria-label="Month" value={month.slice(5)} onChange={(v) => v && setMonth(`${month.slice(0, 4)}-${v}`)} options={MONTHS.map((name, i) => ({ value: String(i + 1).padStart(2, "0"), label: name }))} triggerClassName={PILL} />
             </div>
             <div className="w-24 shrink-0">
-              <SearchableSelect aria-label="Year" value={month.slice(0, 4)} onChange={(v) => v && setMonth(`${v}-${month.slice(5)}`)} options={years.map((v) => ({ value: v, label: v }))} triggerClassName="h-10 py-2 text-sm" />
+              <SearchableSelect aria-label="Year" value={month.slice(0, 4)} onChange={(v) => v && setMonth(`${v}-${month.slice(5)}`)} options={years.map((v) => ({ value: v, label: v }))} triggerClassName={PILL} />
             </div>
             <Button size="sm" variant="ghost" aria-label="Reset filters" title="Reset filters" onClick={() => setFilters({ search: "", locationId: "", employeeId: "", sort: "asc" })}>
               <RotateCcw size={14} />
@@ -503,7 +505,7 @@ export function HrmAttendance({ token, metadata, masters, can }) {
                   value={mineEmployee || employees[0]?.id || ""}
                   onChange={(v) => setMineEmployee(v || own)}
                   options={employees.map((e) => ({ value: e.id, label: `${e.fullName} · ${e.employeeNumber}` }))}
-                  triggerClassName="h-10 py-2 text-sm"
+                  triggerClassName={PILL}
                 />
               </div>
               {own && mineEmployee && mineEmployee !== own && (
