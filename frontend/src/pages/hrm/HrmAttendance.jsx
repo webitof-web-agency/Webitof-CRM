@@ -344,16 +344,24 @@ function SelectedDay({ token, day, employee, timezone, today, can, isSelf, onAct
   }, [token, employee.id, day.date, day.checkIn, key]);
   const info = timeline.key === key ? timeline.data : null;
   const place = info?.attendance?.place || day.workMode || "—";
-  const lunch = day.lunchStart ? timeRange(day.lunchStart, day.lunchEnd, timezone) : day.checkIn ? "Not taken" : "—";
+  // Lunch in = went for lunch, lunch out = came back; the total turns red past the shift's allowance.
+  const onLunch = day.lunchStart && !day.lunchEnd;
+  const lunchTaken = day.lunchMinutes || (onLunch && day.live ? (now - Date.parse(day.lunchStart)) / 60000 : 0);
   const values = [
     ["In", day.checkIn ? clock(day.checkIn, timezone) : "—", ""],
     ["Out", day.checkIn && !day.checkOut ? (day.live ? "Working" : "Not out") : day.checkOut ? clock(day.checkOut, timezone) : "—", ""],
-    ["Lunch", lunch, day.lunchStart ? "text-amber-600" : ""],
     ["Worked", day.workedMinutes ? hm(day.workedMinutes) : "—", ""],
+    ["Overtime", day.overtimeMinutes ? hm(day.overtimeMinutes) : "—", day.overtimeMinutes ? "text-sky-600" : ""],
+    ["Lunch in", day.lunchStart ? clock(day.lunchStart, timezone) : day.checkIn ? "Not taken" : "—", day.lunchStart ? "text-amber-600" : ""],
+    ["Lunch out", day.lunchEnd ? clock(day.lunchEnd, timezone) : onLunch ? (day.live ? "On lunch" : "Not punched") : "—", day.lunchEnd ? "text-amber-600" : ""],
+    [
+      "Lunch time",
+      lunchTaken ? `${hm(lunchTaken)}${day.lunchAllowance ? ` / ${day.lunchAllowance}m` : ""}` : "—",
+      lunchTaken && day.lunchAllowance && lunchTaken > day.lunchAllowance ? "text-rose-600" : "",
+    ],
+    ["Location", place, ""],
     ["Late", day.lateMinutes ? hm(day.lateMinutes) : "—", day.lateMinutes ? "text-orange-600" : ""],
     ["Early out", day.earlyMinutes ? hm(day.earlyMinutes) : "—", day.earlyMinutes ? "text-rose-600" : ""],
-    ["Overtime", day.overtimeMinutes ? hm(day.overtimeMinutes) : "—", day.overtimeMinutes ? "text-sky-600" : ""],
-    ["Location", place, ""],
   ];
   // Live line for today only.
   let live = null;
@@ -600,30 +608,31 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
             </div>
           )}
           <div className="min-h-0 flex-1 overflow-auto">
-            <table className="w-full min-w-[760px] text-[13px]">
-              <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
+            <table className="w-full min-w-[800px] text-[12.5px]">
+              <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[10.5px] uppercase tracking-wide text-[var(--text-muted)]">
                 <tr>
-                  {["Date", "Shift", "In", "Out", "Lunch", "Hours", "Status", "Late", "Early out", "Overtime"].map((h) => (
+                  {["Date", "Shift", "In", "Out", "Lunch in", "Lunch out", "Hours", "Status", "Late", "Early out", "Overtime"].map((h) => (
                     // Shift only on wide screens, so In/Out/Late/Early/Overtime always fit.
-                    <th key={h} className={cn("px-2.5 py-2 font-semibold", h === "Shift" && "hidden min-[1800px]:table-cell")}>{h}</th>
+                    <th key={h} className={cn("whitespace-nowrap px-2 py-2 font-semibold", h === "Shift" && "hidden min-[1800px]:table-cell")}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {listed.slice((page - 1) * limit, page * limit).map((d) => (
                   <tr key={d.date} className={cn("cursor-pointer hover:bg-[var(--hover-bg)]", d.date === selected?.date && "bg-[var(--hover-bg)]")} onClick={() => setPicked(d.date)}>
-                    <td className="whitespace-nowrap px-2.5 py-2 font-semibold">{prettyDate(d.date)}</td>
-                    <td className="hidden whitespace-nowrap px-2.5 py-2 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2 tabular-nums">{d.checkOut ? clock(d.checkOut, timezone) : d.checkIn ? (d.live ? "Working" : "—") : "—"}</td>
-                    <td className={cn("whitespace-nowrap px-2.5 py-2 tabular-nums", d.lunchStart && "text-amber-600")} title={d.lunchMinutes ? hm(d.lunchMinutes) : ""}>{d.lunchStart ? timeRange(d.lunchStart, d.lunchEnd, timezone) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2 font-semibold tabular-nums">{d.workedMinutes ? hm(d.workedMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2">
+                    <td className="whitespace-nowrap px-2 py-2 font-semibold">{prettyDate(d.date)}</td>
+                    <td className="hidden whitespace-nowrap px-2 py-2 text-[var(--text-muted)] min-[1800px]:table-cell" title={d.shift || ""}>{d.checkIn ? shortShift(d.shift) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{d.checkIn ? clock(d.checkIn, timezone) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{d.checkOut ? clock(d.checkOut, timezone) : d.checkIn ? (d.live ? "Working" : "—") : "—"}</td>
+                    <td className={cn("whitespace-nowrap px-2 py-2 tabular-nums", d.lunchStart && "text-amber-600")} title={d.lunchMinutes ? `Lunch ${hm(d.lunchMinutes)}` : ""}>{d.lunchStart ? clock(d.lunchStart, timezone) : "—"}</td>
+                    <td className={cn("whitespace-nowrap px-2 py-2 tabular-nums", d.lunchEnd && "text-amber-600")} title={d.lunchMinutes ? `Lunch ${hm(d.lunchMinutes)}` : ""}>{d.lunchEnd ? clock(d.lunchEnd, timezone) : d.lunchStart ? (d.live ? "On lunch" : "—") : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 font-semibold tabular-nums">{d.workedMinutes ? hm(d.workedMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2">
                       <span className="inline-flex items-center gap-1.5"><Chip code={d.code} /><DayFlags day={d} size={12} /></span>
                     </td>
-                    <td className="whitespace-nowrap px-2.5 py-2 text-orange-600 tabular-nums">{d.lateMinutes ? hm(d.lateMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2 text-rose-600 tabular-nums">{d.earlyMinutes ? hm(d.earlyMinutes) : "—"}</td>
-                    <td className="whitespace-nowrap px-2.5 py-2 text-sky-600 tabular-nums">{d.overtimeMinutes ? hm(d.overtimeMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-orange-600 tabular-nums">{d.lateMinutes ? hm(d.lateMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-rose-600 tabular-nums">{d.earlyMinutes ? hm(d.earlyMinutes) : "—"}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-sky-600 tabular-nums">{d.overtimeMinutes ? hm(d.overtimeMinutes) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
