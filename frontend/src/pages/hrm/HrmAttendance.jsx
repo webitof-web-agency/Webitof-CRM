@@ -351,17 +351,17 @@ function SelectedDay({ token, day, employee, timezone, today, can, isSelf, onAct
     ["In", day.checkIn ? clock(day.checkIn, timezone) : "—", ""],
     ["Out", day.checkIn && !day.checkOut ? (day.live ? "Working" : "Not out") : day.checkOut ? clock(day.checkOut, timezone) : "—", ""],
     ["Worked", day.workedMinutes ? hm(day.workedMinutes) : "—", ""],
-    ["Overtime", day.overtimeMinutes ? hm(day.overtimeMinutes) : "—", day.overtimeMinutes ? "text-sky-600" : ""],
+    ["Late", day.lateMinutes ? hm(day.lateMinutes) : "—", day.lateMinutes ? "text-orange-600" : ""],
+    ["Early out", day.earlyMinutes ? hm(day.earlyMinutes) : "—", day.earlyMinutes ? "text-rose-600" : ""],
     ["Lunch in", day.lunchStart ? clock(day.lunchStart, timezone) : day.checkIn ? "Not taken" : "—", day.lunchStart ? "text-amber-600" : ""],
     ["Lunch out", day.lunchEnd ? clock(day.lunchEnd, timezone) : onLunch ? (day.live ? "On lunch" : "Not punched") : "—", day.lunchEnd ? "text-amber-600" : ""],
     [
       "Lunch time",
-      lunchTaken ? `${hm(lunchTaken)}${day.lunchAllowance ? ` / ${day.lunchAllowance}m` : ""}` : "—",
+      lunchTaken ? `${hm(lunchTaken).replace(/^0h /, "")}${day.lunchAllowance ? ` / ${day.lunchAllowance}m` : ""}` : "—",
       lunchTaken && day.lunchAllowance && lunchTaken > day.lunchAllowance ? "text-rose-600" : "",
     ],
+    ["Overtime", day.overtimeMinutes ? hm(day.overtimeMinutes) : "—", day.overtimeMinutes ? "text-sky-600" : ""],
     ["Location", place, ""],
-    ["Late", day.lateMinutes ? hm(day.lateMinutes) : "—", day.lateMinutes ? "text-orange-600" : ""],
-    ["Early out", day.earlyMinutes ? hm(day.earlyMinutes) : "—", day.earlyMinutes ? "text-rose-600" : ""],
   ];
   // Live line for today only.
   let live = null;
@@ -378,7 +378,6 @@ function SelectedDay({ token, day, employee, timezone, today, can, isSelf, onAct
   }
   const past = day.date <= today;
   const notes = [
-    day.shift && shortShift(day.shift),
     day.unmarked && "Nothing recorded",
     day.leave && `${day.leave.fraction === 1 ? "Full day" : "Half day"} ${day.leave.paid ? "paid" : "unpaid"} leave`,
     info?.attendance?.autoCheckoutAt && `Auto clocked out at ${clock12(info.attendance.autoCheckoutAt, timezone)}`,
@@ -414,7 +413,7 @@ function SelectedDay({ token, day, employee, timezone, today, can, isSelf, onAct
         </p>
       )}
       <DayTimeline day={day} events={info?.events} offlineMinutes={info?.attendance?.offlineMinutes || 0} timezone={timezone} now={now} />
-      <dl className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 @md:grid-cols-4">
+      <dl className="mt-2 grid grid-cols-3 gap-x-2.5 gap-y-1.5 @md:grid-cols-5">
         {values.map(([label, value, color]) => (
           <div key={label} className="min-w-0">
             <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">{label}</dt>
@@ -552,8 +551,8 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
   return (
     <div className="space-y-4">
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
-      <div className="grid gap-3 xl:h-[clamp(600px,calc(100dvh-12.5rem),720px)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
-        <Card className="@container flex flex-col gap-2.5 p-3 xl:min-h-0 xl:overflow-y-auto">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
+        <Card className="@container flex flex-col gap-2.5 p-3">
           <MonthPicker month={month} onChange={setMonth} years={years} />
           <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             {WEEKDAYS.map((d) => <div key={d}>{d}</div>)}
@@ -590,23 +589,21 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
           {selected && row && (
             <SelectedDay token={token} day={selected} employee={row.employee} timezone={timezone} today={data.today} can={can} isSelf={isSelf} onAction={onAction} refresh={refresh} />
           )}
-        </Card>
-        <Card className="@container flex flex-col overflow-hidden p-0 xl:min-h-0">
+          {/* Month summary, leave balance and requests sit at the bottom of the calendar card. */}
           {tiles.length > 0 && (
-            <div className="grid grid-cols-2 gap-1.5 border-b border-[var(--border)] p-2 @md:grid-cols-4 @3xl:grid-cols-8">
+            <div className="mt-auto grid grid-cols-2 gap-1.5 @[340px]:grid-cols-4">
               {tiles.map(([label, value, color]) => (
-                <div key={label} className="min-w-0 rounded-xl bg-[var(--surface-2)] px-2 py-1.5">
+                <div key={label} className="min-w-0 rounded-xl bg-[var(--surface-2)] px-2 py-1">
                   <p className="truncate text-[11px] font-medium text-[var(--text-muted)]" title={label}>{label}</p>
                   <p className={cn("truncate text-sm font-bold tabular-nums", color)}>{value}</p>
                 </div>
               ))}
             </div>
           )}
-          {row && (
-            <div className="border-b border-[var(--border)] p-2">
-              <SideInfo token={token} employeeId={row.employee.id} month={month} isSelf={isSelf} can={can} onAction={onAction} refresh={refresh} />
-            </div>
-          )}
+          {row && <SideInfo token={token} employeeId={row.employee.id} month={month} isSelf={isSelf} can={can} onAction={onAction} refresh={refresh} />}
+        </Card>
+        <div className="relative min-h-[420px] xl:min-h-0">
+        <Card className="@container flex flex-col overflow-hidden p-0 xl:absolute xl:inset-0">
           <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full min-w-[800px] text-[12.5px]">
               <thead className="sticky top-0 z-10 bg-[var(--surface-2)] text-left text-[10.5px] uppercase tracking-wide text-[var(--text-muted)]">
@@ -641,6 +638,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
           </div>
           {listed.length > 0 && <Pager total={listed.length} page={page} limit={limit} onPage={setPage} onLimit={(n) => (setLimit(n), setPage(1))} sizes={[10, 20, 50]} />}
         </Card>
+        </div>
       </div>
     </div>
   );
