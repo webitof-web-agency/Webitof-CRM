@@ -7,6 +7,10 @@
     <link rel="icon" type="image/png" href="/assets/images/round-logo.png" />
     <link rel="apple-touch-icon" href="/assets/images/square-logo.png" />
     <title>Webitof CRM</title>
+    <!-- Fonts load in parallel with the app instead of after its CSS (an @import in CSS waited for it). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" />
     <script>
       (function() {
         try {
@@ -28,6 +32,48 @@
     <script type="module" src="/src/main.jsx"></script>
   </head>
   <body>
+    <!-- Shown while the app's code downloads; GlobalLoader takes over (and removes it) once React starts. -->
+    <div id="boot-loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100">
+      <div class="boot-card">
+        <div class="boot-ring">
+          <svg viewBox="0 0 64 64"><circle class="boot-track" cx="32" cy="32" r="26"></circle><circle id="boot-bar" class="boot-bar" cx="32" cy="32" r="26"></circle></svg>
+          <span id="boot-text">0%</span>
+        </div>
+        <p>Loading…</p>
+      </div>
+    </div>
+    <style>
+      #boot-loader{position:fixed;inset:0;z-index:45;display:flex;align-items:center;justify-content:center;background:#f6f7fb;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+      html.dark #boot-loader{background:#0b0d14}
+      #boot-loader .boot-card{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 28px;border-radius:24px;background:#ffffffe6;border:1px solid #e5e7eb;box-shadow:0 20px 50px rgba(15,23,42,.12)}
+      html.dark #boot-loader .boot-card{background:#151926e6;border-color:#262b3a}
+      #boot-loader .boot-ring{position:relative;width:64px;height:64px}
+      #boot-loader svg{width:64px;height:64px;transform:rotate(-90deg)}
+      #boot-loader circle{fill:none;stroke-width:5}
+      #boot-loader .boot-track{stroke:#e5e7eb}
+      html.dark #boot-loader .boot-track{stroke:#262b3a}
+      #boot-loader .boot-bar{stroke:#4f46e5;stroke-linecap:round;stroke-dasharray:163.36;stroke-dashoffset:163.36;transition:stroke-dashoffset .2s ease-out}
+      #boot-loader #boot-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#0f172a;font-variant-numeric:tabular-nums}
+      html.dark #boot-loader #boot-text{color:#f8fafc}
+      #boot-loader p{margin:0;font-size:12px;font-weight:500;color:#64748b}
+    </style>
+    <script>
+      // Eases towards 90 % while the bundle downloads; the app continues from window.__webitofBootPercent.
+      (function () {
+        var start = Date.now();
+        var bar = document.getElementById('boot-bar');
+        var text = document.getElementById('boot-text');
+        function tick() {
+          if (!document.getElementById('boot-loader')) return;
+          var p = Math.round(90 * (1 - Math.exp(-(Date.now() - start) / 1500)));
+          window.__webitofBootPercent = p;
+          bar.style.strokeDashoffset = String(163.36 * (1 - p / 100));
+          text.textContent = p + '%';
+          setTimeout(tick, 100);
+        }
+        tick();
+      })();
+    </script>
     <div id="root"></div>
   </body>
 </html>

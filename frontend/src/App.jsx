@@ -1,6 +1,7 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { lazy, Suspense, useEffect } from 'react';
+import { GlobalLoader, RouteLoadingTracker, SuspenseLoading } from './components/common/GlobalLoader';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -95,7 +96,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<HomeRedirect />} />
-        <Route path="hrm/*" element={<HrmRoute><Suspense fallback={<div className="p-6" role="status">Loading HRM…</div>}><HrmPage /></Suspense></HrmRoute>} />
+        <Route path="hrm/*" element={<HrmRoute><Suspense fallback={<SuspenseLoading />}><HrmPage /></Suspense></HrmRoute>} />
         <Route
           path="dashboard"
           element={
@@ -566,9 +567,11 @@ export default function App() {
         <HashRouter>
           <NotificationProvider>
             <TitleUpdater />
-            <Suspense fallback={<div className="p-6" role="status">Loading…</div>}>
+            <RouteLoadingTracker />
+            <Suspense fallback={<SuspenseLoading />}>
               <AppRoutes />
             </Suspense>
+            <GlobalLoader />
             <Toaster richColors position="top-right" closeButton />
             <ConfirmHost />
             <MaintenanceScreen />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Archive, FolderUp, RefreshCw, Upload, ExternalLink, Plus } from 'lucide-react';
-import imageCompression from 'browser-image-compression';
+import { imageCompression } from '../lib/imageCompression';
 import { toast } from 'sonner';
 import { api } from '../api/client';
 import { Button } from '../components/ui/Button';

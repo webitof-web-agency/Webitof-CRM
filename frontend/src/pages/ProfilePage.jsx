@@ -8,7 +8,7 @@ import { User, Mail, Shield, Camera, Key, Save, Phone, MapPin, Trash2, Upload, X
 import { api } from '../api/client';
 import { getFileViewUrl } from '../lib/fileUpload';
 import { toast } from 'sonner';
-import imageCompression from 'browser-image-compression';
+import { imageCompression } from '../lib/imageCompression';
 
 export function ProfilePage() {
   const { user, token, updateProfile, deleteAvatar } = useAuth();

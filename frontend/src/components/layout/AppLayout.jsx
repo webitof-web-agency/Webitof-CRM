@@ -1,14 +1,18 @@
-import { useMemo, useState, useEffect } from 'react';
+import { lazy, Suspense, useMemo, useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { navigationGroups } from '../../config/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
-import { CommandPalette } from '../ui/CommandPalette';
 import { cn } from '../../lib/cn';
 import { api } from '../../api/client';
-import { GlobalEventsDrawer } from '../events/GlobalEventsDrawer';
 import { persistAndApplyThemeSettings } from '../../config/theme';
+import { SuspenseLoading } from '../common/GlobalLoader';
+import { prefetchMostUsedPages } from '../../lib/prefetchPages';
+
+// Opened on demand (Ctrl+K, calendar button): loaded the first time they open, not with every page.
+const CommandPalette = lazy(() => import('../ui/CommandPalette').then((m) => ({ default: m.CommandPalette })));
+const GlobalEventsDrawer = lazy(() => import('../events/GlobalEventsDrawer').then((m) => ({ default: m.GlobalEventsDrawer })));
 
 function resolveTitle(pathname) {
   if (pathname.includes('/leads') && pathname.includes('/quotations')) {
@@ -47,6 +51,15 @@ export function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [eventsOpen, setEventsOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  // Mounted after the first open and kept, so their state survives closing.
+  const [paletteUsed, setPaletteUsed] = useState(false);
+  const [eventsUsed, setEventsUsed] = useState(false);
+  useEffect(() => {
+    if (commandPaletteOpen) setPaletteUsed(true);
+  }, [commandPaletteOpen]);
+  useEffect(() => {
+    if (eventsOpen) setEventsUsed(true);
+  }, [eventsOpen]);
   const [settings, setSettings] = useState(null);
 
   // Global keyboard shortcut for Command Palette (Ctrl+K or Cmd+K)
@@ -67,6 +80,11 @@ export function AppLayout() {
       setSidebarOpen(false);
     }
   }, [location.pathname]);
+
+  // Once signed in, fetch the most-used pages' code in idle time so they open instantly.
+  useEffect(() => {
+    if (token) prefetchMostUsedPages();
+  }, [token]);
 
   // Sync global UI settings on mount
   useEffect(() => {
@@ -123,24 +141,35 @@ export function AppLayout() {
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
         />
         <main className="w-full flex-1 px-4 md:px-8 py-6 transition-all duration-200 print:px-0 print:pt-0 print:pb-0">
-          <Outlet />
+          {/* Pages load inside the layout, so the sidebar and top bar stay while a page's code downloads. */}
+          <Suspense fallback={<SuspenseLoading />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 
       {/* Global Command Palette */}
-      <CommandPalette
-        open={commandPaletteOpen}
-        onClose={() => setCommandPaletteOpen(false)}
-      />
+      {paletteUsed && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+          />
+        </Suspense>
+      )}
 
       {/* Global Events / Calendar Drawer */}
-      <GlobalEventsDrawer
-        open={eventsOpen}
-        onClose={() => setEventsOpen(false)}
-        token={token}
-        user={user}
-        sharedLabels={settings?.labels || []}
-      />
+      {eventsUsed && (
+        <Suspense fallback={null}>
+          <GlobalEventsDrawer
+            open={eventsOpen}
+            onClose={() => setEventsOpen(false)}
+            token={token}
+            user={user}
+            sharedLabels={settings?.labels || []}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

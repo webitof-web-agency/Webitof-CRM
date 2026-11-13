@@ -6,7 +6,7 @@ import {
   Youtube, Instagram, Github, Shield,
   User as UserIcon, Check, X, Briefcase, Building2, Tag
 } from 'lucide-react';
-import imageCompression from 'browser-image-compression';
+import { imageCompression } from '../lib/imageCompression';
 import { api } from '../api/client';
 import { getFileViewUrl } from '../lib/fileUpload';
 import { formatDateTime } from '../lib/format';

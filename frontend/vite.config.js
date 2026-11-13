@@ -10,7 +10,7 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
           if (/node_modules[\\/]react(?:-dom|-router|-router-dom)?[\\/]/.test(id)) return 'react-vendor';
-          if (id.includes('node_modules/lucide-react') || id.includes('node_modules/react-icons')) return 'icon-vendor';
+          // Icons are not grouped: one shared icon chunk made every page download every icon the app uses.
           if (id.includes('node_modules/socket.io-client') || id.includes('node_modules/sonner')) return 'app-vendor';
           return undefined;
         }

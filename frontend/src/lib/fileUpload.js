@@ -1,4 +1,4 @@
-import imageCompression from 'browser-image-compression';
+import { imageCompression } from './imageCompression';
 import { API_BASE_URL, api } from '../api/client';
 
 async function compressIfNeeded(file, compressImages) {

@@ -6,7 +6,7 @@ import { cn } from '../../lib/cn';
 import { api } from '../../api/client';
 import { getFileOpenUrl, getFileViewUrl } from '../../lib/fileUpload';
 import { formatDate } from '../../lib/format';
-import imageCompression from 'browser-image-compression';
+import { imageCompression } from '../../lib/imageCompression';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
 

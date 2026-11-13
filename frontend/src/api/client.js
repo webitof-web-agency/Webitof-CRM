@@ -1,3 +1,4 @@
+import { trackLoading } from '../lib/loadingProgress';
 const DEFAULT_API_URL = import.meta.env.PROD ? 'https://crmapi.webitof.com/api' : '/api';
 const API_BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
 const CACHE_PREFIX = 'webitof-api-cache:v7';
@@ -108,12 +109,29 @@ export function clearApiCache() {
   invalidateStoredCache('');
 }
 
-export async function request(path, { method = 'GET', body, token, headers = {}, formData = null, skipCache = false } = {}) {
+// GETs already on the wire: a second caller for the same URL waits for the first instead of
+// sending its own request (pages and layout pieces often ask for the same data at mount).
+const inflightGets = new Map();
+
+export async function request(path, options = {}) {
+  const { method = 'GET', token } = options;
   const cacheKey = getCacheKey(method, path, token);
-  if (method === 'GET' && !skipCache) {
+  if (method === 'GET' && !options.skipCache) {
     const cached = readStoredCache(cacheKey);
     if (cached) return cached.value;
   }
+  if (method !== 'GET') return trackLoading(sendRequest(path, options, cacheKey));
+  if (!inflightGets.has(cacheKey)) {
+    inflightGets.set(
+      cacheKey,
+      sendRequest(path, options, cacheKey).finally(() => inflightGets.delete(cacheKey))
+    );
+  }
+  // Counted towards the centred page-load spinner while a page is loading.
+  return trackLoading(inflightGets.get(cacheKey));
+}
+
+async function sendRequest(path, { method = 'GET', body, token, headers = {}, formData = null, skipCache = false } = {}, cacheKey) {
 
   const init = {
     method,

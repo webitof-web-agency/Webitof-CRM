@@ -5,7 +5,7 @@ import { Tabs } from '../ui/Tabs';
 import { Input, Textarea } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { ChangePasswordForm } from '../forms/ChangePasswordForm';
-import imageCompression from 'browser-image-compression';
+import { imageCompression } from '../../lib/imageCompression';
 import { api } from '../../api/client';
 import { getFileViewUrl } from '../../lib/fileUpload';
 import { useAuth } from '../../context/AuthContext';
