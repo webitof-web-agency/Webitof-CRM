@@ -73,9 +73,9 @@ function DayFlags({ day, size = 11 }) {
   );
 }
 
-function Legend() {
+function Legend({ compact = false }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--text-muted)]">
+    <div className={cn("flex flex-wrap items-center text-[var(--text-muted)]", compact ? "gap-x-3 gap-y-1 text-[11px]" : "gap-x-4 gap-y-2 text-xs")}>
       {Object.entries(CODES).map(([code, { label, chip }]) => (
         <span key={code} className="inline-flex items-center gap-1.5">
           <span className={cn("inline-flex min-w-[26px] justify-center rounded-md px-1.5 py-0.5 text-[10px] font-bold", chip)}>{code}</span>
@@ -338,9 +338,6 @@ function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
   const monthName = `${MONTHS[Number(m) - 1]} ${y}`;
   return (
     <div className="space-y-4">
-      <Card className="p-4">
-        <Legend />
-      </Card>
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
       <Card className="overflow-hidden p-0">
         <div className="overflow-x-auto">
@@ -352,7 +349,13 @@ function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
                     Employee {sort === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />}
                   </button>
                 </th>
-                <th colSpan={data?.dates?.length || 1} className="border-b border-[var(--border)] bg-[var(--surface-2)] py-2 text-base font-semibold">{monthName}</th>
+                <th colSpan={data?.dates?.length || 1} className="border-b border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 font-normal">
+                  {/* Month name and the legend share the header row. */}
+                  <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
+                    <span className="text-base font-semibold text-[var(--text-main)]">{monthName}</span>
+                    <Legend compact />
+                  </div>
+                </th>
                 <th rowSpan={2} className="sticky right-[92px] z-20 w-[64px] min-w-[64px] border-b border-l border-[var(--border)] bg-[var(--surface-2)] px-2 text-xs font-semibold uppercase tracking-wider">Total</th>
                 <th rowSpan={2} className="sticky right-0 z-20 w-[92px] min-w-[92px] border-b border-l border-[var(--border)] bg-[var(--surface-2)] px-2 text-xs font-semibold uppercase tracking-wider">Overtime</th>
               </tr>
