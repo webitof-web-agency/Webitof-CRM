@@ -425,7 +425,12 @@ function AttendanceChart({ token, filters, setSort, month, onDay, refresh }) {
 export function HrmAttendance({ token, metadata, masters, can }) {
   const today = new Date().toISOString().slice(0, 10);
   const canChart = can("approve") || can("hr_approve") || can("view_team") || can("view_all");
-  const [tab, setTab] = useState("mine");
+  // Admins (Super Admin / company-wide HR) land on the chart; everyone else on their own calendar.
+  const adminFirst = canChart && can("view_all");
+  const [tab, setTab] = useState(adminFirst ? "chart" : "mine");
+  const tabs = adminFirst
+    ? [["chart", "Attendance chart"], ["mine", "My attendance"]]
+    : [["mine", "My attendance"], ...(canChart ? [["chart", "Attendance chart"]] : [])];
   const [month, setMonth] = useState(today.slice(0, 7));
   const [employees, setEmployees] = useState([]);
   const [day, setDay] = useState(null);
@@ -456,7 +461,7 @@ export function HrmAttendance({ token, metadata, masters, can }) {
       {/* Tabs, filters and actions share one row; it wraps on narrow screens. */}
       <Card className="flex flex-wrap items-center gap-2 p-2">
         <div className="inline-flex shrink-0 rounded-2xl bg-[var(--surface-2)] p-1">
-          {[["mine", "My attendance"], ...(canChart ? [["chart", "Attendance chart"]] : [])].map(([key, label]) => (
+          {tabs.map(([key, label]) => (
             <button
               key={key}
               type="button"
