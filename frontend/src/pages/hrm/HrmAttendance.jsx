@@ -60,7 +60,7 @@ const shiftMonth = (ym, delta) => {
 };
 // Toolbar controls share one pill shape (the select keeps its own radius unless overridden).
 const PILL = "h-10 py-2 text-sm! rounded-full!";
-const PICKER = "h-8 py-1 text-sm! rounded-full!";
+const PICKER = "h-7 py-0.5 text-[13px]! rounded-full!";
 // "09:42 am" -> "9:42" for the small in–out line inside a calendar day.
 const shortClock = (iso, timezone) =>
   iso ? new Date(iso).toLocaleTimeString("en-IN", { timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s*[ap]m$/i, "") : "";
@@ -300,8 +300,8 @@ function DayTimeline({ day, events, offlineMinutes, timezone, now }) {
     offlineMinutes > 0 && ["bg-slate-500", `Offline ${hm(offlineMinutes)}`],
   ].filter(Boolean);
   return (
-    <div className="mt-2.5">
-      <div className="relative h-3 overflow-hidden rounded-full bg-[var(--surface)] ring-1 ring-[var(--border)]">
+    <div className="mt-1.5">
+      <div className="relative h-2.5 overflow-hidden rounded-full bg-[var(--surface)] ring-1 ring-[var(--border)]">
         {shiftStart && shiftEnd && <span className="absolute inset-y-0 bg-slate-200 dark:bg-slate-500/25" style={seg(shiftStart, shiftEnd)} title={`Shift ${day.shiftStart}–${day.shiftEnd}`} />}
         {checkIn && end && <span className="absolute inset-y-[3px] rounded-full bg-emerald-400" style={seg(checkIn, end)} title={`Worked ${timeRange(day.checkIn, day.checkOut, timezone)}`} />}
         {checkIn && !end && <span className="absolute inset-y-0 w-1.5 rounded-full bg-pink-500" style={{ left: `${pct(checkIn)}%` }} title={`In ${clock12(checkIn, timezone)}, no clock-out`} />}
@@ -384,10 +384,10 @@ function SelectedDay({ token, day, employee, timezone, today, can, isSelf, onAct
     day.checkIn && !day.lunchStart && day.lunchAllowance > 0 && `Lunch allowance ${day.lunchAllowance}m`,
   ].filter(Boolean);
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 p-2.5">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 px-2.5 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <span className="text-sm font-bold">{prettyDate(day.date)}</span>
+          <span className="text-[13px] font-bold">{prettyDate(day.date)}</span>
           <Chip code={day.code} />
           <DayFlags day={day} size={13} />
         </div>
@@ -413,15 +413,15 @@ function SelectedDay({ token, day, employee, timezone, today, can, isSelf, onAct
         </p>
       )}
       <DayTimeline day={day} events={info?.events} offlineMinutes={info?.attendance?.offlineMinutes || 0} timezone={timezone} now={now} />
-      <dl className="mt-2 grid grid-cols-3 gap-x-2.5 gap-y-1.5 @md:grid-cols-5">
+      <dl className="mt-1.5 grid grid-cols-3 gap-x-2 gap-y-1 @[380px]:grid-cols-5">
         {values.map(([label, value, color]) => (
           <div key={label} className="min-w-0">
-            <dt className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">{label}</dt>
-            <dd className={cn("truncate text-[13px] font-semibold tabular-nums", color)} title={String(value)}>{value}</dd>
+            <dt className="text-[9.5px] uppercase tracking-wide text-[var(--text-muted)]">{label}</dt>
+            <dd className={cn("truncate text-xs font-semibold tabular-nums", color)} title={String(value)}>{value}</dd>
           </div>
         ))}
       </dl>
-      {notes.length > 0 && <p className="mt-1.5 truncate text-[11px] text-[var(--text-muted)]" title={notes.join(" · ")}>{notes.join(" · ")}</p>}
+      {notes.length > 0 && <p className="mt-1 truncate text-[10.5px] text-[var(--text-muted)]" title={notes.join(" · ")}>{notes.join(" · ")}</p>}
     </div>
   );
 }
@@ -446,10 +446,10 @@ function SideInfo({ token, employeeId, month, isSelf, can, onAction, refresh }) 
   const others = data.balances.filter((b) => b !== paid && b.balance !== 0);
   const shown = data.requests.slice(0, 3);
   return (
-    <div className="grid gap-2 @md:grid-cols-2">
-      <div className="rounded-xl border border-[var(--border)] p-2.5">
+    <div className="grid gap-1.5 @[380px]:grid-cols-2">
+      <div className="rounded-xl border border-[var(--border)] px-2.5 py-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Leave balance · {month.slice(0, 4)}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Leave balance · {month.slice(0, 4)}</p>
           {isSelf && can("self_service") && (
             <Button size="xs" variant="secondary" onClick={() => onAction("leave", { employeeId })}>
               <Plus size={12} /> Apply
@@ -458,7 +458,7 @@ function SideInfo({ token, employeeId, month, isSelf, can, onAction, refresh }) 
         </div>
         {paid ? (
           <p className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-xl font-bold tabular-nums text-violet-600">{fmtDays(paid.balance)}</span>
+            <span className="text-lg font-bold leading-none tabular-nums text-violet-600">{fmtDays(paid.balance)}</span>
             <span className="text-xs text-[var(--text-muted)]">
               {paid.name}
               {paid.monthly ? " · +1 every month" : ""}
@@ -471,12 +471,12 @@ function SideInfo({ token, employeeId, month, isSelf, can, onAction, refresh }) 
           <p className="mt-0.5 truncate text-[11px] text-[var(--text-muted)]">{others.map((b) => `${b.name} ${fmtDays(b.balance)}`).join(" · ")}</p>
         )}
       </div>
-      <div className="rounded-xl border border-[var(--border)] p-2.5">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+      <div className="rounded-xl border border-[var(--border)] px-2.5 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">
           {isSelf ? "My requests" : "Requests"} · {MONTHS[Number(month.slice(5)) - 1].slice(0, 3)}
         </p>
         {shown.length ? (
-          <ul className="mt-1 space-y-1">
+          <ul className="mt-1 space-y-0.5">
             {shown.map((r) => (
               <li key={r.id} className="flex items-center justify-between gap-2 text-xs">
                 <span className="min-w-0 truncate" title={r.title}>
@@ -545,19 +545,19 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
         ["Missed punch", t.missingPunch, "text-pink-600"],
         ["Worked", hm(t.workedMinutes), "text-[var(--text-main)]"],
         ["Overtime", hm(t.overtimeMinutes), "text-sky-600"],
-        ["Avg check-in", avgIn, "text-[var(--text-main)]"],
+        ["Avg in", avgIn, "text-[var(--text-main)]"],
       ]
     : [];
   return (
     <div className="space-y-4">
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
-        <Card className="@container flex flex-col gap-2.5 p-3">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] 2xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.35fr)]">
+        <Card className="@container flex flex-col gap-2 p-2.5">
           <MonthPicker month={month} onChange={setMonth} years={years} />
-          <div className="grid grid-cols-7 gap-1.5 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             {WEEKDAYS.map((d) => <div key={d}>{d}</div>)}
           </div>
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid grid-cols-7 gap-1">
             {Array.from({ length: firstWeekday }, (_, i) => <div key={`pad-${i}`} />)}
             {days.map((day) => {
               const style = CODES[day.code]?.cell;
@@ -573,7 +573,7 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
                   onClick={() => setPicked(day.date)}
                   title={[prettyDate(day.date), CODES[day.code]?.label || "Nothing yet", times, day.lunchStart && `Lunch ${timeRange(day.lunchStart, day.lunchEnd, timezone)}`].filter(Boolean).join(" · ")}
                   className={cn(
-                    "relative flex h-12 flex-col items-center justify-center gap-px rounded-[10px] border text-sm font-bold leading-none transition hover:brightness-95",
+                    "relative flex h-10 flex-col items-center justify-center gap-px rounded-[8px] border text-[13px] font-bold leading-none transition hover:brightness-95",
                     style || "border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-muted)]",
                     isSelected && "ring-2 ring-[var(--primary)] ring-offset-1 ring-offset-[var(--surface)]",
                   )}
@@ -591,11 +591,11 @@ function MyAttendance({ token, metadata, employees, employeeId, month, setMonth,
           )}
           {/* Month summary, leave balance and requests sit at the bottom of the calendar card. */}
           {tiles.length > 0 && (
-            <div className="mt-auto grid grid-cols-2 gap-1.5 @[340px]:grid-cols-4">
+            <div className="mt-auto grid grid-cols-2 gap-1 @[340px]:grid-cols-4">
               {tiles.map(([label, value, color]) => (
-                <div key={label} className="min-w-0 rounded-xl bg-[var(--surface-2)] px-2 py-1">
-                  <p className="truncate text-[11px] font-medium text-[var(--text-muted)]" title={label}>{label}</p>
-                  <p className={cn("truncate text-sm font-bold tabular-nums", color)}>{value}</p>
+                <div key={label} className="flex min-w-0 items-baseline justify-between gap-1.5 rounded-lg bg-[var(--surface-2)] px-2 py-1">
+                  <p className="truncate text-[10.5px] font-medium text-[var(--text-muted)]" title={label}>{label}</p>
+                  <p className={cn("shrink-0 text-xs font-bold tabular-nums", color)}>{value}</p>
                 </div>
               ))}
             </div>
