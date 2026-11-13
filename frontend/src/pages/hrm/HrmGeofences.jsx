@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Crosshair } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
+import { Modal } from "../../components/ui/Modal";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Field, Status } from "./HrmShared";
 import { GeoMap, distanceMeters, mapsLink } from "./GeoMap";
@@ -26,11 +27,75 @@ function homeWarnings(home, offices) {
     notes.push(`Registered with GPS accuracy ±${home.requestAccuracy} m, wider than its ${home.radiusMeters} m radius`);
   return notes;
 }
+/** Office fields + map. Used inline to add an office and inside the Edit popup. */
+function OfficeForm({ form, setForm, onSubmit, busy, masters, offices, fallback, submitLabel, onCancel, mapHeight = 380 }) {
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const prefix = form.id ? "edit" : "office";
+  function pickMyLocation() {
+    if (!navigator.geolocation) return toast.error("Location is unavailable in this browser");
+    navigator.geolocation.getCurrentPosition(
+      (p) => setForm((f) => ({ ...f, latitude: Number(p.coords.latitude.toFixed(6)), longitude: Number(p.coords.longitude.toFixed(6)) })),
+      (err) => toast.error(err.message),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+  return (
+    <form className="grid gap-5 lg:grid-cols-[1fr_1.2fr]" onSubmit={onSubmit}>
+      <div className="space-y-4">
+        <Field name={`${prefix}Label`} title="Office name" value={form.label} onChange={(v) => set("label", v)} required />
+        <Field name={`${prefix}Address`} title="Address" value={form.address} onChange={(v) => set("address", v)} />
+        <div className="grid grid-cols-2 gap-3">
+          <Field name={`${prefix}Lat`} title="Latitude" type="number" value={form.latitude} onChange={(v) => set("latitude", v)} required />
+          <Field name={`${prefix}Lng`} title="Longitude" type="number" value={form.longitude} onChange={(v) => set("longitude", v)} required />
+        </div>
+        <Field name={`${prefix}Radius`} title="Radius (metres)" type="number" min={20} max={5000} value={form.radiusMeters} onChange={(v) => set("radiusMeters", v)} required help={
+            Number(form.radiusMeters) && Number(form.radiusMeters) < SMALL_OFFICE_RADIUS
+              ? `Under ${SMALL_OFFICE_RADIUS} m is smaller than normal GPS drift indoors, so staff inside may be refused clock-in. Keep 100–200 m for a building.`
+              : "Keep 100–200 m for a building; GPS tolerance is added automatically."
+          } />
+        <Field
+          name={`${prefix}Location`}
+          title="Organization location (optional)"
+          type="select"
+          options={masters.filter((m) => m.type === "hrm_location").map((m) => ({ value: m.id, label: m.name }))}
+          value={form.locationId}
+          onChange={(v) => set("locationId", v)}
+        />
+        <Field name={`${prefix}Status`} title="Status" type="select" options={["Approved", "Retired"]} value={form.status} onChange={(v) => set("status", v)} />
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" loading={busy}>{submitLabel}</Button>
+          <Button type="button" variant="secondary" onClick={pickMyLocation}>
+            <Crosshair size={14} /> Use my location
+          </Button>
+          {onCancel && (
+            <Button type="button" variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-xs text-[var(--text-muted)]">Click the map or drag the pin to set the office centre.</p>
+        <GeoMap
+          center={{ latitude: form.latitude, longitude: form.longitude }}
+          radius={form.radiusMeters}
+          onPick={(p) => setForm((f) => ({ ...f, ...p }))}
+          others={offices.filter((o) => o.id !== form.id && o.status === "Approved")}
+          fallback={fallback}
+          height={mapHeight}
+        />
+      </div>
+    </form>
+  );
+}
+
 /** Office geofences (WFO) and employee home geofences (WFH). */
 export function HrmGeofences({ token, metadata, masters, can }) {
   const [rows, setRows] = useState([]),
     [form, setForm] = useState(blank(metadata.policy.defaultOfficeRadiusMeters || 150)),
+    [editing, setEditing] = useState(null),
     [busy, setBusy] = useState(false),
+    [editBusy, setEditBusy] = useState(false),
     [error, setError] = useState(""),
     [refresh, setRefresh] = useState(0),
     [homeBusy, setHomeBusy] = useState(false),
@@ -45,29 +110,37 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       active = false;
     };
   }, [token, refresh]);
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const offices = rows.filter((r) => r.kind === "office");
   // An empty form opens the map on an existing office, not on 0,0.
   const mapFallback = offices.find((o) => o.status === "Approved") || offices[0] || null;
   const homes = rows.filter((r) => r.kind === "home");
-  async function submit(e) {
-    e.preventDefault();
-    setBusy(true);
+  // Saves the add form or the edit popup. Returns true on success. Errors are shown as a toast
+  // so the popup stays open with what was typed.
+  async function saveOffice(values, setSaving) {
+    setSaving(true);
     try {
-      const { id, ...body } = form;
+      const { id, ...body } = values;
       await hrm(token, `/geofences${id ? `/${id}` : ""}`, {
         method: id ? "PUT" : "POST",
         body: { ...body, latitude: Number(body.latitude), longitude: Number(body.longitude), radiusMeters: Number(body.radiusMeters), locationId: body.locationId || null },
       });
-      toast.success("Office location saved");
-      setForm(blank(metadata.policy.defaultOfficeRadiusMeters || 150));
+      toast.success(id ? "Office location updated" : "Office location added");
       setRefresh((n) => n + 1);
+      return true;
     } catch (err) {
-      setError(err.message);
       toast.error(err.message);
+      return false;
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
+  }
+  async function submitAdd(e) {
+    e.preventDefault();
+    if (await saveOffice(form, setBusy)) setForm(blank(metadata.policy.defaultOfficeRadiusMeters || 150));
+  }
+  async function submitEdit(e) {
+    e.preventDefault();
+    if (await saveOffice(editing, setEditBusy)) setEditing(null);
   }
   async function homeAction(row, action) {
     const comment = action === "approve" ? "" : window.prompt(action === "reject" ? "Reason for rejection" : "Reason for resetting this home location");
@@ -84,14 +157,6 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       setHomeBusy(false);
     }
   }
-  function pickMyLocation() {
-    if (!navigator.geolocation) return toast.error("Location is unavailable in this browser");
-    navigator.geolocation.getCurrentPosition(
-      (p) => setForm((f) => ({ ...f, latitude: Number(p.coords.latitude.toFixed(6)), longitude: Number(p.coords.longitude.toFixed(6)) })),
-      (err) => toast.error(err.message),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
-  }
   return (
     <div className="space-y-5">
       <PageHeader
@@ -102,53 +167,17 @@ export function HrmGeofences({ token, metadata, masters, can }) {
       {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
       {manage && (
         <Card className="p-5">
-          <form className="grid gap-5 lg:grid-cols-[1fr_1.2fr]" onSubmit={submit}>
-            <div className="space-y-4">
-              <h2 className="font-semibold">{form.id ? "Edit office" : "Add office location"}</h2>
-              <Field name="officeLabel" title="Office name" value={form.label} onChange={(v) => set("label", v)} required />
-              <Field name="officeAddress" title="Address" value={form.address} onChange={(v) => set("address", v)} />
-              <div className="grid grid-cols-2 gap-3">
-                <Field name="officeLat" title="Latitude" type="number" value={form.latitude} onChange={(v) => set("latitude", v)} required />
-                <Field name="officeLng" title="Longitude" type="number" value={form.longitude} onChange={(v) => set("longitude", v)} required />
-              </div>
-              <Field name="officeRadius" title="Radius (metres)" type="number" min={20} max={5000} value={form.radiusMeters} onChange={(v) => set("radiusMeters", v)} required help={
-                  Number(form.radiusMeters) && Number(form.radiusMeters) < SMALL_OFFICE_RADIUS
-                    ? `Under ${SMALL_OFFICE_RADIUS} m is smaller than normal GPS drift indoors, so staff inside may be refused clock-in. Keep 100–200 m for a building.`
-                    : "Keep 100–200 m for a building; GPS tolerance is added automatically."
-                } />
-              <Field
-                name="officeLocation"
-                title="Organization location (optional)"
-                type="select"
-                options={masters.filter((m) => m.type === "hrm_location").map((m) => ({ value: m.id, label: m.name }))}
-                value={form.locationId}
-                onChange={(v) => set("locationId", v)}
-              />
-              <Field name="officeStatus" title="Status" type="select" options={["Approved", "Retired"]} value={form.status} onChange={(v) => set("status", v)} />
-              <div className="flex flex-wrap gap-2">
-                <Button type="submit" loading={busy}>{form.id ? "Save office" : "Add office"}</Button>
-                <Button type="button" variant="secondary" onClick={pickMyLocation}>
-                  <Crosshair size={14} /> Use my location
-                </Button>
-                {form.id && (
-                  <Button type="button" variant="ghost" onClick={() => setForm(blank(metadata.policy.defaultOfficeRadiusMeters || 150))}>
-                    Cancel
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <p className="text-xs text-[var(--text-muted)]">Click the map or drag the pin to set the office centre.</p>
-              <GeoMap
-                center={{ latitude: form.latitude, longitude: form.longitude }}
-                radius={form.radiusMeters}
-                onPick={(p) => setForm((f) => ({ ...f, ...p }))}
-                others={offices.filter((o) => o.id !== form.id && o.status === "Approved")}
-                fallback={mapFallback}
-                height={380}
-              />
-            </div>
-          </form>
+          <h2 className="mb-4 font-semibold">Add office location</h2>
+          <OfficeForm
+            form={form}
+            setForm={setForm}
+            onSubmit={submitAdd}
+            busy={busy}
+            masters={masters}
+            offices={offices}
+            fallback={mapFallback}
+            submitLabel="Add office"
+          />
         </Card>
       )}
       <Card className="space-y-3 p-5">
@@ -170,7 +199,7 @@ export function HrmGeofences({ token, metadata, masters, can }) {
               <div className="flex flex-col items-end gap-2">
                 <Status value={o.status} />
                 {manage && (
-                  <Button size="xs" variant="secondary" onClick={() => setForm({ id: o.id, label: o.label, address: o.address || "", latitude: o.latitude, longitude: o.longitude, radiusMeters: o.radiusMeters, locationId: o.locationId || "", status: o.status })}>
+                  <Button size="xs" variant="secondary" onClick={() => setEditing({ id: o.id, label: o.label, address: o.address || "", latitude: o.latitude, longitude: o.longitude, radiusMeters: o.radiusMeters, locationId: o.locationId || "", status: o.status })}>
                     Edit
                   </Button>
                 )}
@@ -228,6 +257,28 @@ export function HrmGeofences({ token, metadata, masters, can }) {
           ]}
         />
       </Card>
+      {editing && (
+        <Modal
+          open
+          title="Edit office location"
+          subtitle={editing.label}
+          width="min(1100px, 95vw)"
+          onClose={() => !editBusy && setEditing(null)}
+        >
+          <OfficeForm
+            form={editing}
+            setForm={(update) => setEditing((current) => (typeof update === "function" ? update(current) : update))}
+            onSubmit={submitEdit}
+            busy={editBusy}
+            masters={masters}
+            offices={offices}
+            fallback={mapFallback}
+            submitLabel="Save changes"
+            onCancel={() => setEditing(null)}
+            mapHeight={360}
+          />
+        </Modal>
+      )}
     </div>
   );
 }
