@@ -3952,6 +3952,12 @@ export function LeadDetailsPage() {
     return fallbackOwner?.fullName || fallbackOwner?.username || fallbackOwner?.email || '-';
   }, [users, lead?.ownerName, lead?.assignedTo]);
 
+  // Saved gender of the assigned user, for the owner avatar.
+  const ownerGender = useMemo(
+    () => users.find((user) => String(user.id) === String(lead?.assignedTo))?.gender || null,
+    [users, lead?.assignedTo]
+  );
+
   const createdByName = useMemo(() => {
     const creator = users.find((user) => String(user.id) === String(lead?.createdBy));
     return creator?.fullName || creator?.username || creator?.email || '-';
@@ -7347,7 +7353,7 @@ export function LeadDetailsPage() {
               <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">
                 <span className="text-xs font-semibold text-[var(--text-muted)]">Assigned Owner</span>
                 <div className="flex items-center gap-2">
-                  <UserAvatar name={ownerName} className="h-5 w-5" fallbackSize={20} />
+                  <UserAvatar name={ownerName} gender={ownerGender} className="h-5 w-5" fallbackSize={20} />
                   <span className="text-xs text-[var(--primary)] font-semibold">{ownerName}</span>
                 </div>
               </div>

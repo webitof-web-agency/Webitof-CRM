@@ -265,7 +265,7 @@ export function ClientsListPage() {
               setPanelOpen(true);
             }}
           >
-            <UserAvatar name={displayName} className="h-7 w-7" fallbackSize={14} />
+            <UserAvatar name={displayName} gender={contact?.gender} className="h-7 w-7" fallbackSize={14} />
             <div className="text-sm font-medium text-[var(--text-main)] truncate">
               {displayName}
             </div>
@@ -319,7 +319,7 @@ export function ClientsListPage() {
             }}
             title="View user profile"
           >
-            <UserAvatar name={displayName} className="h-7 w-7" fallbackSize={14} />
+            <UserAvatar name={displayName} url={owner?.avatarUrl} gender={owner?.gender} className="h-7 w-7" fallbackSize={14} />
             <div className="text-sm font-medium text-[var(--text-main)] truncate">
               {displayName}
             </div>

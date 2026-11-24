@@ -253,6 +253,8 @@ function formatCallRow(row, { canViewRecording = false } = {}) {
     id: row.id,
     userId: row.user_id,
     staffName: row.staff_name || 'Staff Member',
+    // Saved gender of the staff user, so the avatar does not guess from the name.
+    userGender: row.user_gender || null,
     staffPhone: row.staff_phone || '',
     staffEmail: row.staff_email || '',
     customerPhone: row.customer_phone,
@@ -389,6 +391,7 @@ module.exports = {
           c.*,
           u.full_name as user_full_name,
           u.avatar_url as user_avatar_url,
+          u.gender as user_gender,
           l.name as lead_name,
           cl.company_name as client_company_name,
           cl.name as client_name
@@ -446,6 +449,7 @@ module.exports = {
           COALESCE(u.phone, c.staff_phone, '') as staff_phone,
           COALESCE(u.email, c.staff_email, '') as staff_email,
           u.avatar_url,
+          u.gender,
           COUNT(*) as total_calls,
           COUNT(*) FILTER (WHERE LOWER(c.call_type) = 'outgoing') as outgoing_calls,
           COUNT(*) FILTER (WHERE LOWER(c.call_type) = 'incoming') as incoming_calls,
@@ -456,7 +460,7 @@ module.exports = {
         FROM call_logs c
         LEFT JOIN users u ON u.id = c.user_id
         ${scopeWhere}
-        GROUP BY c.user_id, u.full_name, c.staff_name, u.phone, c.staff_phone, u.email, c.staff_email, u.avatar_url
+        GROUP BY c.user_id, u.full_name, c.staff_name, u.phone, c.staff_phone, u.email, c.staff_email, u.avatar_url, u.gender
         ORDER BY total_calls DESC
       `;
       const staffRes = await query(staffStatsSql, scopeValues);
@@ -494,6 +498,7 @@ module.exports = {
             staffPhone: r.staff_phone,
             staffEmail: r.staff_email,
             avatarUrl: r.avatar_url,
+            gender: r.gender || null,
             totalCalls: Number(r.total_calls || 0),
             outgoingCalls: Number(r.outgoing_calls || 0),
             incomingCalls: Number(r.incoming_calls || 0),
@@ -513,7 +518,7 @@ module.exports = {
     try {
       const { id } = req.params;
       const result = await query(
-        `SELECT c.*, u.full_name as user_full_name, l.name as lead_name, cl.company_name as client_company_name
+        `SELECT c.*, u.full_name as user_full_name, u.gender as user_gender, l.name as lead_name, cl.company_name as client_company_name
          FROM call_logs c
          LEFT JOIN users u ON u.id = c.user_id
          LEFT JOIN leads l ON l.id = c.lead_id

@@ -144,8 +144,9 @@ export function ProfilePage() {
                   <img src={displayAvatarUrl} alt="Avatar" className="h-full w-full object-cover" style={{ borderRadius: 'calc(var(--radius-card, 0.75rem) - 4px)' }} />
                 ) : (
                   <UserAvatar 
-                    name={user?.fullName || user?.name || 'Admin'} 
-                    className="h-full w-full rounded-none bg-transparent" 
+                    name={user?.fullName || user?.name || 'Admin'}
+                    gender={user?.gender}
+                    className="h-full w-full rounded-none bg-transparent"
                     fallbackSize={40} 
                   />
                 )}

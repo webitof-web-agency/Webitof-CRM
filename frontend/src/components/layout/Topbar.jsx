@@ -272,6 +272,7 @@ export function Topbar({
           >
             <UserAvatar
               name={user?.fullName || user?.name || 'Admin'}
+              gender={user?.gender}
               className="h-9.5 w-9.5 text-[var(--text-muted)] border border-white/60 dark:border-white/15 shadow-xs transition-transform duration-150 group-hover:scale-105"
               fallbackSize={16}
             />
@@ -283,6 +284,7 @@ export function Topbar({
               <div className="flex items-center gap-3 px-3 py-3 border-b border-black/[0.06] dark:border-white/[0.08]">
                 <UserAvatar
                   name={user?.fullName || user?.name || 'Admin'}
+                  gender={user?.gender}
                   className="h-10 w-10 text-[var(--text-muted)] border border-white/60 dark:border-white/15 shadow-xs"
                   fallbackSize={20}
                 />

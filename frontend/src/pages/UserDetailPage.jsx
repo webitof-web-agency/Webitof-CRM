@@ -360,7 +360,7 @@ export function UserDetailPage() {
                   {avatarUrl ? (
                     <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
                   ) : (
-                    <UserAvatar name={name} className="h-full w-full rounded-none" fallbackSize={52} />
+                    <UserAvatar name={name} gender={user.gender} className="h-full w-full rounded-none" fallbackSize={52} />
                   )}
                 </div>
                 {canEditBasic && (

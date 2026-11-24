@@ -50,9 +50,17 @@ function getGender(fullName) {
   return 'male';
 }
 
-export function UserAvatar({ name, url, className, size = 16, fallbackSize = 14 }) {
-  const gender = getGender(name);
-  
+// The person's saved gender wins; the name is only a guess for records that have none.
+function resolveGender(gender, name) {
+  const saved = String(gender || '').trim().toLowerCase();
+  if (saved === 'male' || saved === 'female') return saved;
+  if (saved === 'other') return 'unknown';
+  return getGender(name);
+}
+
+export function UserAvatar({ name, url, gender: savedGender, className, size = 16, fallbackSize = 14 }) {
+  const gender = resolveGender(savedGender, name);
+
   const avatarSrc = url || (gender === 'female' ? womanAvatar : gender === 'male' ? manAvatar : null);
 
   return (

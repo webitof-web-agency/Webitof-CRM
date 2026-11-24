@@ -332,7 +332,7 @@ export function ProfilePanel({ data, type, onClose, leadData, onSaved }) {
                 {avatarUrl ? (
                   <img src={avatarUrl} alt={name} className="h-full w-full object-cover" />
                 ) : (
-                  <UserAvatar name={name} className="h-full w-full rounded-none" fallbackSize={56} />
+                  <UserAvatar name={name} gender={data.gender} className="h-full w-full rounded-none" fallbackSize={56} />
                 )}
               </div>
               <button

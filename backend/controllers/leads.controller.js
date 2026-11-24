@@ -360,12 +360,13 @@ async function attachLeadTeams(rows = []) {
   }));
   const allIds = unique(teamIds.flatMap((team) => [team.createdBy, ...team.assignees, ...team.managers]));
   const users = allIds.length
-    ? (await query('select id, full_name, username, avatar_url, is_active from users where id = any($1::text[])', [allIds])).rows
+    ? (await query('select id, full_name, username, avatar_url, gender, is_active from users where id = any($1::text[])', [allIds])).rows
     : [];
   const userById = new Map(users.map((user) => [user.id, {
     id: user.id,
     name: user.full_name || user.username || 'User',
     avatarUrl: user.avatar_url || '',
+    gender: user.gender || null,
     isActive: user.is_active !== false
   }]));
   const person = (id) => userById.get(id) || null;

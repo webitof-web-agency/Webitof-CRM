@@ -41,6 +41,9 @@ async function lookupController(req, res, next) {
         username: user.username,
         email: user.email,
         phone: user.phone,
+        // Lets avatars show the saved gender instead of guessing from the name.
+        gender: user.gender || null,
+        avatarUrl: user.avatarUrl || '',
         isActive: user.isActive,
         roles: user.roles || []
       }));

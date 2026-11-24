@@ -174,7 +174,7 @@ export function UsersPage() {
         columns={[
           { key: 'fullName', label: 'Name', render: (row) => (
             <div className="flex items-center gap-3">
-              <UserAvatar name={row.fullName} url={row.avatarUrl} className="h-7 w-7" fallbackSize={14} />
+              <UserAvatar name={row.fullName} url={row.avatarUrl} gender={row.gender} className="h-7 w-7" fallbackSize={14} />
               <div className="text-sm font-medium text-[var(--text-main)] truncate">
                 {row.fullName}
               </div>

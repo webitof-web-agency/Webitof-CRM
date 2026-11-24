@@ -994,6 +994,7 @@ export function CallHistoryPage() {
                           <UserAvatar
                             name={call.staffName || 'Staff'}
                             url={call.userAvatarUrl}
+                            gender={call.userGender}
                             size={20}
                             className="w-5 h-5 shrink-0 rounded-lg shadow-2xs"
                           />
@@ -1215,6 +1216,7 @@ export function CallHistoryPage() {
                   <UserAvatar
                     name={staff.staffName || 'Staff'}
                     url={staff.avatarUrl}
+                    gender={staff.gender}
                     size={26}
                     className="w-7 h-7 shrink-0 rounded-xl shadow-2xs"
                   />

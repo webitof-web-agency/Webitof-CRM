@@ -517,6 +517,7 @@ function TeamCell({ team }) {
               key={person.id}
               name={person.name}
               url={person.avatarUrl}
+              gender={person.gender}
               className="h-7 w-7 ring-2 ring-white dark:ring-slate-900"
               fallbackSize={12}
             />
@@ -547,7 +548,7 @@ function TeamCell({ team }) {
               <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</div>
               {list.map((person) => (
                 <div key={person.id} className="mt-1 flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-200">
-                  <UserAvatar name={person.name} url={person.avatarUrl} className="h-5 w-5" fallbackSize={10} />
+                  <UserAvatar name={person.name} url={person.avatarUrl} gender={person.gender} className="h-5 w-5" fallbackSize={10} />
                   <span className="truncate">{nameOf(person)}</span>
                 </div>
               ))}
@@ -1432,6 +1433,7 @@ export function LeadsPage() {
             >
               <UserAvatar
                 name={contactName || 'Lead'}
+                gender={primaryContact?.gender}
                 className="h-8 w-8 ring-2 ring-slate-100 dark:ring-slate-800 shadow-2xs transition-all duration-200 group-hover:scale-105 group-hover:ring-[var(--primary)]/30"
                 fallbackSize={14}
               />

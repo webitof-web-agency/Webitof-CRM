@@ -307,7 +307,7 @@ export function ProjectsListPage() {
           className="min-w-[140px] flex items-center gap-2 cursor-pointer p-1 -m-1 rounded transition-colors"
           title="View user profile"
         >
-          <UserAvatar name={row._owner?.fullName || row._owner?.username || row._owner?.email} url={row._owner?.avatarUrl || row._owner?.avatar_url} className="h-7 w-7" fallbackSize={14} />
+          <UserAvatar name={row._owner?.fullName || row._owner?.username || row._owner?.email} url={row._owner?.avatarUrl || row._owner?.avatar_url} gender={row._owner?.gender} className="h-7 w-7" fallbackSize={14} />
           <div className="text-sm font-medium text-[var(--text-main)] truncate">
             {row._owner?.fullName || row._owner?.username || row._owner?.email || '-'}
           </div>
