@@ -19,16 +19,22 @@ import { cn } from '../../lib/cn';
 function Field({ label, required = false, error = '', children, wide = false, action = null }) {
   return (
     <div className={wide ? 'md:col-span-2 xl:col-span-3' : ''}>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <label className="block text-xs font-semibold text-[var(--text-muted)]">
+      {/* One fixed-height line, so a field with an Unknown toggle lines up with its neighbours. */}
+      <div className="mb-1.5 flex h-[18px] items-center justify-between gap-2">
+        <label className="min-w-0 truncate text-xs font-semibold text-[var(--text-muted)]" title={label}>
           {label}{required ? <span className="ml-1 text-rose-500 font-bold">*</span> : null}
         </label>
-        {action}
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {children}
       {error ? <span className="mt-1 block text-xs font-semibold text-rose-500">{error}</span> : null}
     </div>
   );
+}
+
+// Same height and text size as the compact selects and phone inputs of this form (h-9).
+function FieldInput({ className = '', ...props }) {
+  return <Input {...props} className={cn('!h-9 !py-1.5 !text-xs rounded-xl', className)} />;
 }
 
 // Unknown name: the lead is saved as "Lead-000012", taken from its number LD-2026-000012.
@@ -39,7 +45,7 @@ function autoNamePreview(leadNumber) {
 
 function UnknownToggle({ checked, onChange }) {
   return (
-    <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+    <label className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap text-[11px] font-medium text-[var(--text-muted)]">
       <input
         type="checkbox"
         checked={Boolean(checked)}
@@ -200,7 +206,7 @@ export function LeadManagementFields({
       <SectionCard title="Quick Lead Details" icon={Sparkles} {...sectionProps('quick')}>
         {formData.leadNumber ? (
           <Field label="Lead ID">
-            <Input value={formData.leadNumber} readOnly className="bg-[var(--surface-2)] text-[var(--text-muted)] rounded-xl" />
+            <FieldInput value={formData.leadNumber} readOnly className="bg-[var(--surface-2)] text-[var(--text-muted)] rounded-xl" />
           </Field>
         ) : null}
 
@@ -236,9 +242,9 @@ export function LeadManagementFields({
             action={<UnknownToggle checked={formData.nameUnknown} onChange={(value) => set('nameUnknown', value)} />}
           >
             {formData.nameUnknown ? (
-              <Input value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
+              <FieldInput value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
             ) : (
-              <Input value={formData.companyName} onChange={(event) => set('companyName', event.target.value)} placeholder="e.g. Acme Corp" className="rounded-xl" />
+              <FieldInput value={formData.companyName} onChange={(event) => set('companyName', event.target.value)} placeholder="e.g. Acme Corp" className="rounded-xl" />
             )}
           </Field>
         ) : (
@@ -249,9 +255,9 @@ export function LeadManagementFields({
             action={<UnknownToggle checked={formData.nameUnknown} onChange={(value) => set('nameUnknown', value)} />}
           >
             {formData.nameUnknown ? (
-              <Input value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
+              <FieldInput value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
             ) : (
-              <Input value={formData.name} onChange={(event) => set('name', event.target.value)} placeholder="Full name" className="rounded-xl" />
+              <FieldInput value={formData.name} onChange={(event) => set('name', event.target.value)} placeholder="Full name" className="rounded-xl" />
             )}
           </Field>
         )}
@@ -265,7 +271,7 @@ export function LeadManagementFields({
           )}
         >
           {formData.contactPersonUnknown ? (
-            <Input value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
+            <FieldInput value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
           ) : (
             <Input
               value={formData.contactPerson}
@@ -305,7 +311,7 @@ export function LeadManagementFields({
 
         {formData.requiredServices?.includes('Other') ? (
           <Field label="Other Service Details" required error={errors.otherServiceDetails} wide>
-            <Input value={formData.otherServiceDetails} onChange={(event) => set('otherServiceDetails', event.target.value)} placeholder="Specify custom service" className="rounded-xl" />
+            <FieldInput value={formData.otherServiceDetails} onChange={(event) => set('otherServiceDetails', event.target.value)} placeholder="Specify custom service" className="rounded-xl" />
           </Field>
         ) : null}
 
@@ -314,7 +320,7 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Estimated Budget" error={errors.estimatedBudget}>
-          <Input type="number" min="0" step="0.01" value={formData.estimatedBudget} onChange={(event) => set('estimatedBudget', event.target.value)} placeholder="e.g. 50000" className="rounded-xl" />
+          <FieldInput type="number" min="0" step="0.01" value={formData.estimatedBudget} onChange={(event) => set('estimatedBudget', event.target.value)} placeholder="e.g. 50000" className="rounded-xl" />
         </Field>
 
         <Field label="Lead Source" required error={errors.source}>
@@ -356,12 +362,12 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Next Follow-up Date" error={errors.followUpDate}>
-          <Input type="date" value={formData.followUpDate} onChange={(event) => set('followUpDate', event.target.value)} className="rounded-xl" />
+          <FieldInput type="date" value={formData.followUpDate} onChange={(event) => set('followUpDate', event.target.value)} className="rounded-xl" />
           {followUpPast ? <span className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700"><AlertTriangle size={13} />Follow-up date is in the past</span> : null}
         </Field>
 
         <Field label="Next Follow-up Time">
-          <Input type="time" value={formData.nextFollowUpTime} onChange={(event) => set('nextFollowUpTime', event.target.value)} className="rounded-xl" />
+          <FieldInput type="time" value={formData.nextFollowUpTime} onChange={(event) => set('nextFollowUpTime', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="Assigned Employee" required error={errors.assignedTo}>
@@ -420,15 +426,15 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Email" error={errors.email}>
-          <Input type="email" value={formData.email} onChange={(event) => set('email', event.target.value)} placeholder="name@company.com" className="rounded-xl" />
+          <FieldInput type="email" value={formData.email} onChange={(event) => set('email', event.target.value)} placeholder="name@company.com" className="rounded-xl" />
         </Field>
 
         <Field label="Website" error={errors.website}>
-          <Input type="url" value={formData.website} onChange={(event) => set('website', event.target.value)} placeholder="https://example.com" className="rounded-xl" />
+          <FieldInput type="url" value={formData.website} onChange={(event) => set('website', event.target.value)} placeholder="https://example.com" className="rounded-xl" />
         </Field>
 
         <Field label="Country">
-          <Input value={formData.country} onChange={(event) => set('country', event.target.value)} className="rounded-xl" />
+          <FieldInput value={formData.country} onChange={(event) => set('country', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="State">
@@ -440,7 +446,7 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="PIN Code">
-          <Input value={formData.pincode} onChange={(event) => set('pincode', event.target.value)} inputMode="numeric" className="rounded-xl" />
+          <FieldInput value={formData.pincode} onChange={(event) => set('pincode', event.target.value)} inputMode="numeric" className="rounded-xl" />
         </Field>
 
         <Field label="Address" wide>
@@ -456,14 +462,14 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Preferred Contact Time">
-          <Input type="time" value={formData.preferredContactTime} onChange={(event) => set('preferredContactTime', event.target.value)} className="rounded-xl" />
+          <FieldInput type="time" value={formData.preferredContactTime} onChange={(event) => set('preferredContactTime', event.target.value)} className="rounded-xl" />
         </Field>
       </SectionCard>
 
       {/* Requirement Details */}
       <SectionCard title="Requirement Details" icon={FileText} {...sectionProps('requirement')}>
         <Field label="Project Title" wide>
-          <Input value={formData.requirementTitle} onChange={(event) => set('requirementTitle', event.target.value)} placeholder="Project title / scope" className="rounded-xl" />
+          <FieldInput value={formData.requirementTitle} onChange={(event) => set('requirementTitle', event.target.value)} placeholder="Project title / scope" className="rounded-xl" />
         </Field>
 
         <Field label="Detailed Requirement" wide>
@@ -479,11 +485,11 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Reference Website / App" error={errors.referenceUrl}>
-          <Input type="url" value={formData.referenceUrl} onChange={(event) => set('referenceUrl', event.target.value)} placeholder="https://" className="rounded-xl" />
+          <FieldInput type="url" value={formData.referenceUrl} onChange={(event) => set('referenceUrl', event.target.value)} placeholder="https://" className="rounded-xl" />
         </Field>
 
         <Field label="Preferred Technology">
-          <Input value={formData.preferredTechnology} onChange={(event) => set('preferredTechnology', event.target.value)} placeholder="e.g. React, Node.js" className="rounded-xl" />
+          <FieldInput value={formData.preferredTechnology} onChange={(event) => set('preferredTechnology', event.target.value)} placeholder="e.g. React, Node.js" className="rounded-xl" />
         </Field>
 
         <Field label="Existing System Details" wide>
@@ -491,11 +497,11 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Expected Start Date">
-          <Input type="date" value={formData.expectedStartDate} onChange={(event) => set('expectedStartDate', event.target.value)} className="rounded-xl" />
+          <FieldInput type="date" value={formData.expectedStartDate} onChange={(event) => set('expectedStartDate', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="Expected Delivery Date" error={errors.expectedDeliveryDate}>
-          <Input type="date" value={formData.expectedDeliveryDate} onChange={(event) => set('expectedDeliveryDate', event.target.value)} className="rounded-xl" />
+          <FieldInput type="date" value={formData.expectedDeliveryDate} onChange={(event) => set('expectedDeliveryDate', event.target.value)} className="rounded-xl" />
         </Field>
 
         <div className="md:col-span-2 xl:col-span-3">
@@ -516,11 +522,11 @@ export function LeadManagementFields({
       {/* Commercial Details */}
       <SectionCard title="Commercial Details" icon={DollarSign} {...sectionProps('commercial')}>
         <Field label="Budget Minimum" error={errors.budgetMin}>
-          <Input type="number" min="0" step="0.01" value={formData.budgetMin} onChange={(event) => set('budgetMin', event.target.value)} className="rounded-xl" />
+          <FieldInput type="number" min="0" step="0.01" value={formData.budgetMin} onChange={(event) => set('budgetMin', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="Budget Maximum" error={errors.budgetMax}>
-          <Input type="number" min="0" step="0.01" value={formData.budgetMax} onChange={(event) => set('budgetMax', event.target.value)} className="rounded-xl" />
+          <FieldInput type="number" min="0" step="0.01" value={formData.budgetMax} onChange={(event) => set('budgetMax', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="Budget Range">
@@ -548,7 +554,7 @@ export function LeadManagementFields({
         </Field>
 
         <Field label="Expected Closing Date">
-          <Input type="date" value={formData.expectedClosingDate} onChange={(event) => set('expectedClosingDate', event.target.value)} className="rounded-xl" />
+          <FieldInput type="date" value={formData.expectedClosingDate} onChange={(event) => set('expectedClosingDate', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="Payment Preference">
@@ -581,11 +587,11 @@ export function LeadManagementFields({
         ))}
 
         <Field label="Calculated Lead Score">
-          <Input value={score} readOnly className="bg-[var(--surface-2)] font-semibold text-blue-700 rounded-xl" />
+          <FieldInput value={score} readOnly className="bg-[var(--surface-2)] font-semibold text-blue-700 rounded-xl" />
         </Field>
 
         <Field label="Conversion Probability (%)" error={errors.conversionProbability}>
-          <Input type="number" min="0" max="100" value={formData.conversionProbability} onChange={(event) => set('conversionProbability', event.target.value)} placeholder="0 - 100" className="rounded-xl" />
+          <FieldInput type="number" min="0" max="100" value={formData.conversionProbability} onChange={(event) => set('conversionProbability', event.target.value)} placeholder="0 - 100" className="rounded-xl" />
         </Field>
 
         <Field label="Qualification Notes" wide>
@@ -600,7 +606,7 @@ export function LeadManagementFields({
           </Field>
 
           <Field label="Referrer Name" required error={errors.referrerName}>
-            <Input value={formData.referrerName} onChange={(event) => set('referrerName', event.target.value)} className="rounded-xl" />
+            <FieldInput value={formData.referrerName} onChange={(event) => set('referrerName', event.target.value)} className="rounded-xl" />
           </Field>
 
           <Field label="Referrer Contact" required error={errors.referrerContact}>
@@ -608,7 +614,7 @@ export function LeadManagementFields({
           </Field>
 
           <Field label="Client / Employee / Partner ID">
-            <Input value={formData.referrerReferenceId} onChange={(event) => set('referrerReferenceId', event.target.value)} className="rounded-xl" />
+            <FieldInput value={formData.referrerReferenceId} onChange={(event) => set('referrerReferenceId', event.target.value)} className="rounded-xl" />
           </Field>
 
           <Field label="Commission Applicable">
@@ -625,7 +631,7 @@ export function LeadManagementFields({
               </Field>
 
               <Field label="Commission Value" required error={errors.commissionValue}>
-                <Input type="number" min="0" max={formData.commissionType === 'Percentage' ? '100' : undefined} value={formData.commissionValue} onChange={(event) => set('commissionValue', event.target.value)} className="rounded-xl" />
+                <FieldInput type="number" min="0" max={formData.commissionType === 'Percentage' ? '100' : undefined} value={formData.commissionValue} onChange={(event) => set('commissionValue', event.target.value)} className="rounded-xl" />
               </Field>
 
               <Field label="Commission Notes" wide>
@@ -672,11 +678,11 @@ export function LeadManagementFields({
           </Field>
 
           <Field label="Competitor Name">
-            <Input value={formData.competitorName} onChange={(event) => set('competitorName', event.target.value)} className="rounded-xl" />
+            <FieldInput value={formData.competitorName} onChange={(event) => set('competitorName', event.target.value)} className="rounded-xl" />
           </Field>
 
           <Field label="Competitor Price" error={errors.competitorPrice}>
-            <Input type="number" min="0" value={formData.competitorPrice} onChange={(event) => set('competitorPrice', event.target.value)} className="rounded-xl" />
+            <FieldInput type="number" min="0" value={formData.competitorPrice} onChange={(event) => set('competitorPrice', event.target.value)} className="rounded-xl" />
           </Field>
 
           <Field label="Reconnect in Future">
@@ -688,7 +694,7 @@ export function LeadManagementFields({
 
           {formData.reconnectInFuture ? (
             <Field label="Reconnect Date" required error={errors.reconnectDate}>
-              <Input type="date" value={formData.reconnectDate} onChange={(event) => set('reconnectDate', event.target.value)} className="rounded-xl" />
+              <FieldInput type="date" value={formData.reconnectDate} onChange={(event) => set('reconnectDate', event.target.value)} className="rounded-xl" />
             </Field>
           ) : null}
 
@@ -709,23 +715,23 @@ export function LeadManagementFields({
       {/* Source and Campaign */}
       <SectionCard title="Source & Campaign Details" icon={Layers} {...sectionProps('source')}>
         <Field label="Campaign Name">
-          <Input value={formData.campaignName} onChange={(event) => set('campaignName', event.target.value)} className="rounded-xl" />
+          <FieldInput value={formData.campaignName} onChange={(event) => set('campaignName', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="Source Reference" required={formData.source === 'Other'} error={errors.sourceReference}>
-          <Input value={formData.sourceReference} onChange={(event) => set('sourceReference', event.target.value)} className="rounded-xl" />
+          <FieldInput value={formData.sourceReference} onChange={(event) => set('sourceReference', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="UTM Source">
-          <Input value={formData.utmSource} onChange={(event) => set('utmSource', event.target.value)} className="rounded-xl" />
+          <FieldInput value={formData.utmSource} onChange={(event) => set('utmSource', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="UTM Medium">
-          <Input value={formData.utmMedium} onChange={(event) => set('utmMedium', event.target.value)} className="rounded-xl" />
+          <FieldInput value={formData.utmMedium} onChange={(event) => set('utmMedium', event.target.value)} className="rounded-xl" />
         </Field>
 
         <Field label="UTM Campaign">
-          <Input value={formData.utmCampaign} onChange={(event) => set('utmCampaign', event.target.value)} className="rounded-xl" />
+          <FieldInput value={formData.utmCampaign} onChange={(event) => set('utmCampaign', event.target.value)} className="rounded-xl" />
         </Field>
       </SectionCard>
 

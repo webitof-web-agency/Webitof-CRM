@@ -86,7 +86,7 @@ export function PhoneInput({
         containerClass="w-full"
         inputClass={cn(
           'form-control !w-full !rounded-[var(--radius-input,0.625rem)] !border-[var(--input-border)] !bg-[var(--surface)] !px-3.5 !py-2 !text-xs !font-medium !text-[var(--text-main)] !outline-none !transition focus:!border-[var(--primary)] focus:!ring-2 focus:!ring-[var(--primary-subtle)] !pl-[48px] !h-auto shadow-2xs',
-          compact && '!py-1.5'
+          compact && '!h-9 !py-1.5'
         )}
         buttonClass="!border-none !bg-transparent !rounded-l-xl hover:!bg-transparent !w-[44px] !pl-2 cursor-pointer"
         dropdownClass="!shadow-[var(--shadow-modal)] !rounded-2xl !border-[var(--border-glass)] !bg-[var(--surface)] !text-[var(--text-main)]"
