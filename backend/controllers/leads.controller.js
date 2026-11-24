@@ -317,7 +317,7 @@ async function attachQuotedAmounts(rows = []) {
   const ids = rows.map((row) => row.id).filter(Boolean);
   if (!ids.length) return rows;
   const result = await query(
-    `select distinct on (coalesce(lead_id, scope_id)) coalesce(lead_id, scope_id) as lead_id,
+    `select distinct on (coalesce(lead_id, scope_id)) coalesce(lead_id, scope_id) as lead_id, id, title,
             coalesce(nullif(payload->>'totalAmount', ''), nullif(payload->>'amount', ''), nullif(payload->>'subtotal', '')) as amount,
             nullif(payload->>'taxableAmount', '') as taxable,
             nullif(payload->>'gstAmount', '') as gst
@@ -335,9 +335,16 @@ async function attachQuotedAmounts(rows = []) {
     const gst = toAmount(row.gst) ?? 0;
     // Older quotations saved no taxable figure; the total less GST is the price.
     const taxable = toAmount(row.taxable) ?? (total == null ? null : Math.max(0, total - gst));
-    return [row.lead_id, { quotedAmount: total, quotedTaxableAmount: total == null ? null : taxable, quotedGstAmount: total == null ? null : gst }];
+    return [row.lead_id, {
+      quotedAmount: total,
+      quotedTaxableAmount: total == null ? null : taxable,
+      quotedGstAmount: total == null ? null : gst,
+      // Lets the list open this quotation directly.
+      quotedEventId: row.id,
+      quotedTitle: row.title || 'Quotation'
+    }];
   }));
-  const empty = { quotedAmount: null, quotedTaxableAmount: null, quotedGstAmount: null };
+  const empty = { quotedAmount: null, quotedTaxableAmount: null, quotedGstAmount: null, quotedEventId: null, quotedTitle: null };
   return rows.map((row) => ({ ...row, ...(quoteByLead.get(row.id) || empty) }));
 }
 

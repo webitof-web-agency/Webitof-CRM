@@ -40,7 +40,7 @@ import {
   getLeadTemperatureColor,
   getLeadPriorityColor
 } from '../config/leadManagement';
-import { leadRoute } from '../utils/entityRoutes';
+import { eventRouteSegment, leadRoute } from '../utils/entityRoutes';
 import { IconButton } from '../components/ui/IconButton';
 import { FloatingDropdown } from '../components/ui/FloatingDropdown';
 
@@ -464,6 +464,67 @@ function ServicesCell({ services = [] }) {
         document.body
       )}
     </div>
+  );
+}
+
+// Quoted total; hovering shows price + GST, clicking opens that quotation.
+function QuotedCell({ row, onOpen }) {
+  const [coords, setCoords] = useState(null);
+  const cellRef = useRef(null);
+
+  if (row.quotedAmount == null) return <span className="text-xs text-[var(--text-muted)]">-</span>;
+
+  const gst = Number(row.quotedGstAmount || 0);
+  const showTooltip = () => {
+    const rect = cellRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const openUpwards = window.innerHeight - rect.bottom < 120;
+    setCoords({
+      top: openUpwards ? undefined : rect.bottom + 6,
+      bottom: openUpwards ? window.innerHeight - rect.top + 6 : undefined,
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - 260))
+    });
+  };
+
+  return (
+    <>
+      <button
+        ref={cellRef}
+        type="button"
+        className="whitespace-nowrap rounded text-xs font-semibold text-emerald-600 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none dark:text-emerald-400"
+        onClick={(event) => {
+          event.stopPropagation();
+          setCoords(null);
+          if (row.quotedEventId) onOpen();
+        }}
+        onMouseEnter={showTooltip}
+        onMouseLeave={() => setCoords(null)}
+        onFocus={showTooltip}
+        onBlur={() => setCoords(null)}
+        aria-label={`Open quotation, ${formatLeadAmount(row.quotedAmount, row.currency)}`}
+      >
+        {formatLeadAmount(row.quotedAmount, row.currency)}
+      </button>
+      {coords && typeof document !== 'undefined' && createPortal(
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[999999] whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-2xl shadow-black/25 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/70"
+          style={{
+            top: coords.top !== undefined ? `${coords.top}px` : undefined,
+            bottom: coords.bottom !== undefined ? `${coords.bottom}px` : undefined,
+            left: `${coords.left}px`
+          }}
+        >
+          <span className="font-medium text-slate-700 dark:text-slate-200">
+            {gst > 0
+              ? `(${formatLeadAmount(row.quotedTaxableAmount, row.currency)} + ${formatLeadAmount(gst, row.currency)} GST)`
+              : '(No GST)'}
+          </span>
+          <span className="mt-0.5 block text-[10px] text-slate-400 dark:text-slate-500">Click to open quotation</span>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 
@@ -1362,22 +1423,13 @@ export function LeadsPage() {
       )
     },
     {
-      // Latest quotation's amount for the lead, sent by the lead list API, with price + GST below it.
-      key: 'quotedAmount', label: 'Quoted', render: (row) => {
-        if (row.quotedAmount == null) return <span className="text-xs text-[var(--text-muted)]">-</span>;
-        const gst = Number(row.quotedGstAmount || 0);
-        const breakdown = gst > 0
-          ? `(${formatLeadAmount(row.quotedTaxableAmount, row.currency)} + ${formatLeadAmount(gst, row.currency)} GST)`
-          : '(No GST)';
-        return (
-          <div className="whitespace-nowrap leading-tight">
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-              {formatLeadAmount(row.quotedAmount, row.currency)}
-            </span>
-            <span className="mt-0.5 block text-[11px] text-[var(--text-muted)]">{breakdown}</span>
-          </div>
-        );
-      }
+      // Latest quotation's amount for the lead, sent by the lead list API.
+      key: 'quotedAmount', label: 'Quoted', render: (row) => (
+        <QuotedCell
+          row={row}
+          onOpen={() => navigate(leadRoute(row, `quotations/${eventRouteSegment({ id: row.quotedEventId, title: row.quotedTitle })}`))}
+        />
+      )
     },
     {
       key: 'status', label: 'Status', render: (row) => (
