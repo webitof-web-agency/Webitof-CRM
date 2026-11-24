@@ -1120,6 +1120,7 @@ export function LeadsPage() {
       { label: 'Temperature', key: 'leadTemperature' },
       { label: 'Required Services', accessor: (row) => Array.isArray(row.requiredServices) ? row.requiredServices.join(', ') : (row.requiredServices || '') },
       { label: 'Estimated Budget (INR)', key: 'estimatedBudget' },
+      { label: 'Quoted (INR)', accessor: (row) => row.quotedAmount ?? '' },
       { label: 'Follow-up Date', key: 'followUpDate' },
       { label: 'Assigned User', accessor: (row) => users?.find((u) => u.id === row.assignedTo)?.fullName || row.assignedTo || '' },
       { label: 'Created Date', accessor: (row) => row.createdAt ? new Date(row.createdAt).toLocaleDateString('en-IN') : '' }
@@ -1356,6 +1357,16 @@ export function LeadsPage() {
         <span className="whitespace-nowrap text-xs font-medium text-slate-600 dark:text-slate-300">
           {formatLeadAmount(row.estimatedBudget ?? row.value, row.currency)}
         </span>
+      )
+    },
+    {
+      // Latest quotation's amount for the lead, sent by the lead list API.
+      key: 'quotedAmount', label: 'Quoted', render: (row) => (
+        row.quotedAmount == null
+          ? <span className="text-xs text-[var(--text-muted)]">-</span>
+          : <span className="whitespace-nowrap text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+            {formatLeadAmount(row.quotedAmount, row.currency)}
+          </span>
       )
     },
     {
