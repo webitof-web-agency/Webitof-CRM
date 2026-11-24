@@ -5,7 +5,7 @@ const multer = require('multer');
 const { query } = require('../config/db');
 const { createId, nowIso } = require('../utils/format');
 const { hasPermission } = require('../middlewares/auth');
-const { emitToPermission } = require('../services/socketHub.service');
+const { emitToPermission, emitToUser } = require('../services/socketHub.service');
 const { AUDIO_TYPES, removeFileByRef, saveUpload } = require('../services/file.service');
 
 const MAX_RECORDING_BYTES = 100 * 1024 * 1024;
@@ -114,6 +114,19 @@ function canViewRecordings(user) {
   return hasPermission(user, 'calls.recording_view');
 }
 
+// Without calls.view_all a user sees and changes only the calls they made.
+function canViewAllCalls(user) {
+  return hasPermission(user, 'calls.view_all');
+}
+
+function canSeeCall(user, ownerId) {
+  return canViewAllCalls(user) || String(ownerId || '') === String(user?.id || '');
+}
+
+function callNotFound(res) {
+  return res.status(404).json({ success: false, message: 'Call log not found' });
+}
+
 // Callers log calls as themselves; only super admins may attribute a call to another user.
 function resolveCallOwner(req, body) {
   const requestedUserId = body.userId || body.user_id || null;
@@ -173,11 +186,27 @@ async function findContactByPhone(customerPhone) {
   return {};
 }
 
+// Everyone's calls go to calls.view_all holders; the caller gets their own call on their user room.
 function emitCallEvent(eventName, row) {
-  emitToPermission('calls.recording_view', eventName, formatCallRow(row, { canViewRecording: true }));
-  emitToPermission('calls.read', eventName, formatCallRow(row, { canViewRecording: false }), {
-    except: 'calls.recording_view'
+  emitToPermission('calls.view_all.recording', eventName, formatCallRow(row, { canViewRecording: true }));
+  emitToPermission('calls.view_all', eventName, formatCallRow(row, { canViewRecording: false }), {
+    except: 'calls.view_all.recording'
   });
+  emitToCallOwner(row.user_id, (owner) => [eventName, formatCallRow(row, { canViewRecording: canViewRecordings(owner) })]);
+}
+
+function emitToCallOwner(ownerId, buildEvent) {
+  if (!ownerId) return;
+  // Lazy require: auth.service pulls in a large part of the service graph.
+  const { getUserAccessProfile } = require('../services/auth.service');
+  getUserAccessProfile(ownerId)
+    .then((owner) => {
+      // calls.view_all holders already got it through their permission room.
+      if (!owner?.isActive || !hasPermission(owner, 'calls.read') || canViewAllCalls(owner)) return;
+      const [eventName, payload] = buildEvent(owner);
+      emitToUser(ownerId, eventName, payload);
+    })
+    .catch(() => {});
 }
 
 // Returns the on-disk path for a signed recording request, or sends the error response and returns null.
@@ -252,7 +281,7 @@ module.exports = {
         limit = 30
       } = req.query;
 
-      const effectiveUserId = userId || staffId;
+      const effectiveUserId = canViewAllCalls(req.user) ? (userId || staffId) : req.user?.id;
       const conditions = [];
       const values = [];
 
@@ -378,7 +407,10 @@ module.exports = {
 
   stats: async (req, res, next) => {
     try {
-      // Overall and per-staff breakdown
+      // Overall and per-staff breakdown; without calls.view_all only the user's own calls count.
+      const ownOnly = !canViewAllCalls(req.user);
+      const scopeWhere = ownOnly ? 'WHERE c.user_id = $1' : '';
+      const scopeValues = ownOnly ? [String(req.user?.id || '')] : [];
       const staffStatsSql = `
         SELECT
           c.user_id,
@@ -395,10 +427,11 @@ module.exports = {
           MAX(c.started_at) as last_call_at
         FROM call_logs c
         LEFT JOIN users u ON u.id = c.user_id
+        ${scopeWhere}
         GROUP BY c.user_id, u.full_name, c.staff_name, u.phone, c.staff_phone, u.email, c.staff_email, u.avatar_url
         ORDER BY total_calls DESC
       `;
-      const staffRes = await query(staffStatsSql);
+      const staffRes = await query(staffStatsSql, scopeValues);
 
       const overallSql = `
         SELECT
@@ -410,8 +443,9 @@ module.exports = {
           COALESCE(SUM(c.duration_seconds), 0) as total_duration_seconds,
           COUNT(*) FILTER (WHERE (c.recording_file_name IS NOT NULL AND c.recording_file_name != '') OR (c.recording_url IS NOT NULL AND c.recording_url != '')) as recording_calls
         FROM call_logs c
+        ${scopeWhere}
       `;
-      const overallRes = await query(overallSql);
+      const overallRes = await query(overallSql, scopeValues);
       const overall = overallRes.rows[0] || {};
 
       res.json({
@@ -459,9 +493,7 @@ module.exports = {
          WHERE c.id = $1`,
         [id]
       );
-      if (!result.rows[0]) {
-        return res.status(404).json({ success: false, message: 'Call log not found' });
-      }
+      if (!result.rows[0] || !canSeeCall(req.user, result.rows[0].user_id)) return callNotFound(res);
       res.json({ success: true, data: formatCallRow(result.rows[0], { canViewRecording: canViewRecordings(req.user) }) });
     } catch (error) {
       next(error);
@@ -736,6 +768,8 @@ module.exports = {
     try {
       const { id } = req.params;
       const body = req.body || {};
+      const ownerRes = await query('SELECT user_id FROM call_logs WHERE id = $1', [id]);
+      if (!ownerRes.rows[0] || !canSeeCall(req.user, ownerRes.rows[0].user_id)) return callNotFound(res);
 
       const fields = [];
       const values = [];
@@ -791,7 +825,8 @@ module.exports = {
   remove: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const findRes = await query('SELECT recording_file_name, recording_file_asset_id FROM call_logs WHERE id = $1', [id]);
+      const findRes = await query('SELECT user_id, recording_file_name, recording_file_asset_id FROM call_logs WHERE id = $1', [id]);
+      if (!findRes.rows[0] || !canSeeCall(req.user, findRes.rows[0].user_id)) return callNotFound(res);
       const storedFileName = findRes.rows[0]?.recording_file_name;
       if (findRes.rows[0]?.recording_file_asset_id) {
         await removeFileByRef(findRes.rows[0].recording_file_asset_id);
@@ -809,7 +844,8 @@ module.exports = {
       }
 
       await query('DELETE FROM call_logs WHERE id = $1', [id]);
-      emitToPermission('calls.read', 'call:deleted', { id });
+      emitToPermission('calls.view_all', 'call:deleted', { id });
+      emitToCallOwner(findRes.rows[0].user_id, () => ['call:deleted', { id }]);
 
       res.json({ success: true, message: 'Call log deleted successfully', id });
     } catch (error) {

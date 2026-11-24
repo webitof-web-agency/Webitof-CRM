@@ -139,6 +139,7 @@ module.exports = {
   normalizeAllowedPipelineIds,
   isLeadParticipant,
   sanitizePipelinePayload,
+  toIdList,
   userCanViewAllLeads,
   userHasAllPipelineAccess,
   userHasUnrestrictedLeadAccess

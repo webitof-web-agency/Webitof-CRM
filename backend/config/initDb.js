@@ -1218,8 +1218,9 @@ async function seedRbac({ resetDefaultGrants = true } = {}) {
       );
     }
 
+    const newRoleCodes = new Set();
     for (const role of DEFAULT_ROLE_DEFINITIONS) {
-      await client.query(
+      const upserted = await client.query(
         `insert into roles (id, code, name, description, is_system, is_active, payload)
          values ($1, $2, $3, $4, $5, $6, '{}'::jsonb)
          on conflict (code)
@@ -1228,7 +1229,8 @@ async function seedRbac({ resetDefaultGrants = true } = {}) {
            description = excluded.description,
            is_system = excluded.is_system,
            is_active = excluded.is_active,
-           updated_at = now()`,
+           updated_at = now()
+         returning (xmax = 0) as inserted`,
         [
           createId('role'),
           role.code,
@@ -1238,6 +1240,7 @@ async function seedRbac({ resetDefaultGrants = true } = {}) {
           true
         ]
       );
+      if (upserted.rows[0]?.inserted) newRoleCodes.add(role.code);
     }
 
     const roleResult = await client.query(
@@ -1255,6 +1258,28 @@ async function seedRbac({ resetDefaultGrants = true } = {}) {
 
     const roleIdByCode = new Map(roleResult.rows.map((row) => [row.code, row.id]));
     const permissionIdByCode = new Map(permissionResult.rows.map((row) => [row.code, row.id]));
+
+    // A default role created just now gets its default grants even on a live install
+    // (SEED_DEFAULT_DATA=false); existing roles keep whatever an admin gave them.
+    const hrmResult = await client.query(`select id, code from permissions where module = 'hrm'`);
+    const grant = async (roleId, permissionIds) => {
+      for (const permissionId of new Set(permissionIds)) {
+        await client.query(
+          `insert into role_permissions (role_id, permission_id, granted_by)
+           values ($1, $2, null)
+           on conflict (role_id, permission_id) do nothing`,
+          [roleId, permissionId]
+        );
+      }
+    };
+    for (const role of DEFAULT_ROLE_DEFINITIONS) {
+      const roleId = roleIdByCode.get(role.code);
+      if (!roleId || !newRoleCodes.has(role.code)) continue;
+      const hrmIds = role.hrmPermissions === 'all'
+        ? hrmResult.rows.map((row) => row.id)
+        : hrmResult.rows.filter((row) => (role.hrmPermissions || []).includes(row.code)).map((row) => row.id);
+      await grant(roleId, [...(role.permissions || []).map((code) => permissionIdByCode.get(code)).filter(Boolean), ...hrmIds]);
+    }
 
     if (!resetDefaultGrants) return;
 
@@ -1330,5 +1355,6 @@ module.exports = {
   ensureDatabase,
   ensureInvoiceSourceIndexes,
   ensureStorageSchema,
-  ensureLeadManagementSchema
+  ensureLeadManagementSchema,
+  seedRbac
 };

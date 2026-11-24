@@ -5,10 +5,30 @@ const { withTransaction } = require('../config/db');
 const { buildClientSummary } = require('../services/analytics.service');
 const { cleanupRemovedAttachments } = require('../services/attachmentCleanup.service');
 const { notifyBusinessEvent } = require('../services/notification.service');
+const { canAccessClient, filterClientsByAccess } = require('../services/clientAccess.service');
 
 const clientsController = createCrudController(clientModel, {
-  defaultOrder: 'updated_at DESC'
+  defaultOrder: 'updated_at DESC',
+  onList: (rows, req) => filterClientsByAccess(rows, req.user)
 });
+
+// A client outside the user's access answers like a missing one, so ids cannot be probed.
+async function findAccessibleClient(id, user, db) {
+  const client = await clientModel.findById(id, db);
+  return client && canAccessClient(user, client) ? client : null;
+}
+
+clientsController.getById = async (req, res, next) => {
+  try {
+    const record = await findAccessibleClient(req.params.id, req.user);
+    if (!record) {
+      return res.status(404).json({ success: false, message: 'Record not found' });
+    }
+    res.json({ success: true, data: record });
+  } catch (error) {
+    next(error);
+  }
+};
 
 const { normalizePhone } = require('../utils/phone');
 
@@ -64,6 +84,8 @@ clientsController.create = async (req, res, next) => {
         throw Object.assign(new Error('Client name or company name is required'), { statusCode: 400 });
       }
       if (body.mobile) body.mobile = normalizePhone(body.mobile);
+      // The creator owns an unassigned client, so it stays in their own client list.
+      if (!String(body.assignedTo || '').trim()) body.assignedTo = req.user?.id || null;
       const created = await clientModel.create(body, db);
       await syncPrimaryClientContact(db, created.id, body);
       return created;
@@ -90,7 +112,7 @@ clientsController.update = async (req, res, next) => {
     let previousActivities = [];
     let nextActivities = [];
     const record = await withTransaction(async (db) => {
-      const current = await clientModel.findById(req.params.id, db);
+      const current = await findAccessibleClient(req.params.id, req.user, db);
       if (!current) return null;
 
       const patch = req.body || {};
@@ -132,7 +154,7 @@ clientsController.update = async (req, res, next) => {
 
 clientsController.remove = async (req, res, next) => {
   try {
-    const current = await clientModel.findById(req.params.id);
+    const current = await findAccessibleClient(req.params.id, req.user);
     if (!current) {
       return res.status(404).json({ success: false, message: 'Record not found' });
     }
@@ -165,7 +187,7 @@ clientsController.remove = async (req, res, next) => {
 
 clientsController.summary = async (req, res, next) => {
   try {
-    const client = await clientModel.findById(req.params.id);
+    const client = await findAccessibleClient(req.params.id, req.user);
     if (!client) {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }

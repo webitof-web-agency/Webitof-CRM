@@ -70,9 +70,11 @@ function getHub() {
 }
 
 // Realtime events scoped to a `perm:<room>` room; a socket joins only when it holds every listed permission.
+// Call events for everyone's calls go only to users who may see everyone's calls; a caller
+// without calls.view_all gets their own calls through their user room.
 const ROOM_PERMISSIONS = {
-  'calls.read': ['calls.read'],
-  'calls.recording_view': ['calls.read', 'calls.recording_view']
+  'calls.view_all': ['calls.read', 'calls.view_all'],
+  'calls.view_all.recording': ['calls.read', 'calls.view_all', 'calls.recording_view']
 };
 
 function joinPermissionRooms(socket, userId) {
