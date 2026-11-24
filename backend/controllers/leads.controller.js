@@ -312,23 +312,33 @@ function validateLeadForSave(lead, { isCreate = false, current = null } = {}) {
 }
 
 // Latest quotation per lead, the same one the lead page shows: its total (with GST) when saved,
-// else its base amount. Leads without a quotation get null.
+// else its base amount, plus the price before GST and the GST part. Leads without one get null.
 async function attachQuotedAmounts(rows = []) {
   const ids = rows.map((row) => row.id).filter(Boolean);
   if (!ids.length) return rows;
   const result = await query(
     `select distinct on (coalesce(lead_id, scope_id)) coalesce(lead_id, scope_id) as lead_id,
-            coalesce(nullif(payload->>'totalAmount', ''), nullif(payload->>'amount', ''), nullif(payload->>'subtotal', '')) as amount
+            coalesce(nullif(payload->>'totalAmount', ''), nullif(payload->>'amount', ''), nullif(payload->>'subtotal', '')) as amount,
+            nullif(payload->>'taxableAmount', '') as taxable,
+            nullif(payload->>'gstAmount', '') as gst
      from lead_events
      where lower(event_type) = 'quotation' and coalesce(lead_id, scope_id) = any($1::text[])
      order by coalesce(lead_id, scope_id), created_at desc`,
     [ids]
   );
-  const amountByLead = new Map(result.rows.map((row) => {
-    const amount = Number(String(row.amount ?? '').replace(/[^0-9.-]/g, ''));
-    return [row.lead_id, row.amount != null && Number.isFinite(amount) ? amount : null];
+  const toAmount = (value) => {
+    const amount = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+    return value != null && Number.isFinite(amount) ? amount : null;
+  };
+  const quoteByLead = new Map(result.rows.map((row) => {
+    const total = toAmount(row.amount);
+    const gst = toAmount(row.gst) ?? 0;
+    // Older quotations saved no taxable figure; the total less GST is the price.
+    const taxable = toAmount(row.taxable) ?? (total == null ? null : Math.max(0, total - gst));
+    return [row.lead_id, { quotedAmount: total, quotedTaxableAmount: total == null ? null : taxable, quotedGstAmount: total == null ? null : gst }];
   }));
-  return rows.map((row) => ({ ...row, quotedAmount: amountByLead.get(row.id) ?? null }));
+  const empty = { quotedAmount: null, quotedTaxableAmount: null, quotedGstAmount: null };
+  return rows.map((row) => ({ ...row, ...(quoteByLead.get(row.id) || empty) }));
 }
 
 function sanitizeLeadForUser(lead, user) {
@@ -338,7 +348,7 @@ function sanitizeLeadForUser(lead, user) {
   const canViewCommission = hasPermission(user, 'leads.view_commission') || hasPermission(user, 'lead-commissions.read');
 
   if (!canViewBudget) {
-    ['value', 'estimatedBudget', 'quotedAmount', 'budgetMin', 'budgetMax', 'budgetRange', 'budgetConfirmed', 'billingType', 'gstInvoiceRequired', 'paymentPreference'].forEach((key) => {
+    ['value', 'estimatedBudget', 'quotedAmount', 'quotedTaxableAmount', 'quotedGstAmount', 'budgetMin', 'budgetMax', 'budgetRange', 'budgetConfirmed', 'billingType', 'gstInvoiceRequired', 'paymentPreference'].forEach((key) => {
       delete sanitized[key];
     });
   }

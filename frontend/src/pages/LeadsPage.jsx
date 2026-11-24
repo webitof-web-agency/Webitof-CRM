@@ -1121,6 +1121,8 @@ export function LeadsPage() {
       { label: 'Required Services', accessor: (row) => Array.isArray(row.requiredServices) ? row.requiredServices.join(', ') : (row.requiredServices || '') },
       { label: 'Estimated Budget (INR)', key: 'estimatedBudget' },
       { label: 'Quoted (INR)', accessor: (row) => row.quotedAmount ?? '' },
+      { label: 'Quoted Price excl. GST (INR)', accessor: (row) => row.quotedTaxableAmount ?? '' },
+      { label: 'Quoted GST (INR)', accessor: (row) => row.quotedGstAmount ?? '' },
       { label: 'Follow-up Date', key: 'followUpDate' },
       { label: 'Assigned User', accessor: (row) => users?.find((u) => u.id === row.assignedTo)?.fullName || row.assignedTo || '' },
       { label: 'Created Date', accessor: (row) => row.createdAt ? new Date(row.createdAt).toLocaleDateString('en-IN') : '' }
@@ -1360,14 +1362,22 @@ export function LeadsPage() {
       )
     },
     {
-      // Latest quotation's amount for the lead, sent by the lead list API.
-      key: 'quotedAmount', label: 'Quoted', render: (row) => (
-        row.quotedAmount == null
-          ? <span className="text-xs text-[var(--text-muted)]">-</span>
-          : <span className="whitespace-nowrap text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-            {formatLeadAmount(row.quotedAmount, row.currency)}
-          </span>
-      )
+      // Latest quotation's amount for the lead, sent by the lead list API, with price + GST below it.
+      key: 'quotedAmount', label: 'Quoted', render: (row) => {
+        if (row.quotedAmount == null) return <span className="text-xs text-[var(--text-muted)]">-</span>;
+        const gst = Number(row.quotedGstAmount || 0);
+        const breakdown = gst > 0
+          ? `(${formatLeadAmount(row.quotedTaxableAmount, row.currency)} + ${formatLeadAmount(gst, row.currency)} GST)`
+          : '(No GST)';
+        return (
+          <div className="whitespace-nowrap leading-tight">
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              {formatLeadAmount(row.quotedAmount, row.currency)}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-[var(--text-muted)]">{breakdown}</span>
+          </div>
+        );
+      }
     },
     {
       key: 'status', label: 'Status', render: (row) => (
