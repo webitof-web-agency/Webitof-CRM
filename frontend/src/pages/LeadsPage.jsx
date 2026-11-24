@@ -6,7 +6,7 @@ import {
   GitBranch, Save, X, SlidersHorizontal, UserRoundCog, RefreshCw,
   CalendarClock, Download, Phone, Copy, Check, MoreVertical,
   Globe, Mail, Users, Building2, Store, Footprints, Briefcase, Handshake,
-  Flame, TrendingUp, Upload, ChevronDown, UserMinus, Trophy, XCircle
+  Flame, TrendingUp, Upload, ChevronDown, UserMinus, Trophy, XCircle, Info
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -491,7 +491,7 @@ function QuotedCell({ row, onOpen }) {
       <button
         ref={cellRef}
         type="button"
-        className="whitespace-nowrap rounded text-xs font-semibold text-emerald-600 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none dark:text-emerald-400"
+        className="inline-flex items-center gap-1 whitespace-nowrap rounded text-xs font-semibold text-emerald-600 underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none dark:text-emerald-400"
         onClick={(event) => {
           event.stopPropagation();
           setCoords(null);
@@ -504,6 +504,8 @@ function QuotedCell({ row, onOpen }) {
         aria-label={`Open quotation, ${formatLeadAmount(row.quotedAmount, row.currency)}`}
       >
         {formatLeadAmount(row.quotedAmount, row.currency)}
+        {/* Hints that hovering shows the price + GST breakdown. */}
+        <Info size={12} className="shrink-0 text-slate-400 dark:text-slate-500" aria-hidden="true" />
       </button>
       {coords && typeof document !== 'undefined' && createPortal(
         <div
