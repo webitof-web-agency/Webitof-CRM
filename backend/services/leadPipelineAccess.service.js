@@ -1,5 +1,6 @@
 const { query } = require('../config/db');
 const leadPipelineModel = require('../models/leadPipeline.model');
+const { hiddenAdminIds, isAdminOwned } = require('./adminPrivacy.service');
 
 const DEFAULT_PIPELINE_ID = 'pipe-default';
 const DEFAULT_PIPELINE = {
@@ -87,15 +88,21 @@ function isLeadParticipant(user, lead) {
   return ids.some((id) => String(id || '').trim() === userId);
 }
 
+// A lead assigned to (or owned by) a Super Admin is for Super Admins only.
+function isAdminLead(user, lead) {
+  return isAdminOwned(user, [lead?.assignedTo ?? lead?.assigned_to, lead?.leadOwner ?? lead?.lead_owner]);
+}
+
 function canAccessLead(user, lead) {
   if (!user || !lead) return false;
   if (!canAccessPipeline(user, lead.pipelineId || lead.pipeline_id || DEFAULT_PIPELINE_ID)) return false;
-  return userCanViewAllLeads(user) || isLeadParticipant(user, lead);
+  if (isLeadParticipant(user, lead)) return true;
+  return userCanViewAllLeads(user) && !isAdminLead(user, lead);
 }
 
-// True when no per-lead filtering is needed (all pipelines and leads.view_all).
+// True when no per-lead filtering is needed (all pipelines, leads.view_all, no admin leads to hide).
 function userHasUnrestrictedLeadAccess(user) {
-  return userHasAllPipelineAccess(user) && userCanViewAllLeads(user);
+  return userHasAllPipelineAccess(user) && userCanViewAllLeads(user) && !hiddenAdminIds(user).length;
 }
 
 async function ensureDefaultLeadPipeline(dbClient = null) {

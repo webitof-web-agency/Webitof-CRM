@@ -307,6 +307,32 @@ async function createInternalNotification({
   return notification;
 }
 
+// Lead, client and follow-up notices that reach people through their role (not by name) go only
+// to those who may open that record: own records, or everyone's with view_all except Super
+// Admin ones. Lazy requires keep this file off the auth/lead access load cycle.
+const RECORD_SCOPED_MODULES = new Set(['leads', 'lead-events', 'clients', 'followups']);
+
+async function canSeeNotifiedRecord(userId, moduleName, entity = {}) {
+  const { getUserAccessProfile } = require('./auth.service');
+  const { canAccessLead } = require('./leadPipelineAccess.service');
+  const { canAccessClient } = require('./clientAccess.service');
+  const { isAdminOwned } = require('./adminPrivacy.service');
+  const { hasPermission } = require('../middlewares/auth');
+  const profile = await getUserAccessProfile(userId);
+  if (!profile) return false;
+  if (profile.isSuperAdmin) return true;
+  if (moduleName === 'clients' || entity?.convertedLeadId) return canAccessClient(profile, entity);
+  if (moduleName === 'leads') return canAccessLead(profile, entity);
+  if (moduleName === 'lead-events') {
+    const leadId = entity?.leadId || entity?.scopeId;
+    const lead = leadId ? await require('../models/lead.model').findById(leadId) : null;
+    return Boolean(lead) && canAccessLead(profile, lead);
+  }
+  const me = String(profile.id);
+  if ([entity?.assignedTo, entity?.createdBy].some((id) => String(id || '') === me)) return true;
+  return hasPermission(profile, 'followups.view_all') && !isAdminOwned(profile, [entity?.assignedTo]);
+}
+
 async function resolveRecipientUsers({
   moduleName,
   eventKey,
@@ -331,6 +357,10 @@ async function resolveRecipientUsers({
 
     if (!matchesDefault && !matchesExplicit && !matchesSettings) {
       continue;
+    }
+    if (!matchesExplicit && RECORD_SCOPED_MODULES.has(moduleName)) {
+      const allowed = await canSeeNotifiedRecord(user.id, moduleName, entity).catch(() => false);
+      if (!allowed) continue;
     }
 
     const channels = new Set();

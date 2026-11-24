@@ -84,6 +84,8 @@ function joinPermissionRooms(socket, userId) {
     .then((profile) => {
       if (!profile || !profile.isActive) return;
       const granted = Array.isArray(profile.permissions) ? profile.permissions : [];
+      // Super Admin-only events (a Super Admin's own calls) go to this room.
+      if (profile.isSuperAdmin) socket.join('role:superadmin');
       Object.entries(ROOM_PERMISSIONS).forEach(([room, required]) => {
         if (profile.isSuperAdmin || required.every((permission) => granted.includes(permission))) {
           socket.join(`perm:${room}`);
@@ -97,6 +99,11 @@ function emitToPermission(permission, eventName, payload, { except } = {}) {
   if (!io || !permission) return;
   const target = io.to(`perm:${permission}`);
   (except ? target.except(`perm:${except}`) : target).emit(eventName, payload);
+}
+
+function emitToSuperAdmins(eventName, payload) {
+  if (!io) return;
+  io.to('role:superadmin').emit(eventName, payload);
 }
 
 function emitToUser(userId, eventName, payload) {
@@ -127,6 +134,7 @@ module.exports = {
   broadcastMaintenance,
   disconnectUser,
   emitToPermission,
+  emitToSuperAdmins,
   emitToUser,
   emitToUsers,
   getHub,

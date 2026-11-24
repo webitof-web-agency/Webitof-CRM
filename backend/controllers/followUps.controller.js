@@ -3,6 +3,38 @@ const { createId } = require('../utils/format');
 const { hasPermission } = require('../middlewares/auth');
 const engine = require('../services/followUpEngine.service');
 const { userHasAllPipelineAccess, getUserAllowedPipelineIds, userCanViewAllLeads } = require('../services/leadPipelineAccess.service');
+const { userCanViewAllClients } = require('../services/clientAccess.service');
+const { hiddenAdminIds } = require('../services/adminPrivacy.service');
+
+// SQL twins of canAccessLead / canAccessClient for the related-record search: the user's own
+// records, plus everyone else's with view_all except those assigned to a Super Admin.
+function inCommaList(param, column) {
+  return `${param} = any(string_to_array(replace(coalesce(${column}, ''), ' ', ''), ','))`;
+}
+
+function leadAccessSql(user, values, p = '') {
+  values.push(String(user?.id || ''));
+  const me = `$${values.length}`;
+  const mine = `(${p}assigned_to = ${me} or ${p}lead_owner = ${me} or ${p}created_by = ${me}
+    or coalesce(${p}secondary_assignees, '[]'::jsonb) ? ${me} or ${inCommaList(me, `${p}managers`)})`;
+  if (!userCanViewAllLeads(user)) return mine;
+  const admins = hiddenAdminIds(user);
+  if (!admins.length) return 'true';
+  values.push(admins);
+  const a = `$${values.length}::text[]`;
+  return `(${mine} or not (coalesce(${p}assigned_to, '') = any(${a}) or coalesce(${p}lead_owner, '') = any(${a})))`;
+}
+
+function clientAccessSql(user, values, p = '') {
+  values.push(String(user?.id || ''));
+  const me = `$${values.length}`;
+  const mine = `(${p}assigned_to = ${me} or ${inCommaList(me, `${p}managers`)})`;
+  if (!userCanViewAllClients(user)) return mine;
+  const admins = hiddenAdminIds(user);
+  if (!admins.length) return 'true';
+  values.push(admins);
+  return `(${mine} or not coalesce(${p}assigned_to, '') = any($${values.length}::text[]))`;
+}
 
 function notFound(res) {
   return res.status(404).json({ success: false, message: 'Follow-up not found' });
@@ -286,13 +318,13 @@ async function searchRelated(req, res, next) {
       values.push(getUserAllowedPipelineIds(req.user));
       clauses.push(`coalesce(pipeline_id, 'pipe-default') = any($${values.length}::text[])`);
     }
-    // Without leads.view_all only leads the user works on are listed (same rule as the lead list).
-    if (target.table === 'leads' && !userCanViewAllLeads(req.user)) {
-      values.push(String(req.user?.id || ''));
-      const me = `$${values.length}`;
-      clauses.push(`(assigned_to = ${me} or lead_owner = ${me} or created_by = ${me}
-        or coalesce(secondary_assignees, '[]'::jsonb) ? ${me}
-        or ${me} = any(string_to_array(replace(coalesce(managers, ''), ' ', ''), ',')))`);
+    // Same visibility as the lead and client lists: own records, or everyone's with view_all
+    // except Super Admin ones. Contacts and quotations follow their client or lead.
+    if (!req.user?.isSuperAdmin) {
+      if (target.table === 'leads') clauses.push(leadAccessSql(req.user, values));
+      if (target.table === 'lead_events') clauses.push(`lead_id in (select l.id from leads l where ${leadAccessSql(req.user, values, 'l.')})`);
+      if (target.table === 'clients') clauses.push(clientAccessSql(req.user, values));
+      if (target.table === 'client_contacts') clauses.push(`client_id in (select c.id from clients c where ${clientAccessSql(req.user, values, 'c.')})`);
     }
     const result = await query(
       `select id, ${target.label} as label, ${target.subtitle || "''"} as subtitle from ${target.table}

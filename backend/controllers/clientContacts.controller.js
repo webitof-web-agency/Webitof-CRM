@@ -2,11 +2,15 @@ const { createCrudController } = require('./crudController');
 const clientContactModel = require('../models/clientContact.model');
 const clientModel = require('../models/client.model');
 const { canAccessClient, filterClientsByAccess, userCanViewAllClients } = require('../services/clientAccess.service');
+const { hiddenAdminIds } = require('../services/adminPrivacy.service');
+
+// Nothing to check when the user sees every client and no Super Admin clients are hidden.
+const seesEveryClient = (user) => userCanViewAllClients(user) && !hiddenAdminIds(user).length;
 
 // Contacts follow their client: a user without clients.view_all reaches only the contacts of
 // clients they are assigned to or manage.
 async function canReachClient(user, clientId) {
-  if (userCanViewAllClients(user)) return true;
+  if (seesEveryClient(user)) return true;
   const client = clientId ? await clientModel.findById(clientId) : null;
   return canAccessClient(user, client);
 }
@@ -16,7 +20,7 @@ const notFound = (res) => res.status(404).json({ success: false, message: 'Recor
 const controller = createCrudController(clientContactModel, {
   defaultOrder: 'is_primary DESC, updated_at DESC',
   onList: async (rows, req) => {
-    if (userCanViewAllClients(req.user)) return rows;
+    if (seesEveryClient(req.user)) return rows;
     const reachable = new Set(filterClientsByAccess(await clientModel.list(), req.user).map((client) => String(client.id)));
     return rows.filter((row) => reachable.has(String(row.clientId)));
   }

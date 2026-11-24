@@ -4,6 +4,7 @@ const { query, withTransaction } = require('../config/db');
 const { hasPermission } = require('../middlewares/auth');
 const { createId } = require('../utils/format');
 const { canAccessPipeline } = require('./leadPipelineAccess.service');
+const { hiddenAdminIds } = require('./adminPrivacy.service');
 
 const ACTIVE_FOLLOW_UP_STATUSES = [
   'Scheduled', 'Due Today', 'In Progress', 'Rescheduled', 'Snoozed',
@@ -246,16 +247,26 @@ function userTeamIds(user) {
   return (Array.isArray(values) ? values : [values]).map(String).filter(Boolean);
 }
 
+// Follow-ups assigned to a Super Admin stay with Super Admins, even for view_all / view_team
+// holders, unless the user is the assignee or creator.
 function buildAccessClause(user, values, alias = 'f') {
-  if (canViewAll(user)) return 'true';
-  const teams = userTeamIds(user);
+  const admins = hiddenAdminIds(user);
+  if (canViewAll(user) && !admins.length) return 'true';
   values.push(user?.id || '');
   const userParam = `$${values.length}`;
+  const own = `${alias}.assigned_to = ${userParam} OR ${alias}.created_by = ${userParam}`;
+  const notAdmin = () => {
+    values.push(admins);
+    return `NOT coalesce(${alias}.assigned_to, '') = ANY($${values.length}::text[])`;
+  };
+  if (canViewAll(user)) return `(${own} OR ${notAdmin()})`;
+  const teams = userTeamIds(user);
   if (hasPermission(user, 'followups.view_team') && teams.length) {
     values.push(teams);
-    return `(${alias}.assigned_to = ${userParam} OR ${alias}.created_by = ${userParam} OR ${alias}.assigned_team = ANY($${values.length}::text[]))`;
+    const team = `${alias}.assigned_team = ANY($${values.length}::text[])`;
+    return `(${own} OR (${team}${admins.length ? ` AND ${notAdmin()}` : ''}))`;
   }
-  return `(${alias}.assigned_to = ${userParam} OR ${alias}.created_by = ${userParam})`;
+  return `(${own})`;
 }
 
 function assertCanMutate(record, user, action = 'edit') {
@@ -1078,40 +1089,46 @@ async function getAttentionRequired(user = null) {
   );
   const allowedAll = canViewAll(user);
   const ownUserId = user?.id || '';
+  // view_all still skips records assigned to a Super Admin (empty list for Super Admins).
+  const admins = hiddenAdminIds(user);
   const [missingLeads, quotations, invoices, renewals, promises] = await Promise.all([
     query(
       `select l.id, coalesce(l.contact_person, l.company_name, l.name, l.lead_number) as label, l.assigned_to, l.value, l.status, l.updated_at
        from leads l where l.status not in ('Won','Lost','Not Interested','Invalid Lead','Duplicate')
        and not exists (select 1 from follow_ups f where f.related_entity_type in ('Lead','Opportunity','Deal') and f.related_entity_id = l.id and f.status = any($1::text[]) and f.deleted_at is null)
-       and ($2::boolean = true or l.assigned_to = $3) order by l.updated_at asc limit 100`,
-      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId]
+       and (($2::boolean = true and not (coalesce(l.assigned_to, '') = any($4::text[]) or coalesce(l.lead_owner, '') = any($4::text[]))) or l.assigned_to = $3)
+       order by l.updated_at asc limit 100`,
+      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId, admins]
     ),
     query(
       `select e.id, e.title as label, e.owner_user_id as assigned_to, e.updated_at, coalesce(e.payload->>'status','') as status
-       from lead_events e where e.event_type = 'quotation' and lower(coalesce(e.payload->>'status','')) in ('sent','viewed','under review','revision requested')
+       from lead_events e left join leads l on l.id = e.lead_id
+       where e.event_type = 'quotation' and lower(coalesce(e.payload->>'status','')) in ('sent','viewed','under review','revision requested')
        and not exists (select 1 from follow_ups f where f.related_entity_type = 'Quotation' and f.related_entity_id = e.id and f.status = any($1::text[]) and f.deleted_at is null)
-       and ($2::boolean = true or e.owner_user_id = $3) order by e.updated_at asc limit 100`,
-      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId]
+       and (($2::boolean = true and not (coalesce(l.assigned_to, '') = any($4::text[]) or coalesce(l.lead_owner, '') = any($4::text[])))
+         or e.owner_user_id = $3)
+       order by e.updated_at asc limit 100`,
+      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId, admins]
     ),
     query(
       `select i.id, i.invoice_number as label, i.due_date, i.status, i.total_amount,
         greatest(i.total_amount - coalesce(sum(p.amount_received + p.tds_deducted),0),0) as outstanding
        from invoices i left join payments p on p.invoice_id = i.id left join clients c on c.id=i.client_id
-       where lower(i.status) not in ('paid','cancelled','void') and ($2::boolean=true or c.assigned_to=$3)
+       where lower(i.status) not in ('paid','cancelled','void') and (($2::boolean=true and not coalesce(c.assigned_to, '') = any($4::text[])) or c.assigned_to=$3)
        group by i.id having greatest(i.total_amount - coalesce(sum(p.amount_received + p.tds_deducted),0),0) > 0
        and not exists (select 1 from follow_ups f where f.related_entity_type = 'Invoice' and f.related_entity_id = i.id and f.status = any($1::text[]) and f.deleted_at is null)
        order by i.due_date asc nulls last limit 100`,
-      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId]
+      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId, admins]
     ),
     query(
       `select r.id, coalesce(r.domain_name,r.hosting_name,r.package_name,r.software_name,r.category) as label, coalesce(r.renewal_date,r.expiry_date,r.reminder_date) as due_date, r.status
        from renewals r left join clients c on c.id=r.client_id where lower(r.status) not in ('renewed','cancelled') and coalesce(r.renewal_date,r.expiry_date,r.reminder_date) <= current_date + $4::int
-       and ($2::boolean=true or c.assigned_to=$3)
+       and (($2::boolean=true and not coalesce(c.assigned_to, '') = any($5::text[])) or c.assigned_to=$3)
        and not exists (select 1 from follow_ups f where f.related_entity_type = 'Renewal' and f.related_entity_id = r.id and f.status = any($1::text[]) and f.deleted_at is null)
        order by due_date asc limit 100`,
-      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId, Number(thresholds.renewalWindowDays || 90)]
+      [ACTIVE_FOLLOW_UP_STATUSES, allowedAll, ownUserId, Number(thresholds.renewalWindowDays || 90), admins]
     ),
-    query(`select pp.*, i.invoice_number from payment_promises pp join invoices i on i.id = pp.invoice_id left join clients c on c.id=i.client_id where pp.status in ('Pending','Missed') and (pp.missed=true or pp.promise_date < current_date) and ($1::boolean=true or c.assigned_to=$2) order by pp.promise_date asc limit 100`, [allowedAll, ownUserId])
+    query(`select pp.*, i.invoice_number from payment_promises pp join invoices i on i.id = pp.invoice_id left join clients c on c.id=i.client_id where pp.status in ('Pending','Missed') and (pp.missed=true or pp.promise_date < current_date) and (($1::boolean=true and not coalesce(c.assigned_to, '') = any($3::text[])) or c.assigned_to=$2) order by pp.promise_date asc limit 100`, [allowedAll, ownUserId, admins])
   ]);
   const rows = followUpRisks.rows.map(hydrateJoinedRow);
   const categories = {

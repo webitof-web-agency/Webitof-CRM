@@ -1,4 +1,5 @@
 const { toIdList } = require('./leadPipelineAccess.service');
+const { hiddenAdminIds, isAdminOwned } = require('./adminPrivacy.service');
 
 // Same idea as leads.view_all: without clients.view_all a user sees only the clients they are
 // assigned to or manage. Inline permission check, like leadPipelineAccess, to stay off middlewares/auth.
@@ -17,12 +18,14 @@ function isClientParticipant(user, client) {
 
 function canAccessClient(user, client) {
   if (!user || !client) return false;
-  return userCanViewAllClients(user) || isClientParticipant(user, client);
+  if (isClientParticipant(user, client)) return true;
+  // A client assigned to a Super Admin is for Super Admins only.
+  return userCanViewAllClients(user) && !isAdminOwned(user, [client.assignedTo ?? client.assigned_to]);
 }
 
 function filterClientsByAccess(rows = [], user = null) {
-  if (userCanViewAllClients(user)) return rows;
-  return rows.filter((row) => isClientParticipant(user, row));
+  if (userCanViewAllClients(user) && !hiddenAdminIds(user).length) return rows;
+  return rows.filter((row) => canAccessClient(user, row));
 }
 
 module.exports = {

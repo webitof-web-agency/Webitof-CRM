@@ -52,3 +52,38 @@ test('CTO has every permission and every HRM permission', () => {
   assert.deepEqual([...role('cto').permissions].sort(), [...PERMISSION_CODES].sort());
   assert.equal(role('cto').hrmPermissions, 'all');
 });
+
+// Super Admin records: hidden from everyone else, view_all included, unless they are on the record.
+const { canAccessLead, userHasUnrestrictedLeadAccess } = require('../services/leadPipelineAccess.service');
+
+const cto = (extra = {}) => ({
+  id: 'cto',
+  permissions: ['leads.read', 'leads.view_all', 'clients.read', 'clients.view_all'],
+  payload: {},
+  adminUserIds: ['admin1'],
+  ...extra
+});
+
+test('a lead assigned to a Super Admin is hidden from view_all holders', () => {
+  assert.equal(canAccessLead(cto(), { pipelineId: 'pipe-default', assignedTo: 'admin1' }), false);
+  assert.equal(canAccessLead(cto(), { pipelineId: 'pipe-default', assignedTo: 'x', leadOwner: 'admin1' }), false);
+  assert.equal(canAccessLead(cto(), { pipelineId: 'pipe-default', assignedTo: 'sales1', createdBy: 'admin1' }), true);
+  assert.equal(userHasUnrestrictedLeadAccess(cto()), false);
+});
+
+test('someone on a Super Admin lead still sees it', () => {
+  assert.equal(canAccessLead(cto(), { pipelineId: 'pipe-default', assignedTo: 'admin1', secondaryAssignees: ['cto'] }), true);
+});
+
+test('Super Admins see Super Admin leads and clients', () => {
+  const admin = { id: 'admin2', isSuperAdmin: true, adminUserIds: [] };
+  assert.equal(canAccessLead(admin, { pipelineId: 'pipe-default', assignedTo: 'admin1' }), true);
+  assert.equal(canAccessClient(admin, { assignedTo: 'admin1' }), true);
+});
+
+test('a client assigned to a Super Admin is hidden from clients.view_all holders', () => {
+  assert.equal(canAccessClient(cto(), { assignedTo: 'admin1' }), false);
+  assert.equal(canAccessClient(cto(), { assignedTo: 'sales1' }), true);
+  const rows = [{ id: 1, assignedTo: 'admin1' }, { id: 2, assignedTo: 'sales1' }, { id: 3, assignedTo: 'admin1', managers: 'cto' }];
+  assert.deepEqual(filterClientsByAccess(rows, cto()).map((row) => row.id), [2, 3]);
+});

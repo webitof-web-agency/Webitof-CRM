@@ -149,6 +149,25 @@ async function loadAccessRow(userId) {
   }
 }
 
+// Users holding the Super Admin ("admin") role. Their leads, calls, clients and follow-ups are
+// shown only to other Super Admins, so every access profile carries this list. Cached briefly
+// because it is read on every API request; role changes clear it.
+const ADMIN_IDS_TTL_MS = 30 * 1000;
+let adminIdsCache = { ids: null, loadedAt: 0 };
+
+async function getAdminUserIds() {
+  if (adminIdsCache.ids && Date.now() - adminIdsCache.loadedAt < ADMIN_IDS_TTL_MS) return adminIdsCache.ids;
+  const result = await query(
+    `select distinct ur.user_id from user_roles ur join roles r on r.id = ur.role_id where lower(r.code) = 'admin'`
+  );
+  adminIdsCache = { ids: result.rows.map((row) => String(row.user_id)), loadedAt: Date.now() };
+  return adminIdsCache.ids;
+}
+
+function clearAdminUserIdsCache() {
+  adminIdsCache = { ids: null, loadedAt: 0 };
+}
+
 async function getUserAccessProfile(userId) {
   if (!userId) return null;
   const row = await loadAccessRow(String(userId));
@@ -160,7 +179,10 @@ async function getUserAccessProfile(userId) {
   const user = userModel.hydrateRow(row);
   const roles = (row.access_roles || []).map((role) => roleModel.hydrateRow(role));
   const permissions = (row.access_permissions || []).map((permission) => permissionModel.hydrateRow(permission));
-  return buildAccessProfile(user, roles, permissions, row.access_hrm_employee_id || null);
+  const profile = buildAccessProfile(user, roles, permissions, row.access_hrm_employee_id || null);
+  // Super Admins see everything; everyone else gets the ids whose records stay hidden from them.
+  profile.adminUserIds = profile.isSuperAdmin ? [] : await getAdminUserIds();
+  return profile;
 }
 
 function buildAccessProfile(user, roles, permissions, hrmEmployeeId) {
@@ -392,6 +414,7 @@ async function changeOwnPassword(userId, { currentPassword, newPassword } = {}) 
 }
 
 async function syncUserRoles(client, userId, roleIds = [], assignedBy = null) {
+  clearAdminUserIdsCache();
   await client.query('delete from user_roles where user_id = $1', [userId]);
   const uniqueRoleIds = [...new Set((roleIds || []).filter(Boolean))];
   for (const roleId of uniqueRoleIds) {
@@ -631,6 +654,8 @@ async function seedRolePermissions(roleId, permissionCodes = []) {
 }
 
 module.exports = {
+  clearAdminUserIdsCache,
+  getAdminUserIds,
   comparePassword,
   createPasswordResetRequest,
   createRole,

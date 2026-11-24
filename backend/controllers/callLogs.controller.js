@@ -5,7 +5,8 @@ const multer = require('multer');
 const { query } = require('../config/db');
 const { createId, nowIso } = require('../utils/format');
 const { hasPermission } = require('../middlewares/auth');
-const { emitToPermission, emitToUser } = require('../services/socketHub.service');
+const { emitToPermission, emitToSuperAdmins, emitToUser } = require('../services/socketHub.service');
+const { hiddenAdminIds, isAdminOwned } = require('../services/adminPrivacy.service');
 const { AUDIO_TYPES, removeFileByRef, saveUpload } = require('../services/file.service');
 
 const MAX_RECORDING_BYTES = 100 * 1024 * 1024;
@@ -119,8 +120,18 @@ function canViewAllCalls(user) {
   return hasPermission(user, 'calls.view_all');
 }
 
+// A Super Admin's calls are for Super Admins only, even with calls.view_all.
 function canSeeCall(user, ownerId) {
-  return canViewAllCalls(user) || String(ownerId || '') === String(user?.id || '');
+  if (String(ownerId || '') === String(user?.id || '')) return true;
+  return canViewAllCalls(user) && !isAdminOwned(user, [ownerId]);
+}
+
+// SQL condition hiding Super Admin calls from a calls.view_all holder who is not one.
+function pushAdminCallFilter(user, conditions, values) {
+  const admins = hiddenAdminIds(user);
+  if (!canViewAllCalls(user) || !admins.length) return;
+  values.push(admins);
+  conditions.push(`NOT coalesce(c.user_id, '') = ANY($${values.length}::text[])`);
 }
 
 function callNotFound(res) {
@@ -187,12 +198,22 @@ async function findContactByPhone(customerPhone) {
 }
 
 // Everyone's calls go to calls.view_all holders; the caller gets their own call on their user room.
+// A Super Admin's call goes only to Super Admins.
 function emitCallEvent(eventName, row) {
-  emitToPermission('calls.view_all.recording', eventName, formatCallRow(row, { canViewRecording: true }));
-  emitToPermission('calls.view_all', eventName, formatCallRow(row, { canViewRecording: false }), {
-    except: 'calls.view_all.recording'
-  });
+  emitForCallOwner(row.user_id, () => {
+    emitToPermission('calls.view_all.recording', eventName, formatCallRow(row, { canViewRecording: true }));
+    emitToPermission('calls.view_all', eventName, formatCallRow(row, { canViewRecording: false }), {
+      except: 'calls.view_all.recording'
+    });
+  }, () => emitToSuperAdmins(eventName, formatCallRow(row, { canViewRecording: true })));
   emitToCallOwner(row.user_id, (owner) => [eventName, formatCallRow(row, { canViewRecording: canViewRecordings(owner) })]);
+}
+
+function emitForCallOwner(ownerId, toEveryone, toSuperAdmins) {
+  const { getAdminUserIds } = require('../services/auth.service');
+  getAdminUserIds()
+    .then((admins) => (ownerId && admins.includes(String(ownerId)) ? toSuperAdmins() : toEveryone()))
+    .catch(() => {});
 }
 
 function emitToCallOwner(ownerId, buildEvent) {
@@ -302,6 +323,7 @@ module.exports = {
         values.push(effectiveUserId);
         conditions.push(`c.user_id = $${values.length}`);
       }
+      pushAdminCallFilter(req.user, conditions, values);
 
       if (callType && callType !== 'all') {
         values.push(callType.toLowerCase());
@@ -409,8 +431,14 @@ module.exports = {
     try {
       // Overall and per-staff breakdown; without calls.view_all only the user's own calls count.
       const ownOnly = !canViewAllCalls(req.user);
-      const scopeWhere = ownOnly ? 'WHERE c.user_id = $1' : '';
-      const scopeValues = ownOnly ? [String(req.user?.id || '')] : [];
+      const scopeConditions = [];
+      const scopeValues = [];
+      if (ownOnly) {
+        scopeValues.push(String(req.user?.id || ''));
+        scopeConditions.push('c.user_id = $1');
+      }
+      pushAdminCallFilter(req.user, scopeConditions, scopeValues);
+      const scopeWhere = scopeConditions.length ? `WHERE ${scopeConditions.join(' AND ')}` : '';
       const staffStatsSql = `
         SELECT
           c.user_id,
@@ -844,7 +872,9 @@ module.exports = {
       }
 
       await query('DELETE FROM call_logs WHERE id = $1', [id]);
-      emitToPermission('calls.view_all', 'call:deleted', { id });
+      emitForCallOwner(findRes.rows[0].user_id,
+        () => emitToPermission('calls.view_all', 'call:deleted', { id }),
+        () => emitToSuperAdmins('call:deleted', { id }));
       emitToCallOwner(findRes.rows[0].user_id, () => ['call:deleted', { id }]);
 
       res.json({ success: true, message: 'Call log deleted successfully', id });
