@@ -6,7 +6,8 @@ import {
   GitBranch, Save, X, SlidersHorizontal, UserRoundCog, RefreshCw,
   CalendarClock, Download, Phone, Copy, Check, MoreVertical,
   Globe, Mail, Users, Building2, Store, Footprints, Briefcase, Handshake,
-  Flame, TrendingUp, Upload, ChevronDown, UserMinus, Trophy, XCircle, Info
+  Flame, TrendingUp, Upload, ChevronDown, UserMinus, Trophy, XCircle, Info,
+  FileText, BadgeCheck, TrendingDown
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -621,6 +622,36 @@ function QuotedCell({ row, onOpen }) {
         document.body
       )}
     </>
+  );
+}
+
+const VALUE_CARD_TONES = {
+  emerald: { icon: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', text: 'text-emerald-600 dark:text-emerald-400' },
+  violet: { icon: 'bg-violet-500/10 text-violet-600 dark:text-violet-400', text: 'text-violet-600 dark:text-violet-400' },
+  rose: { icon: 'bg-rose-500/10 text-rose-600 dark:text-rose-400', text: 'text-rose-600 dark:text-rose-400' }
+};
+
+// Money summary card in the stats row (Pipeline / Quoted / Won / Lost value).
+function ValueCard({ label, amount, icon: Icon, tone = 'emerald', title, onClick }) {
+  const colors = VALUE_CARD_TONES[tone] || VALUE_CARD_TONES.emerald;
+  return (
+    <div
+      onClick={onClick}
+      title={title}
+      className="group relative flex items-center gap-2 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-3 py-1.5 transition-all duration-150 hover:shadow-sm hover:border-[var(--border)] dark:hover:border-slate-700 cursor-pointer select-none shrink-0"
+    >
+      <div className={cn('flex h-7 w-7 items-center justify-center rounded-xl group-hover:scale-110 transition-transform shrink-0', colors.icon)}>
+        <Icon size={15} />
+      </div>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] truncate leading-tight">{label}</div>
+        <div className="flex items-baseline gap-1">
+          <span className={cn('text-base font-black tracking-tight truncate', colors.text)}>
+            {formatLeadAmount(amount, 'INR')}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1309,6 +1340,14 @@ export function LeadsPage() {
     let won = 0;
     let lost = 0;
     let totalPipelineValue = 0;
+    let quotedValue = 0;
+    let wonValue = 0;
+    let lostValue = 0;
+    // A lead's deal value: its latest quotation (with GST) when quoted, else its budget.
+    const dealValue = (r) => {
+      const val = Number(r.quotedAmount ?? r.estimatedBudget ?? r.value ?? 0);
+      return Number.isFinite(val) ? val : 0;
+    };
 
     rows.forEach((r) => {
       if (r.leadTemperature === 'Hot' || r.temperature === 'Hot') hot++;
@@ -1321,7 +1360,10 @@ export function LeadsPage() {
       if (!['Lost', 'Not Interested', 'Invalid Lead', 'Duplicate'].includes(r.status)) {
         const val = Number(r.estimatedBudget ?? r.value ?? 0);
         if (!isNaN(val)) totalPipelineValue += val;
+        if (r.quotedAmount != null) quotedValue += dealValue(r);
       }
+      if (r.status === 'Won') wonValue += dealValue(r);
+      if (['Lost', 'Not Interested'].includes(r.status)) lostValue += dealValue(r);
     });
 
     return {
@@ -1331,7 +1373,10 @@ export function LeadsPage() {
       unassigned,
       won,
       lost,
-      totalPipelineValue
+      totalPipelineValue,
+      quotedValue,
+      wonValue,
+      lostValue
     };
   }, [rows, todayStr]);
 
@@ -2000,6 +2045,31 @@ export function LeadsPage() {
               </div>
             </div>
           </div>
+
+          <ValueCard
+            label="Quoted Value"
+            amount={stats.quotedValue}
+            icon={FileText}
+            tone="violet"
+            title="Latest quotation total (with GST) of open and won leads"
+            onClick={() => { setActiveTab('all'); setPage(1); }}
+          />
+          <ValueCard
+            label="Won Value"
+            amount={stats.wonValue}
+            icon={BadgeCheck}
+            tone="emerald"
+            title="Won leads: quoted amount, or budget when not quoted"
+            onClick={() => { setActiveTab('won'); setPage(1); }}
+          />
+          <ValueCard
+            label="Lost Value"
+            amount={stats.lostValue}
+            icon={TrendingDown}
+            tone="rose"
+            title="Lost and Not Interested leads: quoted amount, or budget when not quoted"
+            onClick={() => { setActiveTab('lost'); setPage(1); }}
+          />
         </div>
 
         {/* Action Icon Buttons on Right in Same Row */}
