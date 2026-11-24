@@ -467,6 +467,99 @@ function ServicesCell({ services = [] }) {
   );
 }
 
+// Avatar stack of the lead's people; hovering lists who added it and who is assigned.
+function TeamCell({ team }) {
+  const [coords, setCoords] = useState(null);
+  const cellRef = useRef(null);
+  const createdBy = team?.createdBy || null;
+  const assignees = team?.assignees || [];
+  const managers = team?.managers || [];
+  const people = [...new Map([createdBy, ...assignees, ...managers].filter(Boolean).map((person) => [person.id, person])).values()];
+
+  if (!people.length) return <span className="text-xs text-[var(--text-muted)]">-</span>;
+
+  const shown = people.slice(0, 3);
+  const extra = people.length - shown.length;
+  const nameOf = (person) => `${person.name}${person.isActive ? '' : ' (inactive)'}`;
+  const groups = [
+    ['Added by', createdBy ? [createdBy] : []],
+    ['Assigned', assignees],
+    ['Managers', managers]
+  ].filter(([, list]) => list.length);
+  const summary = groups.map(([label, list]) => `${label}: ${list.map(nameOf).join(', ')}`).join(' | ');
+
+  const showTooltip = () => {
+    const rect = cellRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const openUpwards = window.innerHeight - rect.bottom < 160;
+    setCoords({
+      top: openUpwards ? undefined : rect.bottom + 6,
+      bottom: openUpwards ? window.innerHeight - rect.top + 6 : undefined,
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - 280))
+    });
+  };
+
+  return (
+    <>
+      <div
+        ref={cellRef}
+        tabIndex={0}
+        aria-label={summary}
+        className="inline-flex items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+        onMouseEnter={showTooltip}
+        onMouseLeave={() => setCoords(null)}
+        onFocus={showTooltip}
+        onBlur={() => setCoords(null)}
+      >
+        <div className="flex -space-x-2">
+          {shown.map((person) => (
+            <UserAvatar
+              key={person.id}
+              name={person.name}
+              url={person.avatarUrl}
+              className="h-7 w-7 ring-2 ring-white dark:ring-slate-900"
+              fallbackSize={12}
+            />
+          ))}
+        </div>
+        {extra > 0 && (
+          <span className="ml-1 rounded-full bg-black/5 px-1.5 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">+{extra}</span>
+        )}
+      </div>
+      {coords && typeof document !== 'undefined' && createPortal(
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[999999] min-w-[180px] max-w-[280px] space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-2xl shadow-black/25 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/70"
+          style={{
+            top: coords.top !== undefined ? `${coords.top}px` : undefined,
+            bottom: coords.bottom !== undefined ? `${coords.bottom}px` : undefined,
+            left: `${coords.left}px`
+          }}
+        >
+          {!createdBy && (
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Added by</div>
+              <div className="text-slate-500 dark:text-slate-400">System / website form</div>
+            </div>
+          )}
+          {groups.map(([label, list]) => (
+            <div key={label}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">{label}</div>
+              {list.map((person) => (
+                <div key={person.id} className="mt-1 flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-200">
+                  <UserAvatar name={person.name} url={person.avatarUrl} className="h-5 w-5" fallbackSize={10} />
+                  <span className="truncate">{nameOf(person)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 // Quoted total; hovering shows price + GST, clicking opens that quotation.
 function QuotedCell({ row, onOpen }) {
   const [coords, setCoords] = useState(null);
@@ -1187,6 +1280,8 @@ export function LeadsPage() {
       { label: 'Quoted Price excl. GST (INR)', accessor: (row) => row.quotedTaxableAmount ?? '' },
       { label: 'Quoted GST (INR)', accessor: (row) => row.quotedGstAmount ?? '' },
       { label: 'Follow-up Date', key: 'followUpDate' },
+      { label: 'Added By', accessor: (row) => row.team?.createdBy?.name || '' },
+      { label: 'Assigned Team', accessor: (row) => (row.team?.assignees || []).map((person) => person.name).join(', ') },
       { label: 'Assigned User', accessor: (row) => users?.find((u) => u.id === row.assignedTo)?.fullName || row.assignedTo || '' },
       { label: 'Created Date', accessor: (row) => row.createdAt ? new Date(row.createdAt).toLocaleDateString('en-IN') : '' }
     ];
@@ -1411,6 +1506,10 @@ export function LeadsPage() {
           </div>
         );
       }
+    },
+    {
+      // Who added the lead and who is assigned to it (from the lead list API).
+      key: 'team', label: 'Team', sortable: false, render: (row) => <TeamCell team={row.team} />
     },
     {
       key: 'requiredServices', label: 'Service', render: (row) => (

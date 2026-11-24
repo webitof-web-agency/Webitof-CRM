@@ -24,6 +24,7 @@ const {
   getPipelineIdOrDefault,
   getUserAllowedPipelineIds,
   canAccessLead,
+  toIdList,
   userHasAllPipelineAccess,
   userHasUnrestrictedLeadAccess
 } = require('../services/leadPipelineAccess.service');
@@ -346,6 +347,39 @@ async function attachQuotedAmounts(rows = []) {
   }));
   const empty = { quotedAmount: null, quotedTaxableAmount: null, quotedGstAmount: null, quotedEventId: null, quotedTitle: null };
   return rows.map((row) => ({ ...row, ...(quoteByLead.get(row.id) || empty) }));
+}
+
+// Who added the lead and who works it, with names resolved here so former (inactive) users
+// still show by name in the list.
+async function attachLeadTeams(rows = []) {
+  const unique = (ids) => [...new Set(ids.map((id) => String(id || '').trim()).filter(Boolean))];
+  const teamIds = rows.map((row) => ({
+    createdBy: unique([row.createdBy])[0] || null,
+    assignees: unique([row.assignedTo, row.leadOwner, ...toIdList(row.secondaryAssignees)]),
+    managers: unique(toIdList(row.managers))
+  }));
+  const allIds = unique(teamIds.flatMap((team) => [team.createdBy, ...team.assignees, ...team.managers]));
+  const users = allIds.length
+    ? (await query('select id, full_name, username, avatar_url, is_active from users where id = any($1::text[])', [allIds])).rows
+    : [];
+  const userById = new Map(users.map((user) => [user.id, {
+    id: user.id,
+    name: user.full_name || user.username || 'User',
+    avatarUrl: user.avatar_url || '',
+    isActive: user.is_active !== false
+  }]));
+  const person = (id) => userById.get(id) || null;
+  return rows.map((row, index) => {
+    const team = teamIds[index];
+    return {
+      ...row,
+      team: {
+        createdBy: team.createdBy ? person(team.createdBy) : null,
+        assignees: team.assignees.map(person).filter(Boolean),
+        managers: team.managers.map(person).filter(Boolean)
+      }
+    };
+  });
 }
 
 function sanitizeLeadForUser(lead, user) {
@@ -1258,7 +1292,7 @@ const leadsController = {
         rows = rows.slice(start, end);
       }
 
-      rows = await attachQuotedAmounts(rows);
+      rows = await attachLeadTeams(await attachQuotedAmounts(rows));
       res.json({ success: true, data: rows.map((row) => sanitizeLeadForUser(row, req.user)) });
     } catch (error) {
       next(error);
