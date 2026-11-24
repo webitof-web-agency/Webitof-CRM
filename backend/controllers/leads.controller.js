@@ -159,6 +159,38 @@ function serializeForCompare(value) {
   return String(value).trim();
 }
 
+// "Unknown" name / contact person: the form sends nameUnknown / contactPersonUnknown and the lead is
+// named after its number, LD-2026-000012 -> Lead-000012.
+function autoLeadName(leadNumber) {
+  const digits = String(leadNumber || '').trim().split('-').pop();
+  return digits ? `Lead-${digits}` : '';
+}
+
+function isUnknownFlag(value) {
+  return value === true || String(value || '').toLowerCase() === 'true';
+}
+
+function applyUnknownNames(body = {}, leadNumber, current = null) {
+  const auto = autoLeadName(leadNumber);
+  if (!auto) return body;
+  const next = { ...body };
+  const type = next.type || current?.type || 'Organization';
+  if (isUnknownFlag(body.nameUnknown)) {
+    if (type === 'Organization') next.companyName = auto;
+    next.name = auto;
+  }
+  if (isUnknownFlag(body.contactPersonUnknown)) next.contactPerson = auto;
+  return next;
+}
+
+// Takes the next number from the same sequence the column default uses, so an auto name can be
+// built before the insert.
+async function reserveLeadNumber(db) {
+  const exec = db?.query ? db.query.bind(db) : query;
+  const result = await exec(`select 'LD-' || to_char(current_date, 'YYYY') || '-' || lpad(nextval('lead_number_seq')::text, 6, '0') as lead_number`);
+  return result.rows[0].lead_number;
+}
+
 function getLeadPatch(body = {}, current = null, req = null) {
   const input = pickLeadInput(body);
   const type = input.type || current?.type || 'Organization';
@@ -831,7 +863,8 @@ async function updateLeadRecord(leadId, body, req, db, { recordFollowUp = true, 
   if (!current) return null;
 
   const pipelineId = await resolveLeadPipelineId(body || {}, current, req, db);
-  let patch = getLeadPatch({ ...(body || {}), pipelineId }, current, req);
+  const named = applyUnknownNames(body || {}, current.leadNumber, current);
+  let patch = getLeadPatch({ ...named, pipelineId }, current, req);
   patch = validateLeadForSave(patch, { current });
   if (String(current.assignedTo || '') !== String(patch.assignedTo || '')) {
     await assertActiveAssignee(patch.assignedTo, db);
@@ -1315,7 +1348,11 @@ const leadsController = {
       const result = await withTransaction(async (db) => {
         const attachmentDraftId = String(req.body?.attachmentDraftId || '').trim();
         const pipelineId = await resolveLeadPipelineId(req.body || {}, null, req, db);
-        let body = getLeadPatch({ ...(req.body || {}), pipelineId }, null, req);
+        const wantsAutoName = isUnknownFlag(req.body?.nameUnknown) || isUnknownFlag(req.body?.contactPersonUnknown);
+        const leadNumber = wantsAutoName ? await reserveLeadNumber(db) : null;
+        const named = wantsAutoName ? applyUnknownNames(req.body || {}, leadNumber) : (req.body || {});
+        let body = getLeadPatch({ ...named, pipelineId }, null, req);
+        if (leadNumber) body.leadNumber = leadNumber;
         body = validateLeadForSave(body, { isCreate: true });
         await assertActiveAssignee(body.assignedTo, db);
         const duplicates = await findDuplicateLeads({ phone: body.phone, email: body.email }, req, db);
@@ -2043,3 +2080,5 @@ const leadsController = {
 
 module.exports = leadsController;
 module.exports.convertLeadRecord = convertLeadRecord;
+module.exports.autoLeadName = autoLeadName;
+module.exports.applyUnknownNames = applyUnknownNames;

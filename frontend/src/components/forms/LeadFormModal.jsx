@@ -19,7 +19,7 @@ const EMPTY_FORM = {
   requirementDescription: '', clientPainPoints: '', expectedFeatures: '', referenceUrl: '', preferredTechnology: '',
   existingSystemDetails: '', expectedStartDate: '', expectedDeliveryDate: '', requirementAttachments: [], address: '',
   city: '', state: '', pincode: '', country: 'India', phone: '', alternatePhone: '', whatsappNumber: '',
-  whatsappSameAsPhone: false, preferredLanguage: '', preferredContactMethod: '', preferredContactTime: '', website: '',
+  whatsappSameAsPhone: false, nameUnknown: false, contactPersonUnknown: false, contactSameAsName: false, preferredLanguage: '', preferredContactMethod: '', preferredContactTime: '', website: '',
   vatNumber: '', gstNumber: '', currency: 'INR', currencySymbol: '', labels: [], email: '', value: '', estimatedBudget: '',
   budgetMin: '', budgetMax: '', budgetRange: '', budgetConfirmed: 'Not Disclosed', billingType: '',
   gstInvoiceRequired: 'Not Confirmed', expectedClosingDate: '', paymentPreference: '', purchaseTimeline: '',
@@ -98,6 +98,11 @@ function normalizeInitialData(initialData, pipelines = [], options = {}, setting
   next.contactIsDecisionMaker = Boolean(initialData.contactIsDecisionMaker);
   next.reconnectInFuture = Boolean(initialData.reconnectInFuture);
   next.whatsappSameAsPhone = Boolean(initialData.phone && initialData.whatsappNumber && initialData.phone === initialData.whatsappNumber);
+  // A name saved as "Lead-000012" came from the Unknown checkbox, so it opens ticked.
+  const autoNamed = (value) => /^Lead-\d+$/.test(String(value || '').trim());
+  next.nameUnknown = autoNamed(initialData.type === 'Organization' ? initialData.companyName || initialData.name : initialData.name);
+  next.contactPersonUnknown = autoNamed(initialData.contactPerson);
+  next.contactSameAsName = initialData.type === 'Person' && Boolean(initialData.contactPerson) && initialData.contactPerson === initialData.name;
   next.attachmentDraftId = initialData.id || createDraftId();
   return next;
 }
@@ -120,9 +125,10 @@ function validateForm(formData, initialData, options) {
   const isLegacyLost = !isCreate && initialData.status === formData.status && !initialData.lostReason;
   const isLegacyReferral = !isCreate && initialData.source === formData.source && !initialData.referrerName;
 
-  if (formData.type === 'Organization' && !String(formData.companyName || '').trim()) errors.companyName = 'Company name is required';
-  if (formData.type === 'Person' && !String(formData.name || '').trim()) errors.name = 'Full name is required';
-  if (isCreate && !String(formData.contactPerson || '').trim()) errors.contactPerson = 'Contact person is required';
+  // "Unknown" names are filled from the lead number by the server.
+  if (!formData.nameUnknown && formData.type === 'Organization' && !String(formData.companyName || '').trim()) errors.companyName = 'Company name is required';
+  if (!formData.nameUnknown && formData.type === 'Person' && !String(formData.name || '').trim()) errors.name = 'Full name is required';
+  if (isCreate && !formData.contactPersonUnknown && !String(formData.contactPerson || '').trim()) errors.contactPerson = 'Contact person is required';
   if (isCreate && !digits) errors.phone = 'Primary mobile number is required';
   else if (digits && (digits.length < 7 || digits.length > 15)) errors.phone = 'Enter a valid mobile number';
   if (isCreate && !formData.requiredServices.length) errors.requiredServices = 'Select at least one service';
@@ -263,6 +269,14 @@ export function LeadFormModal({ open, onClose, initialData: rawInitialData, lead
       if (field === 'state' && value !== current.state) next.city = '';
       if (field === 'phone' && current.whatsappSameAsPhone) next.whatsappNumber = value;
       if (field === 'type' && value === 'Person' && !current.contactPerson) next.contactPerson = current.name;
+      if (field === 'type' && value !== 'Person') next.contactSameAsName = false;
+      // "Primary contact is same as full name" keeps the contact in step with the name, Unknown included.
+      if (field === 'name' && current.contactSameAsName) next.contactPerson = value;
+      if (field === 'nameUnknown' && current.contactSameAsName) next.contactPersonUnknown = value;
+      if (field === 'contactSameAsName' && value) {
+        next.contactPerson = current.name;
+        next.contactPersonUnknown = current.nameUnknown;
+      }
       return next;
     });
   };
@@ -296,6 +310,9 @@ export function LeadFormModal({ open, onClose, initialData: rawInitialData, lead
         secondaryAssignees: parseList(formData.secondaryAssignees)
       };
       delete payload.whatsappSameAsPhone;
+      delete payload.contactSameAsName;
+      payload.nameUnknown = Boolean(formData.nameUnknown);
+      payload.contactPersonUnknown = Boolean(formData.contactPersonUnknown);
       delete payload.leadNumber;
       delete payload.id;
 

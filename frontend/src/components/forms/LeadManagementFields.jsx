@@ -16,15 +16,38 @@ import {
 } from '../../config/leadManagement';
 import { cn } from '../../lib/cn';
 
-function Field({ label, required = false, error = '', children, wide = false }) {
+function Field({ label, required = false, error = '', children, wide = false, action = null }) {
   return (
     <div className={wide ? 'md:col-span-2 xl:col-span-3' : ''}>
-      <label className="mb-1.5 block text-xs font-semibold text-[var(--text-muted)]">
-        {label}{required ? <span className="ml-1 text-rose-500 font-bold">*</span> : null}
-      </label>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <label className="block text-xs font-semibold text-[var(--text-muted)]">
+          {label}{required ? <span className="ml-1 text-rose-500 font-bold">*</span> : null}
+        </label>
+        {action}
+      </div>
       {children}
       {error ? <span className="mt-1 block text-xs font-semibold text-rose-500">{error}</span> : null}
     </div>
+  );
+}
+
+// Unknown name: the lead is saved as "Lead-000012", taken from its number LD-2026-000012.
+function autoNamePreview(leadNumber) {
+  const digits = String(leadNumber || '').trim().split('-').pop();
+  return digits ? `Lead-${digits}` : 'Lead-###### (auto from lead number)';
+}
+
+function UnknownToggle({ checked, onChange }) {
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-[var(--text-muted)]">
+      <input
+        type="checkbox"
+        checked={Boolean(checked)}
+        onChange={(event) => onChange(event.target.checked)}
+        className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
+      />
+      Unknown
+    </label>
   );
 }
 
@@ -206,17 +229,63 @@ export function LeadManagementFields({
         </Field>
 
         {formData.type === 'Organization' ? (
-          <Field label="Company / Business Name" required error={errors.companyName}>
-            <Input value={formData.companyName} onChange={(event) => set('companyName', event.target.value)} placeholder="e.g. Acme Corp" className="rounded-xl" />
+          <Field
+            label="Company / Business Name"
+            required={!formData.nameUnknown}
+            error={errors.companyName}
+            action={<UnknownToggle checked={formData.nameUnknown} onChange={(value) => set('nameUnknown', value)} />}
+          >
+            {formData.nameUnknown ? (
+              <Input value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
+            ) : (
+              <Input value={formData.companyName} onChange={(event) => set('companyName', event.target.value)} placeholder="e.g. Acme Corp" className="rounded-xl" />
+            )}
           </Field>
         ) : (
-          <Field label="Full Name" required error={errors.name}>
-            <Input value={formData.name} onChange={(event) => set('name', event.target.value)} placeholder="Full name" className="rounded-xl" />
+          <Field
+            label="Full Name"
+            required={!formData.nameUnknown}
+            error={errors.name}
+            action={<UnknownToggle checked={formData.nameUnknown} onChange={(value) => set('nameUnknown', value)} />}
+          >
+            {formData.nameUnknown ? (
+              <Input value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
+            ) : (
+              <Input value={formData.name} onChange={(event) => set('name', event.target.value)} placeholder="Full name" className="rounded-xl" />
+            )}
           </Field>
         )}
 
-        <Field label="Primary Contact Person" required error={errors.contactPerson}>
-          <Input value={formData.contactPerson} onChange={(event) => set('contactPerson', event.target.value)} placeholder="Contact person name" className="rounded-xl" />
+        <Field
+          label="Primary Contact Person"
+          required={!formData.contactPersonUnknown}
+          error={errors.contactPerson}
+          action={formData.contactSameAsName ? null : (
+            <UnknownToggle checked={formData.contactPersonUnknown} onChange={(value) => set('contactPersonUnknown', value)} />
+          )}
+        >
+          {formData.contactPersonUnknown ? (
+            <Input value={autoNamePreview(formData.leadNumber)} readOnly disabled className="rounded-xl bg-[var(--surface-2)] text-[var(--text-muted)]" />
+          ) : (
+            <Input
+              value={formData.contactPerson}
+              onChange={(event) => set('contactPerson', event.target.value)}
+              placeholder="Contact person name"
+              readOnly={Boolean(formData.contactSameAsName)}
+              className={cn('rounded-xl', formData.contactSameAsName && 'bg-[var(--surface-2)] text-[var(--text-muted)]')}
+            />
+          )}
+          {formData.type === 'Person' ? (
+            <label className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-[var(--text-muted)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={Boolean(formData.contactSameAsName)}
+                onChange={(event) => set('contactSameAsName', event.target.checked)}
+                className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
+              />
+              Primary contact is same as full name
+            </label>
+          ) : null}
         </Field>
 
         <Field label="Primary Mobile" required error={errors.phone}>
