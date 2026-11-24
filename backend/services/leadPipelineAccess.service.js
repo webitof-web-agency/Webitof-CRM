@@ -3,12 +3,13 @@ const leadPipelineModel = require('../models/leadPipeline.model');
 const { hiddenAdminIds, isAdminOwned } = require('./adminPrivacy.service');
 
 const DEFAULT_PIPELINE_ID = 'pipe-default';
+// The fallback pipeline (website form and imports land here) is IT Service; see initDb.
 const DEFAULT_PIPELINE = {
   id: DEFAULT_PIPELINE_ID,
-  name: 'Default Pipeline',
-  code: 'default',
-  description: 'Default lead pipeline',
-  color: '#2563eb',
+  name: 'IT Service',
+  code: 'it-service',
+  description: 'IT services: websites, software and integrations',
+  color: '#0f766e',
   sortOrder: 0,
   isActive: true
 };

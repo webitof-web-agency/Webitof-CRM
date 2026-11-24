@@ -3999,7 +3999,7 @@ export function LeadDetailsPage() {
     { label: 'Lead ID', value: lead?.leadNumber || lead?.id || '-' },
     { label: 'Company / business name', value: displayValue(lead?.companyName || lead?.name) },
     { label: 'Type', value: lead?.type || '-' },
-    { label: 'Pipeline', value: pipeline?.name || 'Default Pipeline' },
+    { label: 'Pipeline', value: pipeline?.name || 'IT Service' },
     { label: 'Status', value: displayValue(lead?.status) },
     { label: 'Source', value: lead?.source || '-' },
     { label: 'Owner', value: ownerName, tooltip: 'Who manages this lead' },
@@ -7339,7 +7339,7 @@ export function LeadDetailsPage() {
                   }}
                 >
                   <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: pipeline?.color || '#64748b' }} />
-                  {pipeline?.name || 'Default Pipeline'}
+                  {pipeline?.name || 'IT Service'}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4 border-b border-[var(--border-muted)] px-5 py-3">

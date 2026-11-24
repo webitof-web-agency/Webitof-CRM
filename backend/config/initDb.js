@@ -110,23 +110,70 @@ async function ensureLeadPipelineSchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_lead_pipelines_sort ON lead_pipelines(sort_order, name);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_leads_pipeline_id ON leads(pipeline_id);`);
 
+  // pipe-default is the fallback every pipeline-less lead lands in (website form, imports); it is
+  // the IT Service pipeline. A plain "on conflict do nothing" also skips a row whose name or code
+  // an admin already uses, so start-up never fails on a duplicate.
   const pipelines = [
-    ['pipe-default', 'Default Pipeline', 'default', 'Default lead pipeline', '#2563eb', 0],
-    ['pipe-it-service', 'IT Service', 'it-service', 'Service and project sales leads', '#0f766e', 10],
-    ['pipe-course-leads', 'Course Leads', 'course-leads', 'Course inquiry and admission leads', '#7c3aed', 20],
-    ['pipe-course-students', 'Course Students', 'course-students', 'Converted course student records', '#ea580c', 30]
+    ['pipe-default', 'IT Service', 'it-service', 'IT services: websites, software and integrations', '#0f766e', 0],
+    ['pipe-digital-marketing', 'Digital Marketing', 'digital-marketing', 'SEO, social media and ads leads', '#7c3aed', 10],
+    ['pipe-other', 'Other', 'other', 'Leads that fit no other pipeline', '#64748b', 20]
   ];
 
   for (const pipeline of pipelines) {
     await query(
       `insert into lead_pipelines (id, name, code, description, color, sort_order, is_active, payload)
        values ($1, $2, $3, $4, $5, $6, true, '{}'::jsonb)
-       on conflict (id) do nothing`,
+       on conflict do nothing`,
       pipeline
     );
   }
 
+  await withTransaction((client) => migrateToServicePipelines(client, pipelines[0]));
+
   await query(`UPDATE leads SET pipeline_id = 'pipe-default' WHERE pipeline_id IS NULL OR pipeline_id = '';`);
+}
+
+// 2026-11: the pipelines became IT Service (pipe-default), Digital Marketing and Other. Leads of the
+// old IT Service pipeline join pipe-default, course leads go to Other, the old pipelines are deleted
+// and "Default Pipeline" is renamed. Does nothing once applied, so it is safe on every start.
+const RETIRED_PIPELINES = { 'pipe-it-service': 'pipe-default', 'pipe-course-leads': 'pipe-other', 'pipe-course-students': 'pipe-other' };
+
+async function migrateToServicePipelines(client, [defaultId, name, code, description, color, sortOrder]) {
+  const retiredIds = Object.keys(RETIRED_PIPELINES);
+  const present = await client.query('select id from lead_pipelines where id = any($1::text[])', [[...retiredIds, 'pipe-other']]);
+  const existing = new Set(present.rows.map((row) => row.id));
+  const retiredPresent = retiredIds.filter((id) => existing.has(id));
+
+  for (const oldId of retiredPresent) {
+    const target = existing.has(RETIRED_PIPELINES[oldId]) || RETIRED_PIPELINES[oldId] === defaultId ? RETIRED_PIPELINES[oldId] : defaultId;
+    await client.query('update leads set pipeline_id = $2, updated_at = now() where pipeline_id = $1', [oldId, target]);
+  }
+
+  // Users limited to some pipelines keep the same reach under the new ids.
+  if (retiredPresent.length) {
+    const users = await client.query(`select id, payload->'allowedLeadPipelineIds' as allowed from users where jsonb_typeof(payload->'allowedLeadPipelineIds') = 'array'`);
+    for (const user of users.rows) {
+      const allowed = (user.allowed || []).map(String);
+      if (!allowed.some((id) => retiredIds.includes(id))) continue;
+      const hadEveryOld = ['pipe-default', ...retiredIds].every((id) => allowed.includes(id));
+      const next = hadEveryOld
+        ? ['pipe-default', 'pipe-digital-marketing', 'pipe-other']
+        : [...new Set(allowed.map((id) => RETIRED_PIPELINES[id] || id))];
+      await client.query(
+        `update users set payload = jsonb_set(payload, '{allowedLeadPipelineIds}', $2::jsonb), updated_at = now() where id = $1`,
+        [user.id, JSON.stringify(next)]
+      );
+    }
+    await client.query('delete from lead_pipelines where id = any($1::text[])', [retiredPresent]);
+  }
+
+  // Rename the old default once; a later rename by an admin is left alone.
+  await client.query(
+    `update lead_pipelines set name = $2, code = $3, description = $4, color = $5, sort_order = $6, updated_at = now()
+     where id = $1 and name = 'Default Pipeline'
+       and not exists (select 1 from lead_pipelines other where other.id <> $1 and (other.name = $2 or other.code = $3))`,
+    [defaultId, name, code, description, color, sortOrder]
+  );
 }
 
 async function ensureLeadEventsSchema() {
@@ -1356,5 +1403,6 @@ module.exports = {
   ensureInvoiceSourceIndexes,
   ensureStorageSchema,
   ensureLeadManagementSchema,
+  migrateToServicePipelines,
   seedRbac
 };

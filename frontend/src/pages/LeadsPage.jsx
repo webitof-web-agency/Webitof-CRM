@@ -1582,7 +1582,7 @@ export function LeadsPage() {
             className="inline-flex items-center rounded-full border font-semibold px-2.5 py-0.5 text-xs whitespace-nowrap"
             style={{ backgroundColor: `${color}14`, borderColor: `${color}2E`, color }}
           >
-            {pipeline?.name || 'Default Pipeline'}
+            {pipeline?.name || 'IT Service'}
           </span>
         );
       }
