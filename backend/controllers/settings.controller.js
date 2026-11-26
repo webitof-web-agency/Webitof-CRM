@@ -1,19 +1,11 @@
 const { getSettings, updateSettings } = require('../models/settings.model');
-const { hasPermission } = require('../middlewares/auth');
+const { getMailboxStatus, sendTestMail } = require('../services/mailer.service');
 
-// SMTP credentials are only returned to users who can edit settings; everyone else reads settings for labels/statuses.
-function redactSecrets(settings, user) {
-  if (!settings || hasPermission(user, 'settings.write')) return settings;
-  const { smtp, ...rest } = settings;
-  if (!smtp) return rest;
-  const { password, ...publicSmtp } = smtp;
-  return { ...rest, smtp: publicSmtp };
-}
-
+// SMTP logins are env-only (config/mailSenders.js), so settings no longer hold any mail secret.
 async function fetchSettings(req, res, next) {
   try {
     const settings = await getSettings();
-    res.json({ success: true, data: redactSecrets(settings, req.user) });
+    res.json({ success: true, data: settings });
   } catch (error) {
     next(error);
   }
@@ -44,8 +36,36 @@ async function fetchPublicSettings(req, res, next) {
   }
 }
 
+// Read-only: the five mailboxes, where each login comes from and which mails it sends.
+async function fetchEmailStatus(req, res, next) {
+  try {
+    res.json({ success: true, data: getMailboxStatus() });
+  } catch (error) {
+    next(error);
+  }
+}
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+async function sendEmailTest(req, res) {
+  const mailbox = String(req.body?.mailbox || '').trim();
+  const to = String(req.body?.to || req.user?.email || '').trim();
+  if (!EMAIL_PATTERN.test(to)) {
+    return res.status(400).json({ success: false, message: 'Enter a valid email address to send the test to.' });
+  }
+  try {
+    const data = await sendTestMail({ mailbox, to });
+    return res.json({ success: true, message: `Test mail sent to ${to}`, data });
+  } catch (error) {
+    // SMTP errors (wrong password, blocked port) are shown to the admin as they are.
+    return res.status(error.statusCode || 502).json({ success: false, message: error.message || 'Test mail failed' });
+  }
+}
+
 module.exports = {
+  fetchEmailStatus,
   fetchSettings,
   fetchPublicSettings,
-  saveSettings
+  saveSettings,
+  sendEmailTest
 };

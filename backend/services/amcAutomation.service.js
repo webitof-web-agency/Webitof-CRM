@@ -181,7 +181,7 @@ async function loadContext() {
 }
 
 async function sendAmcReminder({ amc, client, dueDate }) {
-  const smtp = await resolveSmtpConfig();
+  const smtp = await resolveSmtpConfig('amc_reminder');
   if (!smtp) {
     return { sent: false, reason: 'SMTP not configured' };
   }
@@ -206,6 +206,7 @@ async function sendAmcReminder({ amc, client, dueDate }) {
   `;
 
   await sendMail({
+    mailType: 'amc_reminder',
     to: client.email,
     subject,
     html,

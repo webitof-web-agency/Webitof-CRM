@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { confirmAction } from '../lib/confirm';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key, PenTool, FileCheck2, ExternalLink, Eye, Download, Pencil, EyeOff, HardDrive } from 'lucide-react';
+import { Save, RefreshCw, Building2, Palette, Mail, FileText, Shield, Image, Upload, Trash2, Check, AppWindow, Box, X, ListTodo, Plus, Calculator, Receipt, ToggleLeft, Clock3, ShieldAlert, CheckCircle2, Globe, Copy, Code2, Send, Zap, Key, PenTool, FileCheck2, ExternalLink, Eye, Download, Pencil, HardDrive } from 'lucide-react';
 import { SearchableSelect } from '../components/forms/SearchableSelect';
 import { INDIA_STATE_OPTIONS, getCitiesByState, getStateCode } from '../data/indiaLocations';
 import { Modal } from '../components/ui/Modal';
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { api, API_BASE_URL, request } from '../api/client';
 import { getFileViewUrl } from '../lib/fileUpload';
 import { StorageSettingsPanel } from '../components/settings/StorageSettingsPanel';
+import { EmailSettingsPanel } from '../components/settings/EmailSettingsPanel';
 import { CustomFieldsPanel } from '../components/settings/CustomFieldsPanel';
 import { BRAND_LOGOS, BRAND_LOGO_SLOTS } from '../config/brandAssets';
 import { Card } from '../components/ui/Card';
@@ -124,7 +125,7 @@ function findSettingsTab(value) {
 }
 
 export function SettingsPage() {
-  const { token, hasPermission } = useAuth();
+  const { token, user, hasPermission } = useAuth();
   const [searchParams] = useSearchParams();
   const { tab: tabParam } = useParams();
   const navigate = useNavigate();
@@ -153,7 +154,6 @@ export function SettingsPage() {
   const [companyBrowserKey, setCompanyBrowserKey] = useState(null);
   const [customCertModalOpen, setCustomCertModalOpen] = useState(false);
   const [customCertDraft, setCustomCertDraft] = useState({ type: 'custom', label: '', docNumber: '', file: null, url: '', name: '' });
-  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
 
   const [followUpSettings, setFollowUpSettings] = useState({
     timezone: 'Asia/Kolkata',
@@ -1462,68 +1462,11 @@ export function SettingsPage() {
           )}
 
           {activeTab === 'email' && (
-            <div className="grid items-start gap-4 xl:grid-cols-2 animate-in fade-in duration-200">
-              <Card className="space-y-3 p-4 sm:p-5">
-                <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-                  <div className="flex items-center gap-2">
-                    <Mail size={20} className="text-slate-800 dark:text-slate-100" />
-                    <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">SMTP Server</h3>
-                  </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configuration for sending emails.</p>
-                </div>
-                <div className="grid gap-5 md:grid-cols-2">
-                  {[
-                    ['host', 'Host', 'smtp.gmail.com'],
-                    ['port', 'Port', '587'],
-                    ['username', 'Username', 'user@example.com'],
-                    ['password', 'Password', '••••••••••••'],
-                    ['fromName', 'From Name', 'Webitof'],
-                    ['fromEmail', 'From Email', 'contact@webitof.com']
-                  ].map(([key, label, ph]) => (
-                    <div key={key}>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</label>
-                      {key === 'password' ? (
-                        <div className="relative">
-                          <Input
-                            type={showSmtpPassword ? 'text' : 'password'}
-                            value={settings.smtp?.[key] || ''}
-                            onChange={(event) => updateSection(setSettings, 'smtp', key, event.target.value)}
-                            placeholder={ph}
-                            className="pr-10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowSmtpPassword((prev) => !prev)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--text-muted)] dark:hover:text-slate-200 cursor-pointer"
-                            title={showSmtpPassword ? 'Hide password' : 'Show password'}
-                          >
-                            {showSmtpPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                          </button>
-                        </div>
-                      ) : (
-                        <Input
-                          type="text"
-                          value={settings.smtp?.[key] || ''}
-                          onChange={(event) => updateSection(setSettings, 'smtp', key, event.target.value)}
-                          placeholder={ph}
-                        />
-                      )}
-                    </div>
-                  ))}
-                  <div className="md:col-span-2 mt-2">
-                    <label className="inline-flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 rounded text-[var(--primary)] focus:ring-[var(--primary)]"
-                        checked={Boolean(settings.smtp?.secure)}
-                        onChange={(event) => updateSection(setSettings, 'smtp', 'secure', event.target.checked)}
-                      />
-                      <span className="text-sm font-medium text-slate-700 dark:text-slate-200">Use secure transport (TLS/SSL)</span>
-                    </label>
-                  </div>
-                </div>
-              </Card>
+            <div className="space-y-4 animate-in fade-in duration-200">
+              {/* Mailbox logins are env-only (backend/config/mailSenders.js); this panel only shows them and sends test mails. */}
+              <EmailSettingsPanel token={token} canWrite={hasPermission('settings.write')} defaultTestTo={user?.email || ''} />
 
+            <div className="grid items-start gap-4 xl:grid-cols-2">
               <Card className="space-y-3 p-4 sm:p-5">
                 <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
                   <div className="flex items-center gap-2">
@@ -1547,14 +1490,15 @@ export function SettingsPage() {
               </Card>
 
               <div className="flex justify-end pt-2 xl:col-span-2">
-                <Button onClick={() => handleSaveSection(['smtp', 'emailTemplates'], 'SMTP & Email settings saved')} disabled={saving}>
+                <Button onClick={() => handleSaveSection(['emailTemplates'], 'Email templates saved')} disabled={saving}>
                   {saving ? (
                     <><div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-white/20 border-t-white" /> Saving...</>
                   ) : (
-                    <><Save size={16} className="mr-2" /> Save Email Settings</>
+                    <><Save size={16} className="mr-2" /> Save Email Templates</>
                   )}
                 </Button>
               </div>
+            </div>
             </div>
           )}
 

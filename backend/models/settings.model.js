@@ -43,10 +43,14 @@ const STATIC_KEYS = ['logos', 'customSources'];
 // admin added are stored; reads return built-in + custom, saves keep the custom part only.
 const PIPELINE_KEYS = ['statuses', 'sources'];
 
+// SMTP logins come from the server env only (config/mailSenders.js, services/mailer.service.js).
+// The old smtp column is hidden on read and emptied on the next save.
+const ENV_ONLY_COLUMNS = ['smtp'];
+
 function withoutStaticKeys(record) {
   if (!record) return record;
   const clean = { ...record };
-  for (const key of STATIC_KEYS) delete clean[key];
+  for (const key of [...STATIC_KEYS, ...ENV_ONLY_COLUMNS]) delete clean[key];
   if (clean.payload && typeof clean.payload === 'object') {
     clean.payload = { ...clean.payload };
     for (const key of [...STATIC_KEYS, ...PIPELINE_KEYS]) delete clean.payload[key];
@@ -69,11 +73,12 @@ async function getSettings(db = null) {
 async function updateSettings(patch = {}) {
   const current = (await getSettings()) || { id: 'default' };
   const incoming = { ...(patch || {}) };
-  for (const key of STATIC_KEYS) delete incoming[key];
+  for (const key of [...STATIC_KEYS, ...ENV_ONLY_COLUMNS]) delete incoming[key];
   const next = withoutStaticKeys(mergeDeep(current, incoming));
   // update() spreads the stored row under this patch, so payload-only keys must be overwritten:
   // undefined is dropped from the JSON payload.
   for (const key of STATIC_KEYS) next[key] = undefined;
+  for (const key of ENV_ONLY_COLUMNS) next[key] = {};
   Object.assign(next, customOnly({ statuses: next.statuses, sources: next.sources }));
   next.id = 'default';
   const saved = await settingsRepository.upsert(next);

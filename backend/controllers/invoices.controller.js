@@ -10,6 +10,7 @@ const { calculateInvoiceTotals, getDefaultInvoiceTypeForClient, getPlaceOfSupply
 const { generateInvoiceNumber, getFinancialYear, normalizeInvoiceNumber } = require('../utils/invoice');
 const { getInvoiceSnapshot, syncInvoiceFinancialState, isPaymentCounted, groupCreditNotesByInvoice } = require('../services/finance.service');
 const { notifyBusinessEvent } = require('../services/notification.service');
+const { resolveSmtpConfig, sendMail } = require('../services/mailer.service');
 const { hasPermission } = require('../middlewares/auth');
 const { query, withTransaction } = require('../config/db');
 const { safeOrderBy } = require('../utils/orderBy');
@@ -597,11 +598,9 @@ invoicesController.sendEmail = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
     const client = invoice.clientId ? await clientModel.findById(invoice.clientId) : null;
-    const settings = await getSettings();
-    const smtp = settings?.smtp || {};
-
-    if (!smtp.host || !smtp.username) {
-      return res.status(400).json({ success: false, message: 'SMTP not configured. Please configure it in Settings → Email.' });
+    // Sent from the Billing mailbox (config/mailSenders.js); SMTP comes from the server env.
+    if (!resolveSmtpConfig('invoice')) {
+      return res.status(400).json({ success: false, message: 'Email is not configured on the server. See Settings → SMTP & Email.' });
     }
 
     const { to, subject, body: emailBody } = req.body || {};
@@ -610,21 +609,12 @@ invoicesController.sendEmail = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No recipient email address provided.' });
     }
 
-    // Try to use nodemailer if available
     try {
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
-        host: smtp.host,
-        port: Number(smtp.port) || 465,
-        secure: smtp.secure !== false,
-        auth: { user: smtp.username, pass: smtp.password }
-      });
-
-      await transporter.sendMail({
-        from: `"${smtp.fromName || settings?.company?.name || 'CRM'}" <${smtp.fromEmail || smtp.username}>`,
+      await sendMail({
+        mailType: 'invoice',
         to: recipient,
         subject: subject || `Invoice ${invoice.invoiceNumber}`,
-        html: emailBody || `<p>Please find your invoice <strong>${invoice.invoiceNumber}</strong> attached.</p><p>Total: ₹${Number(invoice.totalAmount || 0).toLocaleString('en-IN')}</p>`
+        html: emailBody || `<p>Your invoice <strong>${invoice.invoiceNumber}</strong> is ready.</p><p>Total: ₹${Number(invoice.totalAmount || 0).toLocaleString('en-IN')}</p>`
       });
 
       res.json({ success: true, message: 'Email sent successfully' });

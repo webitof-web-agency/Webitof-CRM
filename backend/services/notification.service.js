@@ -147,7 +147,9 @@ function buildEmailHtml({ title, message, routePath, companyName, severity = 'in
   `;
 }
 
-async function sendNotificationEmail({ to, subject, title, message, routePath, severity = 'info' }) {
+// mailType picks the sending mailbox (config/mailSenders.js): staff mails go from no-reply,
+// client mails from support.
+async function sendNotificationEmail({ to, subject, title, message, routePath, severity = 'info', mailType = 'staff_notification' }) {
   if (!to) {
     return { sent: false, reason: 'Recipient email missing' };
   }
@@ -160,7 +162,7 @@ async function sendNotificationEmail({ to, subject, title, message, routePath, s
   const text = `${normalizeText(title, 'Notification')}\n\n${normalizeText(message, '')}${linkUrl ? `\n\nOpen: ${linkUrl}` : ''}`;
 
   try {
-    await sendMail({ to, subject: resolvedSubject, text, html });
+    await sendMail({ mailType, to, subject: resolvedSubject, text, html });
     return { sent: true };
   } catch (error) {
     return { sent: false, reason: error.message || 'Email send failed' };
@@ -433,6 +435,7 @@ async function notifyClientEmail({
   });
 
   const emailResult = await sendNotificationEmail({
+    mailType: 'client_notification',
     to: email,
     subject: title,
     title,

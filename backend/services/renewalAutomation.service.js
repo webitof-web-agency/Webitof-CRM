@@ -114,7 +114,7 @@ async function recordLog(entry = {}) {
 }
 
 async function sendRenewalReminder({ renewal, client, dueDate }) {
-  const smtp = await resolveSmtpConfig();
+  const smtp = await resolveSmtpConfig('renewal_reminder');
   if (!smtp) {
     return { sent: false, reason: 'SMTP not configured' };
   }
@@ -141,6 +141,7 @@ async function sendRenewalReminder({ renewal, client, dueDate }) {
   `;
 
   await sendMail({
+    mailType: 'renewal_reminder',
     to: recipient,
     subject,
     html,

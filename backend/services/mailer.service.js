@@ -1,13 +1,17 @@
 const nodemailer = require('nodemailer');
-const { getSettings } = require('../models/settings.model');
+const { MAILBOXES, mailboxKeyFor, mailTypesFor } = require('../config/mailSenders');
 
-let cachedTransporterKey = '';
-let cachedTransporter = null;
+// One transporter per distinct SMTP login, reused across sends.
+const transporters = new Map();
 
 function toBoolean(value, fallback = false) {
   if (value == null || value === '') return fallback;
   if (typeof value === 'boolean') return value;
   return ['true', '1', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
+function env(name) {
+  return String(process.env[name] || '').trim();
 }
 
 function renderTemplate(template, values = {}) {
@@ -17,74 +21,121 @@ function renderTemplate(template, values = {}) {
   });
 }
 
-async function resolveSmtpConfig() {
-  const settings = await getSettings();
-  const smtp = settings?.smtp || {};
-  const host = String(smtp.host || process.env.SMTP_HOST || '').trim();
-  const port = Number(smtp.port || process.env.SMTP_PORT || 465);
-  const username = String(smtp.username || process.env.SMTP_USER || process.env.SMTP_USERNAME || '').trim();
-  const password = String(smtp.password || process.env.SMTP_PASSWORD || '').trim();
-  const fromEmail = String(smtp.fromEmail || process.env.SMTP_FROM_EMAIL || username || '').trim();
-  const fromName = String(smtp.fromName || process.env.SMTP_FROM_NAME || settings?.company?.name || 'Webitof CRM').trim();
-  const secure = smtp.secure != null ? toBoolean(smtp.secure, port === 465) : toBoolean(process.env.SMTP_SECURE, port === 465);
-
-  if (!host || !port || !username || !password || !fromEmail) {
-    return null;
-  }
-
+// SMTP login from the env under one prefix (SMTP_BILLING, …, or SMTP for the default account).
+// Host, port and secure fall back to the shared SMTP_HOST / SMTP_PORT / SMTP_SECURE.
+function readAccount(prefix) {
+  const username = env(`${prefix}_USER`) || (prefix === 'SMTP' ? env('SMTP_USERNAME') : '');
+  const password = env(`${prefix}_PASSWORD`);
+  const host = env(`${prefix}_HOST`) || env('SMTP_HOST');
+  if (!username || !password || !host) return null;
+  const port = Number(env(`${prefix}_PORT`) || env('SMTP_PORT') || 465);
+  const secureRaw = env(`${prefix}_SECURE`) || env('SMTP_SECURE');
   return {
-    fromEmail,
-    fromName,
     host,
-    password,
     port,
-    secure,
-    username
+    secure: toBoolean(secureRaw, port === 465),
+    username,
+    password,
+    fromEmail: env(`${prefix}_FROM_EMAIL`) || username,
+    replyTo: env(`${prefix}_REPLY_TO`)
   };
 }
 
-async function getTransporter() {
-  const smtp = await resolveSmtpConfig();
-  if (!smtp) {
-    throw Object.assign(new Error('SMTP configuration is missing. Please configure Hostinger SMTP in settings or environment variables.'), { statusCode: 503 });
-  }
+// The SMTP account for a mail type ('invoice') or mailbox ('billing'): the mailbox's own login,
+// else the default SMTP_USER account (sending under the mailbox's name), else null.
+function resolveSmtpConfig(target) {
+  const mailbox = mailboxKeyFor(target);
+  const meta = MAILBOXES[mailbox];
+  // The mailbox's name is shown either way, so a billing mail reads "Webitof Billing" even when
+  // it goes out through the default account.
+  const fromName = env(`${meta.envPrefix}_FROM_NAME`) || meta.fromName;
+  const own = readAccount(meta.envPrefix);
+  if (own) return { ...own, fromName, mailbox, source: 'own' };
+  const fallback = readAccount('SMTP');
+  if (fallback) return { ...fallback, fromName, replyTo: env(`${meta.envPrefix}_REPLY_TO`), mailbox, source: 'default' };
+  return null;
+}
 
-  const cacheKey = JSON.stringify({
-    host: smtp.host,
-    password: smtp.password,
-    port: smtp.port,
-    secure: smtp.secure,
-    username: smtp.username
-  });
-
-  if (!cachedTransporter || cachedTransporterKey !== cacheKey) {
-    cachedTransporterKey = cacheKey;
-    cachedTransporter = nodemailer.createTransport({
+function getTransporter(smtp) {
+  const key = JSON.stringify([smtp.host, smtp.port, smtp.secure, smtp.username, smtp.password]);
+  if (!transporters.has(key)) {
+    transporters.set(key, nodemailer.createTransport({
       host: smtp.host,
       port: smtp.port,
       secure: smtp.secure,
-      auth: {
-        user: smtp.username,
-        pass: smtp.password
-      }
-    });
+      auth: { user: smtp.username, pass: smtp.password }
+    }));
   }
+  return transporters.get(key);
+}
 
+// mailType picks the mailbox (see config/mailSenders.js); mailbox names one directly.
+async function sendMail({ to, cc, bcc, subject, text, html, attachments, replyTo, mailType, mailbox }) {
+  const target = mailbox || mailType;
+  const smtp = resolveSmtpConfig(target);
+  if (!smtp) {
+    const label = MAILBOXES[mailboxKeyFor(target)].label;
+    throw Object.assign(
+      new Error(`Email is not configured: set the ${label} mailbox (or SMTP_USER / SMTP_PASSWORD) in the server .env.`),
+      { statusCode: 503 }
+    );
+  }
+  const reply = replyTo || smtp.replyTo;
+  return getTransporter(smtp).sendMail({
+    from: `"${smtp.fromName.replace(/"/g, '')}" <${smtp.fromEmail}>`,
+    to,
+    ...(cc ? { cc } : {}),
+    ...(bcc ? { bcc } : {}),
+    ...(reply ? { replyTo: reply } : {}),
+    subject,
+    text,
+    html,
+    ...(attachments?.length ? { attachments } : {})
+  });
+}
+
+// What Settings → SMTP & Email shows: each mailbox, where its login comes from and what it sends.
+// Never includes a password.
+function getMailboxStatus() {
+  const fallback = readAccount('SMTP');
   return {
-    transporter: cachedTransporter,
-    smtp
+    defaultAccount: fallback
+      ? { configured: true, address: fallback.fromEmail, host: fallback.host, port: fallback.port }
+      : { configured: false },
+    mailboxes: Object.entries(MAILBOXES).map(([key, meta]) => {
+      const smtp = resolveSmtpConfig(key);
+      return {
+        key,
+        label: meta.label,
+        purpose: meta.purpose,
+        envPrefix: meta.envPrefix,
+        suggestedAddress: meta.suggestedAddress,
+        source: smtp ? smtp.source : 'none',
+        address: smtp ? smtp.fromEmail : '',
+        fromName: smtp ? smtp.fromName : meta.fromName,
+        replyTo: smtp ? smtp.replyTo : '',
+        host: smtp ? smtp.host : '',
+        port: smtp ? smtp.port : null,
+        secure: smtp ? smtp.secure : null,
+        mailTypes: mailTypesFor(key)
+      };
+    })
   };
 }
 
-async function sendMail({ to, subject, text, html }) {
-  const { transporter, smtp } = await getTransporter();
-  return transporter.sendMail({
-    from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
+async function sendTestMail({ mailbox, to }) {
+  const meta = MAILBOXES[mailbox];
+  if (!meta) throw Object.assign(new Error('Unknown mailbox'), { statusCode: 400 });
+  const smtp = resolveSmtpConfig(mailbox);
+  const via = smtp?.source === 'default' ? ` (sent through the default account ${smtp.fromEmail})` : '';
+  await sendMail({
+    mailbox,
     to,
-    subject,
-    text,
-    html
+    subject: `Test mail: ${meta.label} mailbox`,
+    text: `This is a test mail from the ${meta.label} mailbox of Webitof ERP${via}. If you can read it, this mailbox works.`,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#111"><p>This is a test mail from the <strong>${meta.label}</strong> mailbox of Webitof ERP${via}.</p><p>If you can read it, this mailbox works.</p></div>`
   });
+  return { mailbox, to, from: smtp.fromEmail, source: smtp.source };
 }
 
 function buildPasswordResetEmail({ name, otp, minutes }) {
@@ -105,6 +156,7 @@ function buildPasswordResetEmail({ name, otp, minutes }) {
 async function sendPasswordResetOtpEmail({ name, otp, minutes, to }) {
   const template = buildPasswordResetEmail({ name, otp, minutes });
   return sendMail({
+    mailType: 'password_reset',
     to,
     subject: template.subject,
     text: renderTemplate(template.text, { name, otp, minutes }),
@@ -114,7 +166,9 @@ async function sendPasswordResetOtpEmail({ name, otp, minutes, to }) {
 
 module.exports = {
   buildPasswordResetEmail,
+  getMailboxStatus,
   resolveSmtpConfig,
   sendMail,
-  sendPasswordResetOtpEmail
+  sendPasswordResetOtpEmail,
+  sendTestMail
 };

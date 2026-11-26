@@ -101,14 +101,14 @@ async function recordLog(entry = {}) {
 }
 
 async function sendFinanceAlert({ subject, html, text }) {
-  const smtp = await resolveSmtpConfig();
+  const smtp = await resolveSmtpConfig('outsourcing_alert');
   const settings = await getSettings();
   const recipient = String(settings?.company?.email || '').trim();
   if (!smtp || !recipient) {
     return { sent: false, reason: !smtp ? 'SMTP not configured' : 'Company email missing' };
   }
 
-  await sendMail({ to: recipient, subject, html, text });
+  await sendMail({ mailType: 'outsourcing_alert', to: recipient, subject, html, text });
   return { sent: true, reason: '' };
 }
 
