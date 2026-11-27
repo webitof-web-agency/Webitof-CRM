@@ -430,9 +430,10 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
       ) : null}
       {checkResult ? <Notice tone={checkResult.ok ? 'success' : 'danger'}>{checkResult.message}</Notice> : null}
 
-      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-5">
+      {/* Both columns stretch to the same height (grid rows stretch by default). */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
         {/* Left: Drive + upload storage */}
-        <div className="min-w-0 space-y-3 lg:col-span-2">
+        <div className="flex min-w-0 flex-col gap-3 lg:col-span-2">
           <Card className="p-4">
             <SectionHeader icon={CloudUpload} title="Google Drive" hint="Holds uploads (when chosen below) and the daily backups." />
             <dl className="divide-y divide-[var(--border)]">
@@ -471,7 +472,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
             ) : null}
           </Card>
 
-          <Card className="p-4">
+          <Card className="flex-1 p-4">
             <SectionHeader icon={HardDrive} title="Upload storage" hint="Where new uploads go; old files keep opening from where they are." />
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {PROVIDERS.map((provider) => {
@@ -519,7 +520,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
         </div>
 
         {/* Right: backups */}
-        <Card className="min-w-0 p-4 lg:col-span-3">
+        <Card className="flex min-w-0 flex-col p-4 lg:col-span-3">
           <SectionHeader
             icon={DatabaseBackup}
             title="Database backups"
@@ -531,10 +532,23 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
                 Back up now
               </Button>
             ) : null}
-            {canWrite ? (
-              <Button size="xs" variant="outline" onClick={downloadFreshBackup} loading={busy === 'fresh'} disabled={Boolean(busy)} title="Makes a fresh dump and saves it to this computer; nothing is sent to Drive">
+            {canWrite && driveUsable ? (
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={() => downloadDriveBackup(backups[0])}
+                loading={busy === `download-${backups[0]?.id}`}
+                disabled={Boolean(busy) || !backups.length}
+                title={backups.length ? `Download the newest backup in Drive (${formatDate(backups[0].createdTime)})` : 'No backup in Drive yet'}
+              >
                 <Download size={12} />
-                Download
+                Download latest
+              </Button>
+            ) : null}
+            {canWrite ? (
+              <Button size="xs" variant="ghost" onClick={downloadFreshBackup} loading={busy === 'fresh'} disabled={Boolean(busy)} title="Makes a fresh dump now and saves it to this computer; nothing is sent to Drive">
+                <DatabaseBackup size={12} />
+                Fresh dump
               </Button>
             ) : null}
           </SectionHeader>
@@ -543,7 +557,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
           {last?.retentionError ? <div className="mt-2"><Notice tone="warning">Old backups could not be pruned: {last.retentionError}</Notice></div> : null}
 
           {driveUsable ? (
-            <div className={last?.status === 'FAILED' || last?.retentionError ? 'mt-3' : ''}>
+            <div className={`flex-1 ${last?.status === 'FAILED' || last?.retentionError ? 'mt-3' : ''}`}>
               <div className="mb-1.5 flex items-center justify-between">
                 <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                   In Google Drive{backups.length ? ` · ${backups.length}` : ''}
