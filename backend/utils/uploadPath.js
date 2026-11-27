@@ -3,7 +3,8 @@
 //
 //   01 CRM/Leads/LD-2026-000017 - Vashi Tech/<file>           record with a number
 //   01 CRM/Clients/Acme Pvt Ltd (c91d)/<file>                 record without a number: name (last 4 of id)
-//   01 CRM/Calls/2026/11-Nov/<file>                           recordings: year / month
+//   01 CRM/Calls/+919876543210 - Vashi Tech/<file>            recordings: one folder per number
+//                                                             (callFolder; year / month without one)
 //   01 CRM/Quotations/FY 2026-27/11-Nov/<file>
 //   02 Finance/Invoices/FY 2026-27/11-Nov/INV-2026-0012 - Acme/<file>
 //                                                             finance: financial year (Apr-Mar) and month
@@ -212,6 +213,51 @@ function buildStorageKey({ moduleName, entityId, entity, entityLabel, storedName
   return `${buildFolderPath({ moduleName, entityId, entity, entityLabel, date })}/${storedName}`;
 }
 
+// Call recordings: one folder per phone number, every recording named after the call.
+//   01 CRM/Calls/+919876543210 - Vashi Tech/+919876543210 - Vashi Tech - 2026-11-27 10-32 - 3m 25s.mp3
+const CALLS_FOLDER_ROOT = '01 CRM/Calls';
+
+// One form per number so "98765 43210", "+91 98765-43210" and "919876543210" share a folder.
+function normalizeCallPhone(value) {
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 11 && digits.startsWith('0')) return `+91${digits.slice(1)}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;
+  return raw.startsWith('+') ? `+${digits}` : digits;
+}
+
+function callContactLabel({ phone = '', name = '' } = {}) {
+  const number = normalizeCallPhone(phone);
+  const cleanName = displaySegment(name, 50);
+  // "Customer" / "Unknown" are what the app sends when it has no name.
+  const usefulName = /^(customer|unknown|direct call)$/i.test(cleanName) ? '' : cleanName;
+  return [number || 'Unknown Number', usefulName].filter(Boolean).join(' - ');
+}
+
+function callFolder({ phone = '', name = '' } = {}) {
+  return `${CALLS_FOLDER_ROOT}/${callContactLabel({ phone, name })}`;
+}
+
+// "3m 25s", "1h 02m 10s", "45s"; '' when the duration is unknown.
+function formatCallDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  if (!total) return '';
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  if (m) return `${m}m ${String(s).padStart(2, '0')}s`;
+  return `${s}s`;
+}
+
+// "<number> - <name> - <YYYY-MM-DD HH-mm> - <duration>" (India time; "-" because ":" is not allowed in file names).
+function callFileBase({ phone = '', name = '', startedAt = null, durationSeconds = 0 } = {}) {
+  const { date, time } = istParts(toDate(startedAt, new Date()));
+  return [callContactLabel({ phone, name }), `${date} ${time}`, formatCallDuration(durationSeconds)].filter(Boolean).join(' - ');
+}
+
 // One folder per employee for all their HR documents:
 // 04 HRM/Employees/EMP-012 - Mallika Paik/Documents. The employee number keeps two people with the
 // same name apart and sorts the list.
@@ -225,7 +271,12 @@ function employeeFolder({ fullName = '', employeeNumber = '', id = '' } = {}) {
 }
 
 module.exports = {
+  CALLS_FOLDER_ROOT,
   CATEGORY_FOLDERS,
+  callFileBase,
+  callFolder,
+  formatCallDuration,
+  normalizeCallPhone,
   EMPLOYEE_FOLDER_ROOT,
   LEGACY_CATEGORY_FOLDERS,
   buildFolderPath,

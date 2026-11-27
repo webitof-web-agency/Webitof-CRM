@@ -167,6 +167,45 @@ test('saveUpload still works in the id folder when the lookup fails', async () =
   });
 });
 
+// Call recordings: one folder per number, each file "<number> - <name> - <date time> - <duration>".
+const { callFolder, callFileBase, formatCallDuration, normalizeCallPhone } = require('../utils/uploadPath');
+
+test('one phone number is one folder, however the app wrote it', () => {
+  for (const phone of ['9876543210', '+91 98765 43210', '919876543210', '09876543210', '+91-98765-43210']) {
+    assert.equal(normalizeCallPhone(phone), '+919876543210', phone);
+  }
+  assert.equal(normalizeCallPhone('+1 (415) 555-0100'), '+14155550100');
+  assert.equal(callFolder({ phone: '98765 43210', name: 'Vashi Tech' }), '01 CRM/Calls/+919876543210 - Vashi Tech');
+  // The app's placeholder names are not folder names.
+  assert.equal(callFolder({ phone: '9876543210', name: 'Customer' }), '01 CRM/Calls/+919876543210');
+  assert.equal(callFolder({ phone: '', name: '' }), '01 CRM/Calls/Unknown Number');
+});
+
+test('a recording is named number - name - date time (India) - duration', () => {
+  const base = callFileBase({ phone: '9876543210', name: 'Vashi Tech', startedAt: '2026-11-27T05:02:00Z', durationSeconds: 205 });
+  assert.equal(base, '+919876543210 - Vashi Tech - 2026-11-27 10-32 - 3m 25s');
+  assert.equal(callFileBase({ phone: '9876543210', startedAt: '2026-11-27T05:02:00Z' }), '+919876543210 - 2026-11-27 10-32');
+  assert.equal(formatCallDuration(45), '45s');
+  assert.equal(formatCallDuration(3730), '1h 02m 10s');
+  assert.equal(formatCallDuration(0), '');
+});
+
+test('a recording name is kept as given; a second one in the same minute gets " (2)"', async () => {
+  const folder = '01 CRM/Calls/+919876543210 - Vashi Tech';
+  const base = '+919876543210 - Vashi Tech - 2026-11-27 10-32 - 3m 25s';
+  await withCreateStub(async (created) => {
+    const upload = (db) => fileService.saveUpload({
+      buffer: Buffer.from('ID3'), originalName: 'rec.mp3', moduleName: 'calls', entityId: 'call_1',
+      types: fileService.AUDIO_TYPES, dbClient: db, folderPath: folder, fileBaseName: base, keepFileName: true
+    });
+    await upload(fakeDb());
+    assert.equal(created[0].storedName, `${base}.mp3`);
+    assert.equal(created[0].storageKey, `${folder}/${base}.mp3`);
+    await upload(fakeDb({ taken: [`${folder}/${base}.mp3`] }));
+    assert.equal(created[1].storedName, `${base} (2).mp3`);
+  });
+});
+
 // HR documents: one folder per employee, files named <document>-<employee>.
 test('an employee folder is "<employee number> - <name>/Documents"', () => {
   assert.equal(employeeFolder({ fullName: 'Mallika Paik', employeeNumber: 'EMP-12' }), '04 HRM/Employees/EMP-12 - Mallika Paik/Documents');

@@ -125,10 +125,12 @@ async function existingRecordFolder(moduleName, entityId, computedFolder, dbClie
 // Readable, stable names ("aadhaar-card-mallika-paik.pdf"). A name already used in the folder
 // gets "-2", "-3"...: the database check covers both providers, and EEXIST covers a file left
 // on disk without a record (the local provider never overwrites).
-async function uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient, { slug = true } = {}) {
+async function uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient, { slug = true, spacedSuffix = false } = {}) {
   const base = (slug ? slugFileBase(fileBaseName) : fileBaseName) || 'file';
   for (let n = 1; n <= 50; n += 1) {
-    const candidate = `${base}${n > 1 ? `-${n}` : ''}${extension}`;
+    // Slugged names repeat as "-2"; names kept as given (recordings) as " (2)".
+    const suffix = n > 1 ? (spacedSuffix ? ` (${n})` : `-${n}`) : '';
+    const candidate = `${base}${suffix}${extension}`;
     if (await storedNameTaken(folderPath, candidate, dbClient)) continue;
     try {
       const locator = await storage.upload(buffer, `${folderPath}/${candidate}`, { mimeType });
@@ -175,7 +177,10 @@ async function saveUpload({
   // Optional: a fixed folder (instead of <year>/<mon>/<section>/<record>) and a readable
   // file name (instead of the uploaded name plus a random suffix). Used by HRM documents.
   folderPath: fixedFolder = '',
-  fileBaseName = ''
+  fileBaseName = '',
+  // fileBaseName is already a readable, safe name (call recordings): keep it as given
+  // instead of turning it into "lower-case-with-hyphens".
+  keepFileName = false
 }) {
   if (!buffer?.length) throw httpError('Empty files cannot be uploaded');
   if (buffer.length > maxBytes) {
@@ -191,7 +196,7 @@ async function saveUpload({
     folderPath = (await existingRecordFolder(moduleName, entityId, folderPath, dbClient)) || folderPath;
   }
   const { storedName, locator } = fileBaseName
-    ? await uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient)
+    ? await uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient, { slug: !keepFileName, spacedSuffix: keepFileName })
     : await uploadWithReadableName(buffer, folderPath, datedFileBase(cleanName, moduleName, now), extension, mimeType, dbClient, { slug: false });
 
   try {

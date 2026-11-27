@@ -8,6 +8,7 @@ const { hasPermission } = require('../middlewares/auth');
 const { emitToPermission, emitToSuperAdmins, emitToUser } = require('../services/socketHub.service');
 const { hiddenAdminIds, isAdminOwned } = require('../services/adminPrivacy.service');
 const { AUDIO_TYPES, removeFileByRef, saveUpload } = require('../services/file.service');
+const { CALLS_FOLDER_ROOT, callFileBase, callFolder, normalizeCallPhone } = require('../utils/uploadPath');
 
 const MAX_RECORDING_BYTES = 100 * 1024 * 1024;
 
@@ -66,6 +67,42 @@ const upload = multer({
 function normalizePhone(val) {
   if (!val) return '';
   return String(val).replace(/[^0-9+]/g, '').trim();
+}
+
+// Number, name, start and duration a recording is filed under: the stored call wins, then what the
+// app sent, and a missing name is looked up from the lead or client with that number.
+async function recordingNameInfo(body, existingCall) {
+  const phone = existingCall?.customer_phone || normalizePhone(body.customerPhone || body.phone || body.customer_phone);
+  const placeholder = (value) => !value || /^(customer|unknown|direct call)$/i.test(value);
+  let name = [existingCall?.customer_name, body.customerName, body.name, body.customer_name]
+    .map((value) => String(value || '').trim())
+    .find((value) => !placeholder(value)) || '';
+  if (!name && phone) {
+    const match = await findContactByPhone(phone).catch(() => ({}));
+    if (match?.name) name = match.name;
+  }
+  const startedRaw = body.startedAt || body.started_at || existingCall?.started_at || null;
+  const durationSeconds = Number(existingCall?.duration_seconds || 0) || Number(body.durationSeconds || body.duration_seconds || 0);
+  return { phone, name, startedAt: startedRaw ? new Date(startedRaw) : new Date(), durationSeconds };
+}
+
+// A number keeps the folder of its first recording, so a contact renamed later does not get a
+// second folder.
+async function recordingFolder(info) {
+  const computed = callFolder(info);
+  const number = normalizeCallPhone(info.phone);
+  if (!number) return computed;
+  try {
+    const result = await query(
+      `select folder_key from file_assets
+        where module_name = 'calls' and archived_at is null and (folder_key = $1 or folder_key like $2)
+        order by created_at limit 1`,
+      [`${CALLS_FOLDER_ROOT}/${number}`, `${CALLS_FOLDER_ROOT}/${number} - %`]
+    );
+    return result.rows[0]?.folder_key || computed;
+  } catch {
+    return computed;
+  }
 }
 
 function safeRecordingFileName(value) {
@@ -635,23 +672,33 @@ module.exports = {
 
       // Check ownership before storing anything, so a rejected upload leaves no file behind.
       let previousAssetId = null;
+      let existingCall = null;
       if (callId) {
-        const existingRes = await query('SELECT user_id, recording_file_asset_id FROM call_logs WHERE id = $1', [callId]);
-        if (existingRes.rows[0] && !canModifyCall(req.user, existingRes.rows[0].user_id)) {
+        const existingRes = await query(
+          'SELECT user_id, recording_file_asset_id, customer_phone, customer_name, started_at, duration_seconds FROM call_logs WHERE id = $1',
+          [callId]
+        );
+        existingCall = existingRes.rows[0] || null;
+        if (existingCall && !canModifyCall(req.user, existingCall.user_id)) {
           return res.status(403).json({ success: false, message: 'You can only attach recordings to your own calls' });
         }
-        previousAssetId = existingRes.rows[0]?.recording_file_asset_id || null;
+        previousAssetId = existingCall?.recording_file_asset_id || null;
       }
 
       let stored = null;
       if (file) {
+        // 01 CRM/Calls/<number> - <name>/<number> - <name> - <date time> - <duration>.mp3
+        const callInfo = await recordingNameInfo(body, existingCall);
         stored = await saveUpload({
           buffer: file.buffer,
           originalName: file.originalname || 'recording.mp3',
           moduleName: 'calls',
           entityId: targetCallId,
           types: AUDIO_TYPES,
-          maxBytes: MAX_RECORDING_BYTES
+          maxBytes: MAX_RECORDING_BYTES,
+          folderPath: await recordingFolder(callInfo),
+          fileBaseName: callFileBase(callInfo),
+          keepFileName: true
         });
       }
 
