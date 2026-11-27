@@ -31,6 +31,14 @@ function belongsTo(target, path) {
   return base === path || base.startsWith(`${path}/`);
 }
 
+// The record a notification is about. A record page (/app/leads/<id>) identifies it even when the
+// notification's own entity is something else (a lead's event); otherwise module + entity id.
+const RECORD_PAGE = /^\/app\/(leads|clients|projects|invoices|payments|expenses|amc)\/[^/?]+$/;
+function recordKey(item) {
+  if (item.target && RECORD_PAGE.test(item.target)) return item.target;
+  return item.entityId ? `${item.moduleName}:${item.entityId}` : item.id;
+}
+
 function SidebarLink({ item, onNavigate, open, isChild = false }) {
   const location = useLocation();
 
@@ -238,7 +246,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
 
 export function Sidebar({ open = false, onClose }) {
   const { user } = useAuth();
-  const { unreadTargets = [], unreadCount = 0, menuCounts = null } = useNotifications();
+  const { unreadItems = [], unreadCount = 0, menuCounts = null } = useNotifications();
   const location = useLocation();
 
   const logos = BRAND_LOGOS;
@@ -293,8 +301,13 @@ export function Sidebar({ open = false, onClose }) {
   // reports... keyed by path) and unread notifications pointing into the item. They mostly describe
   // the same things, so an item shows the larger of the two instead of their sum.
   const groupsWithCounts = useMemo(() => {
+    // Records, not notifications: five updates to one lead count as one lead.
     const countFor = (paths) =>
-      unreadTargets.filter((target) => paths.some((path) => belongsTo(target, path))).length;
+      new Set(
+        unreadItems
+          .filter((item) => paths.some((path) => belongsTo(item.target, path)))
+          .map((item) => recordKey(item))
+      ).size;
     const pending = (key) => (menuCounts && Object.hasOwn(menuCounts, key) ? Number(menuCounts[key]) || 0 : null);
     const badge = (item) => {
       if (item.path === '/app/notifications') return unreadCount;
@@ -326,7 +339,7 @@ export function Sidebar({ open = false, onClose }) {
           : { ...item, badge: badge(item) }
       )
     }));
-  }, [visibleGroups, unreadTargets, unreadCount, menuCounts]);
+  }, [visibleGroups, unreadItems, unreadCount, menuCounts]);
 
   useEffect(() => {
     setCollapsedGroups((current) => {

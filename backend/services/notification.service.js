@@ -193,7 +193,8 @@ async function listNotifications(userId, { limit = 50, offset = 0, unreadOnly = 
 
 async function getUnreadCount(userId) {
   const { rows } = await query(
-    'SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND coalesce(is_read, false) = false',
+    // Older rows about the user's own actions are not counted (they are no longer created).
+    'SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND coalesce(is_read, false) = false AND actor_user_id IS DISTINCT FROM user_id',
     [String(userId || '')]
   );
   return rows[0]?.n || 0;
@@ -225,7 +226,7 @@ async function listUnreadSummary(userId, { limit = 2000 } = {}) {
   const { rows } = await query(
     `SELECT id, module_name, entity_id, coalesce(nullif(route_path, ''), payload->>'routePath', '') AS route_path
        FROM notifications
-      WHERE user_id = $1 AND coalesce(is_read, false) = false
+      WHERE user_id = $1 AND coalesce(is_read, false) = false AND actor_user_id IS DISTINCT FROM user_id
       ORDER BY created_at DESC
       LIMIT $2`,
     [String(userId || ''), limit]
@@ -372,13 +373,12 @@ async function resolveRecipientUsers({
   const users = await listUsers();
   const defaultRoles = DEFAULT_INTERNAL_ROLES_BY_MODULE[moduleName] || ['admin'];
   const explicit = new Set(toArray(explicitUserIds));
-  if (actorUserId) {
-    explicit.add(String(actorUserId));
-  }
 
   const map = new Map();
   for (const user of users) {
     if (!user?.isActive) continue;
+    // Nobody is notified about their own action: they just did it.
+    if (actorUserId && String(user.id) === String(actorUserId)) continue;
     const userRoles = Array.isArray(user.roles) ? user.roles : [];
     const matchesDefault = userRoles.some((role) => defaultRoles.includes(String(role.code || '').trim().toLowerCase()));
     const matchesExplicit = explicit.has(String(user.id));
