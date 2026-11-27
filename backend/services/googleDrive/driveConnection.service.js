@@ -18,8 +18,8 @@ const SETTINGS_ROUTE = '/app/settings/storage';
 const REMIND_MS = 24 * 60 * 60 * 1000;
 // Folders the app owns, each with the folder it sits in:
 //   My Drive/Webitof ERP Data                           root: uploads go straight in (01 CRM ... 07 General)
-//   Webitof ERP Data/99 Backups                         backupsRoot
-//   Webitof ERP Data/99 Backups/Database                backup: year / month / day folders with the dumps
+//   Webitof ERP Data/Backups                         backupsRoot
+//   Webitof ERP Data/Backups/Database                backup: year / month / day folders with the dumps
 const FOLDER_KINDS = {
   root: { idKey: 'rootFolderId', nameKey: 'rootFolderName', configKey: 'rootFolderName', parent: null },
   backupsRoot: { idKey: 'backupsRootFolderId', nameKey: 'backupsRootFolderName', configKey: 'backupFolderName', parent: 'root' },
@@ -339,7 +339,7 @@ async function saveConnection(refreshToken, { userId = null, source = 'oauth' } 
   clearClientCache();
 
   // Connecting builds the whole tree: Webitof ERP Data, its 01 CRM ... 07 General folders and
-  // 99 Backups/Database.
+  // Backups/Database.
   await ensureCategoryFolders({ client });
   await ensureFolder('backup', { client });
   return getState();

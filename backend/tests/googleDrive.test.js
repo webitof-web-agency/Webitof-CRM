@@ -118,7 +118,7 @@ test('Check connection applies the env refresh token encrypted, creates both fol
 
   const raw = JSON.stringify(Object.fromEntries(memory.data));
   assert.ok(!raw.includes('refresh-1'), 'refresh token must not be stored in plain text');
-  assert.equal(fake.pathOf(fake.findByName('Database')), 'Webitof ERP Data/99 Backups/Database');
+  assert.equal(fake.pathOf(fake.findByName('Database')), 'Webitof ERP Data/Backups/Database');
   assert.equal(fake.pathOf(fake.findByName('01 CRM')), 'Webitof ERP Data/01 CRM');
 
   const status = await connection.getStatus();
@@ -304,7 +304,7 @@ test('backups are filed in year/month/date folders; pruning removes the folders 
   assert.equal(result.status, 'SUCCESS');
   assert.match(
     fake.pathOf(fake.files.get(result.fileId)),
-    /^Webitof ERP Data\/99 Backups\/Database\/\d{4}\/\d{2}-[A-Z][a-z]{2}\/\d{4}-\d{2}-\d{2}\/crm-backup-crm-/
+    /^Webitof ERP Data\/Backups\/Database\/\d{4}\/\d{2}-[A-Z][a-z]{2}\/\d{4}-\d{2}-\d{2}\/crm-backup-crm-/
   );
   assert.equal(result.removed, 1);
   assert.ok(!fake.files.has(old.id));
@@ -690,7 +690,7 @@ test('Drive credentials and folders come from the env only and cannot be set fro
   assert.equal(byKey.parentFolderId, undefined, 'there is no parent folder setting: the main folder is always in My Drive');
   assert.equal(byKey.rootFolderName.value, 'Webitof ERP Data');
   assert.equal(byKey.rootFolderName.set, false);
-  assert.equal(byKey.backupFolderName.value, '99 Backups');
+  assert.equal(byKey.backupFolderName.value, 'Backups');
   assert.equal(byKey.clientSecret.set, true);
   assert.equal(byKey.refreshToken.set, false);
   assert.ok(!JSON.stringify(view).includes('client-secret'), 'secret values never reach the browser');
@@ -759,14 +759,14 @@ test('connecting builds the whole tree once at the top of My Drive, whatever GDR
     'Webitof ERP Data/05 Users',
     'Webitof ERP Data/06 Company',
     'Webitof ERP Data/07 General',
-    'Webitof ERP Data/99 Backups',
-    'Webitof ERP Data/99 Backups/Database'
+    'Webitof ERP Data/Backups',
+    'Webitof ERP Data/Backups/Database'
   ], 'checking again does not duplicate anything');
   const status = await connection.getStatus();
   assert.equal(status.rootFolder.name, 'Webitof ERP Data');
   assert.equal(status.categoryFolders.length, 7);
   assert.ok(status.categoryFolders.every((folder) => folder.link.startsWith('https://drive.google.com/drive/folders/')));
-  assert.equal(status.backupFolder.name, '99 Backups/Database');
+  assert.equal(status.backupFolder.name, 'Backups/Database');
 });
 
 test('the backup hour saved in Settings drives the schedule', async () => {
@@ -838,7 +838,7 @@ test('the Google callback stores the refresh token encrypted and connects the fo
   assert.equal(state.connectedByUserId, 'user_admin');
   const raw = JSON.stringify(Object.fromEntries(memory.data));
   assert.ok(!raw.includes('refresh-1'), 'refresh token must not be stored in plain text');
-  assert.ok(fake.findByName('Webitof ERP Data') && fake.findByName('99 Backups') && fake.findByName('07 General'));
+  assert.ok(fake.findByName('Webitof ERP Data') && fake.findByName('Backups') && fake.findByName('07 General'));
   const status = await connection.getStatus();
   assert.equal(status.connected, true);
   assert.equal(status.needsReconnect, false);
@@ -1182,8 +1182,20 @@ test('a main folder an earlier version put inside another folder is moved to My 
 
   assert.equal(await connection.ensureFolder('root'), rootId, 'the same folder, not a new one');
   assert.deepEqual(fake.files.get(rootId).parents, ['my-drive-root']);
-  assert.equal(fake.pathOf(fake.files.get(dump.id)), 'Webitof ERP Data/99 Backups/Database/crm-backup-crm-2026-11-20_02-00-00-IST.dump');
+  assert.equal(fake.pathOf(fake.files.get(dump.id)), 'Webitof ERP Data/Backups/Database/crm-backup-crm-2026-11-20_02-00-00-IST.dump');
   assert.equal(await connection.ensureFolder('backup'), backupFolderId, 'folders inside moved along and are reused');
   assert.equal((await backups.listBackups()).length, 1);
   assert.ok(fake.files.has(handMade.id), 'the hand-made folder is left alone (now empty)');
+});
+
+test('a backups folder made as "99 Backups" by an earlier version is renamed to "Backups" in place', async () => {
+  setup();
+  await connect();
+  const id = await connection.ensureFolder('backupsRoot');
+  fake.files.get(id).name = '99 Backups';
+  memory.data.set('google_drive', { ...memory.data.get('google_drive'), backupsRootFolderName: '99 Backups' });
+  connection._resetForTests();
+  assert.equal(await connection.ensureFolder('backupsRoot'), id);
+  assert.equal(fake.files.get(id).name, 'Backups');
+  assert.equal((await connection.getStatus()).backupFolder.name, 'Backups/Database');
 });

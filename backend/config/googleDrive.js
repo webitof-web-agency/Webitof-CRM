@@ -8,9 +8,9 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 // My Drive (https://drive.google.com/drive/my-drive). There is no setting to put it elsewhere:
 // GDRIVE_PARENT_FOLDER_ID is ignored.
 //   Webitof ERP Data/01 CRM ... 07 General   uploads (utils/uploadPath.js)
-//   Webitof ERP Data/99 Backups/Database/... daily database backups
+//   Webitof ERP Data/Backups/Database/... daily database backups
 const DEFAULT_ROOT_FOLDER_NAME = 'Webitof ERP Data';
-const DEFAULT_BACKUP_FOLDER_NAME = '99 Backups';
+const DEFAULT_BACKUP_FOLDER_NAME = 'Backups';
 const BACKUP_DATABASE_FOLDER_NAME = 'Database';
 const DEFAULT_BACKUP_KEEP = 15;
 const DEFAULT_BACKUP_HOUR_IST = 2;
