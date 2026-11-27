@@ -6,7 +6,7 @@ import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { Field, Status, ActionDialog } from "./HrmShared";
-import { GeoMap } from "./GeoMap";
+import { GeoMap, distanceMeters, loadGoogleMaps, mapsLink } from "./GeoMap";
 import { hrm, localDay } from "./hrmApi";
 import { hm, clock, EVENT_LABELS, ALERT_LABELS } from "./hrmTime";
 import { SimpleTable } from "../../components/ui/SimpleTable";
@@ -39,6 +39,7 @@ export function HrmLive({ token, metadata, can }) {
   const [live, setLive] = useState(null),
     [alerts, setAlerts] = useState([]),
     [homes, setHomes] = useState([]),
+    [zones, setZones] = useState([]),
     [error, setError] = useState(""),
     [stale, setStale] = useState(""),
     [day, setDay] = useState(null),
@@ -78,6 +79,10 @@ export function HrmLive({ token, metadata, can }) {
       clearInterval(timer);
     };
   }, [token, tick, load]);
+  // Approved offices and homes, drawn next to an alert's location (they rarely change, so load once).
+  useEffect(() => {
+    hrm(token, "/geofences?status=Approved").then(setZones).catch(() => setZones([]));
+  }, [token]);
   async function run(path, body, success) {
     setBusy(true);
     try {
@@ -233,7 +238,13 @@ export function HrmLive({ token, metadata, can }) {
                 </div>
                 <Status value={a.status} />
               </div>
+              {a.details?.reason && (
+                <p className="text-xs">
+                  <span className="font-semibold">Reason:</span> {a.details.reason}
+                </p>
+              )}
               {a.explanation && <p className="rounded-lg bg-[var(--surface-2)] p-2 text-xs">“{a.explanation}”</p>}
+              <AlertLocation alert={a} zones={zones} maxAccuracy={live.policy.maxGpsAccuracyMeters} />
               <div className="flex flex-wrap gap-1.5">
                 {ALERT_ACTIONS.filter(([k]) => k !== "checkout" || ["geofence_breach", "offline", "mock_location"].includes(a.kind))
                   .filter(([k]) => !["half-day", "absent"].includes(k) || can("hr_approve"))
@@ -283,6 +294,97 @@ export function HrmLive({ token, metadata, can }) {
         />
       )}
       {day && <DayReview token={token} tz={tz} can={can} initial={day} onClose={() => { setDay(null); load(); }} />}
+    </div>
+  );
+}
+const metres = (m) => (m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 0 : 1)} km` : `${m} m`);
+const geocoded = new Map();
+const zoneColor = (z) => (z.kind === "home" ? "#0ea5e9" : "#4f46e5");
+const zoneName = (z) => (z.kind === "home" ? "approved home" : z.label);
+/**
+ * Where an alert came from: the GPS point (circle = its accuracy) on a map next to the nearest office
+ * and the employee's approved home, plus the street address when Google can resolve it.
+ */
+function AlertLocation({ alert, zones, maxAccuracy }) {
+  const loc = alert.details?.location;
+  const point = loc && Number.isFinite(Number(loc.latitude)) && Number.isFinite(Number(loc.longitude))
+    ? { latitude: Number(loc.latitude), longitude: Number(loc.longitude) }
+    : null;
+  const key = point ? `${point.latitude.toFixed(5)},${point.longitude.toFixed(5)}` : "";
+  const [address, setAddress] = useState(() => geocoded.get(key) || "");
+  useEffect(() => {
+    if (!key || geocoded.has(key)) return undefined;
+    let active = true;
+    // Needs the Geocoding API on the Maps key; without it only the coordinates are shown.
+    loadGoogleMaps()
+      .then((maps) => new maps.Geocoder().geocode({ location: { lat: point.latitude, lng: point.longitude } }))
+      .then(({ results }) => {
+        const text = results?.[0]?.formatted_address || "";
+        geocoded.set(key, text);
+        if (active) setAddress(text);
+      })
+      .catch(() => geocoded.set(key, ""));
+    return () => {
+      active = false;
+    };
+    // point is derived from key.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  if (!point) return null;
+  const relevant = zones
+    .filter((z) => z.kind === "office" || z.employeeId === alert.employeeId)
+    .map((z) => ({ zone: z, meters: distanceMeters(point, z) }))
+    .sort((a, b) => a.meters - b.meters);
+  const nearest = relevant[0];
+  const inside = nearest && nearest.meters <= Number(nearest.zone.radiusMeters);
+  // Draw the nearest office and the employee's home, not every office.
+  const shown = [relevant.find((r) => r.zone.kind === "office"), ...relevant.filter((r) => r.zone.kind === "home")]
+    .filter(Boolean)
+    .slice(0, 3);
+  const accuracy = Number(loc.accuracy);
+  const weak = Number.isFinite(accuracy) && maxAccuracy && accuracy > maxAccuracy;
+  return (
+    <div className="space-y-1.5">
+      <GeoMap
+        center={point}
+        radius={Math.min(Math.max(Number.isFinite(accuracy) ? accuracy : 30, 15), 3000)}
+        centerColor={inside ? "#059669" : "#e11d48"}
+        others={shown.map((r) => ({ ...r.zone, color: zoneColor(r.zone) }))}
+        // Zone circles are too small to see once the map is zoomed out, so each zone also gets a dot.
+        people={shown.map((r) => ({
+          id: r.zone.id,
+          latitude: r.zone.latitude,
+          longitude: r.zone.longitude,
+          color: zoneColor(r.zone),
+          lines: [zoneName(r.zone), `${metres(r.meters)} from the request`],
+        }))}
+        fitRequest={1}
+        height={190}
+      />
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1 text-xs">
+        <p className="min-w-0 flex-1">
+          <MapPin size={12} className="mr-1 inline text-rose-600" />
+          <span className="font-semibold">{address || `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`}</span>
+          <span className="block text-[var(--text-muted)]">
+            {!nearest
+              ? "No work location to compare"
+              : inside
+                ? `Inside ${zoneName(nearest.zone)}`
+                : shown.map((r) => (
+                    <span key={r.zone.id} className="mr-2 inline-flex items-center gap-1 whitespace-nowrap">
+                      <span className="h-2 w-2 rounded-full" style={{ background: zoneColor(r.zone) }} />
+                      {metres(r.meters)} from {zoneName(r.zone)}
+                    </span>
+                  ))}
+            {Number.isFinite(accuracy) && (
+              <span className={`block ${weak ? "text-amber-600" : ""}`}>GPS accuracy ±{metres(accuracy)}{weak ? " (weak, the real spot may be anywhere in the circle)" : ""}</span>
+            )}
+          </span>
+        </p>
+        <a className="shrink-0 font-semibold text-[var(--primary)]" href={mapsLink(point)} target="_blank" rel="noreferrer">
+          Open in Google Maps ↗
+        </a>
+      </div>
     </div>
   );
 }
