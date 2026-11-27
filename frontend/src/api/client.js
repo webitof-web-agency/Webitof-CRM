@@ -317,6 +317,8 @@ export const api = {
       request(`/files?search=${search}&moduleName=${moduleName}&entityId=${entityId}&folderKey=${folderKey}`, { token, skipCache: true }),
     browse: (token, path = '', search = '') =>
       request(`/files/browse?path=${encodeURIComponent(path)}&search=${encodeURIComponent(search)}`, { token, skipCache: true }),
+    // Every folder that holds files, nested, with file counts (Files page sidebar).
+    tree: (token) => request('/files/tree', { token, skipCache: true }),
     get: (token, id) => request(`/files/${id}`, { token, skipCache: true }),
     // id is a file id or an older Drive id; returns the file's view link for the signed-in user.
     link: (token, id) => request(`/files/${encodeURIComponent(id)}/link`, { token, skipCache: true }),

@@ -98,15 +98,56 @@ function virtualFolderOf(record) {
   return `${EARLIER_UPLOADS_FOLDER}/${moduleName}`;
 }
 
+// Folder names in the order Drive shows them: "01 CRM" … "07 General", "2026", "11-Nov", names.
+const byFolderName = (a, b) => a.name.localeCompare(b.name, 'en', { numeric: true, sensitivity: 'base' });
+
+// The current layout's top folders come first; folders of earlier layouts are flagged legacy.
+function sortTopFolders(list) {
+  const current = list.filter((folder) => CATEGORY_FOLDERS.includes(folder.name)).sort(byFolderName);
+  const legacy = list.filter((folder) => !CATEGORY_FOLDERS.includes(folder.name)).map((folder) => ({ ...folder, legacy: true })).sort(byFolderName);
+  return [...current, ...legacy];
+}
+
+async function visibleFileRows(req, search = '') {
+  return filterLeadFilesByPipeline(
+    (await fileAssetModel.list({ search, orderBy: 'created_at DESC' })).filter((row) => !row.isArchived),
+    req
+  );
+}
+
+// Every folder that holds files, nested, with how many files sit under it. The top folders of the
+// current layout (01 CRM … 07 General) are always there, even before their first file.
+async function tree(req, res, next) {
+  try {
+    const rows = await visibleFileRows(req);
+    const root = { name: '', path: '', fileCount: 0, children: new Map() };
+    for (const name of CATEGORY_FOLDERS) root.children.set(name, { name, path: name, fileCount: 0, children: new Map() });
+    for (const row of rows) {
+      root.fileCount += 1;
+      let node = root;
+      for (const part of virtualFolderOf(row).split('/').filter(Boolean)) {
+        if (!node.children.has(part)) {
+          node.children.set(part, { name: part, path: node.path ? `${node.path}/${part}` : part, fileCount: 0, children: new Map() });
+        }
+        node = node.children.get(part);
+        node.fileCount += 1;
+      }
+    }
+    const toArray = (node) => Array.from(node.children.values())
+      .map((child) => ({ name: child.name, path: child.path, fileCount: child.fileCount, children: toArray(child) }))
+      .sort(byFolderName);
+    res.json({ success: true, data: { fileCount: root.fileCount, folders: sortTopFolders(toArray(root)) } });
+  } catch (error) {
+    next(error);
+  }
+}
+
 // Virtual folder view over every stored file, whichever provider holds it.
 async function browse(req, res, next) {
   try {
     const current = String(req.query.path || '').replace(/^\/+|\/+$/g, '');
     const search = String(req.query.search || '').trim();
-    const rows = await filterLeadFilesByPipeline(
-      (await fileAssetModel.list({ search, orderBy: 'created_at DESC' })).filter((row) => !row.isArchived),
-      req
-    );
+    const rows = await visibleFileRows(req, search);
 
     if (search) {
       return res.json({ success: true, data: { path: current, folders: [], files: rows.map(fileService.toPublicFile) } });
@@ -127,11 +168,14 @@ async function browse(req, res, next) {
       }
     }
 
-    const sortedFolders = Array.from(folders.values()).sort((a, b) => {
-      // Newest year/month first; everything else alphabetically.
-      if (/^\d{4}$/.test(a.name) && /^\d{4}$/.test(b.name)) return b.name.localeCompare(a.name);
-      return a.name.localeCompare(b.name);
-    });
+    if (!current) {
+      // The current layout's top folders are listed even while empty, as in Google Drive.
+      for (const name of CATEGORY_FOLDERS) {
+        if (!folders.has(name)) folders.set(name, { name, path: name, fileCount: 0 });
+      }
+    }
+    const list = Array.from(folders.values());
+    const sortedFolders = current ? list.sort(byFolderName) : sortTopFolders(list);
     res.json({ success: true, data: { path: current, folders: sortedFolders, files } });
   } catch (error) {
     next(error);
@@ -360,6 +404,7 @@ async function getUsage(req, res, next) {
 module.exports = {
   archive,
   browse,
+  tree,
   getById,
   getLink,
   getUsage,

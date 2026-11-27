@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.get('/', requirePermission('files.read'), controller.list);
 router.get('/browse', requirePermission('files.read'), controller.browse);
+router.get('/tree', requirePermission('files.read'), controller.tree);
 router.get('/usage', requirePermission('files.read'), controller.getUsage);
 router.post('/upload', requirePermission('files.write'), controller.upload.any(), controller.uploadFiles);
 // /drive/:id paths are kept for older clients; :id accepts a file id or an older Drive id.

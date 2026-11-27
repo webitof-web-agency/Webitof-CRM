@@ -90,18 +90,21 @@ export function FilesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-slate-800">Manage Media Library</h1>
+    <div className="space-y-4">
+      <PageHeader
+        className="mb-0"
+        title="Files"
+        description="Every uploaded file, in the same folders as Webitof ERP Data in Google Drive. Files uploaded here go to 07 General."
+      >
         {canWrite && (
-          <Button onClick={() => setUploadOpen(true)}>
-            <Upload size={16} />
-            Upload Files
+          <Button size="sm" onClick={() => setUploadOpen(true)}>
+            <Upload size={15} />
+            Upload files
           </Button>
         )}
-      </div>
+      </PageHeader>
 
-      <div className="flex flex-col h-[calc(100vh-8rem)] min-h-[600px] overflow-hidden -mx-3 md:-mx-5 px-3 md:px-5">
+      <div className="flex flex-col h-[calc(100vh-11rem)] min-h-[560px] overflow-hidden">
         <FileBrowser 
           onViewFile={(file) => setViewingFile(file)}
           refreshTrigger={refreshTrigger}

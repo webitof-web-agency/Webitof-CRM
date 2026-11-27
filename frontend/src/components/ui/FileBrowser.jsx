@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Folder, FileText, Image as ImageIcon, Video, FileArchive, Search, ChevronRight, Home, Grid as GridIcon, List as ListIcon, Check, Upload } from 'lucide-react';
+import { Folder, FileText, Image as ImageIcon, Video, FileArchive, Search, ChevronRight, ChevronDown, Home, Grid as GridIcon, List as ListIcon, Check, Upload, Cloud, HardDrive, History } from 'lucide-react';
 import { Input } from './Input';
 import { Button } from './Button';
 import { cn } from '../../lib/cn';
@@ -15,7 +15,9 @@ const MONTH_LABELS = {
   jul: 'July', aug: 'August', sep: 'September', oct: 'October', nov: 'November', dec: 'December'
 };
 
-// Folders come from the upload layout: year / month / section / record, plus site and earlier uploads.
+// Folders follow the upload layout, the same as "Webitof ERP Data" in Google Drive
+// (01 CRM/Leads/LD-2026-000017 - Vashi Tech ...). Older layouts (year/month, site, CRM/...) keep
+// their folders and are shown after the current ones.
 function folderLabel(name = '') {
   if (MONTH_LABELS[name]) return MONTH_LABELS[name];
   if (name === 'site') return 'Site assets';
@@ -25,6 +27,67 @@ function folderLabel(name = '') {
 
 function toBrowserFile(file) {
   return { ...file, name: file.originalName || file.name || 'Unknown File' };
+}
+
+// Where a file is stored: Google Drive or the server disk.
+function StorageBadge({ file }) {
+  const drive = file.storageProvider === 'gdrive';
+  const Icon = drive ? Cloud : HardDrive;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)]"
+      title={drive ? 'Stored in Google Drive' : 'Stored on the server'}
+    >
+      <Icon size={10} />
+      {drive ? 'Drive' : 'Server'}
+    </span>
+  );
+}
+
+// One folder in the sidebar tree; opens towards the folder being viewed.
+function TreeFolder({ node, depth, currentPath, expanded, onToggle, onOpen }) {
+  const hasChildren = node.children?.length > 0;
+  const open = expanded.has(node.path);
+  const active = currentPath === node.path;
+  return (
+    <li>
+      <div
+        className={cn(
+          'group flex items-center gap-1 rounded-lg pr-2 transition-colors',
+          active ? 'bg-[var(--primary-subtle)] text-[var(--primary)]' : 'text-[var(--text-muted)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)]'
+        )}
+        style={{ paddingLeft: `${depth * 12 + 4}px` }}
+      >
+        <button
+          type="button"
+          onClick={() => hasChildren && onToggle(node.path)}
+          className={cn('flex h-6 w-5 shrink-0 items-center justify-center', !hasChildren && 'invisible')}
+          aria-label={open ? `Collapse ${node.name}` : `Expand ${node.name}`}
+          tabIndex={hasChildren ? 0 : -1}
+        >
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </button>
+        <button type="button" onClick={() => onOpen(node.path)} className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-xs cursor-pointer" title={node.name}>
+          <Folder size={13} className="shrink-0" fill={active ? 'currentColor' : 'none'} fillOpacity={0.2} />
+          <span className={cn('truncate', active && 'font-semibold')}>{folderLabel(node.name)}</span>
+        </button>
+        <span className="shrink-0 text-[10px] opacity-70">{node.fileCount || ''}</span>
+      </div>
+      {open && hasChildren ? (
+        <ul>
+          {node.children.map((child) => (
+            <TreeFolder key={child.path} node={child} depth={depth + 1} currentPath={currentPath} expanded={expanded} onToggle={onToggle} onOpen={onOpen} />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+// "a/b/c" -> ["a", "a/b", "a/b/c"]: the folder and every folder above it.
+function ancestorPaths(path) {
+  const parts = String(path || '').split('/').filter(Boolean);
+  return parts.map((_, index) => parts.slice(0, index + 1).join('/'));
 }
 
 function getFileIcon(mimeType = '') {
@@ -45,8 +108,37 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
   const [folders, setFolders] = useState([]);
   const [files, setFiles] = useState([]);
   const [driveUsage, setDriveUsage] = useState(0);
-  
+  const [tree, setTree] = useState(null);
+  const [expanded, setExpanded] = useState(() => new Set());
+
   const currentFolderPath = currentPath[currentPath.length - 1].path;
+
+  // Sidebar tree of every folder (Files page only).
+  useEffect(() => {
+    if (!showSidebar) return;
+    api.files.tree(token)
+      .then((res) => setTree(res.data || null))
+      .catch(() => setTree(null));
+  }, [showSidebar, token, refreshTrigger]);
+
+  const expandTo = (path) => setExpanded((current) => new Set([...current, ...ancestorPaths(path)]));
+
+  const toggleFolder = (path) => setExpanded((current) => {
+    const next = new Set(current);
+    if (next.has(path)) next.delete(path);
+    else next.add(path);
+    return next;
+  });
+
+  // Opens any folder by its path (sidebar tree): the breadcrumb is rebuilt from the path.
+  const goToPath = (path) => {
+    setCurrentPath([
+      { path: '', name: 'Home' },
+      ...ancestorPaths(path).map((part) => ({ path: part, name: folderLabel(part.split('/').pop()) }))
+    ]);
+    expandTo(path);
+    setSearch('');
+  };
 
   const loadDirectory = useCallback(async (folderPath) => {
     setLoading(true);
@@ -117,6 +209,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
 
   const handleFolderClick = (folderPath, folderName) => {
     setCurrentPath(prev => [...prev, { path: folderPath, name: folderLabel(folderName) }]);
+    expandTo(folderPath);
     setSearch('');
   };
 
@@ -177,9 +270,12 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
         <div className="flex items-center justify-between gap-1 px-1">
           <div className="flex flex-col min-w-0">
             <span className="truncate text-xs font-semibold text-[var(--text-main)]" title={name}>{name}</span>
-            <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] mt-0.5">
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
               <span>{formatSize(file.sizeBytes)}</span>
+              <span>·</span>
+              <span>{formatDate(file.createdAt || file.updatedAt)}</span>
             </div>
+            <div className="mt-1"><StorageBadge file={file} /></div>
           </div>
         </div>
 
@@ -218,34 +314,35 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                   <span className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] font-bold",
                     currentPath.length === 1 ? "bg-[var(--primary)]/20 text-[var(--primary)]" : "bg-[var(--surface-2)] text-[var(--text-muted)]"
-                  )}>{files.length + folders.length}</span>
+                  )}>{tree?.fileCount ?? files.length}</span>
                 </button>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-2 px-2">
-                  <h4 className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Folders</h4>
-                </div>
-                <div className="space-y-1">
-                  {folders.map(folder => (
-                    <button
-                      key={folder.path}
-                      type="button"
-                      onClick={() => handleFolderClick(folder.path, folder.name)}
-                      className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-xs font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--hover-bg)] hover:text-[var(--text-main)] cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <Folder size={15} className="text-[var(--text-muted)]" />
-                        <span className="truncate">{folderLabel(folder.name)}</span>
-                      </div>
-                      <span className="text-[10px]">{folder.fileCount}</span>
-                    </button>
-                  ))}
-                  {folders.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-[var(--text-muted)]">No folders</div>
-                  )}
-                </div>
+                <h4 className="mb-2 px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Webitof ERP Data</h4>
+                {tree ? (
+                  <ul>
+                    {tree.folders.filter((folder) => !folder.legacy).map((folder) => (
+                      <TreeFolder key={folder.path} node={folder} depth={0} currentPath={currentFolderPath} expanded={expanded} onToggle={toggleFolder} onOpen={goToPath} />
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="px-3 py-2 text-xs text-[var(--text-muted)]">Loading folders…</div>
+                )}
               </div>
+
+              {tree?.folders.some((folder) => folder.legacy) ? (
+                <div>
+                  <h4 className="mb-2 flex items-center gap-1.5 px-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    <History size={11} /> Older uploads
+                  </h4>
+                  <ul>
+                    {tree.folders.filter((folder) => folder.legacy).map((folder) => (
+                      <TreeFolder key={folder.path} node={folder} depth={0} currentPath={currentFolderPath} expanded={expanded} onToggle={toggleFolder} onOpen={goToPath} />
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </div>
 
             <div className="p-4 border-t border-[var(--border)]">
@@ -362,7 +459,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
             {filteredFolders.length > 0 && viewMode === 'grid' && (
               <div>
                 <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3">Folders</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
                   {filteredFolders.map(folder => (
                     <button
                       key={folder.path}
@@ -370,12 +467,16 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                       onClick={() => handleFolderClick(folder.path, folder.name)}
                       className="group flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left shadow-2xs transition-all hover:border-[var(--primary)] hover:shadow-xs cursor-pointer"
                     >
-                      <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center justify-between w-full gap-2">
                         <div className="flex items-center gap-2.5 overflow-hidden">
-                          <Folder size={18} className="text-blue-500 group-hover:text-[var(--primary)] shrink-0" fill="currentColor" fillOpacity={0.2} />
-                          <span className="truncate text-xs font-semibold text-[var(--text-main)]">{folderLabel(folder.name)}</span>
+                          <Folder size={18} className={cn('shrink-0 group-hover:text-[var(--primary)]', folder.legacy ? 'text-[var(--text-muted)]' : 'text-blue-500')} fill="currentColor" fillOpacity={0.2} />
+                          <span className="truncate text-xs font-semibold text-[var(--text-main)]" title={folder.name}>{folderLabel(folder.name)}</span>
                         </div>
-                        <span className="shrink-0 text-[10px] text-[var(--text-muted)]">{folder.fileCount}</span>
+                        {folder.legacy ? (
+                          <span className="shrink-0 rounded-md bg-[var(--surface-2)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]" title="Uploaded before the current folder layout">Older</span>
+                        ) : (
+                          <span className="shrink-0 text-[10px] text-[var(--text-muted)]">{folder.fileCount || '—'}</span>
+                        )}
                       </div>
                     </button>
                   ))}
@@ -389,7 +490,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                 {viewMode === 'grid' && <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-3">Files</h4>}
                 
                 {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
                     {filteredFiles.map(renderGridFile)}
                   </div>
                 ) : (
@@ -399,7 +500,8 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                         <tr>
                           <th className="px-4 py-3 font-semibold">Name</th>
                           <th className="px-4 py-3 font-semibold">Size</th>
-                          <th className="px-4 py-3 font-semibold">Date modified</th>
+                          <th className="px-4 py-3 font-semibold">Stored in</th>
+                          <th className="px-4 py-3 font-semibold">Date added</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--border)]">
@@ -417,6 +519,7 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                               </div>
                             </td>
                             <td className="px-4 py-3 text-[var(--text-muted)]">{folder.fileCount} files</td>
+                            <td className="px-4 py-3 text-[var(--text-muted)]">{folder.legacy ? 'Older uploads' : '—'}</td>
                             <td className="px-4 py-3 text-[var(--text-muted)]">-</td>
                           </tr>
                         ))}
@@ -454,7 +557,8 @@ export function FileBrowser({ onSelectFile, allowSelect = false, selectable = fa
                                 </div>
                               </td>
                               <td className="px-4 py-3 text-[var(--text-muted)]">{formatSize(file.sizeBytes)}</td>
-                              <td className="px-4 py-3 text-[var(--text-muted)]">{formatDate(file.updatedAt)}</td>
+                              <td className="px-4 py-3"><StorageBadge file={file} /></td>
+                              <td className="px-4 py-3 text-[var(--text-muted)]">{formatDate(file.createdAt || file.updatedAt)}</td>
                             </tr>
                           );
                         })}
