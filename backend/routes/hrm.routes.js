@@ -20,6 +20,7 @@ router.get("/lookups", c.lookups);
 router.put("/policy", c.policy);
 router.get("/dashboard", c.dashboard);
 router.get("/dashboard/overview", c.dashboardOverview);
+router.get("/menu-counts", c.menuCounts);
 router.get("/analytics", c.analytics);
 router.post("/automation/run", c.automation);
 router.get("/employees", c.employees);

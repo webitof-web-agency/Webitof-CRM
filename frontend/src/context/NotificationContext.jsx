@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'sonner';
-import { API_BASE_URL, api } from '../api/client';
+import { API_BASE_URL, api, request } from '../api/client';
 import { useAuth } from './AuthContext';
 import { notificationTarget } from '../lib/notificationTarget';
 
@@ -54,6 +54,32 @@ export function NotificationProvider({ children }) {
         ? current
         : [toUnread(notification), ...current]
     );
+  // Pending work per sidebar path (HRM approvals, alerts, reports...), from GET /hrm/menu-counts.
+  // null when the user has no HRM access or the API is older.
+  const [menuCounts, setMenuCounts] = useState(null);
+  const countsTimer = useRef(null);
+  const refreshMenuCounts = useCallback(() => {
+    if (!token) return;
+    // Bursts (several socket events, a navigation) collapse into one request.
+    clearTimeout(countsTimer.current);
+    countsTimer.current = setTimeout(() => {
+      request('/hrm/menu-counts', { token, skipCache: true })
+        .then((response) => setMenuCounts(response.data && typeof response.data === 'object' ? response.data : null))
+        .catch(() => setMenuCounts(null));
+    }, 400);
+  }, [token]);
+  useEffect(() => {
+    if (!token) {
+      setMenuCounts(null);
+      return undefined;
+    }
+    refreshMenuCounts();
+    const id = setInterval(() => !document.hidden && refreshMenuCounts(), 60000);
+    return () => {
+      clearInterval(id);
+      clearTimeout(countsTimer.current);
+    };
+  }, [token, refreshMenuCounts]);
   const loadUnread = useCallback(async () => {
     if (!token) return setUnread([]);
     try {
@@ -126,6 +152,7 @@ export function NotificationProvider({ children }) {
       setNotifications((current) => mergeNotifications(current, notification));
       setUnreadCount((current) => current + (notification.isRead ? 0 : 1));
       if (!notification.isRead) remember(notification);
+      refreshMenuCounts();
       const title = notification.title || 'Notification';
       const target = notificationTarget(notification);
       const options = { description: notification.message || '' };
@@ -161,6 +188,7 @@ export function NotificationProvider({ children }) {
     });
 
     socket.on('notification:read-many', (payload = {}) => {
+      refreshMenuCounts();
       const ids = new Set((payload.ids || []).map(String));
       forget([...ids]);
       setNotifications((current) => current.map((item) => (ids.has(String(item.id)) ? { ...item, isRead: true } : item)));
@@ -187,7 +215,7 @@ export function NotificationProvider({ children }) {
         socketRef.current = null;
       }
     };
-  }, [token, user, loadUnread]);
+  }, [token, user, loadUnread, refreshMenuCounts]);
 
   async function refresh() {
     loadUnread();
@@ -256,6 +284,8 @@ export function NotificationProvider({ children }) {
     markSeen,
     unreadTargets: unread.map((item) => item.target),
     unreadItems: unread,
+    menuCounts,
+    refreshMenuCounts,
     socket: socketInstance
   };
 

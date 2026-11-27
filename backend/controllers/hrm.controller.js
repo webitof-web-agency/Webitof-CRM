@@ -199,6 +199,7 @@ const controller = {
   dashboard: respond((req) => analytics.dashboard(req.user, req.query)),
   // Admin / manager overview: today, approvals, alerts, who is away, dates, productivity and more.
   dashboardOverview: respond((req) => require("../services/hrm/adminDashboard").overview(req.user, req.query)),
+  menuCounts: respond((req) => require("../services/hrm/menuCounts").menuCounts(req.user)),
   automation: respond((req) =>
     require("../services/hrm/automation").run(req.user),
   ),

@@ -238,7 +238,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
 
 export function Sidebar({ open = false, onClose }) {
   const { user } = useAuth();
-  const { unreadTargets = [], unreadCount = 0 } = useNotifications();
+  const { unreadTargets = [], unreadCount = 0, menuCounts = null } = useNotifications();
   const location = useLocation();
 
   const logos = BRAND_LOGOS;
@@ -289,24 +289,44 @@ export function Sidebar({ open = false, onClose }) {
     [user]
   );
 
-  // Unread notifications per menu item (a parent counts everything under it or its children).
+  // Number per menu item. Two sources: pending work from the server (menuCounts: approvals, alerts,
+  // reports... keyed by path) and unread notifications pointing into the item. They mostly describe
+  // the same things, so an item shows the larger of the two instead of their sum.
   const groupsWithCounts = useMemo(() => {
     const countFor = (paths) =>
       unreadTargets.filter((target) => paths.some((path) => belongsTo(target, path))).length;
-    const badge = (item) => (item.path === '/app/notifications' ? unreadCount : countFor([item.badgeFor || item.path]));
+    const pending = (key) => (menuCounts && Object.hasOwn(menuCounts, key) ? Number(menuCounts[key]) || 0 : null);
+    const badge = (item) => {
+      if (item.path === '/app/notifications') return unreadCount;
+      const key = item.badgeFor || item.path;
+      const unreadHere = countFor([key]);
+      const waiting = pending(key);
+      return waiting == null ? unreadHere : Math.max(waiting, unreadHere);
+    };
+    const parentBadge = (item) => {
+      const waiting = pending(item.path);
+      if (waiting == null) return countFor([item.path, ...item.children.map((child) => child.path)]);
+      // Server total (each pending item once) plus notifications that add to what a child already counts.
+      return item.children.reduce((sum, child) => {
+        const key = child.badgeFor || child.path;
+        const childPending = pending(key);
+        const unreadHere = countFor([key]);
+        return sum + (childPending == null ? unreadHere : Math.max(0, unreadHere - childPending));
+      }, waiting);
+    };
     return visibleGroups.map((group) => ({
       ...group,
       items: group.items.map((item) =>
         item.children
           ? {
               ...item,
-              badge: countFor([item.path, ...item.children.map((child) => child.path)]),
+              badge: parentBadge(item),
               children: item.children.map((child) => ({ ...child, badge: badge(child) }))
             }
           : { ...item, badge: badge(item) }
       )
     }));
-  }, [visibleGroups, unreadTargets, unreadCount]);
+  }, [visibleGroups, unreadTargets, unreadCount, menuCounts]);
 
   useEffect(() => {
     setCollapsedGroups((current) => {

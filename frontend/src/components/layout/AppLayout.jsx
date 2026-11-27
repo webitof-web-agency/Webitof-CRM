@@ -47,13 +47,17 @@ function resolveTitle(pathname) {
 export function AppLayout() {
   const location = useLocation();
   const { user, token } = useAuth();
-  const { markSeen, unreadTargets = [] } = useNotifications();
+  const { markSeen, unreadTargets = [], refreshMenuCounts } = useNotifications();
   const hasUnread = unreadTargets.length > 0;
   // Opening a page clears the sidebar count for notifications that point to it. Re-checked when
   // the unread list first arrives, so landing straight on a page also clears it.
   useEffect(() => {
     if (hasUnread) markSeen?.(location.pathname, location.search);
   }, [location.pathname, location.search, hasUnread, markSeen]);
+  // Pending counts change when work is done on a page; re-read them when the user moves on.
+  useEffect(() => {
+    refreshMenuCounts?.();
+  }, [location.pathname, refreshMenuCounts]);
 
   // Default to open on large screens
   const [sidebarOpen, setSidebarOpen] = useState(true);
