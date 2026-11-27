@@ -208,7 +208,10 @@ export const api = {
   dashboard: {
     // The signed-in user's own dashboard (today's work, leads, leave, month).
     me: (token) => request('/dashboard/me', { token, skipCache: true }),
-    business: (token) => request('/dashboard/business', { token, skipCache: true })
+    business: (token, period = 'month') => request(`/dashboard/business?period=${encodeURIComponent(period)}`, { token, skipCache: true }),
+    targets: (token) => request('/dashboard/targets', { token, skipCache: true }),
+    saveTargets: (token, body) => request('/dashboard/targets', { method: 'PUT', token, body, skipCache: true }),
+    sendDigest: (token) => request('/dashboard/digest/send', { method: 'POST', token, skipCache: true })
   },
   reports: {
     dashboard: (token) => request('/reports/dashboard', { token, skipCache: true }),

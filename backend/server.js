@@ -137,6 +137,17 @@ async function start() {
   backupCycle();
   setInterval(backupCycle, 15 * 60 * 1000).unref();
 
+  // ─── Morning summary email ─────────────────────────────────────────
+  // Checked every 15 minutes; sent to admins once per IST day at or after DAILY_DIGEST_HOUR_IST (9).
+  const digestCycle = () => {
+    if (maintenance.skipDuringMaintenance('Daily summary')) return;
+    require('./services/dailyDigest.service').runDigestIfDue()
+      .then((result) => result.status === 'SENT' && console.log(`Daily summary sent to ${result.sent} admin(s)`))
+      .catch((error) => console.error('Daily summary failed:', error.message));
+  };
+  setTimeout(digestCycle, 60 * 1000).unref();
+  setInterval(digestCycle, 15 * 60 * 1000).unref();
+
   // ─── Google Drive token check ─────────────────────────────────────
   // Every 6 hours: a token Google no longer accepts alerts the admins (notification + email) and
   // they reconnect from Settings → Storage & Backup; while broken they are reminded once a day.

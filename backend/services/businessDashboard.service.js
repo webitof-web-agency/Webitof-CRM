@@ -90,7 +90,7 @@ function invoiceSnapshots(state) {
     });
 }
 
-function money(state, today) {
+function money(state, today, range = null) {
   const month = monthBounds(today);
   const lastMonth = monthBounds(today, 1);
   const monthState = filterStateByPeriod(state, { active: true, ...month });
@@ -126,22 +126,30 @@ function money(state, today) {
     byClient.set(String(item.clientId), row);
   }
 
-  // Six months of billed vs received vs spent, oldest first.
+  // Twelve months of billed / received / revenue / spent / profit, oldest first.
   const trend = [];
-  for (let back = 5; back >= 0; back -= 1) {
-    const range = monthBounds(today, back);
-    const periodState = filterStateByPeriod(state, { active: true, ...range });
+  for (let back = 11; back >= 0; back -= 1) {
+    const bounds = monthBounds(today, back);
+    const pl = buildProfitLoss(filterStateByPeriod(state, { active: true, ...bounds }));
     trend.push({
-      month: range.label,
-      from: range.from,
-      invoiced: sum(snapshots.filter((item) => inRange(item.invoiceDate, range)), (item) => item.totalAmount),
-      received: sum(payments.filter((payment) => inRange(payment.paymentDate || payment.createdAt, range)), getPaymentAppliedAmount),
-      expense: buildProfitLoss(periodState).expense
+      month: bounds.label,
+      from: bounds.from,
+      invoiced: sum(snapshots.filter((item) => inRange(item.invoiceDate, bounds)), (item) => item.totalAmount),
+      received: sum(payments.filter((payment) => inRange(payment.paymentDate || payment.createdAt, bounds)), getPaymentAppliedAmount),
+      revenue: pl.revenue,
+      expense: pl.expense,
+      profit: pl.profit
     });
   }
+  const insight = require('./dashboardInsights.service');
 
   return {
     month: { from: month.from, to: month.to },
+    period: range ? insight.periodMoney(state, snapshots, range) : null,
+    gst: insight.gstDue(state, snapshots, today),
+    cashFlow: insight.cashFlow(state, snapshots, today),
+    dueThisWeek: insight.dueThisWeek(snapshots, today),
+    topClients: insight.topClients(snapshots, today),
     receivedToday: sum(payments.filter((payment) => day(payment.paymentDate || payment.createdAt) === today), getPaymentAppliedAmount),
     invoicedThisMonth: monthSummary.totalInvoiceAmount,
     receivedThisMonth: monthSummary.totalReceived,
@@ -258,7 +266,7 @@ function amc(state, today) {
   };
 }
 
-async function leads(settings, today) {
+async function leads(settings, today, range) {
   const { won, lost, closed } = leadStates(settings);
   const month = monthBounds(today);
   const local = `(l.created_at at time zone '${TIMEZONE}')::date`;
@@ -273,9 +281,12 @@ async function leads(settings, today) {
               count(*) filter (where coalesce(l.status, '') = any($2::text[]) and (coalesce(l.converted_at, l.last_status_changed_at, l.updated_at) at time zone '${TIMEZONE}')::date >= $4::date)::int as won_month,
               count(*) filter (where lower(coalesce(l.lead_temperature, '')) = 'hot' and not (coalesce(l.status, '') = any($1::text[])))::int as hot,
               count(*) filter (where coalesce(l.next_follow_up_time, '') = '' and not (coalesce(l.status, '') = any($1::text[])))::int as no_follow_up,
-              coalesce(sum(coalesce(l.value, l.estimated_budget)) filter (where not (coalesce(l.status, '') = any($1::text[]))), 0)::numeric as pipeline_value
+              coalesce(sum(coalesce(l.value, l.estimated_budget)) filter (where not (coalesce(l.status, '') = any($1::text[]))), 0)::numeric as pipeline_value,
+              count(*) filter (where ${local} between $6::date and $7::date)::int as new_period,
+              count(*) filter (where ${local} between $8::date and $9::date)::int as new_previous,
+              count(*) filter (where coalesce(l.status, '') = any($2::text[]) and (coalesce(l.converted_at, l.last_status_changed_at, l.updated_at) at time zone '${TIMEZONE}')::date between $6::date and $7::date)::int as won_period
          from leads l`,
-      [closed, won, today, month.from, lost]
+      [closed, won, today, month.from, lost, range.from, range.to, range.prevFrom, range.prevTo]
     ),
     query(`select coalesce(nullif(status, ''), 'New') as status, count(*)::int as count from leads group by 1 order by 2 desc`),
     query(`select coalesce(nullif(source, ''), 'Unknown') as source, count(*)::int as count from leads group by 1 order by 2 desc limit 6`)
@@ -288,6 +299,9 @@ async function leads(settings, today) {
     open: t.open || 0,
     newToday: t.new_today || 0,
     newThisMonth: t.new_month || 0,
+    newInPeriod: t.new_period || 0,
+    newPrevious: t.new_previous || 0,
+    wonInPeriod: t.won_period || 0,
     wonThisMonth: t.won_month || 0,
     won: t.won || 0,
     lost: t.lost || 0,
@@ -351,7 +365,7 @@ async function followUps(user, today) {
 }
 
 // Per salesperson: open leads, new and won this month, follow-ups overdue and done this week.
-async function team(settings, today) {
+async function team(settings, today, range) {
   const { won, closed } = leadStates(settings);
   const month = monthBounds(today);
   const { rows } = await query(
@@ -360,8 +374,8 @@ async function team(settings, today) {
      ), lead_stats as (
        select assigned_to as id,
               count(*) filter (where not (coalesce(status, '') = any($1::text[])))::int as open_leads,
-              count(*) filter (where (created_at at time zone '${TIMEZONE}')::date >= $3::date)::int as new_leads,
-              count(*) filter (where coalesce(status, '') = any($2::text[]) and (coalesce(converted_at, last_status_changed_at, updated_at) at time zone '${TIMEZONE}')::date >= $3::date)::int as won
+              count(*) filter (where (created_at at time zone '${TIMEZONE}')::date between $3::date and $6::date)::int as new_leads,
+              count(*) filter (where coalesce(status, '') = any($2::text[]) and (coalesce(converted_at, last_status_changed_at, updated_at) at time zone '${TIMEZONE}')::date between $3::date and $6::date)::int as won
          from leads where assigned_to is not null group by 1
      ), fu as (
        select assigned_to as id,
@@ -375,7 +389,7 @@ async function team(settings, today) {
       where coalesce(l.open_leads, 0) + coalesce(l.new_leads, 0) + coalesce(l.won, 0) + coalesce(f.overdue, 0) + coalesce(f.done_week, 0) > 0
       order by won desc, open_leads desc
       limit 10`,
-    [closed, won, month.from, CLOSED_FOLLOW_UP, addDays(today, -6)]
+    [closed, won, range.from, CLOSED_FOLLOW_UP, addDays(today, -6), range.to]
   );
   return rows.map((row) => ({
     id: row.id,
@@ -414,35 +428,46 @@ async function system() {
   };
 }
 
-async function businessDashboard(user) {
+async function businessDashboard(user, options = {}) {
+  const insight = require('./dashboardInsights.service');
+  const { PIPELINE_STATUSES } = require('../config/pipelineFields');
   const today = businessDate();
+  const range = insight.periodRange(options.period, today);
   const settings = (await getSettings()) || {};
+  const admin = isAdmin(user);
   const finance = can(user, 'reports.view');
   const needsState = finance || can(user, 'clients.read', 'projects.read', 'amc.read', 'renewals.read');
   const state = needsState ? await loadBusinessState({ includeCrm: false }) : null;
   const hrmAdmin = require('./hrm/adminDashboard');
   const hrmCore = require('./hrm/core');
-  const hrmApprover = isAdmin(user) || hrmCore.can(user, 'approve') || hrmCore.can(user, 'hr_approve');
+  const hrmApprover = admin || hrmCore.can(user, 'approve') || hrmCore.can(user, 'hr_approve');
   const salesView = can(user, 'leads.view_all');
 
-  const [moneyBlock, expenseBlock, clientBlock, projectBlock, amcBlock, leadBlock, quoteBlock, followBlock, teamBlock, agendaBlock, hrmBlock, systemBlock] = await Promise.all([
-    finance ? block('money', () => money(state, today)) : null,
+  const [moneyBlock, expenseBlock, clientBlock, projectBlock, amcBlock, leadBlock, quoteBlock, followBlock, teamBlock, agendaBlock, hrmBlock, systemBlock, salesBlock, targetBlock, profitBlock] = await Promise.all([
+    finance ? block('money', () => money(state, today, range)) : null,
     can(user, 'reports.view', 'expenses.read') && state ? block('expenses', () => expenses(state, today)) : null,
     can(user, 'clients.read') && state ? block('clients', () => clients(state, today)) : null,
     can(user, 'projects.read') && state ? block('projects', () => projects(state, today)) : null,
     can(user, 'amc.read', 'renewals.read', 'reports.view') && state ? block('amc', () => amc(state, today)) : null,
-    salesView ? block('leads', () => leads(settings, today)) : null,
+    salesView ? block('leads', () => leads(settings, today, range)) : null,
     salesView ? block('quotations', () => quotations(today)) : null,
     can(user, 'followups.view_all', 'followups.view_team') ? block('followUps', () => followUps(user, today)) : null,
-    salesView ? block('team', () => team(settings, today)) : null,
-    isAdmin(user) ? block('agenda', () => agenda(today)) : null,
+    salesView ? block('team', () => team(settings, today, range)) : null,
+    admin ? block('agenda', () => agenda(today)) : null,
     hrmApprover ? block('hrm', () => hrmOverview(user, hrmAdmin, hrmCore)) : null,
-    isAdmin(user) ? block('system', system) : null
+    admin ? block('system', system) : null,
+    salesView ? block('sales', () => insight.sales(settings, range, today, PIPELINE_STATUSES)) : null,
+    salesView ? block('targets', () => insight.targets(settings, today, PIPELINE_STATUSES)) : null,
+    // Project cost includes team time at salary cost, so it needs the money permission.
+    finance && state ? block('projectProfit', () => insight.projectProfit(state, settings, projectPhase)) : null
   ]);
 
+  const sales = usableBlock(salesBlock) && usableBlock(leadBlock) ? { ...salesBlock, openLeads: leadBlock.open } : salesBlock;
+  const snapshots = state && finance ? invoiceSnapshots(state) : [];
   return {
     today,
-    admin: isAdmin(user),
+    admin,
+    period: { key: range.key, label: range.label, compareLabel: range.compareLabel, from: range.from, to: range.to, options: insight.PERIODS },
     money: moneyBlock,
     expenses: expenseBlock,
     clients: clientBlock,
@@ -454,9 +479,25 @@ async function businessDashboard(user) {
     team: teamBlock,
     agenda: agendaBlock,
     hrm: hrmBlock,
-    system: systemBlock
+    system: systemBlock,
+    sales,
+    targets: targetBlock,
+    projectProfit: profitBlock,
+    todayList: admin
+      ? insight.todayList({
+          followUps: usableBlock(followBlock) ? followBlock : null,
+          agenda: usableBlock(agendaBlock) ? agendaBlock : null,
+          snapshots,
+          amcs: state?.amcs || [],
+          renewals: state?.renewals || [],
+          today
+        })
+      : null,
+    health: admin ? insight.healthScore({ money: moneyBlock, followUps: followBlock, hrm: hrmBlock, system: systemBlock, sales }) : null
   };
 }
+
+const usableBlock = (value) => value && !value.error;
 
 // Attendance today plus the HRM approval queue and open alerts, exactly as on the HRM overview.
 async function hrmOverview(user, hrmAdmin, hrmCore) {
@@ -464,15 +505,20 @@ async function hrmOverview(user, hrmAdmin, hrmCore) {
   const policy = await hrmCore.policy(db);
   const today = hrmCore.today(policy);
   const { todayBoard, approvals, alerts } = hrmAdmin._blocks;
-  const [board, queue, open] = await Promise.all([
+  const { utilization } = hrmAdmin._blocks;
+  const [board, queue, open, util, reports] = await Promise.all([
     todayBoard(db, user, policy, today).catch(() => null),
     approvals(db, user).catch(() => null),
-    alerts(db, user, today).catch(() => null)
+    alerts(db, user, today).catch(() => null),
+    utilization(db, user, today).catch(() => null),
+    require('./dashboardInsights.service').reportCompliance(today)
   ]);
   return {
     attendance: board ? { date: board.date, total: board.total, counts: board.counts, shiftStarted: board.shiftStarted } : null,
     approvals: queue,
-    alerts: open
+    alerts: open,
+    utilization: util ? { average: util.average, total: util.total, benchCount: util.benchCount, over: util.over.slice(0, 5), bench: util.bench.slice(0, 5) } : null,
+    reports
   };
 }
 

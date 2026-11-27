@@ -493,4 +493,4 @@ async function overview(user, q = {}, db = c.dbDefault) {
 }
 
 // _blocks: reused by the business dashboard so both pages count the same way.
-module.exports = { overview, _blocks: { todayBoard, approvals, alerts }, _private: { daysUntilYearly, addDays } };
+module.exports = { overview, _blocks: { todayBoard, approvals, alerts, utilization }, _private: { daysUntilYearly, addDays } };

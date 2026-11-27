@@ -1,4 +1,4 @@
-// Business dashboard money block: month figures, aging buckets, top dues and the 6-month trend.
+// Business dashboard money block: month figures, aging buckets, top dues and the 12-month trend.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { _private } = require('../services/businessDashboard.service');
@@ -82,10 +82,11 @@ test('money: today, this month, outstanding by age and the biggest dues', () => 
   assert.equal(m.invoices.overdue, 1);
   assert.equal(m.invoices.drafts, 1);
   // Six months, oldest first; two months back billed 590 and was paid the same month.
-  assert.equal(m.trend.length, 6);
-  assert.equal(m.trend[5].from, thisMonth.from);
-  const back2 = m.trend[3];
+  assert.equal(m.trend.length, 12);
+  assert.equal(m.trend[11].from, thisMonth.from);
+  const back2 = m.trend[9];
   assert.equal(back2.invoiced, 590);
   assert.equal(back2.received, 590);
-  assert.equal(m.trend[5].expense, m.expenseThisMonth);
+  assert.equal(m.trend[11].expense, m.expenseThisMonth);
+  assert.equal(m.trend[11].profit, m.profitThisMonth);
 });
