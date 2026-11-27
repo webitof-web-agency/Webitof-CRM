@@ -206,6 +206,17 @@ async function folderUsable(client, folderId, parentId) {
   }
 }
 
+// The real id of the connected account's "My Drive" (the alias 'root' cannot be compared with a
+// folder's parents). Where "Webitof ERP Data" goes when GDRIVE_PARENT_FOLDER_ID is empty.
+const myDriveRootIds = new WeakMap();
+
+async function myDriveRootId(driveClient) {
+  if (!myDriveRootIds.has(driveClient)) {
+    myDriveRootIds.set(driveClient, (await driveClient.getFile('root', 'id')).id);
+  }
+  return myDriveRootIds.get(driveClient);
+}
+
 async function ensureFolder(kind, { client = null } = {}) {
   // Uploads are filed straight inside the main folder.
   if (kind === 'uploads') return ensureFolder('root', { client });
@@ -213,9 +224,11 @@ async function ensureFolder(kind, { client = null } = {}) {
   if (!definition) throw new Error(`Unknown folder kind: ${kind}`);
   const config = getGoogleDriveConfig();
   const driveClient = client || clientFor(await getState());
+  // The main folder sits at the top of the connected account's My Drive, unless
+  // GDRIVE_PARENT_FOLDER_ID names a folder to put it in.
   const parentId = definition.parent
     ? await ensureFolder(definition.parent, { client: driveClient })
-    : config.parentFolderId;
+    : config.parentFolderId || await myDriveRootId(driveClient);
   const state = await getState();
   const name = config[definition.configKey];
 

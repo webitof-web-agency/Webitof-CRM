@@ -38,7 +38,8 @@ function createFakeGoogleDrive({ email = 'owner@example.com', refreshToken = 're
     // Upload faults: the next N chunk PUTs answer this status; the next stored upload gets a byte flipped.
     failChunks: { count: 0, status: 503 },
     corruptNextUpload: false,
-    chunkPuts: 0
+    chunkPuts: 0,
+    myDriveRootId: 'my-drive-root'
   };
 
   function addFile({ name, parents = [], mimeType = 'application/octet-stream', content = Buffer.alloc(0), trashed = false, appProperties = null }) {
@@ -190,6 +191,8 @@ function createFakeGoogleDrive({ email = 'owner@example.com', refreshToken = 're
     }
 
     const match = /^\/drive\/v3\/files\/([^/]+)$/.exec(url.pathname);
+    // "root" is the alias of the account's My Drive; Google answers with its real id.
+    if (match && match[1] === 'root' && method === 'GET') return jsonResponse(200, { id: state.myDriveRootId });
     if (match) {
       const file = files.get(decodeURIComponent(match[1]));
       if (!file) return jsonResponse(404, { error: { message: 'File not found', errors: [{ reason: 'notFound' }] } });

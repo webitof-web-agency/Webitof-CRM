@@ -1153,3 +1153,35 @@ test('backup health compares pg tools with the server, flags the transaction poo
   process.env.BACKUP_DATABASE_URL = 'postgresql://postgres.abc:s3cret-pass@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
   assert.equal((await backups.getBackupHealth()).connection.transactionPooler, false);
 });
+
+test('without GDRIVE_PARENT_FOLDER_ID the main folder is made at the top of My Drive, once', async () => {
+  setup();
+  await connect();
+  const roots = () => Array.from(fake.files.values()).filter((file) => file.name === 'Webitof ERP Data');
+  assert.equal(roots().length, 1);
+  assert.deepEqual(roots()[0].parents, ['my-drive-root'], 'in the account root, not in another folder');
+
+  // Stored ids lost (e.g. a restore): found again by name in My Drive instead of made twice.
+  memory.data.set('google_drive', { ...memory.data.get('google_drive'), rootFolderId: undefined });
+  connection._resetForTests();
+  clearFolderCache();
+  await connection.checkConnection();
+  assert.equal(roots().length, 1);
+});
+
+test('a main folder that sat inside a parent folder is replaced by one in My Drive once the parent is removed', async () => {
+  setup();
+  const parent = fake.addFile({ name: 'Old parent', mimeType: 'application/vnd.google-apps.folder', parents: ['my-drive-root'] });
+  process.env.GDRIVE_PARENT_FOLDER_ID = parent.id;
+  _resetDriveSettingsForTests();
+  await connect();
+  const inParent = fake.findByName('Webitof ERP Data');
+  assert.deepEqual(inParent.parents, [parent.id]);
+
+  delete process.env.GDRIVE_PARENT_FOLDER_ID;
+  _resetDriveSettingsForTests();
+  connection._resetForTests();
+  const rootId = await connection.ensureFolder('root');
+  assert.notEqual(rootId, inParent.id);
+  assert.deepEqual(fake.files.get(rootId).parents, ['my-drive-root']);
+});

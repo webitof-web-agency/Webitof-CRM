@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, CloudUpload, DatabaseBackup, Download, ExternalLink, HardDrive, History, Link2, RefreshCw, Settings2, ShieldCheck, Unplug } from 'lucide-react';import { toast } from 'sonner';
+import {
+  AlertTriangle, CheckCircle2, ChevronDown, CloudUpload, DatabaseBackup, Download, ExternalLink, FolderOpen,
+  HardDrive, History, Link2, RefreshCw, Settings2, ShieldCheck, Unplug
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { api, downloadWithAuth } from '../../api/client';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -11,10 +15,15 @@ import { SimpleTable } from '../ui/SimpleTable';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
 
+// Settings → Storage & Backup. Compact layout: an overview strip, notices, Google Drive + upload
+// storage on the left, backups on the right, and the read-only health and server settings folded.
+
 const PROVIDERS = [
-  { id: 'local', label: 'Local server', description: 'Files are saved on the CRM server disk.', icon: HardDrive },
-  { id: 'gdrive', label: 'Google Drive', description: 'Files are saved in the connected Google Drive, in the Uploads folder.', icon: CloudUpload }
+  { id: 'local', label: 'Local server', description: 'Saved on the ERP server disk.', icon: HardDrive },
+  { id: 'gdrive', label: 'Google Drive', description: 'Saved in the connected Google Drive.', icon: CloudUpload }
 ];
+
+const BACKUPS_SHOWN = 6;
 
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
@@ -35,22 +44,84 @@ const BACKUP_KINDS = {
   'pre-restore': { label: 'Before restore', tone: 'warning' }
 };
 
-// A Drive folder: a link that opens it in Drive once it exists, else just its name.
-function FolderLink({ folder, strong = false }) {
-  if (!folder?.name) return null;
-  const weight = strong ? 'font-medium' : '';
-  if (!folder.link) return <span className={`text-slate-500 ${weight}`}>{folder.name}</span>;
+// Card title row: icon, title, optional one-line hint and actions on the right.
+function SectionHeader({ icon: Icon, title, hint, children }) {
   return (
-    <a href={folder.link} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 text-[var(--primary)] hover:underline ${weight}`}>
-      {folder.name} <ExternalLink size={12} />
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <Icon size={16} className="shrink-0 text-slate-700 dark:text-slate-200" />
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
+        </div>
+        {hint ? <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{hint}</p> : null}
+      </div>
+      {children ? <div className="flex flex-wrap items-center gap-1.5">{children}</div> : null}
+    </div>
+  );
+}
+
+// One tile of the overview strip.
+function StatTile({ icon: Icon, label, children, sub }) {
+  return (
+    <div className="flex min-w-0 items-start gap-2.5 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)]/60 px-3 py-2.5">
+      <Icon size={16} className="mt-0.5 shrink-0 text-slate-500 dark:text-slate-400" />
+      <div className="min-w-0">
+        <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</div>
+        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-medium text-slate-800 dark:text-slate-100">{children}</div>
+        {sub ? <div className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400" title={sub}>{sub}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+const NOTICE_TONES = {
+  danger: 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  warning: 'border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300',
+  success: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
+};
+
+function Notice({ tone = 'warning', children, action }) {
+  const Icon = tone === 'success' ? CheckCircle2 : AlertTriangle;
+  return (
+    <div role={tone === 'success' ? 'status' : 'alert'} className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs ${NOTICE_TONES[tone]}`}>
+      <Icon size={14} className="shrink-0" />
+      <div className="min-w-0 flex-1 break-words">{children}</div>
+      {action}
+    </div>
+  );
+}
+
+// A Drive folder as a small chip: opens it in Drive once it exists, else just its name.
+function FolderChip({ folder, strong = false }) {
+  if (!folder?.name) return null;
+  const base = 'inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2 py-0.5 text-[11px]';
+  if (!folder.link) return <span className={`${base} text-slate-500`}>{folder.name}</span>;
+  return (
+    <a
+      href={folder.link}
+      target="_blank"
+      rel="noreferrer"
+      className={`${base} text-[var(--primary)] hover:border-[var(--primary)]/40 ${strong ? 'font-semibold' : ''}`}
+      title="Open in Google Drive"
+    >
+      {folder.name} <ExternalLink size={10} />
     </a>
+  );
+}
+
+function InfoRow({ label, children }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-1">
+      <dt className="shrink-0 text-[11px] text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-xs text-slate-800 dark:text-slate-100" title={typeof children === 'string' ? children : undefined}>{children}</dd>
+    </div>
   );
 }
 
 function HealthRow({ label, ok, children }) {
   return (
-    <div className="flex items-start justify-between gap-3 py-1.5">
-      <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
       <span className="flex min-w-0 items-center gap-2 text-right text-xs text-slate-800 dark:text-slate-100">
         <span className="min-w-0 break-words">{children}</span>
         {ok === undefined ? null : <Badge tone={ok ? 'success' : 'warning'}>{ok ? 'OK' : 'Check'}</Badge>}
@@ -59,36 +130,48 @@ function HealthRow({ label, ok, children }) {
   );
 }
 
+// A card that folds: the title row is always visible, the body opens on click.
+function FoldCard({ icon: Icon, title, summary, defaultOpen = false, children }) {
+  return (
+    <Card as="details" className="group p-0" open={defaultOpen || undefined}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 items-center gap-2">
+          <Icon size={16} className="shrink-0 text-slate-700 dark:text-slate-200" />
+          <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{title}</span>
+        </span>
+        <span className="flex items-center gap-2">
+          {summary}
+          <ChevronDown size={16} className="text-slate-400 transition-transform group-open:rotate-180" />
+        </span>
+      </summary>
+      <div className="border-t border-[var(--border)] px-4 pb-4 pt-3">{children}</div>
+    </Card>
+  );
+}
+
 // Read-only readiness report from GET /google-drive/status (backupHealth): nothing here changes the server.
-function BackupHealthCard({ health }) {
+function BackupHealthBody({ health }) {
   const tools = health.tools || [];
   return (
-    <Card className="p-4 sm:p-5 xl:order-5 xl:col-span-2">
-      <SectionHeader icon={ShieldCheck} title="Backup health" description="Read-only checks that backups and restores will work on this server." />
+    <>
       {health.problems?.length ? (
-        <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
-          <ul className="list-disc space-y-0.5 pl-4">
-            {health.problems.map((problem) => <li key={problem}>{problem}</li>)}
-          </ul>
-        </div>
-      ) : (
-        <div className="mb-3"><Badge tone="success" dot>All checks passed</Badge></div>
-      )}
-      <div className="grid gap-x-8 md:grid-cols-2 divide-y divide-slate-100 md:divide-y-0 dark:divide-slate-800">
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+        <ul className="mb-3 list-disc space-y-0.5 rounded-xl border border-amber-500/30 bg-amber-500/10 py-2 pl-7 pr-3 text-xs text-amber-800 dark:text-amber-300">
+          {health.problems.map((problem) => <li key={problem}>{problem}</li>)}
+        </ul>
+      ) : null}
+      <div className="grid gap-x-8 md:grid-cols-2">
+        <div className="divide-y divide-[var(--border)]">
           <HealthRow label="Database server" ok={health.server ? !health.server.error : undefined}>
             {health.server?.error || (health.server?.version ? `PostgreSQL ${health.server.version}` : '—')}
           </HealthRow>
           {tools.map((tool) => (
-            <HealthRow key={tool.name} label={tool.name} ok={tool.ok}>
-              {tool.error || tool.version || '—'}
-            </HealthRow>
+            <HealthRow key={tool.name} label={tool.name} ok={tool.ok}>{tool.error || tool.version || '—'}</HealthRow>
           ))}
           <HealthRow label="Backup connection" ok={health.connection ? !health.connection.transactionPooler : undefined}>
             {health.connection ? `${health.connection.source} · ${health.connection.host}:${health.connection.port}` : '—'}
           </HealthRow>
         </div>
-        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+        <div className="divide-y divide-[var(--border)]">
           <HealthRow label="Schedule" ok={health.schedule?.enabled}>{health.schedule?.label || '—'}</HealthRow>
           <HealthRow label="Google Drive" ok={health.drive?.connected}>
             {health.drive?.connected ? 'Connected' : health.drive?.needsReconnect ? 'Needs reconnect' : 'Not connected'}
@@ -99,19 +182,7 @@ function BackupHealthCard({ health }) {
           <HealthRow label="Checked">{formatDate(health.checkedAt)}</HealthRow>
         </div>
       </div>
-    </Card>
-  );
-}
-
-function SectionHeader({ icon: Icon, title, description }) {
-  return (
-    <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
-      <div className="flex items-center gap-2">
-        <Icon size={17} className="text-slate-800 dark:text-slate-100" />
-        <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{title}</h3>
-      </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{description}</p>
-    </div>
+    </>
   );
 }
 
@@ -119,6 +190,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
   const [status, setStatus] = useState(null);
   const [backups, setBackups] = useState([]);
   const [backupsError, setBackupsError] = useState('');
+  const [showAllBackups, setShowAllBackups] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState('local');
   const [busy, setBusy] = useState('');
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
@@ -146,6 +218,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
 
   const drive = status?.drive;
   const backup = status?.backup;
+  const health = status?.backupHealth;
   const activeProvider = status?.storage?.activeProvider || 'local';
   const driveUsable = Boolean(drive?.connected && !drive?.needsReconnect);
 
@@ -200,14 +273,14 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
     }
   }
 
-  // Applies the client id, secret and refresh token from the server env, and proves the account and folders work.
+  // Proves the account and folders work (and applies a fallback refresh token from the server env).
   const check = () => run('check', async () => {
     setCheckResult(null);
     try {
       const { data } = await api.googleDrive.check(token);
       setCheckResult({
         ok: true,
-        message: `Connected to ${data.accountEmail || 'Google Drive'}. Folders ready in "${data.rootFolder?.name}": ${(data.categoryFolders || []).map((folder) => folder.name).join(', ')} and ${data.backupFolder?.name}.`
+        message: `Connected to ${data.accountEmail || 'Google Drive'}. Folders ready in "${data.rootFolder?.name}".`
       });
       loadBackups();
     } catch (error) {
@@ -276,297 +349,306 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
   }
 
   const last = backup?.last;
+  const driveBadge = drive.needsReconnect
+    ? <Badge tone="danger" dot>Needs reconnect</Badge>
+    : drive.connected ? <Badge tone="success" dot>Connected</Badge> : <Badge tone="neutral" dot>Not connected</Badge>;
+  const lastBadge = backup.running
+    ? <Badge tone="info" dot>Running…</Badge>
+    : last?.status === 'FAILED' ? <Badge tone="danger" dot>Failed</Badge>
+      : last?.status === 'SUCCESS' ? <Badge tone="success" dot>OK</Badge> : null;
+  const healthIssues = health?.problems?.length || 0;
+  const visibleBackups = showAllBackups ? backups : backups.slice(0, BACKUPS_SHOWN);
+  const connectButton = canWrite ? (
+    <Button
+      size="xs"
+      variant={driveUsable ? 'outline' : drive.needsReconnect ? 'danger' : 'primary'}
+      onClick={connect}
+      loading={busy === 'connect'}
+      disabled={Boolean(busy) || !drive.configured}
+      title={drive.configured ? 'Sign in to Google and give the ERP access to Drive' : 'Finish the server configuration first'}
+    >
+      {drive.connected ? <RefreshCw size={12} /> : <CloudUpload size={12} />}
+      {drive.connected ? 'Reconnect' : 'Connect Google Drive'}
+    </Button>
+  ) : null;
 
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-2">
-      <Card className="p-4 sm:p-5 xl:order-1">
-        <SectionHeader icon={HardDrive} title="Upload storage" description="Where new uploads are saved. Files already uploaded keep opening from where they are." />
-        <div className="grid gap-3 md:grid-cols-2">
-          {PROVIDERS.map((provider) => {
-            const Icon = provider.icon;
-            const disabled = !canWrite || (provider.id === 'gdrive' && !driveUsable);
-            return (
-              <label
-                key={provider.id}
-                className={`flex gap-3 rounded-2xl border p-4 transition ${selectedProvider === provider.id ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-slate-200 dark:border-slate-700'} ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <input
-                  type="radio"
-                  name="storage-provider"
-                  className="mt-1"
-                  checked={selectedProvider === provider.id}
-                  disabled={disabled}
-                  onChange={() => setSelectedProvider(provider.id)}
-                />
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-800 dark:text-slate-100">
-                    <Icon size={16} />
-                    {provider.label}
-                    {activeProvider === provider.id ? <Badge tone="success" dot>Active</Badge> : null}
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {provider.id === 'gdrive' && !driveUsable ? 'Connect Google Drive below to use it.' : provider.description}
-                  </p>
-                </div>
-              </label>
-            );
-          })}
-        </div>
-        {canWrite ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button size="sm" onClick={saveProvider} loading={busy === 'save'} disabled={selectedProvider === activeProvider || Boolean(busy)}>
-              Save
-            </Button>
-            <Button size="sm" variant="outline" onClick={testProvider} loading={busy === 'test'} disabled={Boolean(busy)}>
-              Test {selectedProvider === 'gdrive' ? 'Google Drive' : 'local storage'}
-            </Button>
-          </div>
-        ) : null}
-      </Card>
-
-      <Card className="p-4 sm:p-5 xl:order-3">
-        <SectionHeader
-          icon={Settings2}
-          title="Google Drive settings"
-          description="The Google client, allowed account and folders come from the server env and cannot be changed here. Only the backup schedule can be changed."
-        />
-        <DriveConfigForm token={token} canWrite={canWrite} onSaved={() => loadStatus().catch(() => {})} />
-      </Card>
-
-      <Card className="p-4 sm:p-5 xl:order-2">
-        <SectionHeader icon={CloudUpload} title="Google Drive connection" description="One Google account holds uploaded files (when selected above) and the daily database backups. Connect signs in to Google; the access is kept encrypted in the database." />
-
-        {drive.problems?.length ? (
-          <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
-            <div className="font-semibold mb-1">Server configuration is incomplete</div>
-            <ul className="list-disc pl-4 space-y-0.5">
-              {drive.problems.map((problem) => <li key={problem}>{problem}</li>)}
-            </ul>
-          </div>
-        ) : null}
-
-        {drive.needsReconnect ? (
-          <div className="mb-4 flex flex-wrap items-start gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span className="min-w-0 flex-1">
-              Google stopped accepting the Drive access{drive.accountEmail ? ` of ${drive.accountEmail}` : ''}
-              {drive.needsReconnectSince ? ` (since ${formatDate(drive.needsReconnectSince)})` : ''}. Uploads to Drive and the
-              daily backup are paused until it is reconnected.
-            </span>
-            {canWrite ? (
-              <Button size="sm" variant="danger" onClick={connect} loading={busy === 'connect'} disabled={Boolean(busy)}>
-                <RefreshCw size={14} />
-                Reconnect Google Drive
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {drive.envTokenError ? (
-          <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span>
-              The fallback refresh token in the server env (GOOGLE_OAUTH_REFRESH_TOKEN) was not accepted: {drive.envTokenError}.
-              Click Connect Google Drive instead, or remove that env value.
-            </span>
-          </div>
-        ) : null}
-
-        <div className="grid gap-4 text-sm md:grid-cols-2">
-          <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Status</div>
-            <div className="mt-1">
-              {drive.connected && !drive.needsReconnect ? <Badge tone="success" dot>Connected</Badge> : null}
-              {drive.needsReconnect ? <Badge tone="danger" dot>Needs reconnect</Badge> : null}
-              {!drive.connected ? <Badge tone="neutral" dot>Not connected</Badge> : null}
-            </div>
-          </div>
-          <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Account</div>
-            <div className="mt-1 text-slate-800 dark:text-slate-100">{drive.accountEmail || '—'}</div>
-            {drive.allowedEmail ? (
-              <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Only {drive.allowedEmail} can be connected</div>
-            ) : null}
-          </div>
-          <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Connected</div>
-            <div className="mt-1 text-slate-800 dark:text-slate-100">{formatDate(drive.connectedAt)}</div>
-          </div>
-          <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Folders in Drive</div>
-            <div className="mt-1 flex flex-col gap-1">
-              <FolderLink folder={drive.rootFolder} strong />
-              <div className="ml-3 flex flex-col gap-0.5 border-l border-slate-200 pl-2 text-xs dark:border-slate-700">
-                {(drive.categoryFolders || []).map((folder) => <FolderLink key={folder.name} folder={folder} />)}
-                <FolderLink folder={drive.backupFolder} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {canWrite || canRestore ? (
-          <div className="mt-5 flex flex-wrap gap-2">
-            {canWrite ? (
-              <Button
-                size="sm"
-                variant={drive.connected && !drive.needsReconnect ? 'outline' : 'primary'}
-                onClick={connect}
-                loading={busy === 'connect'}
-                disabled={Boolean(busy) || !drive.configured}
-                title={drive.configured ? 'Sign in to Google and give the ERP access to Drive' : 'Finish the server configuration first'}
-              >
-                <CloudUpload size={14} />
-                {drive.connected ? 'Reconnect Google Drive' : 'Connect Google Drive'}
-              </Button>
-            ) : null}
-            <Button size="sm" variant="outline" onClick={check} loading={busy === 'check'} disabled={Boolean(busy) || !drive.connected}>
-              <Link2 size={14} />
-              Check connection
-            </Button>
-            {drive.connected ? (
-              <Button size="sm" variant="outline" onClick={() => setConfirmDisconnect(true)} disabled={Boolean(busy)}>
-                <Unplug size={14} />
-                Disconnect
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-        {checkResult ? (
-          <div
-            role={checkResult.ok ? 'status' : 'alert'}
-            className={`mt-3 rounded-xl border p-3 text-xs ${
-              checkResult.ok
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'
-                : 'border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300'
-            }`}
+    <div className="space-y-3">
+      {/* Overview */}
+      <Card className="p-3 sm:p-4">
+        <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
+          <StatTile icon={CloudUpload} label="Google Drive" sub={drive.accountEmail || drive.allowedEmail || 'No account connected'}>
+            {driveBadge}
+          </StatTile>
+          <StatTile icon={HardDrive} label="New uploads go to" sub={activeProvider === 'gdrive' ? 'Webitof ERP Data in Drive' : 'Server disk'}>
+            {activeProvider === 'gdrive' ? 'Google Drive' : 'Local server'}
+          </StatTile>
+          <StatTile
+            icon={DatabaseBackup}
+            label="Last backup"
+            sub={backup.lastSuccess ? `Last OK ${formatDate(backup.lastSuccess.finishedAt)} · ${formatBytes(backup.lastSuccess.size)}` : backup.schedule.label}
           >
-            {checkResult.message}
-          </div>
-        ) : null}
+            {lastBadge}
+            <span>{last ? formatDate(last.finishedAt || last.startedAt) : 'No backup yet'}</span>
+          </StatTile>
+          <StatTile icon={ShieldCheck} label="Backup health" sub={health?.schedule?.label || backup.schedule.label}>
+            {health ? (healthIssues ? <Badge tone="warning" dot>{healthIssues} to check</Badge> : <Badge tone="success" dot>All checks passed</Badge>) : '—'}
+          </StatTile>
+        </div>
       </Card>
 
-      <Card className="p-4 sm:p-5 xl:order-4">
-        <SectionHeader
-          icon={DatabaseBackup}
-          title="Database backups"
-          description={`${backup.schedule.label} to the Google Drive backup folder. Kept: newest ${backup.keep} daily, ${backup.keepManual ?? 5} manual and ${backup.keepPreRestore ?? 5} pre-restore backups.`}
-        />
+      {/* Notices */}
+      {drive.needsReconnect ? (
+        <Notice
+          tone="danger"
+          action={canWrite ? (
+            <Button size="xs" variant="danger" onClick={connect} loading={busy === 'connect'} disabled={Boolean(busy)}>
+              <RefreshCw size={12} />
+              Reconnect Google Drive
+            </Button>
+          ) : null}
+        >
+          Google stopped accepting the Drive access{drive.accountEmail ? ` of ${drive.accountEmail}` : ''}
+          {drive.needsReconnectSince ? ` (since ${formatDate(drive.needsReconnectSince)})` : ''}. Uploads to Drive and the daily backup are paused.
+        </Notice>
+      ) : null}
+      {backup.alert ? (
+        <Notice tone="danger">
+          {backup.alert.message} Admins were alerted{backup.alert.alertedAt ? ` (${formatDate(backup.alert.alertedAt)})` : ''}; this clears after the next successful backup.
+        </Notice>
+      ) : null}
+      {drive.problems?.length ? (
+        <Notice tone="warning">
+          <span className="font-semibold">Server configuration is incomplete: </span>
+          {drive.problems.join('; ')}
+        </Notice>
+      ) : null}
+      {drive.envTokenError ? (
+        <Notice tone="danger">
+          The fallback refresh token in the server env (GOOGLE_OAUTH_REFRESH_TOKEN) was not accepted: {drive.envTokenError}. Click Connect Google Drive instead, or remove that env value.
+        </Notice>
+      ) : null}
+      {checkResult ? <Notice tone={checkResult.ok ? 'success' : 'danger'}>{checkResult.message}</Notice> : null}
 
-        {backup.alert ? (
-          <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
-            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            <span>
-              {backup.alert.message} Admins were alerted{backup.alert.alertedAt ? ` (${formatDate(backup.alert.alertedAt)})` : ''}; this clears after the next successful backup.
-            </span>
-          </div>
-        ) : null}
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-5">
+        {/* Left: Drive + upload storage */}
+        <div className="min-w-0 space-y-3 lg:col-span-2">
+          <Card className="p-4">
+            <SectionHeader icon={CloudUpload} title="Google Drive" hint="Holds uploads (when chosen below) and the daily backups." />
+            <dl className="divide-y divide-[var(--border)]">
+              <InfoRow label="Account">{drive.accountEmail || '—'}</InfoRow>
+              <InfoRow label="Connected">{formatDate(drive.connectedAt)}</InfoRow>
+              {drive.allowedEmail ? <InfoRow label="Allowed account">{drive.allowedEmail}</InfoRow> : null}
+            </dl>
+            {drive.rootFolder?.link ? (
+              <div className="mt-3">
+                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  <FolderOpen size={12} /> Folders in Drive
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <FolderChip folder={drive.rootFolder} strong />
+                  {(drive.categoryFolders || []).map((folder) => <FolderChip key={folder.name} folder={folder} />)}
+                  <FolderChip folder={drive.backupFolder} />
+                </div>
+              </div>
+            ) : null}
+            {canWrite || canRestore ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {connectButton}
+                {drive.connected ? (
+                  <Button size="xs" variant="outline" onClick={check} loading={busy === 'check'} disabled={Boolean(busy)}>
+                    <Link2 size={12} />
+                    Check connection
+                  </Button>
+                ) : null}
+                {canWrite && drive.connected ? (
+                  <Button size="xs" variant="ghost" onClick={() => setConfirmDisconnect(true)} disabled={Boolean(busy)}>
+                    <Unplug size={12} />
+                    Disconnect
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </Card>
 
-        <div className="grid gap-4 text-sm md:grid-cols-2">
-          <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Last run</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-slate-800 dark:text-slate-100">
-              {backup.running ? <Badge tone="info" dot>Running…</Badge> : null}
-              {!backup.running && last?.status === 'SUCCESS' ? <Badge tone="success" dot>Succeeded</Badge> : null}
-              {!backup.running && last?.status === 'FAILED' ? <Badge tone="danger" dot>Failed</Badge> : null}
-              {!last ? <span className="text-slate-500">No backup yet</span> : <span>{formatDate(last.finishedAt || last.startedAt)}</span>}
+          <Card className="p-4">
+            <SectionHeader icon={HardDrive} title="Upload storage" hint="Where new uploads go; old files keep opening from where they are." />
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {PROVIDERS.map((provider) => {
+                const Icon = provider.icon;
+                const disabled = !canWrite || (provider.id === 'gdrive' && !driveUsable);
+                const selected = selectedProvider === provider.id;
+                return (
+                  <label
+                    key={provider.id}
+                    className={`flex items-start gap-2 rounded-xl border px-3 py-2 transition ${selected ? 'border-[var(--primary)] bg-[var(--primary)]/5' : 'border-[var(--border)]'} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                  >
+                    <input
+                      type="radio"
+                      name="storage-provider"
+                      className="mt-0.5"
+                      checked={selected}
+                      disabled={disabled}
+                      onChange={() => setSelectedProvider(provider.id)}
+                    />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100">
+                        <Icon size={13} />
+                        {provider.label}
+                        {activeProvider === provider.id ? <Badge tone="success">Active</Badge> : null}
+                      </span>
+                      <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                        {provider.id === 'gdrive' && !driveUsable ? 'Connect Google Drive first.' : provider.description}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
-            {last?.status === 'FAILED' ? <p className="mt-1 text-xs text-rose-600 dark:text-rose-400 break-words">{last.error}</p> : null}
-            {last?.retentionError ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Old backups could not be pruned: {last.retentionError}</p> : null}
-          </div>
-          <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Last successful backup</div>
-            <div className="mt-1 text-slate-800 dark:text-slate-100">
-              {backup.lastSuccess ? `${formatDate(backup.lastSuccess.finishedAt)} · ${formatBytes(backup.lastSuccess.size)}` : '—'}
-            </div>
-          </div>
+            {canWrite ? (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                <Button size="xs" onClick={saveProvider} loading={busy === 'save'} disabled={selectedProvider === activeProvider || Boolean(busy)}>
+                  Save
+                </Button>
+                <Button size="xs" variant="outline" onClick={testProvider} loading={busy === 'test'} disabled={Boolean(busy)}>
+                  Test {selectedProvider === 'gdrive' ? 'Google Drive' : 'local storage'}
+                </Button>
+              </div>
+            ) : null}
+          </Card>
         </div>
 
-        {canWrite ? (
-          <div className="mt-5 flex flex-wrap gap-2">
-            {backup.manualAllowed ? (
-              <Button size="sm" onClick={backUpNow} loading={busy === 'backup'} disabled={Boolean(busy) || backup.running || !driveUsable}>
-                <CloudUpload size={14} />
-                Back up now to Drive
+        {/* Right: backups */}
+        <Card className="min-w-0 p-4 lg:col-span-3">
+          <SectionHeader
+            icon={DatabaseBackup}
+            title="Database backups"
+            hint={`${backup.schedule.label} · keeps ${backup.keep} daily, ${backup.keepManual ?? 5} manual, ${backup.keepPreRestore ?? 5} before-restore`}
+          >
+            {canWrite && backup.manualAllowed ? (
+              <Button size="xs" onClick={backUpNow} loading={busy === 'backup'} disabled={Boolean(busy) || backup.running || !driveUsable}>
+                <CloudUpload size={12} />
+                Back up now
               </Button>
             ) : null}
             {canWrite ? (
-              <Button size="sm" variant="outline" onClick={downloadFreshBackup} loading={busy === 'fresh'} disabled={Boolean(busy)}>
-                <Download size={14} />
-                Download backup
+              <Button size="xs" variant="outline" onClick={downloadFreshBackup} loading={busy === 'fresh'} disabled={Boolean(busy)} title="Makes a fresh dump and saves it to this computer; nothing is sent to Drive">
+                <Download size={12} />
+                Download
               </Button>
             ) : null}
-          </div>
-        ) : null}
-        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-          Download backup makes a fresh dump and saves it to this computer; nothing is sent to Drive. Daily backups in Drive are kept for {backup.keep} days; Back up now and the safety copy taken before a restore are counted separately. Any of them can be restored from the list below; it is checked against its checksum first.
-        </p>
+          </SectionHeader>
 
-        {driveUsable ? (
-          <div className="mt-6">
-            <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Backups in Google Drive</h4>
-              <Button size="xs" variant="ghost" onClick={loadBackups}>
-                <RefreshCw size={12} />
-                Refresh
-              </Button>
+          {last?.status === 'FAILED' ? <Notice tone="danger">Last run failed: {last.error}</Notice> : null}
+          {last?.retentionError ? <div className="mt-2"><Notice tone="warning">Old backups could not be pruned: {last.retentionError}</Notice></div> : null}
+
+          {driveUsable ? (
+            <div className={last?.status === 'FAILED' || last?.retentionError ? 'mt-3' : ''}>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                  In Google Drive{backups.length ? ` · ${backups.length}` : ''}
+                </span>
+                <Button size="xs" variant="ghost" onClick={loadBackups}>
+                  <RefreshCw size={12} />
+                  Refresh
+                </Button>
+              </div>
+              {backupsError ? <p className="text-xs text-rose-600 dark:text-rose-400">{backupsError}</p> : null}
+              {!backupsError && !backups.length ? <p className="text-xs text-slate-500">No backups in Drive yet.</p> : null}
+              {backups.length ? (
+                <SimpleTable
+                  compact
+                  rows={visibleBackups}
+                  columns={[
+                    {
+                      key: 'created',
+                      label: 'Backup',
+                      render: (file) => (
+                        <span className="flex flex-col" title={file.name}>
+                          <span className="whitespace-nowrap font-medium text-slate-800 dark:text-slate-100">{formatDate(file.createdTime)}</span>
+                          <span className="text-[10px] text-[var(--text-muted)]">{formatBytes(file.size)}</span>
+                        </span>
+                      )
+                    },
+                    {
+                      key: 'kind',
+                      label: 'Type',
+                      nowrap: true,
+                      render: (file) => {
+                        const kind = BACKUP_KINDS[file.kind] || BACKUP_KINDS.scheduled;
+                        return <Badge tone={kind.tone}>{kind.label}</Badge>;
+                      }
+                    },
+                    {
+                      key: 'verified',
+                      label: 'Check',
+                      nowrap: true,
+                      render: (file) => (file.verified
+                        ? <Badge tone="success" title="Matched the local dump when uploaded; checked again before a restore">Verified</Badge>
+                        : <Badge tone="neutral" title="Older backup: checked against Drive's MD5 before a restore">Not verified</Badge>)
+                    },
+                    ...(canWrite || canRestore
+                      ? [{
+                          key: 'actions',
+                          label: '',
+                          align: 'right',
+                          render: (file) => (
+                            <div className="flex justify-end gap-1">
+                              {canWrite ? (
+                                <Button size="xs" variant="ghost" onClick={() => downloadDriveBackup(file)} loading={busy === `download-${file.id}`} disabled={Boolean(busy)} title="Download">
+                                  <Download size={12} />
+                                </Button>
+                              ) : null}
+                              {canRestore ? (
+                                <Button size="xs" variant="outline" onClick={() => openRestore(file)} disabled={Boolean(busy) || backup.running}>
+                                  <History size={12} />
+                                  Restore
+                                </Button>
+                              ) : null}
+                            </div>
+                          )
+                        }]
+                      : [])
+                  ]}
+                />
+              ) : null}
+              {backups.length > BACKUPS_SHOWN ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllBackups((value) => !value)}
+                  className="mt-2 text-[11px] font-medium text-[var(--primary)] hover:underline"
+                >
+                  {showAllBackups ? 'Show fewer' : `Show all ${backups.length}`}
+                </button>
+              ) : null}
             </div>
-            {backupsError ? <p className="text-xs text-rose-600 dark:text-rose-400">{backupsError}</p> : null}
-            {!backupsError && !backups.length ? <p className="text-xs text-slate-500">No backups in Drive yet.</p> : null}
-            {backups.length ? (
-              <SimpleTable
-                rows={backups}
-                columns={[
-                  { key: 'name', label: 'File', className: 'font-medium break-all', render: (file) => file.name },
-                  {
-                    key: 'kind',
-                    label: 'Type',
-                    nowrap: true,
-                    render: (file) => {
-                      const kind = BACKUP_KINDS[file.kind] || BACKUP_KINDS.scheduled;
-                      return <Badge tone={kind.tone}>{kind.label}</Badge>;
-                    }
-                  },
-                  { key: 'created', label: 'Created', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatDate(file.createdTime) },
-                  { key: 'size', label: 'Size', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatBytes(file.size) },
-                  {
-                    key: 'verified',
-                    label: 'Check',
-                    nowrap: true,
-                    render: (file) => (file.verified
-                      ? <Badge tone="success" title="Matched the local dump when uploaded; checked again before a restore">Verified</Badge>
-                      : <Badge tone="neutral" title="Older backup: checked against Drive's MD5 before a restore">Not verified</Badge>)
-                  },
-                  ...(canWrite || canRestore
-                    ? [{
-                        key: 'actions',
-                        label: '',
-                        align: 'right',
-                        render: (file) => (
-                          <div className="flex justify-end gap-2">
-                            {canWrite ? (
-                              <Button size="xs" variant="outline" onClick={() => downloadDriveBackup(file)} loading={busy === `download-${file.id}`} disabled={Boolean(busy)}>
-                                <Download size={12} />
-                                Download
-                              </Button>
-                            ) : null}
-                            {canRestore ? (
-                              <Button size="xs" variant="danger" onClick={() => openRestore(file)} disabled={Boolean(busy) || backup.running}>
-                                <History size={12} />
-                                Restore
-                              </Button>
-                            ) : null}
-                          </div>
-                        )
-                      }]
-                    : [])
-                ]}
-              />
-            ) : null}
-          </div>
-        ) : null}
-      </Card>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">Connect Google Drive to see and restore backups.</p>
+          )}
+        </Card>
+      </div>
 
-      {status.backupHealth ? <BackupHealthCard health={status.backupHealth} /> : null}
+      {/* Folded: health details and server settings */}
+      {health ? (
+        <FoldCard
+          icon={ShieldCheck}
+          title="Backup health"
+          defaultOpen={healthIssues > 0}
+          summary={healthIssues ? <Badge tone="warning">{healthIssues} to check</Badge> : <Badge tone="success">All OK</Badge>}
+        >
+          <BackupHealthBody health={health} />
+        </FoldCard>
+      ) : null}
+      <FoldCard
+        icon={Settings2}
+        title="Drive & backup settings"
+        summary={<span className="hidden text-[11px] text-slate-500 dark:text-slate-400 sm:inline">{backup.schedule.label} · keep {backup.keep}</span>}
+      >
+        <p className="mb-3 text-[11px] text-slate-500 dark:text-slate-400">
+          The Google client, allowed account and folders come from the server env and are read-only here. Only the backup schedule can be changed.
+        </p>
+        <DriveConfigForm token={token} canWrite={canWrite} onSaved={() => loadStatus().catch(() => {})} />
+      </FoldCard>
 
       <Modal
         open={Boolean(restoreTarget)}
@@ -594,6 +676,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
             </span>
           </p>
           <ul className="list-disc space-y-1 pl-5 text-xs text-slate-500 dark:text-slate-400">
+            <li>The backup file is checked against its checksum first; a damaged file is not restored.</li>
             <li>The site goes into maintenance and everyone is locked out until the restore finishes.</li>
             <li>A safety backup of the current data is taken first, so this can be undone.</li>
             <li>The Google Drive connection and storage settings stay as they are now.</li>
@@ -614,7 +697,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
       <ConfirmDialog
         open={confirmDisconnect}
         title="Disconnect Google Drive?"
-        description="Automatic backups stop and the refresh token is revoked at Google; to connect again, create a new one in the OAuth Playground. Backups already in Drive are kept."
+        description="Automatic backups stop and the Google access is revoked; click Connect Google Drive to connect again. Backups already in Drive are kept."
         confirmLabel={busy === 'disconnect' ? 'Disconnecting...' : 'Disconnect'}
         onConfirm={disconnect}
         onClose={() => setConfirmDisconnect(false)}
