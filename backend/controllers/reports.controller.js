@@ -1,5 +1,5 @@
 const { loadBusinessState, buildRenewalDashboard, getRenewalTitle, getRenewalAmount } = require('../services/analytics.service');
-const { buildFinanceSummary, parseReportPeriod, filterStateByPeriod, isIssuedInvoice, isIssuedCreditNote, getPaymentAppliedAmount, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
+const { buildFinanceSummary, buildProfitLoss, parseReportPeriod, filterStateByPeriod, isIssuedInvoice, isIssuedCreditNote, getPaymentAppliedAmount, calculatePayrollExpense, getPayrollExpenseTotal, getPayrollRecords } = require('../services/finance.service');
 const {
   calculateExpenseImpact,
   calculateInvoiceTotals,
@@ -306,33 +306,19 @@ async function profitLoss(req, res, next) {
   try {
     const period = parseReportPeriod(req.query);
     const state = filterStateByPeriod(await loadBusinessState({ includeCrm: false }), period);
-    const invoiceTotals = state.invoices
-      .filter(isIssuedInvoice)
-      .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], state.settings, state.clients.find((client) => String(client.id) === String(invoice.clientId))));
-    const expenseImpacts = state.expenses.filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
-    const outsourcingImpacts = state.outsourcingExpenses.map((item) => calculateOutsourcingExpense(item, state.vendors.find((vendor) => String(vendor.id) === String(item.vendorId)), state.settings));
-    const commissionImpacts = state.leadCommissions.map((item) => calculateLeadCommission(item, state.vendors.find((vendor) => String(vendor.id) === String(item.partnerId)), state.settings));
-    // Credit notes issued in the period take back revenue (taxable value) that was billed earlier or now.
-    const issuedCredits = (state.creditNotes || []).filter(isIssuedCreditNote);
-    const revenue = round2(sumBy(invoiceTotals, (item) => item.taxableAmount) - sumBy(issuedCredits, (note) => note.taxableAmount));
-    const expense = sumBy(expenseImpacts, (item) => item.expenseAmount)
-      + sumBy(outsourcingImpacts, (item) => item.expenseImpact)
-      + sumBy(commissionImpacts, (item) => item.expenseImpact);
-    const payrollExpense = getPayrollExpenseTotal(state);
-    const totalExpense = round2(expense + payrollExpense);
-
+    const { revenue, expense, payrollExpense, officeExpense, profit, grossRevenue, creditNotes, totalInputGst } = buildProfitLoss(state);
     res.json({
       success: true,
       data: {
         revenue,
-        expense: totalExpense,
+        expense,
         payrollExpense,
-        officeExpense: round2(expense + payrollExpense),
+        officeExpense,
         period: { from: period.from, to: period.to, label: period.label },
-        profit: round2(revenue - totalExpense),
-        grossRevenue: round2(sumBy(invoiceTotals, (item) => item.totalAmount) - sumBy(issuedCredits, (note) => note.totalAmount)),
-        creditNotes: sumBy(issuedCredits, (note) => note.totalAmount),
-        totalInputGst: sumBy(expenseImpacts, (item) => item.inputGst) + sumBy(outsourcingImpacts, (item) => item.inputGst) + sumBy(commissionImpacts, (item) => item.inputGst)
+        profit,
+        grossRevenue,
+        creditNotes,
+        totalInputGst
       }
     });
   } catch (error) {

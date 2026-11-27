@@ -614,6 +614,38 @@ function buildFinanceSummary(state = {}, filters = {}) {
   };
 }
 
+// Profit and loss for an already period-filtered state (the Finance report and the dashboard).
+// Revenue is taxable value billed less credit notes; expense includes outsourcing, commissions
+// and payroll.
+function buildProfitLoss(state = {}) {
+  const settings = state.settings || {};
+  const clientById = new Map((state.clients || []).map((client) => [String(client.id), client]));
+  const vendorById = new Map((state.vendors || []).map((vendor) => [String(vendor.id), vendor]));
+  const invoiceTotals = (state.invoices || [])
+    .filter(isIssuedInvoice)
+    .map((invoice) => calculateInvoiceTotals(invoice, invoice.items || [], settings, clientById.get(String(invoice.clientId))));
+  const expenseImpacts = (state.expenses || []).filter((expense) => !isSalaryExpenseRecord(expense)).map(calculateExpenseImpact);
+  const outsourcingImpacts = (state.outsourcingExpenses || []).map((item) => calculateOutsourcingExpense(item, vendorById.get(String(item.vendorId)), settings));
+  const commissionImpacts = (state.leadCommissions || []).map((item) => calculateLeadCommission(item, vendorById.get(String(item.partnerId)), settings));
+  const issuedCredits = (state.creditNotes || []).filter(isIssuedCreditNote);
+  const revenue = round2(sumBy(invoiceTotals, (item) => item.taxableAmount) - sumBy(issuedCredits, (note) => note.taxableAmount));
+  const expense = sumBy(expenseImpacts, (item) => item.expenseAmount)
+    + sumBy(outsourcingImpacts, (item) => item.expenseImpact)
+    + sumBy(commissionImpacts, (item) => item.expenseImpact);
+  const payrollExpense = getPayrollExpenseTotal(state);
+  const totalExpense = round2(expense + payrollExpense);
+  return {
+    revenue,
+    expense: totalExpense,
+    payrollExpense,
+    officeExpense: round2(expense + payrollExpense),
+    profit: round2(revenue - totalExpense),
+    grossRevenue: round2(sumBy(invoiceTotals, (item) => item.totalAmount) - sumBy(issuedCredits, (note) => note.totalAmount)),
+    creditNotes: sumBy(issuedCredits, (note) => note.totalAmount),
+    totalInputGst: sumBy(expenseImpacts, (item) => item.inputGst) + sumBy(outsourcingImpacts, (item) => item.inputGst) + sumBy(commissionImpacts, (item) => item.inputGst)
+  };
+}
+
 function buildFinanceLedger(state = {}, filters = {}) {
   const settings = state.settings || {};
   const clientById = new Map((state.clients || []).map((client) => [String(client.id), client]));
@@ -893,6 +925,7 @@ module.exports = {
   buildBankReconciliation,
   buildFinanceLedger,
   buildFinanceSummary,
+  buildProfitLoss,
   buildPaymentLedgerEntry,
   buildInvoiceLedgerEntry,
   getInvoiceSnapshot,

@@ -207,7 +207,8 @@ export const api = {
   },
   dashboard: {
     // The signed-in user's own dashboard (today's work, leads, leave, month).
-    me: (token) => request('/dashboard/me', { token, skipCache: true })
+    me: (token) => request('/dashboard/me', { token, skipCache: true }),
+    business: (token) => request('/dashboard/business', { token, skipCache: true })
   },
   reports: {
     dashboard: (token) => request('/reports/dashboard', { token, skipCache: true }),

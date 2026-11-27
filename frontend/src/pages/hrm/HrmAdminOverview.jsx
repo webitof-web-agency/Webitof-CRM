@@ -170,7 +170,7 @@ const KIND_LABEL = {
   wfh: "Work from home",
 };
 
-function Approvals({ approvals, token, onChanged }) {
+export function Approvals({ approvals, token, onChanged }) {
   const [busy, setBusy] = useState("");
   const [rejecting, setRejecting] = useState(null);
   const [comment, setComment] = useState("");
@@ -281,7 +281,7 @@ const ALERT_ACTIONS = [
   { action: "absent", label: "Absent", hr: true },
 ];
 
-function Alerts({ alerts, token, onChanged, tz }) {
+export function Alerts({ alerts, token, onChanged, tz }) {
   const [busy, setBusy] = useState("");
   const [pending, setPending] = useState(null);
   const [comment, setComment] = useState("");
