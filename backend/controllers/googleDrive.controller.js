@@ -71,6 +71,11 @@ const check = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { ...result, status: await connection.getStatus() } });
 });
 
+// Every folder under "Webitof ERP Data", nested, for the folder-tree popup in Settings.
+const folders = asyncHandler(async (req, res) => {
+  res.json({ success: true, data: await connection.getFolderTree() });
+});
+
 const disconnect = asyncHandler(async (req, res) => {
   await connection.disconnect({ activeProvider: await storage.getActiveProviderName() });
   res.json({ success: true, data: await connection.getStatus() });
@@ -149,6 +154,7 @@ const saveConfig = asyncHandler(async (req, res) => {
 module.exports = {
   check,
   connect,
+  folders,
   oauthCallback,
   getConfig,
   saveConfig,

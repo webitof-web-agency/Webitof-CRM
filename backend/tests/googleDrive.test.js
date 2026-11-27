@@ -1199,3 +1199,34 @@ test('a backups folder made as "99 Backups" by an earlier version is renamed to 
   assert.equal(fake.files.get(id).name, 'Backups');
   assert.equal((await connection.getStatus()).backupFolder.name, 'Backups/Database');
 });
+
+test('the folder tree lists every folder under Webitof ERP Data, nested and sorted, in few requests', async () => {
+  setup();
+  await connect();
+  const id = (name) => fake.findByName(name).id;
+  const folder = (name, parentId) => fake.addFile({ name, parents: [parentId], mimeType: 'application/vnd.google-apps.folder' });
+  const leads = folder('Leads', id('01 CRM'));
+  folder('LD-2026-000017 - Vashi Tech', leads.id);
+  folder('LD-2026-000002 - Acme', leads.id);
+  fake.addFile({ name: 'brief.pdf', parents: [leads.id], content: Buffer.from('%PDF') });
+  folder('Elsewhere', 'my-drive-root');
+  fake.calls.length = 0;
+
+  const { tree, count, truncated } = await connection.getFolderTree();
+  assert.equal(tree.name, 'Webitof ERP Data');
+  assert.deepEqual(tree.children.map((node) => node.name), ['01 CRM', '02 Finance', '03 Services', '04 HRM', '05 Users', '06 Company', '07 General', 'Backups']);
+  const crm = tree.children[0];
+  assert.deepEqual(crm.children.map((node) => node.name), ['Leads']);
+  assert.deepEqual(crm.children[0].children.map((node) => node.name), ['LD-2026-000002 - Acme', 'LD-2026-000017 - Vashi Tech'], 'folders only, sorted');
+  assert.deepEqual(tree.children[7].children.map((node) => node.name), ['Database']);
+  assert.equal(count, 12, '7 categories + Backups + Database + Leads + 2 lead folders');
+  assert.equal(truncated, false);
+  assert.ok(crm.link.startsWith('https://drive.google.com/drive/folders/'));
+  assert.ok(!JSON.stringify(tree).includes('Elsewhere'), 'nothing outside the main folder');
+  const listCalls = fake.calls.filter((call) => call.method === 'GET' && call.url.includes('/drive/v3/files?'));
+  assert.ok(listCalls.length <= 5, `one request per level, not per folder (${listCalls.length})`);
+
+  const limited = await connection.getFolderTree({ maxFolders: 3 });
+  assert.equal(limited.count, 3);
+  assert.equal(limited.truncated, true);
+});

@@ -8,7 +8,7 @@ const { query } = require('../../config/db');
 const { getGoogleDriveConfig, getGoogleDriveConfigProblems, refreshDriveSettings } = require('../../config/googleDrive');
 const { decrypt, encrypt, sha256 } = require('../../utils/encryption');
 const { getSetting, setSetting } = require('../../models/systemSetting.model');
-const { DriveClient, DriveError, buildAuthUrl, exchangeCode, revokeToken } = require('./drive.client');
+const { DriveClient, DriveError, FOLDER_MIME, buildAuthUrl, escapeQueryValue, exchangeCode, revokeToken } = require('./drive.client');
 const { CATEGORY_FOLDERS } = require('../../utils/uploadPath');
 
 const SETTINGS_KEY = 'google_drive';
@@ -272,6 +272,53 @@ async function ensureCategoryFolders({ client = null } = {}) {
   }
   await saveState({ ...(await getState()), categoryFolderIds: ids });
   return ids;
+}
+
+// The whole folder tree under "Webitof ERP Data" (folders only), read level by level from Drive.
+// Each request asks for the subfolders of up to FOLDER_TREE_BATCH folders at once.
+const FOLDER_TREE_BATCH = 30;
+const FOLDER_TREE_MAX = 2000;
+
+async function getFolderTree({ maxFolders = FOLDER_TREE_MAX } = {}) {
+  const client = await getClient();
+  const rootId = await ensureFolder('root', { client });
+  const config = getGoogleDriveConfig();
+  const root = { id: rootId, name: config.rootFolderName, link: folderLink(rootId), children: [] };
+  const nodes = new Map([[rootId, root]]);
+  let level = [rootId];
+  let count = 0;
+  let truncated = false;
+  while (level.length && !truncated) {
+    const next = [];
+    for (let i = 0; i < level.length && !truncated; i += FOLDER_TREE_BATCH) {
+      const parents = level.slice(i, i + FOLDER_TREE_BATCH).map((id) => `'${escapeQueryValue(id)}' in parents`).join(' or ');
+      const folders = await client.listFiles({
+        q: `(${parents}) and mimeType = '${FOLDER_MIME}' and trashed = false`,
+        fields: 'id,name,parents'
+      });
+      for (const folder of folders) {
+        if (nodes.has(folder.id)) continue;
+        const parent = (folder.parents || []).map((id) => nodes.get(id)).find(Boolean);
+        if (!parent) continue;
+        const node = { id: folder.id, name: folder.name, link: folderLink(folder.id), children: [] };
+        parent.children.push(node);
+        nodes.set(folder.id, node);
+        next.push(folder.id);
+        count += 1;
+        if (count >= maxFolders) {
+          truncated = true;
+          break;
+        }
+      }
+    }
+    level = next;
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name, 'en', { numeric: true, sensitivity: 'base' });
+  (function sortTree(node) {
+    node.children.sort(byName);
+    node.children.forEach(sortTree);
+  })(root);
+  return { tree: root, count, truncated };
 }
 
 function folderLinks(state, config) {
@@ -547,6 +594,7 @@ module.exports = {
   ensureFolder,
   getAuthUrl,
   getClient,
+  getFolderTree,
   getState,
   getStatus,
   healthCheck,

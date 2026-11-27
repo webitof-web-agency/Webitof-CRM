@@ -14,8 +14,9 @@ function jsonResponse(status, body, headers = {}) {
 
 function parseQuery(q) {
   const clauses = {};
-  const parent = /'([^']+)' in parents/.exec(q);
-  if (parent) clauses.parent = parent[1];
+  // One or more "'<id>' in parents" (joined with "or").
+  const parents = Array.from(q.matchAll(/'([^']+)' in parents/g), (match) => match[1]);
+  if (parents.length) clauses.parents = parents;
   const name = /name = '((?:\\.|[^'])*)'/.exec(q);
   if (name) clauses.name = name[1].replace(/\\(.)/g, '$1');
   if (q.includes(`mimeType = '${FOLDER_MIME}'`)) clauses.folderOnly = true;
@@ -174,7 +175,7 @@ function createFakeGoogleDrive({ email = 'owner@example.com', refreshToken = 're
     if (url.pathname === '/drive/v3/files' && method === 'GET') {
       const clauses = parseQuery(url.searchParams.get('q') || '');
       let list = Array.from(files.values()).filter((file) => {
-        if (clauses.parent && !file.parents.includes(clauses.parent)) return false;
+        if (clauses.parents && !file.parents.some((id) => clauses.parents.includes(id))) return false;
         if (clauses.name !== undefined && file.name !== clauses.name) return false;
         if (clauses.folderOnly && file.mimeType !== FOLDER_MIME) return false;
         if (clauses.notTrashed && file.trashed) return false;

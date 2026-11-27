@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.get('/status', requirePermission('settings.read'), controller.status);
 router.get('/config', requirePermission('settings.read'), controller.getConfig);
+router.get('/folders', requirePermission('settings.read'), controller.folders);
 router.put('/config', requirePermission('settings.write'), controller.saveConfig);
 router.post('/connect', requirePermission('settings.write'), controller.connect);
 router.post('/check', requirePermission('settings.write'), controller.check);

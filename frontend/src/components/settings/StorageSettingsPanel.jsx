@@ -11,6 +11,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { ConfirmDialog } from '../overlays/ConfirmDialog';
 import { DriveConfigForm } from './DriveConfigForm';
+import { DriveFolderTreeModal } from './DriveFolderTreeModal';
 import { SimpleTable } from '../ui/SimpleTable';
 import { Modal } from '../ui/Modal';
 import { Input } from '../ui/Input';
@@ -197,6 +198,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
   const [restoreTarget, setRestoreTarget] = useState(null);
   const [restoreConfirm, setRestoreConfirm] = useState('');
   const [checkResult, setCheckResult] = useState(null);
+  const [treeOpen, setTreeOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
   // Back from Google sign-in: the API redirects here with ?gdrive=connected|error.
@@ -443,12 +445,22 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
             </dl>
             {drive.rootFolder?.link ? (
               <div className="mt-3">
-                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                  <FolderOpen size={12} /> Folders in Drive
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    <FolderOpen size={12} /> Folders in Drive
+                  </span>
+                  {driveUsable ? (
+                    <button
+                      type="button"
+                      onClick={() => setTreeOpen(true)}
+                      className="text-[11px] font-medium text-[var(--primary)] hover:underline"
+                    >
+                      View all
+                    </button>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <FolderChip folder={drive.rootFolder} strong />
-                  {(drive.categoryFolders || []).map((folder) => <FolderChip key={folder.name} folder={folder} />)}
                   <FolderChip folder={drive.backupFolder} />
                 </div>
               </div>
@@ -707,6 +719,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
           />
         </div>
       </Modal>
+
+      {treeOpen ? <DriveFolderTreeModal open={treeOpen} onClose={() => setTreeOpen(false)} token={token} /> : null}
 
       <ConfirmDialog
         open={confirmDisconnect}
