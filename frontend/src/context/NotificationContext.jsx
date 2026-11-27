@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { toast } from 'sonner';
 import { API_BASE_URL, api } from '../api/client';
@@ -32,6 +32,31 @@ export function NotificationProvider({ children }) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [socketInstance, setSocketInstance] = useState(null);
+  // Every unread notification as { id, target } (target = in-app page). The sidebar counts these per
+  // menu item, so the list above (only the latest 30) is not enough.
+  const [unread, setUnread] = useState([]);
+  const unreadRef = useRef(unread);
+  unreadRef.current = unread;
+  const forget = (ids) => {
+    const gone = new Set(ids.map(String));
+    setUnread((current) => current.filter((item) => !gone.has(String(item.id))));
+  };
+  const remember = (notification) =>
+    setUnread((current) =>
+      current.some((item) => String(item.id) === String(notification.id))
+        ? current
+        : [{ id: notification.id, target: notificationTarget(notification) }, ...current]
+    );
+  const loadUnread = useCallback(async () => {
+    if (!token) return setUnread([]);
+    try {
+      const response = await api.notifications.unreadSummary(token);
+      setUnread((Array.isArray(response.data) ? response.data : []).map((row) => ({ id: row.id, target: notificationTarget(row) })));
+    } catch {
+      // Older API without the summary: the sidebar simply shows no counts.
+      setUnread([]);
+    }
+  }, [token]);
 
   useEffect(() => {
     let mounted = true;
@@ -63,10 +88,11 @@ export function NotificationProvider({ children }) {
     }
 
     load();
+    loadUnread();
     return () => {
       mounted = false;
     };
-  }, [token]);
+  }, [token, loadUnread]);
 
   useEffect(() => {
     if (!token || !user) {
@@ -92,6 +118,7 @@ export function NotificationProvider({ children }) {
       if (!notification?.id) return;
       setNotifications((current) => mergeNotifications(current, notification));
       setUnreadCount((current) => current + (notification.isRead ? 0 : 1));
+      if (!notification.isRead) remember(notification);
       const title = notification.title || 'Notification';
       const target = notificationTarget(notification);
       const options = { description: notification.message || '' };
@@ -100,6 +127,7 @@ export function NotificationProvider({ children }) {
         options.action = {
           label: 'Open',
           onClick: () => {
+            forget([notification.id]);
             if (!notification.isRead) api.notifications.markRead(token, notification.id)
               .then((response) => setNotifications((current) => mergeNotifications(current, response.data)))
               .then(() => setUnreadCount((current) => Math.max(0, current - 1)))
@@ -122,9 +150,17 @@ export function NotificationProvider({ children }) {
     socket.on('notification:updated', (notification) => {
       if (!notification?.id) return;
       setNotifications((current) => mergeNotifications(current, notification));
+      if (notification.isRead) forget([notification.id]);
+    });
+
+    socket.on('notification:read-many', (payload = {}) => {
+      const ids = new Set((payload.ids || []).map(String));
+      forget([...ids]);
+      setNotifications((current) => current.map((item) => (ids.has(String(item.id)) ? { ...item, isRead: true } : item)));
     });
 
     socket.on('notification:updated-many', () => {
+      loadUnread();
       api.notifications.unreadCount(token)
         .then((response) => setUnreadCount(Number(response.data?.unreadCount || 0)))
         .catch(() => {});
@@ -144,9 +180,10 @@ export function NotificationProvider({ children }) {
         socketRef.current = null;
       }
     };
-  }, [token, user]);
+  }, [token, user, loadUnread]);
 
   async function refresh() {
+    loadUnread();
     if (!token) return;
     const [listResponse, countResponse] = await Promise.all([
       api.notifications.list(token, { limit: 30 }),
@@ -161,6 +198,7 @@ export function NotificationProvider({ children }) {
     const existing = notifications.find((item) => String(item.id) === String(id));
     const response = await api.notifications.markRead(token, id);
     setNotifications((current) => mergeNotifications(current, response.data));
+    forget([id]);
     if (existing && !existing.isRead) {
       setUnreadCount((current) => Math.max(0, current - 1));
     }
@@ -172,8 +210,32 @@ export function NotificationProvider({ children }) {
     await api.notifications.markAllRead(token);
     setNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
     setUnreadCount(0);
+    setUnread([]);
     return true;
   }
+
+  // Opening a page counts as seeing the notifications that point exactly to it (a lead's page, the
+  // follow-up it focuses, the HRM overview with the alerts...). The list pages of a module do not.
+  const markSeen = useCallback(
+    (pathname, search = '') => {
+      if (!token) return;
+      const here = new Set([`${pathname}${search}`, pathname]);
+      if (pathname === '/app/hrm') here.add('/app/hrm/overview');
+      if (pathname === '/app/hrm/overview') here.add('/app/hrm');
+      const seen = unreadRef.current.filter((item) => item.target && here.has(item.target)).map((item) => item.id);
+      if (!seen.length) return;
+      forget(seen);
+      api.notifications
+        .markManyRead(token, seen)
+        .then((response) => {
+          if (response.data?.unreadCount != null) setUnreadCount(Number(response.data.unreadCount));
+          const ids = new Set(seen.map(String));
+          setNotifications((list) => list.map((item) => (ids.has(String(item.id)) ? { ...item, isRead: true } : item)));
+        })
+        .catch(() => {});
+    },
+    [token]
+  );
 
   const value = {
     notifications,
@@ -182,6 +244,8 @@ export function NotificationProvider({ children }) {
     refresh,
     markRead,
     markAllRead,
+    markSeen,
+    unreadTargets: unread.map((item) => item.target),
     socket: socketInstance
   };
 

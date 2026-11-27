@@ -3,8 +3,33 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { ChevronRight, Menu, X } from 'lucide-react';
 import { navigationGroups } from '../../config/navigation';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { cn } from '../../lib/cn';
 import { BRAND_LOGOS } from '../../config/brandAssets';
+
+// Unread count next to a menu item; with the sidebar collapsed it becomes a dot on the icon.
+function CountBadge({ count, floating = false }) {
+  if (!count) return null;
+  const text = count > 99 ? '99+' : count;
+  return (
+    <span
+      className={cn(
+        'flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold leading-none text-white shadow-xs',
+        floating ? 'absolute right-1.5 top-1 h-4 min-w-4 px-1 text-[9px] ring-2 ring-white dark:ring-slate-900' : 'ml-auto'
+      )}
+      aria-label={`${count} new`}
+    >
+      {text}
+    </span>
+  );
+}
+
+// True when an in-app target (path with optional ?query) belongs to a menu path.
+function belongsTo(target, path) {
+  if (!target || !path || path.includes('?')) return false;
+  const base = target.split('?')[0];
+  return base === path || base.startsWith(`${path}/`);
+}
 
 function SidebarLink({ item, onNavigate, open, isChild = false }) {
   const location = useLocation();
@@ -71,16 +96,7 @@ function SidebarLink({ item, onNavigate, open, isChild = false }) {
             >
               {item.label}
             </span>
-            {item.badge ? (
-              <span
-                className={cn(
-                  'ml-auto rounded-full bg-[var(--primary)]/15 dark:bg-[var(--primary)]/25 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)] dark:text-[var(--primary)]',
-                  !open && !isChild && 'hidden'
-                )}
-              >
-                {item.badge}
-              </span>
-            ) : null}
+            <CountBadge count={item.badge} floating={!open && !isChild} />
           </>
         );
       }}
@@ -123,6 +139,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
               : 'text-[var(--sidebar-text)] group-hover:text-[var(--text-main)]'
           )}
         />
+        <CountBadge count={item.badge} floating />
       </NavLink>
     );
   }
@@ -158,11 +175,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
             )}
           />
           <span className="truncate">{item.label}</span>
-          {item.badge ? (
-            <span className="rounded-full bg-[var(--primary)]/15 dark:bg-[var(--primary)]/25 px-2 py-0.5 text-[10px] font-bold text-[var(--primary)] dark:text-[var(--primary)]">
-              {item.badge}
-            </span>
-          ) : null}
+          <CountBadge count={item.badge} />
         </NavLink>
 
         <button
@@ -225,6 +238,7 @@ function SidebarExpandableItem({ item, onNavigate, open, isExpanded, onToggleExp
 
 export function Sidebar({ open = false, onClose }) {
   const { user } = useAuth();
+  const { unreadTargets = [], unreadCount = 0 } = useNotifications();
   const location = useLocation();
 
   const logos = BRAND_LOGOS;
@@ -274,6 +288,25 @@ export function Sidebar({ open = false, onClose }) {
         .filter((group) => group.items.length > 0),
     [user]
   );
+
+  // Unread notifications per menu item (a parent counts everything under it or its children).
+  const groupsWithCounts = useMemo(() => {
+    const countFor = (paths) =>
+      unreadTargets.filter((target) => paths.some((path) => belongsTo(target, path))).length;
+    const badge = (item) => (item.path === '/app/notifications' ? unreadCount : countFor([item.path]));
+    return visibleGroups.map((group) => ({
+      ...group,
+      items: group.items.map((item) =>
+        item.children
+          ? {
+              ...item,
+              badge: countFor([item.path, ...item.children.map((child) => child.path)]),
+              children: item.children.map((child) => ({ ...child, badge: badge(child) }))
+            }
+          : { ...item, badge: badge(item) }
+      )
+    }));
+  }, [visibleGroups, unreadTargets, unreadCount]);
 
   useEffect(() => {
     setCollapsedGroups((current) => {
@@ -414,7 +447,7 @@ export function Sidebar({ open = false, onClose }) {
 
         {/* Navigation Groups */}
         <nav className="flex-1 space-y-3 overflow-y-auto overflow-x-hidden py-3 scrollbar-hide">
-          {visibleGroups.map((group) => (
+          {groupsWithCounts.map((group) => (
             <div key={group.title || 'main'}>
               {open && !group.standalone && group.title ? (
                 <button
@@ -424,6 +457,11 @@ export function Sidebar({ open = false, onClose }) {
                   aria-expanded={!collapsedGroups[group.title]}
                 >
                   <span className="whitespace-nowrap truncate">{group.title}</span>
+                  {collapsedGroups[group.title] && (
+                    <span className="ml-auto mr-2 flex">
+                      <CountBadge count={group.items.reduce((sum, item) => sum + (item.path === '/app/notifications' ? 0 : item.badge || 0), 0)} />
+                    </span>
+                  )}
                   <ChevronRight
                     size={14}
                     strokeWidth={2}

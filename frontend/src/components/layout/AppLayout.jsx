@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { navigationGroups } from '../../config/navigation';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { cn } from '../../lib/cn';
@@ -46,6 +47,13 @@ function resolveTitle(pathname) {
 export function AppLayout() {
   const location = useLocation();
   const { user, token } = useAuth();
+  const { markSeen, unreadTargets = [] } = useNotifications();
+  const hasUnread = unreadTargets.length > 0;
+  // Opening a page clears the sidebar count for notifications that point to it. Re-checked when
+  // the unread list first arrives, so landing straight on a page also clears it.
+  useEffect(() => {
+    if (hasUnread) markSeen?.(location.pathname, location.search);
+  }, [location.pathname, location.search, hasUnread, markSeen]);
 
   // Default to open on large screens
   const [sidebarOpen, setSidebarOpen] = useState(true);

@@ -5,6 +5,7 @@ const notificationModel = require('../models/notification.model');
 const { sendMail } = require('./mailer.service');
 const { emitToUser, emitToUsers } = require('./socketHub.service');
 const { createId, nowIso } = require('../utils/format');
+const { query } = require('../config/db');
 
 const DEFAULT_INTERNAL_ROLES_BY_MODULE = {
   clients: ['admin', 'accountant', 'sales'],
@@ -191,11 +192,11 @@ async function listNotifications(userId, { limit = 50, offset = 0, unreadOnly = 
 }
 
 async function getUnreadCount(userId) {
-  const result = await notificationModel.list({
-    where: { userId: String(userId || '') },
-    orderBy: 'created_at DESC'
-  });
-  return result.filter((row) => !row.isRead).length;
+  const { rows } = await query(
+    'SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND coalesce(is_read, false) = false',
+    [String(userId || '')]
+  );
+  return rows[0]?.n || 0;
 }
 
 async function markNotificationRead(userId, notificationId) {
@@ -218,23 +219,49 @@ async function markNotificationRead(userId, notificationId) {
   return notification;
 }
 
-async function markAllNotificationsRead(userId) {
-  const rows = await notificationModel.list({
-    where: { userId: String(userId || '') },
-    orderBy: 'created_at DESC'
-  });
-  const unread = rows.filter((row) => !row.isRead);
-  for (const notification of unread) {
-    await notificationModel.update(notification.id, {
-      isRead: true,
-      readAt: nowIso()
-    });
+// Every unread notification as { id, moduleName, entityId, routePath }: enough for the sidebar to
+// count unread items per menu without loading whole rows.
+async function listUnreadSummary(userId, { limit = 2000 } = {}) {
+  const { rows } = await query(
+    `SELECT id, module_name, entity_id, coalesce(nullif(route_path, ''), payload->>'routePath', '') AS route_path
+       FROM notifications
+      WHERE user_id = $1 AND coalesce(is_read, false) = false
+      ORDER BY created_at DESC
+      LIMIT $2`,
+    [String(userId || ''), limit]
+  );
+  return rows.map((row) => ({ id: row.id, moduleName: row.module_name, entityId: row.entity_id, routePath: row.route_path }));
+}
+
+// Marks the given notifications of this user read (ids of other users are ignored).
+async function markNotificationsRead(userId, ids = []) {
+  const list = [...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || '').trim()).filter(Boolean))].slice(0, 500);
+  if (!list.length) return { updated: 0, ids: [], unreadCount: await getUnreadCount(userId) };
+  const { rows } = await query(
+    `UPDATE notifications SET is_read = true, read_at = now(), updated_at = now()
+      WHERE user_id = $1 AND id = ANY($2::text[]) AND coalesce(is_read, false) = false
+      RETURNING id`,
+    [String(userId || ''), list]
+  );
+  const unreadCount = await getUnreadCount(userId);
+  if (rows.length) {
+    emitToUser(userId, 'notification:count', { unreadCount });
+    emitToUser(userId, 'notification:read-many', { ids: rows.map((row) => row.id), unreadCount });
   }
+  return { updated: rows.length, ids: rows.map((row) => row.id), unreadCount };
+}
+
+async function markAllNotificationsRead(userId) {
+  const { rowCount } = await query(
+    `UPDATE notifications SET is_read = true, read_at = now(), updated_at = now()
+      WHERE user_id = $1 AND coalesce(is_read, false) = false`,
+    [String(userId || '')]
+  );
 
   const unreadCount = 0;
   emitToUser(userId, 'notification:count', { unreadCount });
   emitToUser(userId, 'notification:updated-many', { unreadCount });
-  return { updated: unread.length };
+  return { updated: rowCount };
 }
 
 async function createNotificationRecord(data = {}) {
@@ -544,8 +571,10 @@ module.exports = {
   createNotificationRecord,
   getUnreadCount,
   listNotifications,
+  listUnreadSummary,
   markAllNotificationsRead,
   markNotificationRead,
+  markNotificationsRead,
   notifyBusinessEvent,
   notifyClientEmail,
   resolveRecipientUsers,

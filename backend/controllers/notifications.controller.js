@@ -2,8 +2,10 @@ const notificationModel = require('../models/notification.model');
 const {
   getUnreadCount,
   listNotifications,
+  listUnreadSummary,
   markAllNotificationsRead,
-  markNotificationRead
+  markNotificationRead,
+  markNotificationsRead
 } = require('../services/notification.service');
 
 async function listController(req, res, next) {
@@ -22,6 +24,26 @@ async function unreadCountController(req, res, next) {
   try {
     const unreadCount = await getUnreadCount(req.user?.id);
     res.json({ success: true, data: { unreadCount } });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function unreadSummaryController(req, res, next) {
+  try {
+    res.json({ success: true, data: await listUnreadSummary(req.user?.id) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function markManyReadController(req, res, next) {
+  try {
+    const ids = req.body?.ids;
+    if (!Array.isArray(ids)) {
+      return res.status(400).json({ success: false, message: 'ids must be a list' });
+    }
+    res.json({ success: true, data: await markNotificationsRead(req.user?.id, ids) });
   } catch (error) {
     next(error);
   }
@@ -75,7 +97,9 @@ async function seedController(req, res, next) {
 module.exports = {
   listController,
   markAllReadController,
+  markManyReadController,
   markReadController,
   seedController,
-  unreadCountController
+  unreadCountController,
+  unreadSummaryController
 };
