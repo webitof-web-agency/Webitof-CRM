@@ -97,7 +97,8 @@ function fitAll(maps, s, position, others = [], people = []) {
   });
 }
 
-export function GeoMap({ center, radius, onPick, others = [], height = 280, fallback = null, people = [], fitRequest = 0 }) {
+// centerColor: colour of the circle around `center` (e.g. red when the person is outside every work zone).
+export function GeoMap({ center, radius, onPick, others = [], height = 280, fallback = null, people = [], fitRequest = 0, centerColor = "#4f46e5" }) {
   const box = useRef(null);
   const state = useRef({});
   const [error, setError] = useState(KEY ? "" : "missing");
@@ -160,6 +161,7 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280, fall
         s.marker.setPosition(position);
         s.circle.setCenter(position);
         s.circle.setRadius(Number(radius) || 100);
+        s.circle.setOptions({ strokeColor: centerColor, fillColor: centerColor, fillOpacity: centerColor === "#4f46e5" ? 0.12 : 0.22 });
         // Pan when the point (or, with no point yet, the fallback such as a just-loaded office) moves.
         const positionKey = `${position.lat},${position.lng}`;
         if (s.positionKey !== positionKey) s.map.panTo(position);
@@ -193,7 +195,7 @@ export function GeoMap({ center, radius, onPick, others = [], height = 280, fall
     };
     // start is derived from the fallback numbers listed here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lat, lng, radius, valid, othersKey, peopleKey, fitRequest, start.lat, start.lng]);
+  }, [lat, lng, radius, valid, othersKey, peopleKey, fitRequest, start.lat, start.lng, centerColor]);
   if (error)
     return (
       <div

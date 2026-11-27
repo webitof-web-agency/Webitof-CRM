@@ -10,6 +10,7 @@ import {
   MapPin,
   NotebookPen,
   Play,
+  Send,
   Square,
 } from "lucide-react";
 import { Card } from "../../components/ui/Card";
@@ -30,6 +31,10 @@ const stopwatch = (ms) => {
   const two = (v) => String(v).padStart(2, "0");
   return `${two(Math.floor(s / 3600))}:${two(Math.floor((s % 3600) / 60))}:${two(s % 60)}`;
 };
+// 850 m, 14.2 km
+function formatDistance(meters) {
+  return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${meters} m`;
+}
 function distance(a, b) {
   const rad = (d) => (Number(d) * Math.PI) / 180;
   const h =
@@ -601,10 +606,19 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
     ...today.offices.map((o) => ({ ...o, color: "#4f46e5" })),
     ...(today.home?.status === "Approved" ? [{ ...today.home, color: "#10b981" }] : []),
   ];
-  async function submit() {
+  // Outside every assigned work location (office zones and the approved home zone), even allowing
+  // for the GPS error: Auto / Office / WFH cannot clock in from here, so a request is offered instead.
+  const zones = fix ? fences.map((f) => ({ fence: f, meters: distance(fix, f) })).sort((a, b) => a.meters - b.meters) : [];
+  const outside = Boolean(fix) && zones.every((z) => z.meters - fix.accuracy > Number(z.fence.radiusMeters));
+  const nearest = zones[0];
+  async function submit(requested = false) {
     setBusy(true);
     try {
-      onDone(await hrm(token, "/me/clock-in", { method: "POST", body: { ...fix, mode, client: "web", reason: mode === "Client Visit" ? reason : undefined } }));
+      const body = requested
+        ? { ...fix, mode: "Client Visit", client: "web", reason: `Outside work location: ${reason.trim()}` }
+        : { ...fix, mode, client: "web", reason: mode === "Client Visit" ? reason : undefined };
+      onDone(await hrm(token, "/me/clock-in", { method: "POST", body }));
+      if (requested) toast.success("Request sent. Your admin will review this attendance.");
     } catch (e) {
       toast.error(e.message);
       if (errorCode(e) === "HOME_REQUIRED") onNeedHome();
@@ -615,7 +629,33 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
   return (
     <Modal open title="Clock in" subtitle="Inside the office zone it is Work From Office; inside your approved home zone it is Work From Home." onClose={onClose} width="min(720px,95vw)">
       <div className="space-y-4">
-        <GeoMap center={fix || today.offices[0]} radius={fix?.accuracy || 50} others={fences} height={260} />
+        <div className={`relative overflow-hidden rounded-2xl ${outside ? "ring-2 ring-rose-500" : ""}`}>
+          <GeoMap center={fix || today.offices[0]} radius={fix?.accuracy || 50} others={fences} height={260} centerColor={outside ? "#e11d48" : undefined} />
+          {outside ? (
+            <>
+              <div className="pointer-events-none absolute inset-0 bg-rose-500/15" />
+              <span className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                <AlertTriangle size={13} /> Outside your work location
+              </span>
+            </>
+          ) : null}
+        </div>
+        {outside ? (
+          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300">
+            <p className="font-semibold">You are not at your working place.</p>
+            <p className="mt-0.5">
+              {nearest
+                ? `Nearest: ${nearest.fence.kind === "home" ? "your home" : nearest.fence.label}, ${formatDistance(nearest.meters)} away (zone ${nearest.fence.radiusMeters} m).`
+                : "No office or home location is set for you yet."}{" "}
+              Clock in from the office or your approved home, or send a request for today; your admin reviews it.
+            </p>
+            {today.home?.status !== "Approved" ? (
+              <button type="button" onClick={onNeedHome} className="mt-1 text-xs font-semibold underline">
+                {today.home ? "Your home location is waiting for approval" : "Register your home location for work from home"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {gpsError ? (
           <p className="text-sm text-rose-600">{gpsError}</p>
         ) : !fix ? (
@@ -624,7 +664,7 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
           <ul className="space-y-1 text-sm">
             {fences.map((f) => (
               <li key={f.id}>
-                {f.kind === "home" ? "Home" : f.label}: <b>{distance(fix, f)} m</b> away (zone {f.radiusMeters} m)
+                {f.kind === "home" ? "Home" : f.label}: <b>{formatDistance(distance(fix, f))}</b> away (zone {f.radiusMeters} m)
               </li>
             ))}
             <li className={fix.accuracy > today.policy.maxGpsAccuracyMeters ? "text-rose-600" : "text-[var(--text-muted)]"}>
@@ -633,28 +673,50 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
             </li>
           </ul>
         )}
-        <div className="flex flex-wrap gap-2">
-          {[
-            ["auto", "Auto detect"],
-            ["WFO", "Office"],
-            ["WFH", "Work from home"],
-            ["Client Visit", "Client visit"],
-          ].map(([v, label]) => (
-            <Button key={v} size="sm" variant={mode === v ? "primary" : "secondary"} onClick={() => setMode(v)}>
-              {label}
-            </Button>
-          ))}
-        </div>
-        {mode === "WFH" && !today.home && <p className="text-sm text-amber-600">Register your home location once; after admin approval WFH clock-in is automatic.</p>}
-        {mode === "Client Visit" && (
-          <Field name="visitReason" title="Client / purpose of visit" type="textarea" value={reason} onChange={setReason} required help="Client visits are reviewed by your admin." />
+        {outside ? (
+          <>
+            <Field
+              name="outsideReason"
+              title="Why are you working from here today?"
+              type="textarea"
+              value={reason}
+              onChange={setReason}
+              required
+              help="At least 10 characters, e.g. client meeting at …, working from site …. Your admin reviews the request."
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={refresh}>Refresh location</Button>
+              <Button variant="danger" loading={busy} disabled={reason.trim().length < 10} onClick={() => submit(true)}>
+                <Send size={16} /> Request attendance
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["auto", "Auto detect"],
+                ["WFO", "Office"],
+                ["WFH", "Work from home"],
+                ["Client Visit", "Client visit"],
+              ].map(([v, label]) => (
+                <Button key={v} size="sm" variant={mode === v ? "primary" : "secondary"} onClick={() => setMode(v)}>
+                  {label}
+                </Button>
+              ))}
+            </div>
+            {mode === "WFH" && !today.home && <p className="text-sm text-amber-600">Register your home location once; after admin approval WFH clock-in is automatic.</p>}
+            {mode === "Client Visit" && (
+              <Field name="visitReason" title="Client / purpose of visit" type="textarea" value={reason} onChange={setReason} required help="Client visits are reviewed by your admin." />
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={refresh}>Refresh location</Button>
+              <Button loading={busy} disabled={!fix || (mode === "Client Visit" && reason.trim().length < 10)} onClick={() => submit()}>
+                <LogIn size={16} /> Clock in
+              </Button>
+            </div>
+          </>
         )}
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={refresh}>Refresh location</Button>
-          <Button loading={busy} disabled={!fix || (mode === "Client Visit" && reason.trim().length < 10)} onClick={submit}>
-            <LogIn size={16} /> Clock in
-          </Button>
-        </div>
       </div>
     </Modal>
   );
