@@ -89,7 +89,8 @@ export const navigationGroups = [
         icon: PhoneCall,
         permissions: ['calls.read']
       },
-      { label: 'Leads', path: '/app/leads', icon: Target, permission: 'leads.read' },
+      // The Leads number is new leads not opened yet; lead updates stay in the bell only.
+      { label: 'Leads', path: '/app/leads', icon: Target, permission: 'leads.read', badgeWhen: { moduleName: 'leads', eventKey: 'created' } },
       { label: 'Clients', path: '/app/clients', icon: Building2, permission: 'clients.read' },
       { label: 'Projects', path: '/app/projects', icon: BriefcaseBusiness, permission: 'projects.read' },
       { label: 'Quotations', path: '/app/quotations', icon: FileSignature, permission: 'leads.read' },

@@ -10,6 +10,7 @@ const NotificationContext = createContext(null);
 const toUnread = (row) => ({
   id: row.id,
   moduleName: row.moduleName || '',
+  eventKey: row.eventKey || '',
   entityId: String(row.entityId || ''),
   target: notificationTarget(row)
 });

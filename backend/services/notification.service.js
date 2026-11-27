@@ -241,14 +241,14 @@ async function markNotificationRead(userId, notificationId) {
 // count unread items per menu without loading whole rows.
 async function listUnreadSummary(userId, { limit = 2000 } = {}) {
   const { rows } = await query(
-    `SELECT id, module_name, entity_id, coalesce(nullif(route_path, ''), payload->>'routePath', '') AS route_path
+    `SELECT id, module_name, event_key, entity_id, coalesce(nullif(route_path, ''), payload->>'routePath', '') AS route_path
        FROM notifications
       WHERE user_id = $1 AND ${UNREAD_SQL}
       ORDER BY created_at DESC
       LIMIT $2`,
     [String(userId || ''), limit]
   );
-  return rows.map((row) => ({ id: row.id, moduleName: row.module_name, entityId: row.entity_id, routePath: row.route_path }));
+  return rows.map((row) => ({ id: row.id, moduleName: row.module_name, eventKey: row.event_key, entityId: row.entity_id, routePath: row.route_path }));
 }
 
 // Marks the given notifications of this user read (ids of other users are ignored).

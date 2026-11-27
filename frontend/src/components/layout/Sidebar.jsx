@@ -302,17 +302,19 @@ export function Sidebar({ open = false, onClose }) {
   // the same things, so an item shows the larger of the two instead of their sum.
   const groupsWithCounts = useMemo(() => {
     // Records, not notifications: five updates to one lead count as one lead.
-    const countFor = (paths) =>
+    // `when` (a menu item's badgeWhen) limits the count to matching notifications.
+    const countFor = (paths, when = null) =>
       new Set(
         unreadItems
           .filter((item) => paths.some((path) => belongsTo(item.target, path)))
+          .filter((item) => !when || Object.entries(when).every(([key, value]) => item[key] === value))
           .map((item) => recordKey(item))
       ).size;
     const pending = (key) => (menuCounts && Object.hasOwn(menuCounts, key) ? Number(menuCounts[key]) || 0 : null);
     const badge = (item) => {
       if (item.path === '/app/notifications') return unreadCount;
       const key = item.badgeFor || item.path;
-      const unreadHere = countFor([key]);
+      const unreadHere = countFor([key], item.badgeWhen);
       const waiting = pending(key);
       return waiting == null ? unreadHere : Math.max(waiting, unreadHere);
     };
