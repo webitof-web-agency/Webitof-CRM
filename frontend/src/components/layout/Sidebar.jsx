@@ -293,7 +293,7 @@ export function Sidebar({ open = false, onClose }) {
   const groupsWithCounts = useMemo(() => {
     const countFor = (paths) =>
       unreadTargets.filter((target) => paths.some((path) => belongsTo(target, path))).length;
-    const badge = (item) => (item.path === '/app/notifications' ? unreadCount : countFor([item.path]));
+    const badge = (item) => (item.path === '/app/notifications' ? unreadCount : countFor([item.badgeFor || item.path]));
     return visibleGroups.map((group) => ({
       ...group,
       items: group.items.map((item) =>

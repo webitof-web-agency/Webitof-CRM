@@ -160,6 +160,7 @@ async function run(user, db = null) {
             "Daily work report is missing",
             e.id,
             user.id,
+            { eventKey: "report_missing" },
           );
           result.notifications++;
         }
@@ -183,6 +184,7 @@ async function run(user, db = null) {
             "An HR date or document needs attention",
             e.id,
             user.id,
+            { eventKey: "hr_attention" },
           );
           result.notifications++;
         }

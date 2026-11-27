@@ -34,6 +34,8 @@ export function notificationTarget(item = {}) {
   if (!path.startsWith('/app')) return '';
   // "/app/leads/" (record id missing) becomes the list page.
   path = path.replace(/\/+(?=\?|$)/, '');
+  // Plain "/app/hrm" (older HRM notifications) is the overview, so the Overview sub-menu counts it.
+  if (path === '/app/hrm') return '/app/hrm/overview';
   const detail = path.match(/^\/app\/([a-z-]+)\/[^?]+/);
   if (detail && LIST_ONLY.has(detail[1])) return `/app/${detail[1]}`;
   return path;

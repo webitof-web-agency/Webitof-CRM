@@ -360,7 +360,7 @@ async function action(user, id, body, db = null) {
             [entry.calculation.adjustmentIds],
           );
         const e = person(entry);
-        await c.notify(tx, e.userId, "Payslip available", entry.id, user.id);
+        await c.notify(tx, e.userId, "Payslip available", entry.id, user.id, { eventKey: "payslip_available" });
       }
     await c.audit(tx, user, "payroll", id, action, run, saved, null, true);
     return saved;

@@ -380,6 +380,7 @@ async function request(user, body, id = null, db = null) {
       `${kind} request submitted`,
       saved.id,
       user.id,
+      { eventKey: `${kind}_request_submitted`, routePath: c.REQUEST_ROUTES[kind] },
     );
     return saved;
   }, db);
@@ -648,12 +649,15 @@ async function approveRequest(user, id, body, db = null) {
       updatedAt: new Date(),
     });
     await c.audit(tx, user, "requests", id, action, r, saved, e.id);
+    // The request is decided: the "submitted" notification is done for whoever had it.
+    await c.closeNotifications(tx, id, { exceptUserId: e.userId });
     await c.notify(
       tx,
       e.userId,
       `${r.kind} request ${status.toLowerCase()}`,
       id,
       user.id,
+      { eventKey: `${r.kind}_request_${status.toLowerCase()}`, routePath: c.REQUEST_ROUTES[r.kind] },
     );
     return saved;
   }, db);

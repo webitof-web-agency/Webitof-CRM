@@ -74,7 +74,8 @@ export const navigationGroups = [
         icon: ListChecks,
         permissions: ['followups.view_own', 'followups.view_team', 'followups.view_all'],
         children: [
-          { label: 'Overview', path: '/app/follow-ups?view=today', icon: Clock3 },
+          // badgeFor: which notifications this query-view counts (due reminders open the overview).
+          { label: 'Overview', path: '/app/follow-ups?view=today', icon: Clock3, badgeFor: '/app/follow-ups' },
           { label: 'All Follow-ups', path: '/app/follow-ups?view=list', icon: LayoutList },
           { label: 'Workload', path: '/app/follow-ups?view=workload', icon: UsersRound },
           { label: 'Completed', path: '/app/follow-ups?view=completed', icon: CheckCircle2 },

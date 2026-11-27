@@ -200,6 +200,34 @@ function afterCommit(db, hook) {
       .then(hook)
       .catch((e) => console.error("HRM side effect failed:", e.message));
 }
+// Which HRM page a notification opens (and so which sidebar sub-menu counts it) when the caller
+// gives no routePath. Employee-side events open My day, where the employee acts on them.
+const ROUTE_BY_EVENT = {
+  slot_due: "/app/hrm/my-day",
+  slot_missed: "/app/hrm/my-day",
+  lunch_due: "/app/hrm/my-day",
+  lunch_over: "/app/hrm/my-day",
+  auto_checkout: "/app/hrm/my-day",
+  geofence_exit: "/app/hrm/my-day",
+  force_checkout: "/app/hrm/my-day",
+  hrm_alert_explain: "/app/hrm/my-day",
+  hrm_warning: "/app/hrm/my-day",
+  home_geofence_reviewed: "/app/hrm/my-day",
+  attendance_override: "/app/hrm/attendance",
+  auto_absent: "/app/hrm/attendance",
+  work_report_admin_edit: "/app/hrm/work-reports",
+  report_missing: "/app/hrm/work-reports",
+  hr_attention: "/app/hrm/documents",
+  payslip_available: "/app/hrm/payroll",
+};
+// hrm_requests.kind → the page that lists that kind of request.
+const REQUEST_ROUTES = {
+  leave: "/app/hrm/leave",
+  regularization: "/app/hrm/regularization",
+  reimbursement: "/app/hrm/reimbursement",
+  resignation: "/app/hrm/resignation",
+  helpdesk: "/app/hrm/helpdesk",
+};
 async function notify(db, userId, title, entityId, actorId, options = {}) {
   if (!userId) return;
   const message = options.message || "Open HRM to view this update.";
@@ -214,7 +242,7 @@ async function notify(db, userId, title, entityId, actorId, options = {}) {
     message,
     severity: options.severity || "info",
     actorUserId: actorId,
-    routePath: options.routePath || "/app/hrm",
+    routePath: options.routePath || ROUTE_BY_EVENT[options.eventKey] || "/app/hrm",
     channels: JSON.stringify(options.push === false ? ["inApp"] : ["inApp", "push"]),
     payload: JSON.stringify(options.data || {}),
   });
@@ -360,6 +388,7 @@ module.exports = {
   notify,
   notifyReviewers,
   closeNotifications,
+  REQUEST_ROUTES,
   reviewers,
   afterCommit,
   transaction,

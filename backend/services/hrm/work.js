@@ -331,12 +331,15 @@ async function reportAction(user, id, body, db = null) {
             ])
           ).rows[0]?.user_id
         : e.userId;
+    // Reviewed: the manager's "submitted" notification about this report is done.
+    if (action !== "submit") await c.closeNotifications(tx, id, { exceptUserId: e.userId });
     await c.notify(
       tx,
       recipient,
       `Work report ${status.toLowerCase()}`,
       id,
       user.id,
+      { eventKey: `work_report_${action}`, routePath: "/app/hrm/work-reports" },
     );
     return saved;
   }, db);

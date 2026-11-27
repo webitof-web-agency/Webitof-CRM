@@ -474,6 +474,7 @@ async function save(user, body, id = null, db = null) {
         "Employee profile updated",
         saved.id,
         user.id,
+        { eventKey: "employee_profile_updated", routePath: `/app/hrm/employees/${saved.id}` },
       );
     }
     return publicEmployee(saved);
