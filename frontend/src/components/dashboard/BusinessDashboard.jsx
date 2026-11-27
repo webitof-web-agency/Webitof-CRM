@@ -59,9 +59,23 @@ function when(iso, withTime = true) {
   if (Number.isNaN(d.getTime())) return String(iso);
   return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', ...(withTime ? { hour: 'numeric', minute: '2-digit' } : {}), timeZone: 'Asia/Kolkata' });
 }
-function greeting() {
-  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: 'Asia/Kolkata' }).format(new Date()));
-  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+// By the viewer's clock: morning 5–12, afternoon 12–17, evening 17–22, night 22–5.
+export function greeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return 'Good morning';
+  if (hour >= 12 && hour < 17) return 'Good afternoon';
+  if (hour >= 17 && hour < 22) return 'Good evening';
+  return 'Good night';
+}
+
+// Re-reads the clock every minute so the greeting changes while the page stays open.
+function useGreeting() {
+  const [text, setText] = useState(() => greeting());
+  useEffect(() => {
+    const id = setInterval(() => setText(greeting()), 60000);
+    return () => clearInterval(id);
+  }, []);
+  return text;
 }
 
 function Panel({ title, icon: Icon, to, linkLabel = 'Open', action, className = '', children }) {
@@ -139,6 +153,7 @@ const PERIOD_SHORT = { today: 'Today', week: 'Week', month: 'Month', quarter: 'Q
 // ─── Hero: greeting, period, health score ──────────────────────────────────────
 function Hero({ data, period, setPeriod, loading, onRefresh, compact, onDigest, sending }) {
   const { user } = useAuth();
+  const hello = useGreeting();
   const health = data.health;
   const options = data.period?.options || {};
   return (
@@ -151,7 +166,7 @@ function Hero({ data, period, setPeriod, loading, onRefresh, compact, onDigest, 
             {new Date(`${data.today}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
           <h1 className="mt-0.5 text-2xl font-bold tracking-tight">
-            {compact ? 'Business' : `${greeting()}${user?.fullName ? `, ${user.fullName.split(' ')[0]}` : ''}`}
+            {compact ? 'Business' : `${hello}${user?.fullName ? `, ${user.fullName.split(' ')[0]}` : ''}`}
           </h1>
           <p className="text-xs text-white/80">
             {data.period?.label} · compared with {data.period?.compareLabel} · refreshes every 2 minutes
