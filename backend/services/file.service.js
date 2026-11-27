@@ -1,11 +1,10 @@
 // Upload pipeline shared by every module: type allowlist, size limit, storage key,
 // active storage provider, file_assets row. Reads go through each file's own provider.
 const path = require('path');
-const { randomUUID } = require('crypto');
 const fileAssetModel = require('../models/fileAsset.model');
 const storage = require('./storage/storage.service');
-const { buildFolderPath, isSiteModule } = require('../utils/uploadPath');
-const { resolveEntityLabel } = require('./storage/entityLabel.service');
+const { buildFolderPath, isRecordFolderSection, isSiteModule, istParts, sectionFor } = require('../utils/uploadPath');
+const { resolveEntityInfo } = require('./storage/entityLabel.service');
 const { createId } = require('../utils/format');
 
 // Extension → stored and served MIME type. The browser's Content-Type is never trusted,
@@ -68,16 +67,6 @@ function cleanOriginalName(name) {
   return path.basename(String(name || 'file')).replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 180) || 'file';
 }
 
-function buildStoredName(originalName, extension) {
-  const base = path.basename(originalName, path.extname(originalName))
-    .replace(/[^A-Za-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 60)
-    .toLowerCase() || 'file';
-  const unique = `${Date.now().toString(36)}${randomUUID().replace(/-/g, '').slice(0, 4)}`;
-  return `${base}-${unique}${extension}`;
-}
-
 // "Aadhaar Card - Mallika Paik" -> "aadhaar-card-mallika-paik".
 function slugFileBase(value) {
   return String(value || '')
@@ -90,20 +79,54 @@ function slugFileBase(value) {
     .replace(/-+$/, '');
 }
 
+function dbExec(dbClient) {
+  return dbClient?.query ? dbClient : require('../config/db');
+}
+
 async function storedNameTaken(folderPath, storedName, dbClient) {
-  const exec = dbClient?.query ? dbClient : require('../config/db');
-  const result = await exec.query(
-    'select 1 from file_assets where folder_key = $1 and lower(stored_name) = lower($2) limit 1',
-    [folderPath, storedName]
-  );
-  return result.rowCount > 0;
+  try {
+    const result = await dbExec(dbClient).query(
+      'select 1 from file_assets where folder_key = $1 and lower(stored_name) = lower($2) limit 1',
+      [folderPath, storedName]
+    );
+    return result.rowCount > 0;
+  } catch {
+    // Without the check the local provider still refuses to overwrite (EEXIST) and Drive keeps
+    // same-named files apart by id, so nothing is lost; the name just may repeat.
+    return false;
+  }
+}
+
+// "Signed Agreement (final).pdf" uploaded on 27 Nov -> "2026-11-27_signed-agreement-final"; call
+// recordings also get the time: "2026-11-27_10-32_call-9876543210".
+function datedFileBase(originalName, moduleName, date = new Date()) {
+  const parts = istParts(date);
+  const base = slugFileBase(path.basename(originalName, path.extname(originalName))) || 'file';
+  const prefix = sectionFor(moduleName) === 'calls' ? `${parts.date}_${parts.time}` : parts.date;
+  return `${prefix}_${base}`.slice(0, 120);
+}
+
+// The folder of this record's first upload in the current layout: a record renamed later keeps
+// all its files in one place instead of starting a second folder.
+async function existingRecordFolder(moduleName, entityId, computedFolder, dbClient) {
+  if (!entityId || !isRecordFolderSection(moduleName)) return '';
+  const top = computedFolder.split('/')[0];
+  try {
+    const result = await dbExec(dbClient).query(
+      'select folder_key from file_assets where module_name = $1 and entity_id = $2 and folder_key like $3 and archived_at is null order by created_at limit 1',
+      [moduleName, entityId, `${top}/%`]
+    );
+    return result.rows[0]?.folder_key || '';
+  } catch {
+    return '';
+  }
 }
 
 // Readable, stable names ("aadhaar-card-mallika-paik.pdf"). A name already used in the folder
 // gets "-2", "-3"...: the database check covers both providers, and EEXIST covers a file left
 // on disk without a record (the local provider never overwrites).
-async function uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient) {
-  const base = slugFileBase(fileBaseName) || 'file';
+async function uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient, { slug = true } = {}) {
+  const base = (slug ? slugFileBase(fileBaseName) : fileBaseName) || 'file';
   for (let n = 1; n <= 50; n += 1) {
     const candidate = `${base}${n > 1 ? `-${n}` : ''}${extension}`;
     if (await storedNameTaken(folderPath, candidate, dbClient)) continue;
@@ -160,19 +183,16 @@ async function saveUpload({
   }
   const cleanName = cleanOriginalName(originalName);
   const { extension, mimeType } = resolveType(cleanName, types);
+  const now = new Date();
   let folderPath = fixedFolder;
   if (!folderPath) {
-    const entityLabel = entityId && !isSiteModule(moduleName) ? await resolveEntityLabel(moduleName, entityId) : null;
-    folderPath = buildFolderPath({ moduleName, entityId, entityLabel });
+    const entity = entityId && !isSiteModule(moduleName) ? await resolveEntityInfo(moduleName, entityId) : null;
+    folderPath = buildFolderPath({ moduleName, entityId, entity, date: now });
+    folderPath = (await existingRecordFolder(moduleName, entityId, folderPath, dbClient)) || folderPath;
   }
-  let storedName;
-  let locator;
-  if (fileBaseName) {
-    ({ storedName, locator } = await uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient));
-  } else {
-    storedName = buildStoredName(cleanName, extension);
-    locator = await storage.upload(buffer, `${folderPath}/${storedName}`, { mimeType });
-  }
+  const { storedName, locator } = fileBaseName
+    ? await uploadWithReadableName(buffer, folderPath, fileBaseName, extension, mimeType, dbClient)
+    : await uploadWithReadableName(buffer, folderPath, datedFileBase(cleanName, moduleName, now), extension, mimeType, dbClient, { slug: false });
 
   try {
     const record = await fileAssetModel.create({
@@ -254,6 +274,7 @@ module.exports = {
   AUDIO_TYPES,
   DOCUMENT_TYPES,
   archiveFile,
+  datedFileBase,
   findByRef,
   isInlineMime,
   locatorOf,

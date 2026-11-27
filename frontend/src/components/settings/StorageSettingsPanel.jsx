@@ -35,6 +35,18 @@ const BACKUP_KINDS = {
   'pre-restore': { label: 'Before restore', tone: 'warning' }
 };
 
+// A Drive folder: a link that opens it in Drive once it exists, else just its name.
+function FolderLink({ folder, strong = false }) {
+  if (!folder?.name) return null;
+  const weight = strong ? 'font-medium' : '';
+  if (!folder.link) return <span className={`text-slate-500 ${weight}`}>{folder.name}</span>;
+  return (
+    <a href={folder.link} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 text-[var(--primary)] hover:underline ${weight}`}>
+      {folder.name} <ExternalLink size={12} />
+    </a>
+  );
+}
+
 function SectionHeader({ icon: Icon, title, description }) {
   return (
     <div className="mb-3 border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -139,7 +151,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
       const { data } = await api.googleDrive.check(token);
       setCheckResult({
         ok: true,
-        message: `Connected to ${data.accountEmail || 'Google Drive'}. Folders ready: "${data.uploadsFolder?.name}" and "${data.backupFolder?.name}".`
+        message: `Connected to ${data.accountEmail || 'Google Drive'}. Folders ready in "${data.rootFolder?.name}": ${(data.categoryFolders || []).map((folder) => folder.name).join(', ')} and ${data.backupFolder?.name}.`
       });
       loadBackups();
     } catch (error) {
@@ -325,17 +337,13 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
             <div className="mt-1 text-slate-800 dark:text-slate-100">{formatDate(drive.connectedAt)}</div>
           </div>
           <div>
-            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Folders</div>
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Folders in Drive</div>
             <div className="mt-1 flex flex-col gap-1">
-              {[drive.uploadsFolder, drive.backupFolder].map((folder) => (
-                folder?.link ? (
-                  <a key={folder.name} href={folder.link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[var(--primary)] hover:underline">
-                    {folder.name} <ExternalLink size={12} />
-                  </a>
-                ) : (
-                  <span key={folder?.name} className="text-slate-500">{folder?.name}</span>
-                )
-              ))}
+              <FolderLink folder={drive.rootFolder} strong />
+              <div className="ml-3 flex flex-col gap-0.5 border-l border-slate-200 pl-2 text-xs dark:border-slate-700">
+                {(drive.categoryFolders || []).map((folder) => <FolderLink key={folder.name} folder={folder} />)}
+                <FolderLink folder={drive.backupFolder} />
+              </div>
             </div>
           </div>
         </div>

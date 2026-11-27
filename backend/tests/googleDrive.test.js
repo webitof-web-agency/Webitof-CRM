@@ -56,7 +56,7 @@ let memory;
 let driveFileCount;
 
 // Drive credentials and folders are read from the env only; each test sets what it needs.
-const ENV_ONLY_VARS = ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GDRIVE_PARENT_FOLDER_ID', 'GDRIVE_UPLOADS_FOLDER_NAME', 'GDRIVE_BACKUP_FOLDER_NAME', 'GDRIVE_ALLOWED_EMAIL', 'GOOGLE_OAUTH_REDIRECT_URI'];
+const ENV_ONLY_VARS = ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GDRIVE_PARENT_FOLDER_ID', 'GDRIVE_ROOT_FOLDER_NAME', 'GDRIVE_UPLOADS_FOLDER_NAME', 'GDRIVE_BACKUP_FOLDER_NAME', 'GDRIVE_ALLOWED_EMAIL', 'GOOGLE_OAUTH_REDIRECT_URI'];
 
 function setup(options) {
   for (const name of ENV_ONLY_VARS) delete process.env[name];
@@ -114,12 +114,12 @@ test('Check connection applies the env refresh token encrypted, creates both fol
   process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'refresh-1';
   const result = await connection.checkConnection({ userId: 'user_admin' });
   assert.equal(result.accountEmail, 'owner@example.com');
-  assert.match(result.uploadsFolder.link, /^https:\/\/drive\.google\.com\/drive\/folders\//);
+  assert.match(result.rootFolder.link, /^https:\/\/drive\.google\.com\/drive\/folders\//);
 
   const raw = JSON.stringify(Object.fromEntries(memory.data));
   assert.ok(!raw.includes('refresh-1'), 'refresh token must not be stored in plain text');
-  assert.ok(fake.findByName('Webitof Backups'));
-  assert.ok(fake.findByName('Webitof Uploads'));
+  assert.equal(fake.pathOf(fake.findByName('Database')), 'Webitof ERP Data/99 Backups/Database');
+  assert.equal(fake.pathOf(fake.findByName('01 CRM')), 'Webitof ERP Data/01 CRM');
 
   const status = await connection.getStatus();
   assert.equal(status.connected, true);
@@ -304,7 +304,7 @@ test('backups are filed in year/month/date folders; pruning removes the folders 
   assert.equal(result.status, 'SUCCESS');
   assert.match(
     fake.pathOf(fake.files.get(result.fileId)),
-    /^Webitof Backups\/\d{4}\/\d{2}-[A-Z][a-z]{2}\/\d{4}-\d{2}-\d{2}\/crm-backup-crm-/
+    /^Webitof ERP Data\/99 Backups\/Database\/\d{4}\/\d{2}-[A-Z][a-z]{2}\/\d{4}-\d{2}-\d{2}\/crm-backup-crm-/
   );
   assert.equal(result.removed, 1);
   assert.ok(!fake.files.has(old.id));
@@ -498,11 +498,11 @@ test('downloading a Drive file outside the backup list returns 404', async () =>
   assert.equal(Buffer.from(await response.arrayBuffer()).toString(), 'PGDMP fake dump');
 });
 
-test('Drive storage mirrors the key folders inside Uploads, then exists / stream / delete', async () => {
+test('Drive storage mirrors the key folders inside Webitof ERP Data, then exists / stream / delete', async () => {
   setup();
   await connect();
   const key = `${buildFolderPath({ moduleName: 'leads', entityId: 'lead_abc', date: new Date('2026-10-19T06:00:00Z') })}/quote-x.pdf`;
-  assert.equal(key, 'CRM/Leads/lead_abc/quote-x.pdf');
+  assert.equal(key, '01 CRM/Leads/lead_abc/quote-x.pdf');
 
   const locators = await Promise.all([
     gdriveProvider.upload(Buffer.from('one'), key, { mimeType: 'application/pdf' }),
@@ -510,7 +510,9 @@ test('Drive storage mirrors the key folders inside Uploads, then exists / stream
   ]);
   const recordFolders = Array.from(fake.files.values()).filter((file) => file.name === 'lead_abc');
   assert.equal(recordFolders.length, 1, 'concurrent uploads must not create duplicate folders');
-  assert.equal(fake.pathOf(fake.files.get(locators[0].storageKey)), 'Webitof Uploads/CRM/Leads/lead_abc/quote-x.pdf');
+  assert.equal(fake.pathOf(fake.files.get(locators[0].storageKey)), 'Webitof ERP Data/01 CRM/Leads/lead_abc/quote-x.pdf');
+  const crmFolders = Array.from(fake.files.values()).filter((file) => file.name === '01 CRM');
+  assert.equal(crmFolders.length, 1, 'the category folder made at connect is reused, not duplicated');
 
   assert.equal(await gdriveProvider.exists(locators[0]), true);
   assert.equal((await gdriveProvider.readBuffer(locators[0])).toString(), 'one');
@@ -576,8 +578,8 @@ test('the upload pipeline enforces the allowlist and records the locator', async
     assert.equal(saved.viewUrl, '/files/file_test1/view');
     assert.equal(created[0].mimeType, 'application/pdf');
     assert.equal(created[0].storageProvider, 'local');
-    assert.match(created[0].storedName, /^signed-quote-final-[a-z0-9]+\.pdf$/);
-    assert.match(created[0].storageKey, /^CRM\/Leads\/lead_abc\/signed-quote-final-/);
+    assert.match(created[0].storedName, /^\d{4}-\d{2}-\d{2}_signed-quote-final\.pdf$/);
+    assert.equal(created[0].storageKey, `01 CRM/Leads/lead_abc/${created[0].storedName}`);
     assert.equal(
       (await localProvider.readBuffer({ storageKey: created[0].storageKey })).toString(),
       '%PDF-1.4'
@@ -600,19 +602,32 @@ test('local storage refuses keys outside its root and serves byte ranges', async
   assert.equal(parseRange('bytes=20-30', 10), null);
 });
 
-test('uploads are filed by category/section/record; without a record by year/month in India time', () => {
-  assert.equal(buildFolderPath({ moduleName: 'settings' }), 'Site');
-  assert.equal(buildFolderPath({ moduleName: 'call', entityId: 'call_1' }), 'CRM/Calls/call_1');
-  assert.equal(buildFolderPath({ moduleName: 'invoices', entityId: 'inv_1' }), 'Finance/Invoices/inv_1');
-  assert.equal(buildFolderPath({ moduleName: 'outsourcing', entityId: 'out_1' }), 'Finance/Outsourcing/out_1');
-  assert.equal(buildFolderPath({ moduleName: 'lead-commissions', entityId: 'lc_1' }), 'Finance/Lead-Commissions/lc_1');
-  assert.equal(buildFolderPath({ moduleName: 'amc', entityId: 'amc_1' }), 'Services/AMC/amc_1');
-  assert.equal(buildFolderPath({ moduleName: 'renewals', entityId: 'rn_1' }), 'Services/Renewals/rn_1');
-  assert.equal(buildFolderPath({ moduleName: 'avatar', entityId: 'user_1' }), 'Users/user_1');
-  assert.equal(buildFolderPath({ moduleName: 'something-new', entityId: 'x_1' }), 'General/Something-New/x_1');
+test('uploads are filed by numbered category/section/record; finance by FY and month; calls by year/month', () => {
+  const NOV = new Date('2026-11-09T06:00:00Z');
+  assert.equal(buildFolderPath({ moduleName: 'settings' }), '06 Company');
+  // Recordings go by date even when they name a call record.
+  assert.equal(buildFolderPath({ moduleName: 'call', entityId: 'call_1', date: NOV }), '01 CRM/Calls/2026/11-Nov');
+  assert.equal(buildFolderPath({ moduleName: 'invoices', entityId: 'inv_1', date: NOV }), '02 Finance/Invoices/FY 2026-27/11-Nov/inv_1');
+  // The record's own date wins over the upload date: a March invoice stays in FY 2025-26.
+  assert.equal(
+    buildFolderPath({ moduleName: 'invoices', entityId: 'inv_1', entity: { number: 'INV-2026-0012', name: 'Acme', date: '2026-03-20' }, date: NOV }),
+    '02 Finance/Invoices/FY 2025-26/03-Mar/INV-2026-0012 - Acme'
+  );
+  assert.equal(buildFolderPath({ moduleName: 'outsourcing', entityId: 'out_1', date: NOV }), '02 Finance/Outsourcing/FY 2026-27/11-Nov/out_1');
+  assert.equal(buildFolderPath({ moduleName: 'lead-commissions', entityId: 'lc_1', date: NOV }), '02 Finance/Lead Commissions/FY 2026-27/11-Nov/lc_1');
+  // AMC and renewals: one folder per client.
+  assert.equal(
+    buildFolderPath({ moduleName: 'amc', entityId: 'amc_1', entity: { name: 'Yearly AMC', clientId: 'client_c91d', clientName: 'Acme Pvt Ltd' } }),
+    '03 Services/AMC/Acme Pvt Ltd (c91d)'
+  );
+  assert.equal(buildFolderPath({ moduleName: 'renewals', entityId: 'rn_1', date: NOV }), '03 Services/Renewals/rn_1');
+  assert.equal(buildFolderPath({ moduleName: 'avatar', entityId: 'user_1' }), '05 Users/user_1');
+  assert.equal(buildFolderPath({ moduleName: 'something-new', entityId: 'x_1' }), '07 General/Something New/x_1');
   // 2026-10-31T20:00Z is already 1 November in India.
-  assert.equal(buildFolderPath({ moduleName: 'quotation-master', date: new Date('2026-10-31T20:00:00Z') }), 'CRM/Quotations/2026/11-Nov');
-  assert.equal(buildFolderPath({ moduleName: 'general', date: new Date('2026-10-01T00:00:00Z') }), 'General/Files/2026/10-Oct');
+  assert.equal(buildFolderPath({ moduleName: 'quotation-master', date: new Date('2026-10-31T20:00:00Z') }), '01 CRM/Quotations/FY 2026-27/11-Nov');
+  // January to March belong to the financial year that started the April before.
+  assert.equal(buildFolderPath({ moduleName: 'quotation', date: new Date('2027-02-10T06:00:00Z') }), '01 CRM/Quotations/FY 2026-27/02-Feb');
+  assert.equal(buildFolderPath({ moduleName: 'general', date: new Date('2026-10-01T00:00:00Z') }), '07 General/Files/2026/10-Oct');
 });
 
 test('session auth refuses OAuth state and other purpose-bound tokens', async () => {
@@ -658,7 +673,7 @@ test('Drive credentials and folders come from the env only and cannot be set fro
     { clientSecret: 'secret-from-settings' },
     { refreshToken: 'refresh-from-settings' },
     { parentFolderId: 'PARENT_1' },
-    { uploadsFolderName: 'CRM Uploads' },
+    { rootFolderName: 'CRM Data' },
     { backupFolderName: 'CRM Backups' },
     { clientId: '' }
   ]) {
@@ -674,8 +689,9 @@ test('Drive credentials and folders come from the env only and cannot be set fro
   assert.equal(byKey.clientId.value, 'client-id');
   assert.equal(byKey.clientId.name, 'GOOGLE_OAUTH_CLIENT_ID');
   assert.equal(byKey.parentFolderId.value, 'PARENT_ENV');
-  assert.equal(byKey.uploadsFolderName.value, 'Webitof Uploads');
-  assert.equal(byKey.uploadsFolderName.set, false);
+  assert.equal(byKey.rootFolderName.value, 'Webitof ERP Data');
+  assert.equal(byKey.rootFolderName.set, false);
+  assert.equal(byKey.backupFolderName.value, '99 Backups');
   assert.equal(byKey.clientSecret.set, true);
   assert.equal(byKey.refreshToken.set, false);
   assert.ok(!JSON.stringify(view).includes('client-secret'), 'secret values never reach the browser');
@@ -715,10 +731,43 @@ test('an env refresh token connects once', async () => {
 test('renaming a folder in the env renames the existing Drive folder', async () => {
   setup();
   await connect();
-  const id = await connection.ensureFolder('backup');
+  const backupsId = await connection.ensureFolder('backupsRoot');
+  const rootId = await connection.ensureFolder('root');
   process.env.GDRIVE_BACKUP_FOLDER_NAME = 'Renamed Backups';
-  assert.equal(await connection.ensureFolder('backup'), id);
-  assert.equal(fake.files.get(id).name, 'Renamed Backups');
+  process.env.GDRIVE_ROOT_FOLDER_NAME = 'Webitof Data';
+  assert.equal(await connection.ensureFolder('backupsRoot'), backupsId);
+  assert.equal(await connection.ensureFolder('root'), rootId);
+  assert.equal(fake.files.get(backupsId).name, 'Renamed Backups');
+  assert.equal(fake.files.get(rootId).name, 'Webitof Data');
+});
+
+test('connecting builds the whole tree once inside the parent folder', async () => {
+  setup();
+  const parent = fake.addFile({ name: 'My ERP', mimeType: 'application/vnd.google-apps.folder' });
+  process.env.GDRIVE_PARENT_FOLDER_ID = parent.id;
+  _resetDriveSettingsForTests();
+  await connect();
+  await connection.checkConnection();
+  const folders = Array.from(fake.files.values()).filter((file) => file.mimeType === 'application/vnd.google-apps.folder');
+  const paths = folders.map((folder) => fake.pathOf(folder)).sort();
+  assert.deepEqual(paths, [
+    'My ERP',
+    'My ERP/Webitof ERP Data',
+    'My ERP/Webitof ERP Data/01 CRM',
+    'My ERP/Webitof ERP Data/02 Finance',
+    'My ERP/Webitof ERP Data/03 Services',
+    'My ERP/Webitof ERP Data/04 HRM',
+    'My ERP/Webitof ERP Data/05 Users',
+    'My ERP/Webitof ERP Data/06 Company',
+    'My ERP/Webitof ERP Data/07 General',
+    'My ERP/Webitof ERP Data/99 Backups',
+    'My ERP/Webitof ERP Data/99 Backups/Database'
+  ], 'checking again does not duplicate anything');
+  const status = await connection.getStatus();
+  assert.equal(status.rootFolder.name, 'Webitof ERP Data');
+  assert.equal(status.categoryFolders.length, 7);
+  assert.ok(status.categoryFolders.every((folder) => folder.link.startsWith('https://drive.google.com/drive/folders/')));
+  assert.equal(status.backupFolder.name, '99 Backups/Database');
 });
 
 test('the backup hour saved in Settings drives the schedule', async () => {
@@ -790,7 +839,7 @@ test('the Google callback stores the refresh token encrypted and connects the fo
   assert.equal(state.connectedByUserId, 'user_admin');
   const raw = JSON.stringify(Object.fromEntries(memory.data));
   assert.ok(!raw.includes('refresh-1'), 'refresh token must not be stored in plain text');
-  assert.ok(fake.findByName('Webitof Uploads') && fake.findByName('Webitof Backups'));
+  assert.ok(fake.findByName('Webitof ERP Data') && fake.findByName('99 Backups') && fake.findByName('07 General'));
   const status = await connection.getStatus();
   assert.equal(status.connected, true);
   assert.equal(status.needsReconnect, false);

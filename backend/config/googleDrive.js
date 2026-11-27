@@ -4,8 +4,12 @@ const { getSetting } = require('../models/systemSetting.model');
 // Full Drive scope: the parent folder (GDRIVE_PARENT_FOLDER_ID) is made by hand in Drive, and the
 // narrower drive.file scope only sees folders this app created itself.
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
-const DEFAULT_BACKUP_FOLDER_NAME = 'Webitof Backups';
-const DEFAULT_UPLOADS_FOLDER_NAME = 'Webitof Uploads';
+// Everything the ERP keeps in Drive sits in one main folder (inside GDRIVE_PARENT_FOLDER_ID):
+//   Webitof ERP Data/01 CRM ... 07 General   uploads (utils/uploadPath.js)
+//   Webitof ERP Data/99 Backups/Database/... daily database backups
+const DEFAULT_ROOT_FOLDER_NAME = 'Webitof ERP Data';
+const DEFAULT_BACKUP_FOLDER_NAME = '99 Backups';
+const BACKUP_DATABASE_FOLDER_NAME = 'Database';
 const DEFAULT_BACKUP_KEEP = 15;
 const DEFAULT_BACKUP_HOUR_IST = 2;
 const SETTINGS_KEY = 'google_drive_config';
@@ -20,7 +24,7 @@ const FIELDS = {
   clientSecret: { env: ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_DRIVE_CLIENT_SECRET'], label: 'Client secret', secret: true, envOnly: true },
   refreshToken: { env: ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GOOGLE_DRIVE_REFRESH_TOKEN'], label: 'Refresh token', secret: true, envOnly: true },
   parentFolderId: { env: ['GDRIVE_PARENT_FOLDER_ID'], label: 'Parent folder', envOnly: true },
-  uploadsFolderName: { env: ['GDRIVE_UPLOADS_FOLDER_NAME'], label: 'Uploads folder name', envOnly: true },
+  rootFolderName: { env: ['GDRIVE_ROOT_FOLDER_NAME'], label: 'Main folder name', envOnly: true },
   backupFolderName: { env: ['GDRIVE_BACKUP_FOLDER_NAME'], label: 'Backup folder name', envOnly: true },
   backupKeep: { env: ['GDRIVE_BACKUP_KEEP'], label: 'Backups to keep' },
   backupHourIst: { env: ['GDRIVE_BACKUP_HOUR_IST'], label: 'Backup hour' }
@@ -130,8 +134,9 @@ function getGoogleDriveConfig() {
     // Must be listed under "Authorized redirect URIs" of the OAuth client.
     redirectUri: env('GOOGLE_OAUTH_REDIRECT_URI'),
     parentFolderId: parseFolderId(raw('parentFolderId')),
+    rootFolderName: raw('rootFolderName') || DEFAULT_ROOT_FOLDER_NAME,
     backupFolderName: raw('backupFolderName') || DEFAULT_BACKUP_FOLDER_NAME,
-    uploadsFolderName: raw('uploadsFolderName') || DEFAULT_UPLOADS_FOLDER_NAME,
+    backupDatabaseFolderName: BACKUP_DATABASE_FOLDER_NAME,
     backupKeep: parseKeep(raw('backupKeep')),
     backupHourIst: parseHour(raw('backupHourIst')),
     // Server-only: a path to run or a database to dump is never taken from the browser.

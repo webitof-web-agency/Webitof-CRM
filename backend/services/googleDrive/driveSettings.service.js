@@ -47,7 +47,7 @@ async function getConfigView() {
       // Optional fallback: the token normally comes from "Connect Google Drive" and lives encrypted in the database.
       { key: 'refreshToken', name: envNameOf('refreshToken'), label: 'Refresh token (fallback)', set: isSet('refreshToken'), secret: true, optional: true },
       { key: 'parentFolderId', name: envNameOf('parentFolderId'), label: FIELDS.parentFolderId.label, set: isSet('parentFolderId'), value: config.parentFolderId, emptyMeans: 'My Drive (root)' },
-      { key: 'uploadsFolderName', name: envNameOf('uploadsFolderName'), label: FIELDS.uploadsFolderName.label, set: isSet('uploadsFolderName'), value: config.uploadsFolderName },
+      { key: 'rootFolderName', name: envNameOf('rootFolderName'), label: FIELDS.rootFolderName.label, set: isSet('rootFolderName'), value: config.rootFolderName },
       { key: 'backupFolderName', name: envNameOf('backupFolderName'), label: FIELDS.backupFolderName.label, set: isSet('backupFolderName'), value: config.backupFolderName }
     ],
     values: {
@@ -89,8 +89,9 @@ async function saveConfig(patch = {}) {
   }
 
   const stored = await getSetting(SETTINGS_KEY, {});
-  // Drops credentials or folders saved by older versions, so nothing secret lingers in the database.
-  const next = Object.fromEntries(Object.entries(stored).filter(([field]) => !FIELDS[field]?.envOnly));
+  // Keeps only the editable settings: credentials or folders saved by older versions (also fields
+  // that no longer exist, like uploadsFolderName) are dropped, so nothing lingers in the database.
+  const next = Object.fromEntries(Object.entries(stored).filter(([field]) => EDITABLE_FIELDS.includes(field)));
 
   for (const field of EDITABLE_FIELDS) {
     if (!given(field)) continue;

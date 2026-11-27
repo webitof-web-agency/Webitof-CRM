@@ -7,7 +7,7 @@ const settingsModel = require('../models/settings.model');
 const { hasPermission } = require('../middlewares/auth');
 const { canAccessLead, userHasUnrestrictedLeadAccess } = require('../services/leadPipelineAccess.service');
 const { query } = require('../config/db');
-const { CATEGORY_FOLDERS } = require('../utils/uploadPath');
+const { CATEGORY_FOLDERS, LEGACY_CATEGORY_FOLDERS } = require('../utils/uploadPath');
 
 const FILE_ID_PATTERN = /^file_[a-z0-9]+$/i;
 // Avatars, branding and quotation images are embedded in pages without a session (login, public invoice).
@@ -86,13 +86,14 @@ async function list(req, res, next) {
   }
 }
 
-// Current layout (CRM/..., Finance/..., HRM/..., Site) and the earlier <year>/<mon>/..., site and
+// Current layout (01 CRM/..., 02 Finance/..., 06 Company ...), the previous one (CRM/..., Site) and the earlier <year>/<mon>/..., site and
 // hrm/employees/... keys are shown as they are. Uploads made before storage providers sit in Drive
 // folders outside any layout; they are shown under "earlier-uploads/<module>".
 function virtualFolderOf(record) {
   const key = String(record.folderKey || '');
   const top = key.split('/')[0];
-  if (key === 'site' || /^\d{4}\//.test(key) || key.startsWith('hrm/employees/') || CATEGORY_FOLDERS.includes(top)) return key;
+  if (key === 'site' || /^\d{4}\//.test(key) || key.startsWith('hrm/employees/')
+    || CATEGORY_FOLDERS.includes(top) || LEGACY_CATEGORY_FOLDERS.includes(top)) return key;
   const moduleName = String(record.moduleName || 'general').toLowerCase().replace(/[^a-z0-9_-]+/g, '-') || 'general';
   return `${EARLIER_UPLOADS_FOLDER}/${moduleName}`;
 }

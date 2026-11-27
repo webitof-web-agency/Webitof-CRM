@@ -9,16 +9,30 @@ const { getGoogleDriveConfig, getGoogleDriveConfigProblems, refreshDriveSettings
 const { decrypt, encrypt, sha256 } = require('../../utils/encryption');
 const { getSetting, setSetting } = require('../../models/systemSetting.model');
 const { DriveClient, DriveError, buildAuthUrl, exchangeCode, revokeToken } = require('./drive.client');
+const { CATEGORY_FOLDERS } = require('../../utils/uploadPath');
 
 const SETTINGS_KEY = 'google_drive';
 const STATE_PURPOSE = 'gdrive-connect';
 const SETTINGS_ROUTE = '/app/settings/storage';
 // While the connection stays broken, admins are reminded once a day.
 const REMIND_MS = 24 * 60 * 60 * 1000;
+// Folders the app owns, each with the folder it sits in:
+//   <GDRIVE_PARENT_FOLDER_ID>/Webitof ERP Data          root: uploads go straight in (01 CRM ... 07 General)
+//   Webitof ERP Data/99 Backups                         backupsRoot
+//   Webitof ERP Data/99 Backups/Database                backup: year / month / day folders with the dumps
 const FOLDER_KINDS = {
-  backup: { idKey: 'backupFolderId', nameKey: 'backupFolderName', configKey: 'backupFolderName' },
-  uploads: { idKey: 'uploadsFolderId', nameKey: 'uploadsFolderName', configKey: 'uploadsFolderName' }
+  root: { idKey: 'rootFolderId', nameKey: 'rootFolderName', configKey: 'rootFolderName', parent: null },
+  backupsRoot: { idKey: 'backupsRootFolderId', nameKey: 'backupsRootFolderName', configKey: 'backupFolderName', parent: 'root' },
+  backup: { idKey: 'backupDatabaseFolderId', nameKey: 'backupDatabaseFolderName', configKey: 'backupDatabaseFolderName', parent: 'backupsRoot' }
 };
+// Folder ids that belong to one Google account / parent folder; dropped when either changes.
+const FOLDER_STATE_KEYS = [
+  ...Object.values(FOLDER_KINDS).map((kind) => kind.idKey),
+  'categoryFolderIds',
+  // Layout before "Webitof ERP Data": separate uploads and backups folders.
+  'uploadsFolderId',
+  'backupFolderId'
+];
 
 let cachedClient = null;
 let cachedClientKey = '';
@@ -193,12 +207,16 @@ async function folderUsable(client, folderId, parentId) {
 }
 
 async function ensureFolder(kind, { client = null } = {}) {
+  // Uploads are filed straight inside the main folder.
+  if (kind === 'uploads') return ensureFolder('root', { client });
   const definition = FOLDER_KINDS[kind];
   if (!definition) throw new Error(`Unknown folder kind: ${kind}`);
   const config = getGoogleDriveConfig();
+  const driveClient = client || clientFor(await getState());
+  const parentId = definition.parent
+    ? await ensureFolder(definition.parent, { client: driveClient })
+    : config.parentFolderId;
   const state = await getState();
-  const driveClient = client || clientFor(state);
-  const parentId = config.parentFolderId;
   const name = config[definition.configKey];
 
   const storedId = state[definition.idKey];
@@ -220,7 +238,7 @@ async function ensureFolder(kind, { client = null } = {}) {
     try {
       folder = await driveClient.findFolder(name, parentId);
     } catch (error) {
-      if (error instanceof DriveError && (error.statusCode === 404 || error.statusCode === 403)) {
+      if (!definition.parent && error instanceof DriveError && (error.statusCode === 404 || error.statusCode === 403)) {
         throw httpError(
           'GDRIVE_PARENT_FOLDER_ID could not be opened. Check the id, and that the folder is in the Drive of the connected Google account.',
           400
@@ -234,6 +252,31 @@ async function ensureFolder(kind, { client = null } = {}) {
   const latest = await getState();
   await saveState({ ...latest, [definition.idKey]: folder.id, [definition.nameKey]: name });
   return folder.id;
+}
+
+// The top folders of the upload tree (01 CRM ... 07 General), made as soon as Drive is connected
+// so the structure is visible before the first upload. Their ids are kept for the Settings links.
+async function ensureCategoryFolders({ client = null } = {}) {
+  const driveClient = client || clientFor(await getState());
+  const rootId = await ensureFolder('root', { client: driveClient });
+  const ids = {};
+  for (const name of CATEGORY_FOLDERS) {
+    const found = await driveClient.findFolder(name, rootId);
+    ids[name] = (found || await driveClient.createFolder(name, rootId)).id;
+  }
+  await saveState({ ...(await getState()), categoryFolderIds: ids });
+  return ids;
+}
+
+function folderLinks(state, config) {
+  return {
+    rootFolder: { name: state.rootFolderName || config.rootFolderName, link: folderLink(state.rootFolderId) },
+    backupFolder: {
+      name: `${state.backupsRootFolderName || config.backupFolderName}/${config.backupDatabaseFolderName}`,
+      link: folderLink(state.backupDatabaseFolderId || state.backupsRootFolderId)
+    },
+    categoryFolders: CATEGORY_FOLDERS.map((name) => ({ name, link: folderLink(state.categoryFolderIds?.[name]) }))
+  };
 }
 
 async function saveConnection(refreshToken, { userId = null, source = 'oauth' } = {}) {
@@ -284,14 +327,15 @@ async function saveConnection(refreshToken, { userId = null, source = 'oauth' } 
     connectedByUserId: userId
   };
   if (accountChanged) {
-    delete next.backupFolderId;
-    delete next.uploadsFolderId;
+    for (const key of FOLDER_STATE_KEYS) delete next[key];
   }
   await saveState(next);
   clearClientCache();
 
+  // Connecting builds the whole tree: Webitof ERP Data, its 01 CRM ... 07 General folders and
+  // 99 Backups/Database.
+  await ensureCategoryFolders({ client });
   await ensureFolder('backup', { client });
-  await ensureFolder('uploads', { client });
   return getState();
 }
 
@@ -373,14 +417,13 @@ async function checkConnection({ userId = null } = {}) {
   if (state.needsReconnect) throw httpError('Google Drive access expired. Click Reconnect Google Drive.', 409);
   const client = clientFor(state);
   const account = await client.about();
-  await ensureFolder('uploads', { client });
+  await ensureCategoryFolders({ client });
   await ensureFolder('backup', { client });
   const latest = await getState();
   return {
     accountEmail: account?.user?.emailAddress || latest.accountEmail || '',
     accountName: account?.user?.displayName || latest.accountName || '',
-    uploadsFolder: { name: latest.uploadsFolderName || config.uploadsFolderName, link: folderLink(latest.uploadsFolderId) },
-    backupFolder: { name: latest.backupFolderName || config.backupFolderName, link: folderLink(latest.backupFolderId) }
+    ...folderLinks(latest, config)
   };
 }
 
@@ -481,8 +524,7 @@ async function getStatus() {
       : '',
     accountEmail: state.accountEmail || '',
     connectedAt: state.connectedAt || null,
-    backupFolder: { name: state.backupFolderName || config.backupFolderName, link: folderLink(state.backupFolderId) },
-    uploadsFolder: { name: state.uploadsFolderName || config.uploadsFolderName, link: folderLink(state.uploadsFolderId) }
+    ...folderLinks(state, config)
   };
 }
 
@@ -492,6 +534,7 @@ module.exports = {
   completeOAuth,
   connectFromEnvToken,
   disconnect,
+  ensureCategoryFolders,
   ensureFolder,
   getAuthUrl,
   getClient,
