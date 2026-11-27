@@ -49,6 +49,8 @@ const { requirePermission } = require('../middlewares/auth');
 // File ids are random 128-bit values, so these links work in <img>/<audio> without a session.
 router.get('/files/:id/view', filesController.viewFile);
 router.get('/files/drive/:driveFileId/view', filesController.viewLegacyDriveFile);
+// Google sends the browser back here after "Connect Google Drive"; the signed state authorizes it.
+router.get('/google-drive/oauth/callback', googleDriveController.oauthCallback);
 
 router.use('/maintenance', require('./maintenance.routes'));
 router.use('/auth', authRoutes);

@@ -337,6 +337,7 @@ export const api = {
     getConfig: (token) => request('/google-drive/config', { token, skipCache: true }),
     saveConfig: (token, payload) => request('/google-drive/config', { method: 'PUT', token, body: payload }),
     check: (token) => request('/google-drive/check', { method: 'POST', token }),
+    connect: (token) => request('/google-drive/connect', { method: 'POST', token }),
     disconnect: (token) => request('/google-drive/disconnect', { method: 'POST', token }),
     backups: (token) => request('/google-drive/backups', { token, skipCache: true }),
     runBackup: (token) => request('/google-drive/backups/run', { method: 'POST', token }),

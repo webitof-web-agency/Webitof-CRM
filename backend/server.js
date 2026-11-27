@@ -132,6 +132,17 @@ async function start() {
   backupCycle();
   setInterval(backupCycle, 15 * 60 * 1000).unref();
 
+  // ─── Google Drive token check ─────────────────────────────────────
+  // Every 6 hours: a token Google no longer accepts alerts the admins (notification + email) and
+  // they reconnect from Settings → Storage & Backup; while broken they are reminded once a day.
+  const driveHealthCycle = () => {
+    require('./services/googleDrive/driveConnection.service').healthCheck()
+      .then((result) => result.checked && !result.ok && console.error('Google Drive token was refused; admins were alerted.'))
+      .catch((error) => console.error('Google Drive token check failed:', error.message));
+  };
+  setTimeout(driveHealthCycle, 60 * 1000).unref();
+  setInterval(driveHealthCycle, 6 * 60 * 60 * 1000).unref();
+
   try {
     const AMC_AUTOMATION_SCHEDULE = process.env.AMC_AUTOMATION_CRON || '15 9 * * *';
     scheduleAmcAutomation({ schedule: AMC_AUTOMATION_SCHEDULE, timezone: 'Asia/Kolkata' });

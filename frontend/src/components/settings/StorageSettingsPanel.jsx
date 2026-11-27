@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, CloudUpload, DatabaseBackup, Download, ExternalLink, HardDrive, History, Link2, RefreshCw, Settings2, Unplug } from 'lucide-react';
-import { toast } from 'sonner';
+import { useSearchParams } from 'react-router-dom';
+import { AlertTriangle, CloudUpload, DatabaseBackup, Download, ExternalLink, HardDrive, History, Link2, RefreshCw, Settings2, Unplug } from 'lucide-react';import { toast } from 'sonner';
 import { api, downloadWithAuth } from '../../api/client';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -57,6 +57,24 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
   const [restoreTarget, setRestoreTarget] = useState(null);
   const [restoreConfirm, setRestoreConfirm] = useState('');
   const [checkResult, setCheckResult] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Back from Google sign-in: the API redirects here with ?gdrive=connected|error.
+  useEffect(() => {
+    const result = searchParams.get('gdrive');
+    if (!result) return;
+    if (result === 'connected') {
+      const account = searchParams.get('account');
+      const message = `Google Drive connected${account ? `: ${account}` : ''}`;
+      toast.success(message);
+      setCheckResult({ ok: true, message: `${message}. Uploads and backups use this account now.` });
+    } else {
+      const message = searchParams.get('message') || 'Google Drive could not be connected';
+      toast.error(message);
+      setCheckResult({ ok: false, message });
+    }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const drive = status?.drive;
   const backup = status?.backup;
@@ -128,6 +146,12 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
       setCheckResult({ ok: false, message: error.message || 'Google Drive could not be reached' });
     }
     await loadStatus().catch(() => {});
+  });
+
+  // Opens Google sign-in; Google sends the browser back to this page with the result.
+  const connect = () => run('connect', async () => {
+    const { data } = await api.googleDrive.connect(token);
+    window.location.assign(data.url);
   });
 
   const disconnect = () => run('disconnect', async () => {
@@ -236,13 +260,13 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
         <SectionHeader
           icon={Settings2}
           title="Google Drive settings"
-          description="The Google account and folders come from the server env and cannot be changed here. Only the backup schedule can be changed."
+          description="The Google client, allowed account and folders come from the server env and cannot be changed here. Only the backup schedule can be changed."
         />
         <DriveConfigForm token={token} canWrite={canWrite} onSaved={() => loadStatus().catch(() => {})} />
       </Card>
 
       <Card className="p-4 sm:p-5 xl:order-2">
-        <SectionHeader icon={CloudUpload} title="Google Drive connection" description="One Google account holds uploaded files (when selected above) and the daily database backups." />
+        <SectionHeader icon={CloudUpload} title="Google Drive connection" description="One Google account holds uploaded files (when selected above) and the daily database backups. Connect signs in to Google; the access is kept encrypted in the database." />
 
         {drive.problems?.length ? (
           <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
@@ -254,10 +278,19 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
         ) : null}
 
         {drive.needsReconnect ? (
-          <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
+          <div className="mb-4 flex flex-wrap items-start gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-            Google access was revoked or expired. Uploads to Drive and backups are paused: put a new refresh token (same
-            Google account) in GOOGLE_OAUTH_REFRESH_TOKEN on the server, restart it and click Check connection.
+            <span className="min-w-0 flex-1">
+              Google stopped accepting the Drive access{drive.accountEmail ? ` of ${drive.accountEmail}` : ''}
+              {drive.needsReconnectSince ? ` (since ${formatDate(drive.needsReconnectSince)})` : ''}. Uploads to Drive and the
+              daily backup are paused until it is reconnected.
+            </span>
+            {canWrite ? (
+              <Button size="sm" variant="danger" onClick={connect} loading={busy === 'connect'} disabled={Boolean(busy)}>
+                <RefreshCw size={14} />
+                Reconnect Google Drive
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -265,8 +298,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
           <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <span>
-              The refresh token in the server env was not accepted: {drive.envTokenError}. Put a new one in
-              GOOGLE_OAUTH_REFRESH_TOKEN on the server, restart it and click Check connection.
+              The fallback refresh token in the server env (GOOGLE_OAUTH_REFRESH_TOKEN) was not accepted: {drive.envTokenError}.
+              Click Connect Google Drive instead, or remove that env value.
             </span>
           </div>
         ) : null}
@@ -283,6 +316,9 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
           <div>
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Account</div>
             <div className="mt-1 text-slate-800 dark:text-slate-100">{drive.accountEmail || '—'}</div>
+            {drive.allowedEmail ? (
+              <div className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">Only {drive.allowedEmail} can be connected</div>
+            ) : null}
           </div>
           <div>
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Connected</div>
@@ -306,7 +342,20 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
 
         {canWrite || canRestore ? (
           <div className="mt-5 flex flex-wrap gap-2">
-            <Button size="sm" onClick={check} loading={busy === 'check'} disabled={Boolean(busy)}>
+            {canWrite ? (
+              <Button
+                size="sm"
+                variant={drive.connected && !drive.needsReconnect ? 'outline' : 'primary'}
+                onClick={connect}
+                loading={busy === 'connect'}
+                disabled={Boolean(busy) || !drive.configured}
+                title={drive.configured ? 'Sign in to Google and give the ERP access to Drive' : 'Finish the server configuration first'}
+              >
+                <CloudUpload size={14} />
+                {drive.connected ? 'Reconnect Google Drive' : 'Connect Google Drive'}
+              </Button>
+            ) : null}
+            <Button size="sm" variant="outline" onClick={check} loading={busy === 'check'} disabled={Boolean(busy) || !drive.connected}>
               <Link2 size={14} />
               Check connection
             </Button>

@@ -42,7 +42,10 @@ async function getConfigView() {
     env: [
       { key: 'clientId', name: envNameOf('clientId'), label: FIELDS.clientId.label, set: isSet('clientId'), value: config.clientId },
       { key: 'clientSecret', name: envNameOf('clientSecret'), label: FIELDS.clientSecret.label, set: isSet('clientSecret'), secret: true },
-      { key: 'refreshToken', name: envNameOf('refreshToken'), label: FIELDS.refreshToken.label, set: isSet('refreshToken'), secret: true },
+      { key: 'allowedEmail', name: 'GDRIVE_ALLOWED_EMAIL', label: 'Allowed Google account', set: Boolean(config.allowedEmail), value: config.allowedEmail, emptyMeans: 'any account (not locked)' },
+      { key: 'redirectUri', name: 'GOOGLE_OAUTH_REDIRECT_URI', label: 'Redirect URI', set: Boolean(config.redirectUri), value: config.redirectUri, emptyMeans: 'this API address + /google-drive/oauth/callback' },
+      // Optional fallback: the token normally comes from "Connect Google Drive" and lives encrypted in the database.
+      { key: 'refreshToken', name: envNameOf('refreshToken'), label: 'Refresh token (fallback)', set: isSet('refreshToken'), secret: true, optional: true },
       { key: 'parentFolderId', name: envNameOf('parentFolderId'), label: FIELDS.parentFolderId.label, set: isSet('parentFolderId'), value: config.parentFolderId, emptyMeans: 'My Drive (root)' },
       { key: 'uploadsFolderName', name: envNameOf('uploadsFolderName'), label: FIELDS.uploadsFolderName.label, set: isSet('uploadsFolderName'), value: config.uploadsFolderName },
       { key: 'backupFolderName', name: envNameOf('backupFolderName'), label: FIELDS.backupFolderName.label, set: isSet('backupFolderName'), value: config.backupFolderName }

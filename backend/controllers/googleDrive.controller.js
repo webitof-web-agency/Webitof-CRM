@@ -1,7 +1,7 @@
 const fs = require('fs');
 const { Readable } = require('stream');
 const asyncHandler = require('../middlewares/asyncHandler');
-const { refreshDriveSettings } = require('../config/googleDrive');
+const { getGoogleDriveConfig, refreshDriveSettings } = require('../config/googleDrive');
 const driveSettings = require('../services/googleDrive/driveSettings.service');
 const connection = require('../services/googleDrive/driveConnection.service');
 const backups = require('../services/googleDrive/backup.service');
@@ -27,6 +27,40 @@ const status = asyncHandler(async (req, res) => {
     }
   });
 });
+
+// The callback URL on the host this request came in on (needs TRUST_PROXY behind Nginx for https).
+function requestRedirectUri(req) {
+  const prefix = String(process.env.API_PREFIX || '/api').replace(/\/+$/, '');
+  return `${req.protocol}://${req.get('host')}${prefix}/google-drive/oauth/callback`;
+}
+
+function settingsRedirect(params) {
+  const base = getGoogleDriveConfig().frontendUrl;
+  const query = new URLSearchParams(params).toString();
+  return `${base}/#/app/settings/storage?${query}`;
+}
+
+// "Connect / Reconnect Google Drive": the Google sign-in URL the browser goes to.
+const connect = asyncHandler(async (req, res) => {
+  const url = await connection.getAuthUrl({ userId: req.user?.id || null, requestRedirectUri: requestRedirectUri(req) });
+  res.json({ success: true, data: { url } });
+});
+
+// Public: Google sends the browser here. The signed state proves an admin started the sign-in.
+async function oauthCallback(req, res) {
+  let params;
+  try {
+    const state = await connection.completeOAuth({ code: req.query.code, state: req.query.state, error: req.query.error });
+    params = { gdrive: 'connected', account: state.accountEmail || '' };
+  } catch (error) {
+    const message = error.expose ? error.message : 'Google Drive could not be connected.';
+    if (!error.expose) console.error('Google Drive connect failed:', error);
+    params = { gdrive: 'error', message: message.slice(0, 300) };
+  }
+  if (getGoogleDriveConfig().frontendUrl) return res.redirect(settingsRedirect(params));
+  // No FRONTEND_URL to go back to: say it in plain text.
+  res.type('text').send(params.gdrive === 'connected' ? `Google Drive connected (${params.account}). You can close this tab.` : params.message);
+}
 
 // Applies the saved credentials and proves the account and folders work (no Google sign-in page).
 const check = asyncHandler(async (req, res) => {
@@ -111,6 +145,8 @@ const saveConfig = asyncHandler(async (req, res) => {
 
 module.exports = {
   check,
+  connect,
+  oauthCallback,
   getConfig,
   saveConfig,
   disconnect,

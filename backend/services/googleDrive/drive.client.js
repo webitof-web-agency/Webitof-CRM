@@ -1,6 +1,7 @@
 // Minimal Google OAuth + Drive v3 client over fetch (no googleapis SDK).
 // Error messages are built from Google's reason only, never from tokens or request bodies.
 
+const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const DRIVE_URL = 'https://www.googleapis.com/drive/v3';
@@ -90,6 +91,33 @@ async function postToken(params) {
   return response.json();
 }
 
+// Google sign-in page for "Connect Google Drive". prompt=consent makes Google return a refresh
+// token every time; loginHint pre-selects the allowed account.
+function buildAuthUrl({ clientId, redirectUri, scope, state, loginHint = '' }) {
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope,
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: 'true',
+    state
+  });
+  if (loginHint) params.set('login_hint', loginHint);
+  return `${AUTH_URL}?${params.toString()}`;
+}
+
+async function exchangeCode({ clientId, clientSecret, redirectUri }, code) {
+  return postToken({
+    code,
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri,
+    grant_type: 'authorization_code'
+  });
+}
+
 async function revokeToken(token) {
   try {
     await fetchWithRetry(`${REVOKE_URL}?token=${encodeURIComponent(token)}`, {
@@ -135,7 +163,7 @@ class DriveClient {
         } catch (error) {
           if (error.reason === 'invalid_grant') {
             if (this.onInvalidGrant) await this.onInvalidGrant();
-            throw new DriveError('Google Drive access was revoked or expired. Put a new refresh token in GOOGLE_OAUTH_REFRESH_TOKEN on the server and restart it.', {
+            throw new DriveError('Google Drive access was revoked or expired. Click Reconnect Google Drive in Settings → Storage & Backup.', {
               statusCode: 409,
               reason: 'invalid_grant'
             });
@@ -292,7 +320,9 @@ module.exports = {
   DriveClient,
   DriveError,
   FOLDER_MIME,
+  buildAuthUrl,
   escapeQueryValue,
+  exchangeCode,
   revokeToken,
   setFetchForTests
 };

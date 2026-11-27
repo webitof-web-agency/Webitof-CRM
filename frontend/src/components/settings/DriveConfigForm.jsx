@@ -26,7 +26,10 @@ function toForm(values) {
 
 // What the server env holds for one Drive setting. Secrets only say set / not set.
 function EnvValue({ item }) {
-  if (item.secret) return item.set ? <Badge tone="success">set</Badge> : <Badge tone="danger">not set</Badge>;
+  if (item.secret) {
+    if (item.set) return <Badge tone="success">set</Badge>;
+    return item.optional ? <Badge tone="neutral">not set (Connect button is used)</Badge> : <Badge tone="danger">not set</Badge>;
+  }
   if (!item.value) {
     return <span className="text-slate-500 dark:text-slate-400">{item.emptyMeans || 'not set'}</span>;
   }
@@ -116,9 +119,9 @@ export function DriveConfigForm({ token, canWrite, onSaved }) {
           ))}
         </dl>
         <p className="border-t border-slate-200 px-3 py-2 text-[11px] text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          To change these, edit the backend <code>.env</code> on the server and restart it, then click Check connection.
-          The refresh token comes from the Google OAuth 2.0 Playground (scope https://www.googleapis.com/auth/drive) and must
-          be made with the same client ID.
+          To change these, edit the backend <code>.env</code> on the server and restart it. The Google access itself is
+          made with the Connect Google Drive button above and kept encrypted in the database; the Redirect URI must be
+          listed under &quot;Authorized redirect URIs&quot; of the OAuth client in Google Cloud.
         </p>
       </div>
 

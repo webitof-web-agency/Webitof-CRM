@@ -56,7 +56,7 @@ let memory;
 let driveFileCount;
 
 // Drive credentials and folders are read from the env only; each test sets what it needs.
-const ENV_ONLY_VARS = ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GDRIVE_PARENT_FOLDER_ID', 'GDRIVE_UPLOADS_FOLDER_NAME', 'GDRIVE_BACKUP_FOLDER_NAME'];
+const ENV_ONLY_VARS = ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GDRIVE_PARENT_FOLDER_ID', 'GDRIVE_UPLOADS_FOLDER_NAME', 'GDRIVE_BACKUP_FOLDER_NAME', 'GDRIVE_ALLOWED_EMAIL', 'GOOGLE_OAUTH_REDIRECT_URI'];
 
 function setup(options) {
   for (const name of ENV_ONLY_VARS) delete process.env[name];
@@ -100,12 +100,13 @@ test('config problems are listed by name and Check connection is refused', async
   }
 });
 
-test('without a refresh token the status says so and Check connection asks for it', async () => {
+test('without a token the Connect button is ready and Check connection asks to connect', async () => {
   setup();
   const status = await connection.getStatus();
   assert.equal(status.connected, false);
-  assert.ok(status.problems.some((p) => /Refresh token is not set/.test(p)));
-  await assert.rejects(() => connection.checkConnection(), { statusCode: 400, message: /Set GOOGLE_OAUTH_REFRESH_TOKEN/ });
+  assert.equal(status.configured, true, 'a missing refresh token is not a setup problem: Connect makes one');
+  assert.deepEqual(status.problems, []);
+  await assert.rejects(() => connection.checkConnection(), { statusCode: 400, message: /Click Connect Google Drive/ });
 });
 
 test('Check connection applies the env refresh token encrypted, creates both folders, and status has no secrets', async () => {
@@ -739,4 +740,143 @@ test('C1: a pre-restore safety backup never prunes older backups', async () => {
   const result = await backups.runBackup({ trigger: 'restore', kind: 'pre-restore' });
   assert.equal(result.removed, 0);
   assert.equal((await backups.listBackups()).length, 16);
+});
+
+// ─── Connect Google Drive from the admin panel (Google sign-in, token kept in the database) ───
+
+const authService = require('../services/auth.service');
+const notificationService = require('../services/notification.service');
+
+function stubAdminAlerts(t) {
+  const sent = { inApp: [], email: [] };
+  t.mock.method(authService, 'listUsers', async () => [
+    { id: 'u_admin', email: 'admin@example.com', isActive: true },
+    { id: 'u_sales', email: 'sales@example.com', isActive: true },
+    { id: 'u_gone', email: 'gone@example.com', isActive: false }
+  ]);
+  t.mock.method(authService, 'getUserAccessProfile', async (id) => (
+    id === 'u_admin' ? { id, permissions: ['settings.write'] } : { id, permissions: ['leads.read'] }
+  ));
+  t.mock.method(notificationService, 'createInternalNotification', async (data) => { sent.inApp.push(data); return data; });
+  t.mock.method(notificationService, 'sendNotificationEmail', async (data) => { sent.email.push(data); return { sent: true }; });
+  return sent;
+}
+
+test('Connect builds a Google sign-in URL: full drive scope, offline, consent, allowed account, signed state', async () => {
+  setup();
+  process.env.GDRIVE_ALLOWED_EMAIL = 'Owner@Example.com';
+  const url = new URL(await connection.getAuthUrl({ userId: 'user_admin', requestRedirectUri: 'https://api.example.com/api/google-drive/oauth/callback' }));
+  assert.equal(url.host, 'accounts.google.com');
+  assert.equal(url.searchParams.get('scope'), 'https://www.googleapis.com/auth/drive');
+  assert.equal(url.searchParams.get('access_type'), 'offline');
+  assert.equal(url.searchParams.get('prompt'), 'consent');
+  assert.equal(url.searchParams.get('login_hint'), 'owner@example.com');
+  assert.equal(url.searchParams.get('redirect_uri'), 'https://api.example.com/api/google-drive/oauth/callback');
+  const state = connection.verifyConnectState(url.searchParams.get('state'));
+  assert.equal(state.uid, 'user_admin');
+
+  process.env.GOOGLE_OAUTH_REDIRECT_URI = 'https://erpapi.example.com/api/google-drive/oauth/callback';
+  const fixed = new URL(await connection.getAuthUrl({ userId: 'u', requestRedirectUri: 'http://localhost:5000/api/google-drive/oauth/callback' }));
+  assert.equal(fixed.searchParams.get('redirect_uri'), process.env.GOOGLE_OAUTH_REDIRECT_URI, 'the env redirect URI wins');
+});
+
+test('the Google callback stores the refresh token encrypted and connects the folders', async () => {
+  setup();
+  process.env.GDRIVE_ALLOWED_EMAIL = 'owner@example.com';
+  const url = new URL(await connection.getAuthUrl({ userId: 'user_admin', requestRedirectUri: 'https://api.example.com/cb' }));
+  const state = await connection.completeOAuth({ code: 'good-code', state: url.searchParams.get('state') });
+  assert.equal(state.accountEmail, 'owner@example.com');
+  assert.equal(state.connectSource, 'oauth');
+  assert.equal(state.connectedByUserId, 'user_admin');
+  const raw = JSON.stringify(Object.fromEntries(memory.data));
+  assert.ok(!raw.includes('refresh-1'), 'refresh token must not be stored in plain text');
+  assert.ok(fake.findByName('Webitof Uploads') && fake.findByName('Webitof Backups'));
+  const status = await connection.getStatus();
+  assert.equal(status.connected, true);
+  assert.equal(status.needsReconnect, false);
+  assert.equal(status.allowedEmail, 'owner@example.com');
+});
+
+test('only the allowed Google account can be connected; any other is refused and its token revoked', async () => {
+  setup();
+  process.env.GDRIVE_ALLOWED_EMAIL = 'hitesh.webitof@example.com';
+  const url = new URL(await connection.getAuthUrl({ userId: 'user_admin', requestRedirectUri: 'https://api.example.com/cb' }));
+  await assert.rejects(
+    () => connection.completeOAuth({ code: 'good-code', state: url.searchParams.get('state') }),
+    { statusCode: 403, message: /Only hitesh\.webitof@example\.com can be connected/ }
+  );
+  assert.ok(fake.state.revoked.includes('refresh-1'));
+  assert.equal((await connection.getStatus()).connected, false);
+});
+
+test('a forged, expired or cancelled sign-in is refused', async () => {
+  setup();
+  await assert.rejects(() => connection.completeOAuth({ code: 'good-code', state: 'not-a-jwt' }), { statusCode: 400, message: /expired or is invalid/ });
+  const session = jwt.sign({ uid: 'u' }, process.env.JWT_SECRET);
+  await assert.rejects(() => connection.completeOAuth({ code: 'good-code', state: session }), { statusCode: 400 });
+  const url = new URL(await connection.getAuthUrl({ userId: 'u', requestRedirectUri: 'https://api.example.com/cb' }));
+  await assert.rejects(
+    () => connection.completeOAuth({ error: 'access_denied', state: url.searchParams.get('state') }),
+    { statusCode: 400, message: /cancelled/ }
+  );
+  fake.state.returnRefreshToken = false;
+  await assert.rejects(
+    () => connection.completeOAuth({ code: 'good-code', state: url.searchParams.get('state') }),
+    { statusCode: 400, message: /did not return a refresh token/ }
+  );
+});
+
+test('a refused token alerts the settings admins once (notification + email); Reconnect clears it', async (t) => {
+  setup();
+  const sent = stubAdminAlerts(t);
+  await connect();
+  connection._resetForTests();
+  fake.state.validRefreshTokens.clear();
+  const result = await connection.healthCheck();
+  assert.deepEqual(result, { checked: true, ok: false });
+  await new Promise((resolve) => setImmediate(resolve));
+  const status = await connection.getStatus();
+  assert.equal(status.needsReconnect, true);
+  assert.ok(status.needsReconnectSince);
+  assert.deepEqual(sent.inApp.map((n) => n.user.id), ['u_admin'], 'only users who can change settings');
+  assert.equal(sent.inApp[0].routePath, '/app/settings/storage');
+  assert.equal(sent.inApp[0].severity, 'danger');
+  assert.deepEqual(sent.email.map((m) => m.to), ['admin@example.com']);
+  assert.match(sent.email[0].routePath, /^https:\/\/crm\.example\.com\/#\/app\/settings\/storage$/);
+
+  // Still broken: no second alert within a day, then a daily reminder.
+  await connection.healthCheck();
+  assert.equal(sent.inApp.length, 1);
+  const realNow = Date.now;
+  try {
+    Date.now = () => realNow() + 25 * 60 * 60 * 1000;
+    await connection.healthCheck();
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(sent.inApp.length, 2);
+
+  // Reconnect with a new token from Google clears the alert state.
+  fake.state.validRefreshTokens.add('refresh-1');
+  const url = new URL(await connection.getAuthUrl({ userId: 'u_admin', requestRedirectUri: 'https://api.example.com/cb' }));
+  await connection.completeOAuth({ code: 'good-code', state: url.searchParams.get('state') });
+  const fixed = await connection.getStatus();
+  assert.equal(fixed.needsReconnect, false);
+  assert.equal(fixed.needsReconnectSince, null);
+  assert.deepEqual(await connection.healthCheck(), { checked: true, ok: true });
+});
+
+test('an env refresh token does not replace a connection made with the Connect button', async () => {
+  setup();
+  fake.state.validRefreshTokens.add('env-token');
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = 'env-token';
+  try {
+    assert.equal((await connection.getStatus()).connectSource, 'env');
+    const url = new URL(await connection.getAuthUrl({ userId: 'u', requestRedirectUri: 'https://api.example.com/cb' }));
+    await connection.completeOAuth({ code: 'good-code', state: url.searchParams.get('state') });
+    connection._resetForTests();
+    assert.equal((await connection.getStatus()).connectSource, 'oauth');
+  } finally {
+    delete process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+  }
 });

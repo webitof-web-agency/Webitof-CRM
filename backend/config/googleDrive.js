@@ -1,7 +1,9 @@
 const { hasEncryptionKey } = require('../utils/encryption');
 const { getSetting } = require('../models/systemSetting.model');
 
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+// Full Drive scope: the parent folder (GDRIVE_PARENT_FOLDER_ID) is made by hand in Drive, and the
+// narrower drive.file scope only sees folders this app created itself.
+const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 const DEFAULT_BACKUP_FOLDER_NAME = 'Webitof Backups';
 const DEFAULT_UPLOADS_FOLDER_NAME = 'Webitof Uploads';
 const DEFAULT_BACKUP_KEEP = 15;
@@ -113,14 +115,20 @@ async function refreshDriveSettings({ force = false } = {}) {
   await refreshing;
 }
 
-// Connected the same way as the JCB Exchange project: client id + secret + a refresh token made in
-// the OAuth 2.0 Playground. There is no Google sign-in redirect through this app.
+// Client id + secret come from the env. The refresh token is made by an admin with the
+// "Connect Google Drive" button (Google sign-in) and kept encrypted in the database; a token in
+// GOOGLE_OAUTH_REFRESH_TOKEN (OAuth Playground) still works as a fallback.
 function getGoogleDriveConfig() {
   return {
     clientId: raw('clientId'),
     clientSecret: raw('clientSecret'),
     // Applied once per value (see connectFromEnvToken), whether it comes from settings or env.
     envRefreshToken: raw('refreshToken'),
+    // Only this Google account may be connected (empty = any account).
+    allowedEmail: env('GDRIVE_ALLOWED_EMAIL').toLowerCase(),
+    // Where Google sends the browser back after sign-in; empty = built from the API request.
+    // Must be listed under "Authorized redirect URIs" of the OAuth client.
+    redirectUri: env('GOOGLE_OAUTH_REDIRECT_URI'),
     parentFolderId: parseFolderId(raw('parentFolderId')),
     backupFolderName: raw('backupFolderName') || DEFAULT_BACKUP_FOLDER_NAME,
     uploadsFolderName: raw('uploadsFolderName') || DEFAULT_UPLOADS_FOLDER_NAME,
