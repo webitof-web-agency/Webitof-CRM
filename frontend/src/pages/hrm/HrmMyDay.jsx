@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  CheckCircle2,
   Clock,
   Coffee,
   Home,
@@ -611,6 +612,13 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
   const zones = fix ? fences.map((f) => ({ fence: f, meters: distance(fix, f) })).sort((a, b) => a.meters - b.meters) : [];
   const outside = Boolean(fix) && zones.every((z) => z.meters - fix.accuracy > Number(z.fence.radiusMeters));
   const nearest = zones[0];
+  // Inside a work zone with a usable fix: clock-in will go through, so the map turns green.
+  const insideZone = fix && fix.accuracy <= today.policy.maxGpsAccuracyMeters
+    ? zones.find((z) => z.meters <= Number(z.fence.radiusMeters))
+    : null;
+  const insideLabel = insideZone
+    ? insideZone.fence.kind === "home" ? "your approved home (Work From Home)" : `${insideZone.fence.label} (Work From Office)`
+    : "";
   async function submit(requested = false) {
     setBusy(true);
     try {
@@ -629,8 +637,14 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
   return (
     <Modal open title="Clock in" subtitle="Inside the office zone it is Work From Office; inside your approved home zone it is Work From Home." onClose={onClose} width="min(720px,95vw)">
       <div className="space-y-4">
-        <div className={`relative overflow-hidden rounded-2xl ${outside ? "ring-2 ring-rose-500" : ""}`}>
-          <GeoMap center={fix || today.offices[0]} radius={fix?.accuracy || 50} others={fences} height={260} centerColor={outside ? "#e11d48" : undefined} />
+        <div className={`relative overflow-hidden rounded-2xl ${outside ? "ring-2 ring-rose-500" : insideZone ? "ring-2 ring-emerald-500" : ""}`}>
+          <GeoMap
+            center={fix || today.offices[0]}
+            radius={fix?.accuracy || 50}
+            others={fences}
+            height={260}
+            centerColor={outside ? "#e11d48" : insideZone ? "#059669" : undefined}
+          />
           {outside ? (
             <>
               <div className="pointer-events-none absolute inset-0 bg-rose-500/15" />
@@ -638,8 +652,23 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
                 <AlertTriangle size={13} /> Outside your work location
               </span>
             </>
+          ) : insideZone ? (
+            <>
+              <div className="pointer-events-none absolute inset-0 bg-emerald-500/10" />
+              <span className="pointer-events-none absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow">
+                <CheckCircle2 size={13} /> At your work location
+              </span>
+            </>
           ) : null}
         </div>
+        {insideZone ? (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-300">
+            <p className="font-semibold">You are at your working place.</p>
+            <p className="mt-0.5">
+              {insideLabel}, {formatDistance(insideZone.meters)} from the centre (zone {insideZone.fence.radiusMeters} m). You can clock in.
+            </p>
+          </div>
+        ) : null}
         {outside ? (
           <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-700 dark:text-rose-300">
             <p className="font-semibold">You are not at your working place.</p>
