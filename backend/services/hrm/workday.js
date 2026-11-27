@@ -983,6 +983,7 @@ async function geofenceAction(user, id, body, db = null) {
     }
     const saved = await c.update(tx, "hrm_geofences", id, patch);
     await c.audit(tx, user, "geofences", id, action, g, saved, g.employeeId);
+    if (e) await c.closeNotifications(tx, id, { exceptUserId: e.userId });
     if (e)
       await c.notify(
         tx,
@@ -1112,6 +1113,7 @@ async function alertAction(user, id, body, db = null) {
       updatedAt: new Date(),
     });
     await c.audit(tx, user, "alerts", id, action, a, saved, e.id);
+    await c.closeNotifications(tx, id, { exceptUserId: e.userId });
     return saved;
   }, db);
 }
@@ -1136,10 +1138,11 @@ async function override(user, body, db = null) {
       "Comp Off",
     ]);
     const saved = await overrideDay(tx, user, e, date, status, c.text(body.comment, "Reason", 1000, true), p);
-    await tx.query(
-      "UPDATE hrm_alerts SET status='Resolved',action='override',action_by=$3,action_at=now(),comment=$4,updated_at=now() WHERE employee_id=$1 AND work_date=$2 AND kind='absent' AND status<>'Resolved'",
+    const closed = await tx.query(
+      "UPDATE hrm_alerts SET status='Resolved',action='override',action_by=$3,action_at=now(),comment=$4,updated_at=now() WHERE employee_id=$1 AND work_date=$2 AND kind='absent' AND status<>'Resolved' RETURNING id",
       [e.id, date, user.id, body.comment],
     );
+    await c.closeNotifications(tx, closed.rows.map((r) => r.id), { exceptUserId: e.userId });
     return saved;
   }, db);
 }

@@ -44,3 +44,40 @@ test('payrollLocked checks a single day when no end is given', async () => {
   await c.payrollLocked({ async query(_sql, params) { seen = params; return { rowCount: 0, rows: [] }; } }, 'emp1', '2026-09-10');
   assert.deepEqual(seen, ['emp1', '2026-09-10', '2026-09-10']);
 });
+
+test('closeNotifications marks reviewer notifications about an item read and tells each reviewer', async () => {
+  const socketHub = require('../services/socketHub.service');
+  const notificationService = require('../services/notification.service');
+  const originalEmit = socketHub.emitToUser;
+  const originalCount = notificationService.getUnreadCount;
+  const emitted = [];
+  socketHub.emitToUser = (userId, event, payload) => emitted.push({ userId, event, payload });
+  notificationService.getUnreadCount = async () => 7;
+  const calls = [];
+  const db = {
+    afterCommit: [],
+    query: async (sql, values) => {
+      calls.push({ sql, values });
+      return { rows: [{ id: 'n1', user_id: 'admin1' }, { id: 'n2', user_id: 'admin2' }, { id: 'n3', user_id: 'admin1' }] };
+    },
+  };
+  try {
+    await c.closeNotifications(db, 'alert_1', { exceptUserId: 'employee_user' });
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].sql, /module_name='hrm' AND entity_id = ANY/);
+    assert.deepEqual(calls[0].values, [['alert_1'], 'employee_user']);
+    // Sockets fire only after commit.
+    assert.equal(emitted.length, 0);
+    for (const hook of db.afterCommit) await hook();
+    const readMany = emitted.filter((e) => e.event === 'notification:read-many');
+    assert.deepEqual(readMany.map((e) => [e.userId, e.payload.ids]), [['admin1', ['n1', 'n3']], ['admin2', ['n2']]]);
+    assert.ok(emitted.some((e) => e.event === 'notification:count' && e.payload.unreadCount === 7));
+    // Nothing to close: no query.
+    calls.length = 0;
+    await c.closeNotifications(db, []);
+    assert.equal(calls.length, 0);
+  } finally {
+    socketHub.emitToUser = originalEmit;
+    notificationService.getUnreadCount = originalCount;
+  }
+});

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useNotifications } from "../../context/NotificationContext";
 import {
   AlertTriangle,
   ArrowRight,
@@ -301,16 +302,22 @@ function Alerts({ alerts, token, onChanged, tz }) {
   }
 
   const actions = ALERT_ACTIONS.filter((a) => !a.hr || alerts.canOverride);
+  // Alerts with an unread notification are what the HRM menu count points at.
+  const { unreadItems = [] } = useNotifications();
+  const fresh = new Set(unreadItems.filter((n) => n.moduleName === "hrm").map((n) => n.entityId));
   return (
     <>
       {alerts.items.length ? (
         <ul className="max-h-[24rem] divide-y divide-[var(--border)] overflow-y-auto pr-1">
           {alerts.items.map((alert) => (
-            <li key={alert.id} className="py-2">
+            <li key={alert.id} className={cn("py-2", fresh.has(alert.id) && "-mx-2 rounded-lg bg-rose-500/[0.06] px-2")}>
               <div className="flex items-start gap-2">
                 <ShieldAlert size={14} className={cn("mt-0.5 shrink-0", alert.status === "Explained" ? "text-sky-500" : "text-rose-500")} />
                 <div className="min-w-0 flex-1">
                   <div className="text-[12px] text-[var(--text-main)]">
+                    {fresh.has(alert.id) && (
+                      <span className="mr-1.5 rounded-full bg-rose-500 px-1.5 py-px align-middle text-[9px] font-bold uppercase tracking-wide text-white">New</span>
+                    )}
                     <span className="font-semibold">{alert.employee}</span> · {alert.title}
                   </div>
                   <div className="text-[11px] text-[var(--text-muted)]">

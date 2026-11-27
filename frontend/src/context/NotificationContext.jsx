@@ -7,6 +7,13 @@ import { notificationTarget } from '../lib/notificationTarget';
 
 const NotificationContext = createContext(null);
 
+const toUnread = (row) => ({
+  id: row.id,
+  moduleName: row.moduleName || '',
+  entityId: String(row.entityId || ''),
+  target: notificationTarget(row)
+});
+
 function resolveSocketUrl() {
   if (typeof window === 'undefined') return '';
   const raw = import.meta.env.VITE_SOCKET_URL || API_BASE_URL;
@@ -45,13 +52,13 @@ export function NotificationProvider({ children }) {
     setUnread((current) =>
       current.some((item) => String(item.id) === String(notification.id))
         ? current
-        : [{ id: notification.id, target: notificationTarget(notification) }, ...current]
+        : [toUnread(notification), ...current]
     );
   const loadUnread = useCallback(async () => {
     if (!token) return setUnread([]);
     try {
       const response = await api.notifications.unreadSummary(token);
-      setUnread((Array.isArray(response.data) ? response.data : []).map((row) => ({ id: row.id, target: notificationTarget(row) })));
+      setUnread((Array.isArray(response.data) ? response.data : []).map(toUnread));
     } catch {
       // Older API without the summary: the sidebar simply shows no counts.
       setUnread([]);
@@ -214,15 +221,17 @@ export function NotificationProvider({ children }) {
     return true;
   }
 
-  // Opening a page counts as seeing the notifications that point exactly to it (a lead's page, the
-  // follow-up it focuses, the HRM overview with the alerts...). The list pages of a module do not.
+  // Opening the record a notification is about counts as seeing it: the lead's page, the follow-up
+  // the URL focuses, the invoice... Section pages (HRM overview, a module's list) do not, because the
+  // item may be one of many there; those clear when the item is opened or acted on (the server
+  // closes HRM alerts once a reviewer acts).
   const markSeen = useCallback(
     (pathname, search = '') => {
       if (!token) return;
-      const here = new Set([`${pathname}${search}`, pathname]);
-      if (pathname === '/app/hrm') here.add('/app/hrm/overview');
-      if (pathname === '/app/hrm/overview') here.add('/app/hrm');
-      const seen = unreadRef.current.filter((item) => item.target && here.has(item.target)).map((item) => item.id);
+      const parts = new Set([...pathname.split('/'), ...new URLSearchParams(search).values()].filter(Boolean));
+      const seen = unreadRef.current
+        .filter((item) => item.entityId && parts.has(item.entityId) && item.target?.split('?')[0] && pathname.startsWith(item.target.split('?')[0]))
+        .map((item) => item.id);
       if (!seen.length) return;
       forget(seen);
       api.notifications
@@ -246,6 +255,7 @@ export function NotificationProvider({ children }) {
     markAllRead,
     markSeen,
     unreadTargets: unread.map((item) => item.target),
+    unreadItems: unread,
     socket: socketInstance
   };
 

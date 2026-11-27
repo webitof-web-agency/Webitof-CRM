@@ -235,6 +235,32 @@ async function notify(db, userId, title, entityId, actorId, options = {}) {
   });
   return row;
 }
+// Once a reviewer has acted on an HRM item (alert, home location...), the "needs attention"
+// notifications about it are done for every reviewer: mark them read so menu counts drop.
+// exceptUserId keeps the employee's own notifications about the same item (e.g. "explain this").
+async function closeNotifications(db, entityIds, { exceptUserId = null } = {}) {
+  const ids = (Array.isArray(entityIds) ? entityIds : [entityIds]).map(String).filter(Boolean);
+  if (!ids.length) return;
+  const { rows } = await db.query(
+    `UPDATE notifications SET is_read=true, read_at=now(), updated_at=now()
+      WHERE module_name='hrm' AND entity_id = ANY($1::text[]) AND coalesce(is_read,false)=false
+        AND ($2::text IS NULL OR user_id IS DISTINCT FROM $2::text)
+      RETURNING id, user_id`,
+    [ids, exceptUserId],
+  );
+  if (!rows.length) return;
+  afterCommit(db, async () => {
+    const { emitToUser } = require("../socketHub.service");
+    const { getUnreadCount } = require("../notification.service");
+    const byUser = new Map();
+    rows.forEach((r) => byUser.set(r.user_id, [...(byUser.get(r.user_id) || []), r.id]));
+    for (const [userId, list] of byUser) {
+      const unreadCount = await getUnreadCount(userId);
+      emitToUser(userId, "notification:read-many", { ids: list, unreadCount });
+      emitToUser(userId, "notification:count", { unreadCount });
+    }
+  });
+}
 // Admins and HR approvers, plus the employee's manager when given.
 async function reviewers(db, employee = null) {
   const r = await db.query(
@@ -333,6 +359,7 @@ module.exports = {
   audit,
   notify,
   notifyReviewers,
+  closeNotifications,
   reviewers,
   afterCommit,
   transaction,

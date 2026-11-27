@@ -11,6 +11,7 @@ import { hrm, localDay } from "./hrmApi";
 import { hm, clock, EVENT_LABELS, ALERT_LABELS } from "./hrmTime";
 import { SimpleTable } from "../../components/ui/SimpleTable";
 import { AlertHistory } from "./AlertHistory";
+import { useNotifications } from "../../context/NotificationContext";
 
 const ALERT_ACTIONS = [
   ["ignore", "Ignore", false],
@@ -47,6 +48,9 @@ export function HrmLive({ token, metadata, can }) {
     [busy, setBusy] = useState(false),
     [tick, setTick] = useState(0);
   const load = useCallback(() => setTick((n) => n + 1), []);
+  // Items with an unread notification are what the HRM menu count is about: mark them "New".
+  const { unreadItems = [] } = useNotifications();
+  const fresh = new Set(unreadItems.filter((n) => n.moduleName === "hrm").map((n) => n.entityId));
   const loadedOnce = useRef(false);
   useEffect(() => {
     let active = true;
@@ -226,7 +230,10 @@ export function HrmLive({ token, metadata, can }) {
           </h2>
           {!alerts.length && <p className="text-sm text-[var(--text-muted)]">No open alerts. Zone exits, offline apps, fake GPS, long lunches and auto-absent days appear here.</p>}
           {alerts.map((a) => (
-            <div key={a.id} className="space-y-2 rounded-xl border border-[var(--border)] p-3">
+            <div
+              key={a.id}
+              className={`space-y-2 rounded-xl border p-3 ${fresh.has(a.id) ? "border-rose-400/70 bg-rose-500/[0.04] ring-1 ring-rose-400/30" : "border-[var(--border)]"}`}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">{a.title}</p>
@@ -236,7 +243,10 @@ export function HrmLive({ token, metadata, can }) {
                     {a.details?.outsideMinutes ? ` (${a.details.outsideMinutes} min outside)` : ""}
                   </p>
                 </div>
-                <Status value={a.status} />
+                <div className="flex items-center gap-1.5">
+                  {fresh.has(a.id) && <NewPill />}
+                  <Status value={a.status} />
+                </div>
               </div>
               {a.details?.reason && (
                 <p className="text-xs">
@@ -280,7 +290,7 @@ export function HrmLive({ token, metadata, can }) {
           </h2>
           {!homes.length && <p className="text-sm text-[var(--text-muted)]">When an employee registers a home location in the app it appears here once. After approval, clock-in inside that radius is automatically WFH.</p>}
           {homes.map((h) => (
-            <HomeApproval key={h.id} home={h} busy={busy} onAction={(body, msg) => run(`/geofences/${h.id}/action`, body, msg)} />
+            <HomeApproval key={h.id} home={h} isNew={fresh.has(h.id)} busy={busy} onAction={(body, msg) => run(`/geofences/${h.id}/action`, body, msg)} />
           ))}
         </Card>
       </div>
@@ -388,13 +398,19 @@ function AlertLocation({ alert, zones, maxAccuracy }) {
     </div>
   );
 }
-function HomeApproval({ home, busy, onAction }) {
+function NewPill() {
+  return <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">New</span>;
+}
+function HomeApproval({ home, isNew, busy, onAction }) {
   const [radius, setRadius] = useState(home.radiusMeters);
   const [point, setPoint] = useState({ latitude: home.latitude, longitude: home.longitude });
   return (
-    <div className="space-y-3 rounded-xl border border-[var(--border)] p-3">
+    <div className={`space-y-3 rounded-xl border p-3 ${isNew ? "border-rose-400/70 ring-1 ring-rose-400/30" : "border-[var(--border)]"}`}>
       <div className="flex flex-wrap justify-between gap-2 text-sm">
-        <span className="font-semibold">{home.employeeName} · {home.employeeNumber}</span>
+        <span className="flex items-center gap-1.5 font-semibold">
+          {isNew && <NewPill />}
+          {home.employeeName} · {home.employeeNumber}
+        </span>
         <span className="text-xs text-[var(--text-muted)]">GPS ±{home.requestAccuracy ?? "?"} m · {home.address || "No address given"}</span>
       </div>
       <GeoMap center={point} radius={radius} onPick={setPoint} height={200} />
