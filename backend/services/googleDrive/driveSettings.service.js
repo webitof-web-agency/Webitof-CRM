@@ -46,7 +46,6 @@ async function getConfigView() {
       { key: 'redirectUri', name: 'GOOGLE_OAUTH_REDIRECT_URI', label: 'Redirect URI', set: Boolean(config.redirectUri), value: config.redirectUri, emptyMeans: 'this API address + /google-drive/oauth/callback' },
       // Optional fallback: the token normally comes from "Connect Google Drive" and lives encrypted in the database.
       { key: 'refreshToken', name: envNameOf('refreshToken'), label: 'Refresh token (fallback)', set: isSet('refreshToken'), secret: true, optional: true },
-      { key: 'parentFolderId', name: envNameOf('parentFolderId'), label: FIELDS.parentFolderId.label, set: isSet('parentFolderId'), value: config.parentFolderId, emptyMeans: 'My Drive (root)' },
       { key: 'rootFolderName', name: envNameOf('rootFolderName'), label: FIELDS.rootFolderName.label, set: isSet('rootFolderName'), value: config.rootFolderName },
       { key: 'backupFolderName', name: envNameOf('backupFolderName'), label: FIELDS.backupFolderName.label, set: isSet('backupFolderName'), value: config.backupFolderName }
     ],

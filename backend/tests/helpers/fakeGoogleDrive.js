@@ -202,6 +202,9 @@ function createFakeGoogleDrive({ email = 'owner@example.com', refreshToken = 're
       }
       if (method === 'PATCH') {
         Object.assign(file, JSON.parse(String(init.body)));
+        const add = url.searchParams.get('addParents');
+        const remove = (url.searchParams.get('removeParents') || '').split(',').filter(Boolean);
+        if (add || remove.length) file.parents = [...file.parents.filter((id) => !remove.includes(id)), ...(add ? [add] : [])];
         return jsonResponse(200, view(file));
       }
       if (url.searchParams.get('alt') === 'media') {

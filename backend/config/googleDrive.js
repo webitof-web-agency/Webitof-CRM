@@ -1,10 +1,12 @@
 const { hasEncryptionKey } = require('../utils/encryption');
 const { getSetting } = require('../models/systemSetting.model');
 
-// Full Drive scope: the parent folder (GDRIVE_PARENT_FOLDER_ID) is made by hand in Drive, and the
-// narrower drive.file scope only sees folders this app created itself.
+// Full Drive scope: the app must find and move its main folder in My Drive (and read backups made
+// by earlier versions); the narrower drive.file scope only sees files this client created.
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
-// Everything the ERP keeps in Drive sits in one main folder (inside GDRIVE_PARENT_FOLDER_ID):
+// Everything the ERP keeps in Drive sits in one main folder at the top of the connected account's
+// My Drive (https://drive.google.com/drive/my-drive). There is no setting to put it elsewhere:
+// GDRIVE_PARENT_FOLDER_ID is ignored.
 //   Webitof ERP Data/01 CRM ... 07 General   uploads (utils/uploadPath.js)
 //   Webitof ERP Data/99 Backups/Database/... daily database backups
 const DEFAULT_ROOT_FOLDER_NAME = 'Webitof ERP Data';
@@ -23,7 +25,6 @@ const FIELDS = {
   clientId: { env: ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_DRIVE_CLIENT_ID'], label: 'Client ID', envOnly: true },
   clientSecret: { env: ['GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_DRIVE_CLIENT_SECRET'], label: 'Client secret', secret: true, envOnly: true },
   refreshToken: { env: ['GOOGLE_OAUTH_REFRESH_TOKEN', 'GOOGLE_DRIVE_REFRESH_TOKEN'], label: 'Refresh token', secret: true, envOnly: true },
-  parentFolderId: { env: ['GDRIVE_PARENT_FOLDER_ID'], label: 'Parent folder', envOnly: true },
   rootFolderName: { env: ['GDRIVE_ROOT_FOLDER_NAME'], label: 'Main folder name', envOnly: true },
   backupFolderName: { env: ['GDRIVE_BACKUP_FOLDER_NAME'], label: 'Backup folder name', envOnly: true },
   backupKeep: { env: ['GDRIVE_BACKUP_KEEP'], label: 'Backups to keep' },
@@ -138,7 +139,6 @@ function getGoogleDriveConfig() {
     // Where Google sends the browser back after sign-in; empty = built from the API request.
     // Must be listed under "Authorized redirect URIs" of the OAuth client.
     redirectUri: env('GOOGLE_OAUTH_REDIRECT_URI'),
-    parentFolderId: parseFolderId(raw('parentFolderId')),
     rootFolderName: raw('rootFolderName') || DEFAULT_ROOT_FOLDER_NAME,
     backupFolderName: raw('backupFolderName') || DEFAULT_BACKUP_FOLDER_NAME,
     backupDatabaseFolderName: BACKUP_DATABASE_FOLDER_NAME,
@@ -160,7 +160,6 @@ function getGoogleDriveConfigProblems(config = getGoogleDriveConfig()) {
   if (!config.clientId) problems.push('Client ID is not set (GOOGLE_OAUTH_CLIENT_ID in the server env)');
   if (!config.clientSecret) problems.push('Client secret is not set (GOOGLE_OAUTH_CLIENT_SECRET in the server env)');
   if (!hasEncryptionKey()) problems.push('SETTINGS_ENCRYPTION_KEY is not set on the server (64 hex characters)');
-  if (raw('parentFolderId') && !config.parentFolderId) problems.push('GDRIVE_PARENT_FOLDER_ID is not a folder id or link');
   return problems;
 }
 

@@ -17,7 +17,7 @@ const SETTINGS_ROUTE = '/app/settings/storage';
 // While the connection stays broken, admins are reminded once a day.
 const REMIND_MS = 24 * 60 * 60 * 1000;
 // Folders the app owns, each with the folder it sits in:
-//   <GDRIVE_PARENT_FOLDER_ID>/Webitof ERP Data          root: uploads go straight in (01 CRM ... 07 General)
+//   My Drive/Webitof ERP Data                           root: uploads go straight in (01 CRM ... 07 General)
 //   Webitof ERP Data/99 Backups                         backupsRoot
 //   Webitof ERP Data/99 Backups/Database                backup: year / month / day folders with the dumps
 const FOLDER_KINDS = {
@@ -194,20 +194,19 @@ function clientFor(state) {
   return cachedClient;
 }
 
-async function folderUsable(client, folderId, parentId) {
+// The stored folder if it still exists (not deleted, not in the bin), else null.
+async function existingFolder(client, folderId) {
   try {
     const file = await client.getFile(folderId, 'id,trashed,parents,mimeType');
-    if (file.trashed) return false;
-    if (parentId && !(file.parents || []).includes(parentId)) return false;
-    return true;
+    return file.trashed ? null : file;
   } catch (error) {
-    if (error instanceof DriveError && (error.statusCode === 404 || error.statusCode === 403)) return false;
+    if (error instanceof DriveError && (error.statusCode === 404 || error.statusCode === 403)) return null;
     throw error;
   }
 }
 
 // The real id of the connected account's "My Drive" (the alias 'root' cannot be compared with a
-// folder's parents). Where "Webitof ERP Data" goes when GDRIVE_PARENT_FOLDER_ID is empty.
+// folder's parents). "Webitof ERP Data" always sits directly in it.
 const myDriveRootIds = new WeakMap();
 
 async function myDriveRootId(driveClient) {
@@ -224,16 +223,24 @@ async function ensureFolder(kind, { client = null } = {}) {
   if (!definition) throw new Error(`Unknown folder kind: ${kind}`);
   const config = getGoogleDriveConfig();
   const driveClient = client || clientFor(await getState());
-  // The main folder sits at the top of the connected account's My Drive, unless
-  // GDRIVE_PARENT_FOLDER_ID names a folder to put it in.
+  // The main folder sits at the top of the connected account's My Drive; the others inside it.
   const parentId = definition.parent
     ? await ensureFolder(definition.parent, { client: driveClient })
-    : config.parentFolderId || await myDriveRootId(driveClient);
+    : await myDriveRootId(driveClient);
   const state = await getState();
   const name = config[definition.configKey];
 
   const storedId = state[definition.idKey];
-  if (storedId && await folderUsable(driveClient, storedId, parentId)) {
+  const stored = storedId ? await existingFolder(driveClient, storedId) : null;
+  let usable = Boolean(stored) && (stored.parents || []).includes(parentId);
+  if (stored && !usable && !definition.parent) {
+    // An earlier version put the main folder inside another folder (GDRIVE_PARENT_FOLDER_ID):
+    // move it, with everything in it, to the top of My Drive instead of starting a new one.
+    await driveClient.moveFile(storedId, parentId, stored.parents || []);
+    console.warn(`Google Drive: moved "${name}" to the top of My Drive.`);
+    usable = true;
+  }
+  if (usable) {
     // The folder name was changed in settings: rename the existing folder in place.
     if (state[definition.nameKey] && state[definition.nameKey] !== name) {
       try {
@@ -246,21 +253,7 @@ async function ensureFolder(kind, { client = null } = {}) {
     return storedId;
   }
 
-  let folder = null;
-  if (parentId) {
-    try {
-      folder = await driveClient.findFolder(name, parentId);
-    } catch (error) {
-      if (!definition.parent && error instanceof DriveError && (error.statusCode === 404 || error.statusCode === 403)) {
-        throw httpError(
-          'GDRIVE_PARENT_FOLDER_ID could not be opened. Check the id, and that the folder is in the Drive of the connected Google account.',
-          400
-        );
-      }
-      throw error;
-    }
-  }
-  if (!folder) folder = await driveClient.createFolder(name, parentId || null);
+  const folder = (await driveClient.findFolder(name, parentId)) || (await driveClient.createFolder(name, parentId));
 
   const latest = await getState();
   await saveState({ ...latest, [definition.idKey]: folder.id, [definition.nameKey]: name });

@@ -404,6 +404,18 @@ class DriveClient {
     });
   }
 
+  // Moves a file or folder (with everything in it) from its current parents to newParentId.
+  async moveFile(fileId, newParentId, oldParentIds = []) {
+    const params = new URLSearchParams({ addParents: newParentId, fields: 'id,parents', supportsAllDrives: 'true' });
+    const remove = oldParentIds.filter((id) => id && id !== newParentId);
+    if (remove.length) params.set('removeParents', remove.join(','));
+    return this.request(`${DRIVE_URL}/files/${encodeURIComponent(fileId)}?${params.toString()}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+  }
+
   async deleteFile(fileId) {
     return this.request(`${DRIVE_URL}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true`, {
       method: 'DELETE',

@@ -672,7 +672,6 @@ test('Drive credentials and folders come from the env only and cannot be set fro
     { clientId: 'client-from-settings' },
     { clientSecret: 'secret-from-settings' },
     { refreshToken: 'refresh-from-settings' },
-    { parentFolderId: 'PARENT_1' },
     { rootFolderName: 'CRM Data' },
     { backupFolderName: 'CRM Backups' },
     { clientId: '' }
@@ -688,7 +687,7 @@ test('Drive credentials and folders come from the env only and cannot be set fro
   const byKey = Object.fromEntries(view.env.map((item) => [item.key, item]));
   assert.equal(byKey.clientId.value, 'client-id');
   assert.equal(byKey.clientId.name, 'GOOGLE_OAUTH_CLIENT_ID');
-  assert.equal(byKey.parentFolderId.value, 'PARENT_ENV');
+  assert.equal(byKey.parentFolderId, undefined, 'there is no parent folder setting: the main folder is always in My Drive');
   assert.equal(byKey.rootFolderName.value, 'Webitof ERP Data');
   assert.equal(byKey.rootFolderName.set, false);
   assert.equal(byKey.backupFolderName.value, '99 Backups');
@@ -741,27 +740,27 @@ test('renaming a folder in the env renames the existing Drive folder', async () 
   assert.equal(fake.files.get(rootId).name, 'Webitof Data');
 });
 
-test('connecting builds the whole tree once inside the parent folder', async () => {
+test('connecting builds the whole tree once at the top of My Drive, whatever GDRIVE_PARENT_FOLDER_ID says', async () => {
   setup();
-  const parent = fake.addFile({ name: 'My ERP', mimeType: 'application/vnd.google-apps.folder' });
-  process.env.GDRIVE_PARENT_FOLDER_ID = parent.id;
+  const other = fake.addFile({ name: 'Some folder', mimeType: 'application/vnd.google-apps.folder', parents: ['my-drive-root'] });
+  process.env.GDRIVE_PARENT_FOLDER_ID = other.id;
   _resetDriveSettingsForTests();
   await connect();
   await connection.checkConnection();
-  const folders = Array.from(fake.files.values()).filter((file) => file.mimeType === 'application/vnd.google-apps.folder');
+  assert.deepEqual(fake.findByName('Webitof ERP Data').parents, ['my-drive-root']);
+  const folders = Array.from(fake.files.values()).filter((file) => file.mimeType === 'application/vnd.google-apps.folder' && file.id !== other.id);
   const paths = folders.map((folder) => fake.pathOf(folder)).sort();
   assert.deepEqual(paths, [
-    'My ERP',
-    'My ERP/Webitof ERP Data',
-    'My ERP/Webitof ERP Data/01 CRM',
-    'My ERP/Webitof ERP Data/02 Finance',
-    'My ERP/Webitof ERP Data/03 Services',
-    'My ERP/Webitof ERP Data/04 HRM',
-    'My ERP/Webitof ERP Data/05 Users',
-    'My ERP/Webitof ERP Data/06 Company',
-    'My ERP/Webitof ERP Data/07 General',
-    'My ERP/Webitof ERP Data/99 Backups',
-    'My ERP/Webitof ERP Data/99 Backups/Database'
+    'Webitof ERP Data',
+    'Webitof ERP Data/01 CRM',
+    'Webitof ERP Data/02 Finance',
+    'Webitof ERP Data/03 Services',
+    'Webitof ERP Data/04 HRM',
+    'Webitof ERP Data/05 Users',
+    'Webitof ERP Data/06 Company',
+    'Webitof ERP Data/07 General',
+    'Webitof ERP Data/99 Backups',
+    'Webitof ERP Data/99 Backups/Database'
   ], 'checking again does not duplicate anything');
   const status = await connection.getStatus();
   assert.equal(status.rootFolder.name, 'Webitof ERP Data');
@@ -1154,7 +1153,7 @@ test('backup health compares pg tools with the server, flags the transaction poo
   assert.equal((await backups.getBackupHealth()).connection.transactionPooler, false);
 });
 
-test('without GDRIVE_PARENT_FOLDER_ID the main folder is made at the top of My Drive, once', async () => {
+test('the main folder is made at the top of My Drive, once', async () => {
   setup();
   await connect();
   const roots = () => Array.from(fake.files.values()).filter((file) => file.name === 'Webitof ERP Data');
@@ -1169,19 +1168,22 @@ test('without GDRIVE_PARENT_FOLDER_ID the main folder is made at the top of My D
   assert.equal(roots().length, 1);
 });
 
-test('a main folder that sat inside a parent folder is replaced by one in My Drive once the parent is removed', async () => {
+test('a main folder an earlier version put inside another folder is moved to My Drive with its contents', async () => {
   setup();
-  const parent = fake.addFile({ name: 'Old parent', mimeType: 'application/vnd.google-apps.folder', parents: ['my-drive-root'] });
-  process.env.GDRIVE_PARENT_FOLDER_ID = parent.id;
-  _resetDriveSettingsForTests();
   await connect();
-  const inParent = fake.findByName('Webitof ERP Data');
-  assert.deepEqual(inParent.parents, [parent.id]);
-
-  delete process.env.GDRIVE_PARENT_FOLDER_ID;
-  _resetDriveSettingsForTests();
-  connection._resetForTests();
+  // As an earlier version left it: Webitof ERP Data inside a hand-made folder, backups inside.
+  const handMade = fake.addFile({ name: 'Webitof ERP Data', mimeType: 'application/vnd.google-apps.folder', parents: ['my-drive-root'] });
   const rootId = await connection.ensureFolder('root');
-  assert.notEqual(rootId, inParent.id);
+  fake.files.get(rootId).parents = [handMade.id];
+  const backupFolderId = await connection.ensureFolder('backup');
+  const dump = fake.addFile({ name: 'crm-backup-crm-2026-11-20_02-00-00-IST.dump', parents: [backupFolderId], content: Buffer.from('PGDMP') });
+  connection._resetForTests();
+  clearFolderCache();
+
+  assert.equal(await connection.ensureFolder('root'), rootId, 'the same folder, not a new one');
   assert.deepEqual(fake.files.get(rootId).parents, ['my-drive-root']);
+  assert.equal(fake.pathOf(fake.files.get(dump.id)), 'Webitof ERP Data/99 Backups/Database/crm-backup-crm-2026-11-20_02-00-00-IST.dump');
+  assert.equal(await connection.ensureFolder('backup'), backupFolderId, 'folders inside moved along and are reused');
+  assert.equal((await backups.listBackups()).length, 1);
+  assert.ok(fake.files.has(handMade.id), 'the hand-made folder is left alone (now empty)');
 });
