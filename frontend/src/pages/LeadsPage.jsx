@@ -625,6 +625,72 @@ function QuotedCell({ row, onOpen }) {
   );
 }
 
+// Primary-contact avatar in the Contact column; hover shows name + phone in the themed tooltip.
+function ContactAvatarCell({ name, phone, gender, onOpen }) {
+  const [coords, setCoords] = useState(null);
+  const cellRef = useRef(null);
+  const hasPhone = Boolean(phone && phone !== '-');
+
+  const showTooltip = () => {
+    const rect = cellRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const openUpwards = window.innerHeight - rect.bottom < 120;
+    setCoords({
+      top: openUpwards ? undefined : rect.bottom + 6,
+      bottom: openUpwards ? window.innerHeight - rect.top + 6 : undefined,
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - 260))
+    });
+  };
+
+  return (
+    <>
+      <button
+        ref={cellRef}
+        type="button"
+        className="group relative shrink-0 cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+        onClick={(event) => {
+          event.stopPropagation();
+          setCoords(null);
+          onOpen?.();
+        }}
+        onMouseEnter={showTooltip}
+        onMouseLeave={() => setCoords(null)}
+        onFocus={showTooltip}
+        onBlur={() => setCoords(null)}
+        aria-label={`${name || 'Primary contact'}${hasPhone ? ` (${phone})` : ''}. View profile`}
+      >
+        <UserAvatar
+          name={name || 'Lead'}
+          gender={gender}
+          className="h-8 w-8 ring-2 ring-slate-100 dark:ring-slate-800 shadow-2xs transition-all duration-200 group-hover:scale-105 group-hover:ring-[var(--primary)]/30"
+          fallbackSize={14}
+        />
+      </button>
+      {coords && typeof document !== 'undefined' && createPortal(
+        <div
+          role="tooltip"
+          className="pointer-events-none fixed z-[999999] max-w-[260px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-2xl shadow-black/25 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/70"
+          style={{
+            top: coords.top !== undefined ? `${coords.top}px` : undefined,
+            bottom: coords.bottom !== undefined ? `${coords.bottom}px` : undefined,
+            left: `${coords.left}px`
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <UserAvatar name={name || 'Lead'} gender={gender} className="h-6 w-6" fallbackSize={11} />
+            <div className="min-w-0">
+              <div className="truncate font-semibold text-slate-700 dark:text-slate-200">{name || 'Primary contact'}</div>
+              {hasPhone && <div className="text-[11px] text-slate-500 dark:text-slate-400">{phone}</div>}
+            </div>
+          </div>
+          <span className="mt-1 block text-[10px] text-slate-400 dark:text-slate-500">Click to view profile</span>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 const VALUE_CARD_TONES = {
   emerald: { icon: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400', text: 'text-emerald-600 dark:text-emerald-400' },
   violet: { icon: 'bg-violet-500/10 text-violet-600 dark:text-violet-400', text: 'text-violet-600 dark:text-violet-400' },
@@ -1444,7 +1510,6 @@ export function LeadsPage() {
         const contactName = primaryContact ? `${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim() : (row.contactPerson || row.name || '');
         const rawPhone = primaryContact?.phone || row.phone || '';
         const phone = formatPhoneDisplay(rawPhone);
-        const dpTooltip = contactName ? (phone && phone !== '-' ? `${contactName} (${phone})` : contactName) : (phone && phone !== '-' ? phone : 'Primary contact');
         const cleanDigits = String(rawPhone || '').replace(/\D/g, '');
         const hasPhone = Boolean(rawPhone && rawPhone !== '-');
 
@@ -1464,25 +1529,18 @@ export function LeadsPage() {
         return (
           <div className="flex items-center gap-2">
             {/* Primary Contact Avatar */}
-            <div
-              className="cursor-pointer group relative shrink-0"
-              title={`${dpTooltip} • Click to view profile`}
-              onClick={(e) => {
-                e.stopPropagation();
+            <ContactAvatarCell
+              name={contactName}
+              phone={phone}
+              gender={primaryContact?.gender}
+              onOpen={() => {
                 if (primaryContact) {
                   setPanelData(primaryContact);
                   setPanelType('contact');
                   setPanelLeadData(row);
                 }
               }}
-            >
-              <UserAvatar
-                name={contactName || 'Lead'}
-                gender={primaryContact?.gender}
-                className="h-8 w-8 ring-2 ring-slate-100 dark:ring-slate-800 shadow-2xs transition-all duration-200 group-hover:scale-105 group-hover:ring-[var(--primary)]/30"
-                fallbackSize={14}
-              />
-            </div>
+            />
 
             {/* Encapsulated Action Pill */}
             <div className="flex items-center bg-slate-50 dark:bg-slate-800/70 p-0.5 rounded-xl border border-slate-200/80 dark:border-slate-700/70 shadow-2xs gap-0.5">

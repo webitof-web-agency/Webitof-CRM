@@ -315,6 +315,16 @@ export function LeadFormModal({ open, onClose, initialData: rawInitialData, lead
       payload.contactPersonUnknown = Boolean(formData.contactPersonUnknown);
       delete payload.leadNumber;
       delete payload.id;
+      if (initialData?.id) {
+        delete payload.autoFollowUp;
+      } else {
+        // Auto follow-up on: the server sets tomorrow 11:00 AM, so drop any manual date/time.
+        payload.autoFollowUp = formData.autoFollowUp !== false;
+        if (payload.autoFollowUp) {
+          payload.followUpDate = '';
+          payload.nextFollowUpTime = '';
+        }
+      }
 
       const response = initialData?.id
         ? await api.resources.update('/leads', initialData.id, payload, token)

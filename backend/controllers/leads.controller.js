@@ -191,6 +191,17 @@ async function reserveLeadNumber(db) {
   return result.rows[0].lead_number;
 }
 
+// New-lead auto follow-up: always the next calendar day (IST) at 11:00 AM.
+const AUTO_FOLLOW_UP_TIME = '11:00';
+function nextDayAutoFollowUpDueAt(now = new Date()) {
+  const todayIst = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).format(now);
+  const next = new Date(`${todayIst}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return followUpEngine.parseDateTime('', next.toISOString().slice(0, 10), AUTO_FOLLOW_UP_TIME, 'Asia/Kolkata');
+}
+
 function getLeadPatch(body = {}, current = null, req = null) {
   const input = pickLeadInput(body);
   const type = input.type || current?.type || 'Organization';
@@ -1369,31 +1380,30 @@ const leadsController = {
           title: 'Lead created',
           description: `Created by ${getActorName(req.user)}`
         });
-        const requestedDueAt = followUpEngine.parseDateTime(
-          '',
-          created.followUpDate,
-          created.nextFollowUpTime || '09:30',
-          'Asia/Kolkata'
-        );
-        const dueAt = requestedDueAt || new Date(Date.now() + 15 * 60 * 1000).toISOString();
-        const centralFollowUp = await followUpEngine.ensureEntityFollowUp('Lead', created.id, {
-          title: created.followUpNote || 'New lead first call',
-          description: created.followUpNote || 'Make first contact and capture requirement, budget and timeline.',
-          followUpType: created.followUpMode || 'Call',
-          purpose: 'First contact SLA',
-          dueAt,
-          assignedTo: created.assignedTo || created.leadOwner || req.user?.id,
-          priority: created.followUpPriority || created.priority || 'High',
-          reminderSettings: [{ channel: 'inApp', minutesBefore: 10 }, { channel: 'inApp', minutesBefore: 0 }],
-          templateId: 'futpl-new-lead',
-          source: 'lead_created'
-        }, req.user, { db });
+        // "Create auto follow-up" (on by default): next day 11:00 AM IST. When it is off, a follow-up is
+        // made only if the user picked a follow-up date themselves.
+        const autoFollowUp = req.body?.autoFollowUp === undefined ? !created.followUpDate : isUnknownFlag(req.body.autoFollowUp);
+        const requestedDueAt = created.followUpDate
+          ? followUpEngine.parseDateTime('', created.followUpDate, created.nextFollowUpTime || AUTO_FOLLOW_UP_TIME, 'Asia/Kolkata')
+          : null;
+        const dueAt = autoFollowUp ? nextDayAutoFollowUpDueAt() : requestedDueAt;
+        if (dueAt) {
+          // One follow-up only. It syncs its date onto the lead, which the Reminders tab shows as the
+          // "Lead follow-up" card, so no separate reminder event is written here.
+          await followUpEngine.ensureEntityFollowUp('Lead', created.id, {
+            title: created.followUpNote || 'Lead follow-up',
+            description: created.followUpNote || 'Make first contact and capture requirement, budget and timeline.',
+            followUpType: created.followUpMode || 'Call',
+            purpose: 'First contact SLA',
+            dueAt,
+            assignedTo: created.assignedTo || created.leadOwner || req.user?.id,
+            priority: created.followUpPriority || created.priority || 'High',
+            reminderSettings: [{ channel: 'inApp', minutesBefore: 10 }, { channel: 'inApp', minutesBefore: 0 }],
+            templateId: 'futpl-new-lead',
+            source: 'lead_created'
+          }, req.user, { db });
+        }
         const refreshed = await leadModel.findById(created.id, db);
-        await createFollowUpActivity(db, refreshed, req, {
-          followUpId: centralFollowUp.record?.id || null,
-          kind: 'first_contact_scheduled',
-          title: 'New lead first call'
-        });
         await followUpEngine.handleBusinessTrigger('lead_created', 'Lead', created.id, req.user, {
           db, eventId: created.id, payload: created
         });
@@ -2047,10 +2057,10 @@ const leadsController = {
           meta: { rawInput: raw }
         });
 
-        // Ensure first contact SLA follow up
-        const dueAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        // Auto follow-up, same rule as leads added in the app: next day 11:00 AM IST.
+        const dueAt = nextDayAutoFollowUpDueAt();
         await followUpEngine.ensureEntityFollowUp('Lead', created.id, {
-          title: 'New web lead initial follow-up',
+          title: 'Lead follow-up',
           description: requirementSummary || 'Contact lead and qualify requirements.',
           followUpType: 'Call',
           purpose: 'First contact SLA',

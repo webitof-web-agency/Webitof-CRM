@@ -772,7 +772,9 @@ function formatActivityTimestamp(dateStr, timeStr) {
     if (isFuture) {
       const futureMs = d.getTime() - now.getTime();
       const futureHours = Math.floor(futureMs / (1000 * 60 * 60));
-      const futureDays = Math.ceil(futureMs / (1000 * 60 * 60 * 24));
+      // Calendar days, not 24-hour blocks: 15 minutes from now is still today, not "Tomorrow".
+      const startOfDay = (value) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+      const futureDays = Math.round((startOfDay(d) - startOfDay(now)) / (1000 * 60 * 60 * 24));
 
       if (futureDays <= 0) {
         if (futureHours <= 1) relative = 'In a few minutes';
@@ -4176,7 +4178,7 @@ export function LeadDetailsPage() {
       setActivityType('reminder');
       setActivityEdit({
         relatedEntityType: 'Lead',
-        relatedEntityId: id,
+        relatedEntityId: lead?.id || id,
         relatedEntityLabel: lead?.title || lead?.companyName || lead?.contactPersonName || 'Lead',
         lockRelatedEntity: true,
         assignedTo: lead?.assignedTo || user?.id || '',
@@ -4266,9 +4268,16 @@ export function LeadDetailsPage() {
         isLeadFollowUp: true
       }]
       : [];
+    const reminderEvents = events.filter((event) => ['reminder'].includes(String(event.eventType || event.type || '').toLowerCase()));
+    // The lead's follow-up date mirrors its central follow-up, and creating/rescheduling that follow-up
+    // also writes a reminder event for the same slot. Show the synthetic card only when no real
+    // reminder already covers that date + time, otherwise the same follow-up appears twice.
+    const slotKey = (date, time) => `${String(date || '').slice(0, 10)}|${String(time || '').slice(0, 5)}`;
+    const leadSlot = slotKey(lead?.followUpDate, lead?.nextFollowUpTime || lead?.followUpTime);
+    const syntheticIsDuplicate = reminderEvents.some((event) => slotKey(event.startDate || event.date, event.startTime || event.time) === leadSlot);
     const allReminders = [
-      ...followUpReminder,
-      ...events.filter((event) => ['reminder'].includes(String(event.eventType || event.type || '').toLowerCase()))
+      ...(syntheticIsDuplicate ? [] : followUpReminder),
+      ...reminderEvents
     ];
 
     const now = Date.now();
@@ -4564,7 +4573,7 @@ export function LeadDetailsPage() {
           const dueAt = `${payload.startDate || payload.date}T${payload.startTime || payload.time || '10:00'}:00+05:30`;
           await api.followUps.create(token, {
             relatedEntityType: 'Lead',
-            relatedEntityId: id,
+            relatedEntityId: lead?.id || id,
             title: payload.title || `Follow-up with ${lead.title || lead.companyName || 'Lead'}`,
             description: payload.description || '',
             followUpType: payload.followUpMode || 'Call',

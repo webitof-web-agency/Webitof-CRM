@@ -141,6 +141,10 @@ export function LeadManagementFields({
   const cityOptions = getCitiesByState(formData.state).map((city) => ({ value: city, label: city }));
   const score = calculateLeadScore(formData, options.scoreRules);
   const followUpPast = formData.followUpDate && formData.followUpDate < new Date().toISOString().slice(0, 10);
+  // New leads only: "Create auto follow-up" (on by default) schedules it for tomorrow 11:00 AM on the
+  // server, so the manual date/time fields are hidden while it is ticked.
+  const isCreate = !formData.id;
+  const autoFollowUpOn = isCreate && formData.autoFollowUp !== false;
   const select = (items) => toSelectOptions(items);
   const assignedTeamOptions = useMemo(() => {
     const optionMap = new Map();
@@ -361,14 +365,33 @@ export function LeadManagementFields({
           />
         </Field>
 
-        <Field label="Next Follow-up Date" error={errors.followUpDate}>
-          <FieldInput type="date" value={formData.followUpDate} onChange={(event) => set('followUpDate', event.target.value)} className="rounded-xl" />
-          {followUpPast ? <span className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700"><AlertTriangle size={13} />Follow-up date is in the past</span> : null}
-        </Field>
+        {isCreate ? (
+          <Field label="Auto Follow-up" wide>
+            <label className="inline-flex items-center gap-2 text-xs font-medium text-[var(--text-main)] cursor-pointer">
+              <input
+                type="checkbox"
+                checked={autoFollowUpOn}
+                onChange={(event) => set('autoFollowUp', event.target.checked)}
+                className="rounded border-[var(--border)] text-blue-600 focus:ring-blue-500"
+              />
+              Create auto follow-up
+              <span className="text-[var(--text-muted)]">(tomorrow, 11:00 AM)</span>
+            </label>
+          </Field>
+        ) : null}
 
-        <Field label="Next Follow-up Time">
-          <FieldInput type="time" value={formData.nextFollowUpTime} onChange={(event) => set('nextFollowUpTime', event.target.value)} className="rounded-xl" />
-        </Field>
+        {autoFollowUpOn ? null : (
+          <>
+            <Field label="Next Follow-up Date" error={errors.followUpDate}>
+              <FieldInput type="date" value={formData.followUpDate} onChange={(event) => set('followUpDate', event.target.value)} className="rounded-xl" />
+              {followUpPast ? <span className="mt-1 flex items-center gap-1 text-xs font-medium text-amber-700"><AlertTriangle size={13} />Follow-up date is in the past</span> : null}
+            </Field>
+
+            <Field label="Next Follow-up Time">
+              <FieldInput type="time" value={formData.nextFollowUpTime} onChange={(event) => set('nextFollowUpTime', event.target.value)} className="rounded-xl" />
+            </Field>
+          </>
+        )}
 
         <Field label="Assigned Employee" required error={errors.assignedTo}>
           <CompactSelect

@@ -338,8 +338,12 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
       onSaved?.(response.data);
       onClose();
     } catch (error) {
-      setErrors(error.payload?.details || {});
-      toast.error(error.message || 'Unable to save follow-up');
+      const details = error.payload?.details || {};
+      setErrors(details);
+      // Some fields (e.g. the related record) are hidden on entity pages, so a generic
+      // "correct the highlighted fields" would point at nothing. Show the actual reasons.
+      const detailText = Object.values(details).filter(Boolean).join('. ');
+      toast.error(detailText || error.message || 'Unable to save follow-up');
     } finally {
       setBusy(false);
     }

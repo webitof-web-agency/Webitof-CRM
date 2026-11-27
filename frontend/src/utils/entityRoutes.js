@@ -73,7 +73,10 @@ function routeSegment(type, recordOrId = {}) {
     if (!slug || slug === tokenSlug) {
       return encodeURIComponent(publicToken);
     }
-    return encodeURIComponent(`${publicToken}--${slug}`);
+    // Public tokens (LD-2026-000017) have a fixed shape, so publicToken() and the backend's
+    // identifierParts() split `LD-2026-000017-vashi-tech` on that pattern; a single '-' is enough.
+    // Old `--` links still resolve.
+    return encodeURIComponent(`${publicToken}-${slug}`);
   }
 
   const id = shortId(recordOrId?.id);
