@@ -669,7 +669,10 @@ function ClockInModal({ today, token, onClose, onDone, onNeedHome, lastFix }) {
             ))}
             <li className={fix.accuracy > today.policy.maxGpsAccuracyMeters ? "text-rose-600" : "text-[var(--text-muted)]"}>
               Location accuracy ±{fix.accuracy} m
-              {fix.accuracy > today.policy.maxGpsAccuracyMeters && ` — too weak (needs ${today.policy.maxGpsAccuracyMeters} m). Turn on Wi-Fi or use the mobile app.`}
+              {fix.accuracy > today.policy.maxGpsAccuracyMeters &&
+                (outside
+                  ? ` — weak, but the request can still be sent; your admin sees the accuracy.`
+                  : ` — too weak (needs ${today.policy.maxGpsAccuracyMeters} m). Turn on Wi-Fi or use the mobile app.`)}
             </li>
           </ul>
         )}

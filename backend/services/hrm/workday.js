@@ -21,7 +21,10 @@ async function own(tx, user, lock = false) {
     c.fail("No employee profile is linked to this login", 404, "NO_EMPLOYEE");
   return c.camel(r.rows[0]);
 }
-function readLocation(body, p, { strict = true } = {}) {
+// strict: refuse mock locations and (unless checkAccuracy is false) a fix weaker than the policy.
+// Client visits / outside-zone requests skip the accuracy check: an admin reviews them, and a
+// laptop without GPS never gets near 100 m.
+function readLocation(body, p, { strict = true, checkAccuracy = strict } = {}) {
   const loc = {
     latitude: c.number(body.latitude, "Latitude", -90, 90),
     longitude: c.number(body.longitude, "Longitude", -180, 180),
@@ -33,7 +36,7 @@ function readLocation(body, p, { strict = true } = {}) {
       403,
       "MOCK_LOCATION",
     );
-  if (strict && loc.accuracy > p.maxGpsAccuracyMeters)
+  if (checkAccuracy && loc.accuracy > p.maxGpsAccuracyMeters)
     c.fail(
       `GPS accuracy is ${loc.accuracy} m. Move near a window or open area and retry (needs ${p.maxGpsAccuracyMeters} m or better).`,
       422,
@@ -433,11 +436,13 @@ async function clockIn(user, body, db = null) {
         409,
         "ALREADY_MARKED",
       );
-    const loc = readLocation(body, p);
+    let mode = c.choice(body.mode || "auto", ["auto", ...Object.keys(MODES)], "Work mode");
+    // A client visit is reviewed by an admin, so it is accepted with a weak fix (the accuracy is
+    // kept in the location and shown in the review alert); every other mode needs the policy accuracy.
+    const loc = readLocation(body, p, { checkAccuracy: mode !== "Client Visit" });
     const fences = await approvedFences(tx, e.id);
     const office = d.nearest(loc, fences.filter((f) => f.kind === "office"), p);
     const home = d.nearest(loc, fences.filter((f) => f.kind === "home"), p);
-    let mode = c.choice(body.mode || "auto", ["auto", ...Object.keys(MODES)], "Work mode");
     let match = null;
     if (mode === "auto") {
       if (office?.inside) mode = "WFO";
@@ -510,11 +515,17 @@ async function clockIn(user, body, db = null) {
       fence: match?.fence.label || null,
       distance: match?.distance ?? null,
     }, { inside: match ? true : null, distanceMeters: match?.distance ?? null });
-    if (mode === "Client Visit")
+    if (mode === "Client Visit") {
+      const weakFix = loc.accuracy > p.maxGpsAccuracyMeters;
       await openAlert(tx, e, att, "client_visit", `${e.fullName} clocked in from a client visit`, {
         reason: body.reason,
         location: loc,
-      }, { severity: "info", message: c.text(body.reason, "Reason", 1000) });
+        weakAccuracy: weakFix,
+      }, {
+        severity: weakFix ? "warning" : "info",
+        message: `${c.text(body.reason, "Reason", 1000)}${weakFix ? ` (location accuracy ±${loc.accuracy} m, weaker than ${p.maxGpsAccuracyMeters} m)` : ""}`,
+      });
+    }
     await c.audit(tx, user, "attendance", att.id, "app-check-in", existing, att, e.id);
     return dayState(tx, e, p, day, now);
   }, db);
