@@ -326,7 +326,7 @@ test('two backups on the same day share one date folder', async () => {
   assert.match(fake.files.get(parentOf(first.fileId)).name, /^\d{4}-\d{2}-\d{2}$/);
 });
 
-test('a pre-restore backup is named and listed as its own kind and counts toward retention', async () => {
+test('a pre-restore backup is named and listed as its own kind', async () => {
   setup();
   await connect();
   const scheduled = await backups.runBackup({ trigger: 'schedule' });
@@ -928,4 +928,228 @@ test('an env refresh token does not replace a connection made with the Connect b
   } finally {
     delete process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
   }
+});
+
+// ─── backups: streamed upload, integrity, retention per kind, alerts, health ───
+const crypto = require('crypto');
+
+const KB256 = 256 * 1024;
+const backupName = (date, suffix = '') => `crm-backup-crm-${date}_02-00-00-IST${suffix}.dump`;
+
+function withEnv(t, values) {
+  const saved = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, values);
+  _resetDriveSettingsForTests();
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    _resetDriveSettingsForTests();
+  });
+}
+
+function bigDump(t, bytes) {
+  const content = crypto.randomBytes(bytes);
+  backups.setDumpRunnerForTests(async (filePath) => fs.writeFileSync(filePath, content));
+  driveClient.setUploadChunkSizeForTests(KB256);
+  const delays = [];
+  driveClient.setSleepForTests(async (ms) => { delays.push(ms); });
+  t.after(() => {
+    driveClient.setUploadChunkSizeForTests(null);
+    driveClient.setSleepForTests(null);
+  });
+  return { content, delays };
+}
+
+test('a backup is streamed from disk in 256 KB chunks with its sha256 + size kept on the file', async (t) => {
+  setup();
+  await connect();
+  const { content } = bigDump(t, 700 * 1024);
+  const result = await backups.runBackup({ trigger: 'schedule' });
+  assert.equal(result.status, 'SUCCESS');
+  assert.equal(result.verified, true);
+  assert.equal(fake.state.chunkPuts, 3, '256 + 256 + 188 KB');
+  const stored = fake.files.get(result.fileId);
+  assert.ok(stored.content.equals(content));
+  assert.deepEqual(stored.appProperties, { sha256: crypto.createHash('sha256').update(content).digest('hex'), size: String(content.length) });
+  const listed = (await backups.listBackups()).find((file) => file.id === result.fileId);
+  assert.equal(listed.verified, true);
+  assert.equal(listed.sha256, stored.appProperties.sha256);
+  // An older backup without the saved checksum is listed as not verified.
+  const folderId = await connection.ensureFolder('backup');
+  const old = fake.addFile({ name: backupName('2026-09-01'), parents: [folderId], content: Buffer.from('PGDMP old') });
+  assert.equal((await backups.listBackups()).find((file) => file.id === old.id).verified, false);
+});
+
+test('a chunk refused with 503 or 429 is sent again after a pause; buffers still go in one PUT', async (t) => {
+  setup();
+  await connect();
+  const { content, delays } = bigDump(t, 600 * 1024);
+  fake.state.failChunks = { count: 2, status: 503 };
+  const result = await backups.runBackup({ trigger: 'schedule' });
+  assert.equal(result.status, 'SUCCESS');
+  assert.deepEqual(delays, [1000, 2000]);
+  assert.ok(fake.files.get(result.fileId).content.equals(content));
+
+  fake.state.failChunks = { count: 1, status: 429 };
+  assert.equal((await backups.runBackup({ trigger: 'manual' })).status, 'SUCCESS');
+
+  const before = fake.state.chunkPuts;
+  await gdriveProvider.upload(Buffer.from('small file'), '07 General/2026/11-Nov/a.txt', { mimeType: 'text/plain' });
+  assert.equal(fake.state.chunkPuts, before, 'the Buffer path is a single PUT without Content-Range');
+});
+
+test('a chunk that keeps failing gives up after five retries and the run fails', async (t) => {
+  setup();
+  await connect();
+  const { delays } = bigDump(t, 300 * 1024);
+  fake.state.failChunks = { count: 99, status: 503 };
+  const result = await backups.runBackup({ trigger: 'schedule' });
+  assert.equal(result.status, 'FAILED');
+  assert.match(result.error, /kept failing/);
+  assert.deepEqual(delays, [1000, 2000, 4000, 8000, 16000]);
+});
+
+test('an upload whose Drive MD5 differs fails the run, is removed, and prunes nothing', async (t) => {
+  setup();
+  await connect();
+  stubAdminAlerts(t);
+  const folderId = await connection.ensureFolder('backup');
+  for (let day = 1; day <= 15; day += 1) {
+    fake.addFile({ name: backupName(`2026-09-${String(day).padStart(2, '0')}`), parents: [folderId], content: Buffer.from('PGDMP') });
+  }
+  fake.state.corruptNextUpload = true;
+  const result = await backups.runBackup({ trigger: 'schedule' });
+  assert.equal(result.status, 'FAILED');
+  assert.match(result.error, /did not match the local dump.*removed from Drive/);
+  const listed = await backups.listBackups();
+  assert.equal(listed.length, 15, 'the bad upload is gone and no older backup was pruned');
+});
+
+test('retention counts daily, manual and pre-restore backups apart', async (t) => {
+  setup();
+  await connect();
+  withEnv(t, { GDRIVE_BACKUP_KEEP: '3', GDRIVE_BACKUP_KEEP_MANUAL: '2', GDRIVE_BACKUP_KEEP_PRE_RESTORE: '1' });
+  const folderId = await connection.ensureFolder('backup');
+  const add = (date, suffix) => fake.addFile({ name: backupName(date, suffix), parents: [folderId], content: Buffer.from('PGDMP') });
+  const daily = ['2026-09-01', '2026-09-02', '2026-09-03'].map((date) => add(date, ''));
+  const manual = ['2026-09-04', '2026-09-05', '2026-09-06'].map((date) => add(date, '-manual'));
+
+  // Clicking Back up now trims manual backups only: the three daily ones all stay.
+  const clicked = await backups.runBackup({ trigger: 'manual' });
+  assert.equal(clicked.removed, 2);
+  assert.ok(daily.every((file) => fake.files.has(file.id)));
+  assert.deepEqual(manual.map((file) => fake.files.has(file.id)), [false, false, true]);
+
+  // A new daily backup pushes out the oldest daily one only.
+  const scheduled = await backups.runBackup({ trigger: 'schedule' });
+  assert.equal(scheduled.removed, 1);
+  assert.ok(!fake.files.has(daily[0].id) && fake.files.has(daily[1].id));
+  const kinds = (await backups.listBackups()).map((file) => file.kind).sort();
+  assert.deepEqual(kinds, ['manual', 'manual', 'scheduled', 'scheduled', 'scheduled']);
+  assert.deepEqual(
+    (({ keep, keepManual, keepPreRestore }) => ({ keep, keepManual, keepPreRestore }))(await backups.getBackupStatus()),
+    { keep: 3, keepManual: 2, keepPreRestore: 1 }
+  );
+});
+
+test('a backup being restored is never deleted by retention', async (t) => {
+  setup();
+  await connect();
+  withEnv(t, { GDRIVE_BACKUP_KEEP_PRE_RESTORE: '1' });
+  const folderId = await connection.ensureFolder('backup');
+  const restoring = fake.addFile({ name: backupName('2026-09-01', '-pre-restore'), parents: [folderId], content: Buffer.from('PGDMP') });
+  const unprotect = backups.protectFromRetention(restoring.id);
+  try {
+    assert.equal((await backups.runBackup({ trigger: 'restore', kind: 'pre-restore' })).status, 'SUCCESS');
+    assert.ok(fake.files.has(restoring.id), 'kept while protected, though over the pre-restore limit');
+  } finally {
+    unprotect();
+  }
+  await backups.runBackup({ trigger: 'restore', kind: 'pre-restore' });
+  assert.ok(!fake.files.has(restoring.id), 'pruned normally once the restore is over');
+});
+
+test('a failed backup alerts the settings admins once, reminds daily, and a success clears it', async (t) => {
+  setup();
+  await connect();
+  const sent = stubAdminAlerts(t);
+  backups.setDumpRunnerForTests(async () => { throw new Error('pg_dump exited with code 1: connection refused'); });
+  assert.equal((await backups.runBackup({ trigger: 'schedule' })).status, 'FAILED');
+  assert.equal(sent.inApp.length, 1);
+  assert.equal(sent.inApp[0].eventKey, 'gdrive_backup_failed');
+  assert.match(sent.inApp[0].message, /daily database backup failed: pg_dump exited with code 1/);
+  assert.deepEqual(sent.email.map((mail) => mail.to), ['admin@example.com']);
+
+  assert.equal((await backups.runBackup({ trigger: 'manual' })).status, 'FAILED');
+  assert.equal(sent.inApp.length, 1, 'no second alert within a day');
+  const reminder = await backups.recordBackupProblem({ reason: 'failed', message: 'Still failing.' }, new Date(Date.now() + 25 * 3600000));
+  assert.equal(reminder.alerted, true);
+  assert.equal(sent.inApp.length, 2);
+  assert.ok((await backups.getBackupStatus()).alert);
+
+  backups.setDumpRunnerForTests(async (filePath) => fs.writeFileSync(filePath, Buffer.from('PGDMP fixed')));
+  assert.equal((await backups.runBackup({ trigger: 'manual' })).status, 'SUCCESS');
+  assert.equal((await backups.getBackupStatus()).alert, null, 'a success clears the alert');
+  assert.equal(sent.inApp.length, 2, 'no "healthy again" message');
+});
+
+test('no successful backup for 36 hours alerts once a day; a fresh connection is not overdue', async (t) => {
+  setup();
+  await connect();
+  const sent = stubAdminAlerts(t);
+  const now = Date.now();
+  const fresh = await backups.checkBackupHealth(new Date(now + 3600000));
+  assert.equal(fresh.ok, true);
+  assert.equal(Math.floor(fresh.hours), 1, 'counted from when Drive was connected');
+  const overdue = await backups.checkBackupHealth(new Date(now + 37 * 3600000));
+  assert.equal(overdue.ok, false);
+  assert.equal(sent.inApp.length, 1);
+  assert.equal(sent.inApp[0].eventKey, 'gdrive_backup_overdue');
+  assert.match(sent.inApp[0].message, /No database backup has succeeded for 37 hours/);
+  await backups.checkBackupHealth(new Date(now + 40 * 3600000));
+  assert.equal(sent.inApp.length, 1, 'reminded at most once a day');
+
+  assert.equal((await backups.runBackup({ trigger: 'schedule' })).status, 'SUCCESS');
+  assert.equal((await backups.checkBackupHealth(new Date(Date.now() + 3600000))).ok, true);
+
+  withEnv(t, { GDRIVE_BACKUP_HOUR_IST: '-1' });
+  assert.deepEqual(await backups.checkBackupHealth(new Date(now + 100 * 3600000)), { checked: false, reason: 'schedule off' });
+});
+
+test('backup health compares pg tools with the server, flags the transaction pooler, and is cached', async (t) => {
+  setup();
+  await connect();
+  const probeCalls = [];
+  backups.setHealthProbesForTests({
+    toolVersion: async (name) => {
+      probeCalls.push(name);
+      return name === 'psql' ? { version: '14.9', major: 14 } : { version: '16.4', major: 16 };
+    },
+    serverVersion: async () => {
+      probeCalls.push('server');
+      return { version: '16.4', major: 16 };
+    }
+  });
+  t.after(() => backups.setHealthProbesForTests(null));
+  withEnv(t, { BACKUP_DATABASE_URL: 'postgresql://postgres.abc:s3cret-pass@aws-0-ap-south-1.pooler.supabase.com:6543/postgres' });
+
+  const health = await backups.getBackupHealth();
+  assert.equal(health.ok, false);
+  assert.deepEqual(health.tools.map((tool) => [tool.name, tool.ok]), [['pg_dump', true], ['pg_restore', true], ['psql', false]]);
+  assert.match(health.tools[2].message, /psql 14\.9 is older than the database server \(16\.4\)/);
+  assert.equal(health.connection.source, 'BACKUP_DATABASE_URL');
+  assert.equal(health.connection.transactionPooler, true);
+  assert.ok(health.problems.some((problem) => /session pooler \(port 5432\)/.test(problem)));
+  assert.equal(health.drive.connected, true);
+  assert.equal(health.schedule.enabled, true);
+  assert.ok(!JSON.stringify(health).includes('s3cret-pass'), 'no password in the report');
+
+  await backups.getBackupHealth();
+  assert.deepEqual(probeCalls, ['server', 'pg_dump', 'pg_restore', 'psql'], 'versions are read once and cached');
+
+  // The session pooler / direct connection is fine.
+  process.env.BACKUP_DATABASE_URL = 'postgresql://postgres.abc:s3cret-pass@aws-0-ap-south-1.pooler.supabase.com:5432/postgres';
+  assert.equal((await backups.getBackupHealth()).connection.transactionPooler, false);
 });

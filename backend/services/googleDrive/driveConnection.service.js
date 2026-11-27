@@ -529,7 +529,10 @@ async function getStatus() {
 }
 
 module.exports = {
+  REMIND_MS,
   STATE_PURPOSE,
+  // Also used by backup.service for backup failure alerts (same recipients, same channels).
+  notifyDriveAdmins,
   checkConnection,
   completeOAuth,
   connectFromEnvToken,

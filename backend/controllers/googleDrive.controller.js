@@ -10,16 +10,19 @@ const storage = require('../services/storage/storage.service');
 
 const status = asyncHandler(async (req, res) => {
   await refreshDriveSettings();
-  const [drive, backup, storageSettings] = await Promise.all([
+  const [drive, backup, storageSettings, backupHealth] = await Promise.all([
     connection.getStatus(),
     backups.getBackupStatus({ user: req.user }),
-    storage.getStorageSettings()
+    storage.getStorageSettings(),
+    // Read-only: pg tool vs server versions, pooler, schedule, last success, Drive.
+    backups.getBackupHealth().catch((error) => ({ ok: false, problems: [`Backup health could not be checked: ${error.message}`] }))
   ]);
   res.json({
     success: true,
     data: {
       drive,
       backup,
+      backupHealth,
       storage: {
         activeProvider: storageSettings.activeProvider,
         usedForUploads: storageSettings.activeProvider === 'gdrive'

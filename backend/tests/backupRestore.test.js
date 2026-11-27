@@ -315,3 +315,50 @@ test('I4: preserved settings are saved to disk during the restore and put back a
   assert.equal(fs.existsSync(restore.savedSettingsFile()), false);
   assert.equal(await restore.reapplySavedSettings(), false, 'nothing to do without the file');
 });
+
+// ─── integrity check before a restore, and the restored backup protected from retention ───
+const crypto = require('crypto');
+const backupService = require('../services/googleDrive/backup.service');
+
+const PGDMP = Buffer.from('PGDMP');
+const digestOf = (algorithm) => crypto.createHash(algorithm).update(PGDMP).digest('hex');
+
+test('a downloaded backup that does not match its saved sha256 stops before the safety backup', async () => {
+  setup({ listBackups: async () => [{ ...FILE, sha256: 'a'.repeat(64), expectedSize: PGDMP.length }] });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  const run = await restore.waitForCurrentRun();
+  assert.equal(run.outcome, 'failed');
+  assert.match(maintenance.get().error, /does not match the checksum saved when it was made.*not changed/);
+  assert.ok(!events.some((event) => event.startsWith('backup:') || event.startsWith('restore:')), 'nothing after the download ran');
+  assert.equal(released, 1);
+});
+
+test('a backup whose sha256 and size match is restored; an older one is checked by Drive md5', async () => {
+  setup({ listBackups: async () => [{ ...FILE, sha256: digestOf('sha256'), expectedSize: PGDMP.length }] });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  assert.equal((await restore.waitForCurrentRun()).outcome, 'success');
+
+  setup({ listBackups: async () => [{ ...FILE, md5Checksum: digestOf('md5') }] });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  assert.equal((await restore.waitForCurrentRun()).outcome, 'success');
+
+  setup({ listBackups: async () => [{ ...FILE, md5Checksum: 'b'.repeat(32) }] });
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  assert.equal((await restore.waitForCurrentRun()).outcome, 'failed');
+  assert.match(maintenance.get().error, /does not match its Drive checksum/);
+});
+
+test('the backup being restored is protected from retention for the whole run, and only then', async () => {
+  const seen = [];
+  setup({
+    backup: async (options) => {
+      seen.push(backupService.isProtectedFromRetention(FILE.id));
+      return { status: 'SUCCESS', fileName: `safety-${options.kind}.dump` };
+    }
+  });
+  assert.equal(backupService.isProtectedFromRetention(FILE.id), false);
+  await restore.startRestore({ fileId: FILE.id, confirm: 'RESTORE', user: ADMIN });
+  await restore.waitForCurrentRun();
+  assert.deepEqual(seen, [true], 'protected while the safety backup (and its retention) ran');
+  assert.equal(backupService.isProtectedFromRetention(FILE.id), false, 'released afterwards');
+});

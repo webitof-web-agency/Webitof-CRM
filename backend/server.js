@@ -19,7 +19,7 @@ const { scheduleRenewalAutomation } = require('./services/renewalAutomation.serv
 const { scheduleOutsourcingAutomation } = require('./services/outsourcingAutomation.service');
 const { registerSocketHub } = require('./services/socketHub.service');
 const { createFollowUpScheduler } = require('./services/followUpEngine.service');
-const { runScheduledBackupIfDue } = require('./services/googleDrive/backup.service');
+const { checkBackupHealth, runScheduledBackupIfDue } = require('./services/googleDrive/backup.service');
 const googleDriveController = require('./controllers/googleDrive.controller');
 const maintenance = require('./services/maintenance.service');
 const { maintenanceGate } = require('./middlewares/maintenance');
@@ -120,6 +120,8 @@ async function start() {
 
   // ─── Daily Database Backup ──────────────────────────────────────────────────
   // Checked every 15 minutes; runs once per IST date at or after GDRIVE_BACKUP_HOUR_IST.
+  // A failed run alerts the admins from inside the backup; checkBackupHealth then alerts when no
+  // backup has succeeded for 36 hours (once a day while it lasts).
   const backupCycle = () => {
     if (maintenance.skipDuringMaintenance('Backup')) return;
     runScheduledBackupIfDue()
@@ -127,7 +129,10 @@ async function start() {
         if (result.status === 'FAILED') console.error('Scheduled backup failed:', result.error);
         else if (result.status === 'SUCCESS') console.log(`Scheduled backup uploaded: ${result.fileName}`);
       })
-      .catch((error) => console.error('Backup schedule check failed:', error.message));
+      .catch((error) => console.error('Backup schedule check failed:', error.message))
+      .then(() => checkBackupHealth())
+      .then((health) => health?.checked && !health.ok && console.error(`No successful backup for ${Math.floor(health.hours)} hours; admins were alerted.`))
+      .catch((error) => console.error('Backup health check failed:', error.message));
   };
   backupCycle();
   setInterval(backupCycle, 15 * 60 * 1000).unref();

@@ -19,18 +19,38 @@ The admin only gives a parent folder ID or link. The app creates the "Uploads" a
 | Restore method | All-or-nothing `pg_restore` into the live database in one transaction, behind maintenance mode |
 | Who can restore | New permission `backups.restore` (Admin role only by default) plus typing `RESTORE` |
 
-## 2. What exists today (checked 2026-11-09)
+## 2. What exists today (updated 2026-11-27)
 
-Built in commit `8a7ab89`. The storage tests pass (`npm run test:storage`: 44 pass, 1 skipped because it needs `TEST_DATABASE_URL`).
+The sections below §2 are the original 2026-11-09 design; this section describes the code as it is now. `npm run test:storage`: 119 pass, 3 skipped (two need a POSIX shell for the fake `pg_dump`, one needs `TEST_DATABASE_URL`).
 
-- **Drive connection:** OAuth, with the refresh token encrypted in `system_settings`. Settings → Storage & Backup edits the client ID and secret, redirect URI, parent folder, folder names, how many backups to keep, and the backup hour (`services/googleDrive/*`, `config/googleDrive.js`).
-- **Root folders:** `driveConnection.ensureFolder('uploads' | 'backup')` finds or creates both folders under `parentFolderId`. It stores their IDs and renames them in place when the name setting changes. **No change needed.**
-- **Upload layout:** `utils/uploadPath.buildFolderPath` gives `<year>/<mon>/<section>/<entityId>` in IST. Branding uploads go to `site/`. `gdrive.provider` creates the missing folders, with a cache and a guard so two uploads at once don't create the same folder twice. Each `file_assets` row keeps its own provider and Drive file ID, so old files keep working when the layout changes.
-- **Backups:** `services/googleDrive/backup.service.js` runs `pg_dump --format=custom`, uploads the file, and keeps the newest `backupKeep` (default **7**). A cross-process advisory lock stops two backups running at once. Scheduled once per IST day from `server.js`, checked every 15 minutes. It has list and download endpoints. "Back up now" is **blocked in production**.
-- **Deployment:** one Node process under pm2 (`WebitofCRM-backend`) in `/www/wwwroot/WebitofCRM/backend`. The deploy uses `rsync --delete` and excludes `.env`, `node_modules`, `logs` and `uploads`. The database is Supabase (pooler, ap-south-1).
+- **Drive connection:** an admin clicks Settings → Storage & Backup → **Connect Google Drive** (Google sign-in: `POST /google-drive/connect` → public `GET /api/google-drive/oauth/callback`). The refresh token Google returns is kept encrypted in `system_settings` (`SETTINGS_ENCRYPTION_KEY`). The client ID/secret, `GDRIVE_ALLOWED_EMAIL` (only that account may be connected), redirect URI, parent folder and folder names are server env only. `GOOGLE_OAUTH_REFRESH_TOKEN` (OAuth Playground) still works as a fallback. When Google refuses the token, `markNeedsReconnect` alerts everyone with `settings.write` (in-app notification + email via `notifyDriveAdmins`, then once a day), and a check every 6 hours (`healthCheck`, `server.js`) catches a revoked token before the next backup. The scope is full `drive`.
+- **Folders:** connecting builds `<GDRIVE_PARENT_FOLDER_ID>/Webitof ERP Data/{01 CRM, 02 Finance, 03 Services, 04 HRM, 05 Users, 06 Company, 07 General, 99 Backups/Database}` (`driveConnection.ensureFolder('root' | 'backupsRoot' | 'backup')`, `ensureCategoryFolders`). The IDs are stored, and a folder renamed in the env is renamed in place.
+- **Upload layout:** `utils/uploadPath.buildFolderPath`. Record folders are named `<number> - <name>` (e.g. `LD-2026-000017 - Vashi Tech`) or `<name> (<last 4 of id>)`.
+  - Finance and quotations go by FY / month of the record's own date.
+  - Calls get one folder per phone number (`callFolder`).
+  - AMC and renewals get one folder per client.
+  - HR documents go in `04 HRM/Employees/<EMP-no> - <name>/Documents`.
+  - File names are `YYYY-MM-DD_<name>`.
+  - Files under earlier layouts keep their keys. Each `file_assets` row keeps its own provider and Drive file ID.
+- **Backups** (`services/googleDrive/backup.service.js`):
+  - **Dump:** `pg_dump --format=custom --schema=public` → `99 Backups/Database/<year>/<MM-Mon>/<YYYY-MM-DD>/crm-backup-<db>-<stamp>-IST[-manual|-pre-restore].dump`.
+  - **Upload:** the dump is **streamed from disk** over the resumable session in 8 MB chunks (multiples of 256 KB). A chunk is retried on 5xx/429/network errors with backoff (1–16 s, 5 tries), resuming from the session's `Range` (`DriveClient.uploadFile({ filePath })`). The Buffer path, used by uploads, is a single PUT as before.
+  - **Integrity:** Drive's `md5Checksum` must equal the local file's MD5, otherwise the upload is deleted and the run is FAILED. `appProperties` keep `sha256` + `size`, and the list shows them as **Verified**.
+  - **Retention per kind:** the newest `GDRIVE_BACKUP_KEEP` daily, `GDRIVE_BACKUP_KEEP_MANUAL` manual and `GDRIVE_BACKUP_KEEP_PRE_RESTORE` pre-restore backups are kept. The backup being restored is never deleted (`protectFromRetention`).
+  - **Concurrency:** a cross-process advisory lock stops two backups running at once.
+  - **Schedule:** once per IST day from `server.js`, checked every 15 minutes. "Back up now" needs `backups.restore` in production.
+- **Backup alerts:** a failed run (scheduled, manual or pre-restore) and no success for **36 hours** while the schedule is on and Drive is connected (`checkBackupHealth`, run with the backup cycle) both raise one alert in `google_drive_backup.alert`. It goes to the same recipients and channels as the token alert, at once and then once a day. The next successful backup clears it silently. A freshly connected Drive counts from its connection time.
+- **Backup health** (`getBackupHealth`, part of `GET /google-drive/status`, read-only). It reports:
+  - `pg_dump` / `pg_restore` / `psql` versions against `server_version`.
+  - Whether `BACKUP_DATABASE_URL` (or `DATABASE_URL`) is the Supabase transaction pooler (port 6543), which a restore cannot use.
+  - The schedule, the last success time, and the Drive state.
+  - Versions are cached for 10 minutes.
+- **Restore** (`restore.service.js`):
+  - Steps run in this order: maintenance → drain → download → **verify** (sha256 + size, or Drive md5 for older backups; a mismatch stops it and the database is not changed) → safety backup → one-transaction `psql` load → migrate → Drive settings put back.
+- **Deployment:** one Node process under pm2 (`WebitofCRM-backend`) in `/www/wwwroot/WebitofCRM/backend`. The deploy uses `rsync --delete` and excludes `.env`, `node_modules`, `logs` and `uploads`.
 - **Permissions:** `config/rbac.js`. When `SEED_DEFAULT_DATA=true`, startup gives the default roles their default permissions (Admin gets every code). Super admins skip all permission checks.
 
-### Gaps this design closes
+### Gaps the original design closed (2026-11-09)
 
 1. Record folders use internal IDs, which are hard to read in Drive.
 2. Backups are kept for 7 days, not 15.

@@ -11,6 +11,7 @@ const RESULT_KEY = 'webitof-restore-result';
 const PHASES = {
   'enter-maintenance': 'Starting',
   drain: 'Waiting for open requests to finish',
+  verify: 'Checking the backup file is complete',
   'safety-backup': 'Taking a safety backup of the current data',
   'preserve-settings': 'Saving the Google Drive connection',
   download: 'Downloading the backup from Google Drive',

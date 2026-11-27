@@ -1,4 +1,8 @@
 // In-memory stand-in for Google's OAuth and Drive v3 endpoints, used through setFetchForTests.
+// Uploads: one PUT with the whole body, or chunks with Content-Range (308 + Range until complete,
+// "bytes */total" asks for the status). Files report md5Checksum and keep appProperties.
+const crypto = require('crypto');
+
 const FOLDER_MIME = 'application/vnd.google-apps.folder';
 
 function jsonResponse(status, body, headers = {}) {
@@ -30,26 +34,51 @@ function createFakeGoogleDrive({ email = 'owner@example.com', refreshToken = 're
     validRefreshTokens: new Set([refreshToken]),
     revoked: [],
     failNextTokenWith: '',
-    returnRefreshToken: true
+    returnRefreshToken: true,
+    // Upload faults: the next N chunk PUTs answer this status; the next stored upload gets a byte flipped.
+    failChunks: { count: 0, status: 503 },
+    corruptNextUpload: false,
+    chunkPuts: 0
   };
 
-  function addFile({ name, parents = [], mimeType = 'application/octet-stream', content = Buffer.alloc(0), trashed = false }) {
+  function addFile({ name, parents = [], mimeType = 'application/octet-stream', content = Buffer.alloc(0), trashed = false, appProperties = null }) {
     const id = `f${nextId++}`;
     clock += 1000;
-    files.set(id, { id, name, parents, mimeType, content, trashed, createdTime: new Date(clock).toISOString() });
+    files.set(id, { id, name, parents, mimeType, content, trashed, appProperties, createdTime: new Date(clock).toISOString() });
     return files.get(id);
   }
 
   function view(file) {
+    const isFolder = file.mimeType === FOLDER_MIME;
     return {
       id: file.id,
       name: file.name,
       parents: file.parents,
       mimeType: file.mimeType,
-      size: String(file.content.length),
+      ...(isFolder ? {} : {
+        size: String(file.content.length),
+        md5Checksum: crypto.createHash('md5').update(file.content).digest('hex')
+      }),
+      ...(file.appProperties ? { appProperties: file.appProperties } : {}),
       trashed: file.trashed,
       createdTime: file.createdTime
     };
+  }
+
+  function storeUpload(session, content) {
+    let stored = content;
+    if (state.corruptNextUpload) {
+      state.corruptNextUpload = false;
+      stored = Buffer.from(content);
+      stored[0] ^= 0xff;
+    }
+    return addFile({
+      name: session.meta.name,
+      parents: session.meta.parents || [],
+      mimeType: session.mimeType,
+      content: stored,
+      appProperties: session.meta.appProperties || null
+    });
   }
 
   async function fetchImpl(input, init = {}) {
@@ -94,7 +123,13 @@ function createFakeGoogleDrive({ email = 'owner@example.com', refreshToken = 're
     if (url.pathname === '/upload/drive/v3/files' && method === 'POST') {
       const meta = JSON.parse(String(init.body));
       const sessionId = `s${nextId++}`;
-      uploadSessions.set(sessionId, { meta, mimeType: init.headers['X-Upload-Content-Type'] });
+      uploadSessions.set(sessionId, {
+        meta,
+        mimeType: init.headers['X-Upload-Content-Type'],
+        total: Number(init.headers['X-Upload-Content-Length'] || 0),
+        received: Buffer.alloc(0),
+        file: null
+      });
       return new Response(null, { status: 200, headers: { Location: `https://www.googleapis.com/upload-session/${sessionId}` } });
     }
     if (url.pathname.startsWith('/upload-session/') && method === 'PUT') {
@@ -103,13 +138,36 @@ function createFakeGoogleDrive({ email = 'owner@example.com', refreshToken = 're
         const folder = files.get(parent);
         if (!folder || folder.trashed) return jsonResponse(404, { error: { message: 'File not found', errors: [{ reason: 'notFound' }] } });
       }
-      const file = addFile({
-        name: session.meta.name,
-        parents: session.meta.parents || [],
-        mimeType: session.mimeType,
-        content: Buffer.from(init.body)
-      });
-      return jsonResponse(200, view(file));
+      const contentRange = (init.headers || {})['Content-Range'] || '';
+      const progress = () => (session.received.length
+        ? new Response(null, { status: 308, headers: { Range: `bytes=0-${session.received.length - 1}` } })
+        : new Response(null, { status: 308 }));
+      if (!contentRange) {
+        // Single PUT with the whole body.
+        return jsonResponse(200, view(storeUpload(session, Buffer.from(init.body))));
+      }
+      if (contentRange.startsWith('bytes */')) {
+        if (session.file) return jsonResponse(200, view(session.file));
+        return progress();
+      }
+      state.chunkPuts += 1;
+      if (state.failChunks.count > 0) {
+        state.failChunks.count -= 1;
+        return jsonResponse(state.failChunks.status, { error: { message: 'Backend Error', errors: [{ reason: 'backendError' }] } });
+      }
+      const [, start, end, total] = /bytes (\d+)-(\d+)\/(\d+)/.exec(contentRange).map(Number);
+      const body = Buffer.from(init.body);
+      if (start !== session.received.length || body.length !== end - start + 1) {
+        return jsonResponse(400, { error: { message: `Bad chunk ${contentRange}`, errors: [{ reason: 'badRequest' }] } });
+      }
+      // Google only accepts non-final chunks in multiples of 256 KB.
+      if (end + 1 < total && body.length % (256 * 1024) !== 0) {
+        return jsonResponse(400, { error: { message: 'Chunk is not a multiple of 256 KB', errors: [{ reason: 'badRequest' }] } });
+      }
+      session.received = Buffer.concat([session.received, body]);
+      if (session.received.length < total) return progress();
+      session.file = storeUpload(session, session.received);
+      return jsonResponse(200, view(session.file));
     }
 
     if (url.pathname === '/drive/v3/files' && method === 'GET') {

@@ -53,11 +53,16 @@ function parseFolderId(value) {
   return /^[A-Za-z0-9_-]+$/.test(raw) ? raw : '';
 }
 
-function parseKeep(value) {
+function parseKeep(value, fallback = DEFAULT_BACKUP_KEEP) {
   const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed < 1) return DEFAULT_BACKUP_KEEP;
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
   return Math.min(parsed, 100);
 }
+
+// Manual ("Back up now") and pre-restore safety backups are kept apart from the daily ones, so
+// clicking Back up now never pushes daily backups out. Server env only.
+const DEFAULT_KEEP_MANUAL = 5;
+const DEFAULT_KEEP_PRE_RESTORE = 5;
 
 function parseHour(value) {
   if (value === '' || value == null) return DEFAULT_BACKUP_HOUR_IST;
@@ -137,7 +142,10 @@ function getGoogleDriveConfig() {
     rootFolderName: raw('rootFolderName') || DEFAULT_ROOT_FOLDER_NAME,
     backupFolderName: raw('backupFolderName') || DEFAULT_BACKUP_FOLDER_NAME,
     backupDatabaseFolderName: BACKUP_DATABASE_FOLDER_NAME,
+    // Scheduled (daily) backups kept; manual and pre-restore ones have their own limits.
     backupKeep: parseKeep(raw('backupKeep')),
+    backupKeepManual: parseKeep(env('GDRIVE_BACKUP_KEEP_MANUAL'), DEFAULT_KEEP_MANUAL),
+    backupKeepPreRestore: parseKeep(env('GDRIVE_BACKUP_KEEP_PRE_RESTORE'), DEFAULT_KEEP_PRE_RESTORE),
     backupHourIst: parseHour(raw('backupHourIst')),
     // Server-only: a path to run or a database to dump is never taken from the browser.
     pgDumpPath: env('PG_DUMP_PATH') || 'pg_dump',

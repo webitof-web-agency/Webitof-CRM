@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, CloudUpload, DatabaseBackup, Download, ExternalLink, HardDrive, History, Link2, RefreshCw, Settings2, Unplug } from 'lucide-react';import { toast } from 'sonner';
+import { AlertTriangle, CloudUpload, DatabaseBackup, Download, ExternalLink, HardDrive, History, Link2, RefreshCw, Settings2, ShieldCheck, Unplug } from 'lucide-react';import { toast } from 'sonner';
 import { api, downloadWithAuth } from '../../api/client';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
@@ -44,6 +44,62 @@ function FolderLink({ folder, strong = false }) {
     <a href={folder.link} target="_blank" rel="noreferrer" className={`inline-flex items-center gap-1 text-[var(--primary)] hover:underline ${weight}`}>
       {folder.name} <ExternalLink size={12} />
     </a>
+  );
+}
+
+function HealthRow({ label, ok, children }) {
+  return (
+    <div className="flex items-start justify-between gap-3 py-1.5">
+      <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="flex min-w-0 items-center gap-2 text-right text-xs text-slate-800 dark:text-slate-100">
+        <span className="min-w-0 break-words">{children}</span>
+        {ok === undefined ? null : <Badge tone={ok ? 'success' : 'warning'}>{ok ? 'OK' : 'Check'}</Badge>}
+      </span>
+    </div>
+  );
+}
+
+// Read-only readiness report from GET /google-drive/status (backupHealth): nothing here changes the server.
+function BackupHealthCard({ health }) {
+  const tools = health.tools || [];
+  return (
+    <Card className="p-4 sm:p-5 xl:order-5 xl:col-span-2">
+      <SectionHeader icon={ShieldCheck} title="Backup health" description="Read-only checks that backups and restores will work on this server." />
+      {health.problems?.length ? (
+        <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-300">
+          <ul className="list-disc space-y-0.5 pl-4">
+            {health.problems.map((problem) => <li key={problem}>{problem}</li>)}
+          </ul>
+        </div>
+      ) : (
+        <div className="mb-3"><Badge tone="success" dot>All checks passed</Badge></div>
+      )}
+      <div className="grid gap-x-8 md:grid-cols-2 divide-y divide-slate-100 md:divide-y-0 dark:divide-slate-800">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <HealthRow label="Database server" ok={health.server ? !health.server.error : undefined}>
+            {health.server?.error || (health.server?.version ? `PostgreSQL ${health.server.version}` : '—')}
+          </HealthRow>
+          {tools.map((tool) => (
+            <HealthRow key={tool.name} label={tool.name} ok={tool.ok}>
+              {tool.error || tool.version || '—'}
+            </HealthRow>
+          ))}
+          <HealthRow label="Backup connection" ok={health.connection ? !health.connection.transactionPooler : undefined}>
+            {health.connection ? `${health.connection.source} · ${health.connection.host}:${health.connection.port}` : '—'}
+          </HealthRow>
+        </div>
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
+          <HealthRow label="Schedule" ok={health.schedule?.enabled}>{health.schedule?.label || '—'}</HealthRow>
+          <HealthRow label="Google Drive" ok={health.drive?.connected}>
+            {health.drive?.connected ? 'Connected' : health.drive?.needsReconnect ? 'Needs reconnect' : 'Not connected'}
+          </HealthRow>
+          <HealthRow label="Last successful backup" ok={health.lastSuccessAt ? !health.overdue : undefined}>
+            {health.lastSuccessAt ? `${formatDate(health.lastSuccessAt)} (${health.hoursSinceSuccess} h ago)` : 'None yet'}
+          </HealthRow>
+          <HealthRow label="Checked">{formatDate(health.checkedAt)}</HealthRow>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -390,7 +446,20 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
       </Card>
 
       <Card className="p-4 sm:p-5 xl:order-4">
-        <SectionHeader icon={DatabaseBackup} title="Database backups" description={`${backup.schedule.label} to the Google Drive backup folder, keeping the newest ${backup.keep}.`} />
+        <SectionHeader
+          icon={DatabaseBackup}
+          title="Database backups"
+          description={`${backup.schedule.label} to the Google Drive backup folder. Kept: newest ${backup.keep} daily, ${backup.keepManual ?? 5} manual and ${backup.keepPreRestore ?? 5} pre-restore backups.`}
+        />
+
+        {backup.alert ? (
+          <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-700 dark:text-rose-300">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>
+              {backup.alert.message} Admins were alerted{backup.alert.alertedAt ? ` (${formatDate(backup.alert.alertedAt)})` : ''}; this clears after the next successful backup.
+            </span>
+          </div>
+        ) : null}
 
         <div className="grid gap-4 text-sm md:grid-cols-2">
           <div>
@@ -429,7 +498,7 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
           </div>
         ) : null}
         <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-          Download backup makes a fresh dump and saves it to this computer; nothing is sent to Drive. Backups in Drive are kept for {backup.keep} days and can be restored from the list below.
+          Download backup makes a fresh dump and saves it to this computer; nothing is sent to Drive. Daily backups in Drive are kept for {backup.keep} days; Back up now and the safety copy taken before a restore are counted separately. Any of them can be restored from the list below; it is checked against its checksum first.
         </p>
 
         {driveUsable ? (
@@ -459,6 +528,14 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
                   },
                   { key: 'created', label: 'Created', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatDate(file.createdTime) },
                   { key: 'size', label: 'Size', nowrap: true, className: 'text-[var(--text-muted)]', render: (file) => formatBytes(file.size) },
+                  {
+                    key: 'verified',
+                    label: 'Check',
+                    nowrap: true,
+                    render: (file) => (file.verified
+                      ? <Badge tone="success" title="Matched the local dump when uploaded; checked again before a restore">Verified</Badge>
+                      : <Badge tone="neutral" title="Older backup: checked against Drive's MD5 before a restore">Not verified</Badge>)
+                  },
                   ...(canWrite || canRestore
                     ? [{
                         key: 'actions',
@@ -488,6 +565,8 @@ export function StorageSettingsPanel({ token, canWrite, canRestore = false }) {
           </div>
         ) : null}
       </Card>
+
+      {status.backupHealth ? <BackupHealthCard health={status.backupHealth} /> : null}
 
       <Modal
         open={Boolean(restoreTarget)}

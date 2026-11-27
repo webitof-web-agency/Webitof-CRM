@@ -191,6 +191,7 @@ const DEFAULT_DEPS = {
   drain: (ms) => require('../../middlewares/maintenance').waitForDrain(ms),
   backup: (options) => backup.runBackup(options),
   downloadTo: defaultDownloadTo,
+  verify: (file, filePath) => backup.verifyBackupFile(file, filePath),
   restoreRunner: defaultRestoreRunner,
   migrate: () => require('../../config/initDb').ensureDatabase(),
   resetCaches: defaultResetCaches
@@ -270,6 +271,8 @@ async function run(file, user, release) {
   let outcome = 'success';
   let error = '';
   const warnings = [];
+  // Retention (also the pre-restore safety backup's own) must never delete the backup being restored.
+  const unprotect = backup.protectFromRetention(file.id);
   try {
     maintenance.setPhase('drain');
     await deps.drain(DRAIN_MS);
@@ -281,6 +284,16 @@ async function run(file, user, release) {
     } catch (downloadError) {
       outcome = 'failed';
       error = `${downloadError.message} The database was not changed.`;
+      return;
+    }
+
+    // The file must match the sha256 + size saved when it was made (or Drive's md5 for older backups).
+    maintenance.setPhase('verify');
+    try {
+      await deps.verify(file, dumpPath);
+    } catch (verifyError) {
+      outcome = 'failed';
+      error = `${verifyError.message} The database was not changed.`;
       return;
     }
 
@@ -341,6 +354,7 @@ async function run(file, user, release) {
     outcome = 'failed';
     error = unexpected.message;
   } finally {
+    unprotect();
     await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {});
     // Not restored (aborted/failed): the database still has the current rows.
     if (outcome === 'failed' || outcome === 'aborted') await fs.promises.rm(savedSettingsFile(), { force: true }).catch(() => {});

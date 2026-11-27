@@ -1,4 +1,8 @@
 // Daily PostgreSQL backups: pg_dump → upload to <Drive backup folder>/<year>/<MM-Mon>/<YYYY-MM-DD>/ → keep the newest N.
+// Each upload is checked against Drive's md5Checksum and carries its sha256 + size in appProperties
+// (checked again before a restore). Retention counts daily, manual and pre-restore backups apart.
+// A failed run, or no success for STALE_HOURS, alerts the settings admins (see driveConnection).
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -15,8 +19,38 @@ const JOB_KEY = 'job:gdrive-db-backup';
 const LOCK_NAME = 'gdrive-db-backup';
 const FILE_PREFIX = 'crm-backup-';
 const STALE_RUNNING_MS = 60 * 60 * 1000;
+// No successful backup for this long, while the schedule is on and Drive is connected, alerts admins.
+const STALE_HOURS = 36;
 
 let running = null;
+// Backups a restore is using right now: retention never deletes them.
+const protectedIds = new Set();
+
+function protectFromRetention(fileId) {
+  if (fileId) protectedIds.add(fileId);
+  return () => protectedIds.delete(fileId);
+}
+
+function isProtectedFromRetention(fileId) {
+  return protectedIds.has(fileId);
+}
+
+// md5 (what Drive reports as md5Checksum), sha256 and size, read as a stream.
+function hashFile(filePath) {
+  return new Promise((resolve, reject) => {
+    const md5 = crypto.createHash('md5');
+    const sha256 = crypto.createHash('sha256');
+    let size = 0;
+    fs.createReadStream(filePath)
+      .on('data', (chunk) => {
+        md5.update(chunk);
+        sha256.update(chunk);
+        size += chunk.length;
+      })
+      .on('error', reject)
+      .on('end', () => resolve({ md5: md5.digest('hex'), sha256: sha256.digest('hex'), size }));
+  });
+}
 
 function httpError(message, statusCode) {
   const error = new Error(message);
@@ -226,7 +260,7 @@ async function listOwnBackups(client, rootId) {
     if (folder.holdsFiles === false) continue;
     const inFolder = await client.listFiles({
       q: `'${escapeQueryValue(folder.id)}' in parents and trashed = false`,
-      fields: 'id,name,size,createdTime,mimeType',
+      fields: 'id,name,size,createdTime,mimeType,md5Checksum,appProperties',
       orderBy: 'createdTime desc'
     });
     for (const file of inFolder) {
@@ -242,9 +276,20 @@ async function isEmptyFolder(client, folderId) {
   return children.length === 0;
 }
 
-async function applyRetention(client, rootId, keep) {
+function keepByKind(config = getGoogleDriveConfig()) {
+  return { scheduled: config.backupKeep, manual: config.backupKeepManual, 'pre-restore': config.backupKeepPreRestore };
+}
+
+// Keeps the newest N of each kind (daily, manual, pre-restore); a backup a restore is using is never deleted.
+async function applyRetention(client, rootId, keep = keepByKind()) {
   const own = await listOwnBackups(client, rootId);
-  const toRemove = own.slice(keep);
+  const seen = {};
+  const toRemove = [];
+  for (const file of own) {
+    const kind = kindOf(file.name);
+    seen[kind] = (seen[kind] || 0) + 1;
+    if (seen[kind] > (keep[kind] ?? keep.scheduled) && !protectedIds.has(file.id)) toRemove.push(file);
+  }
   for (const file of toRemove) {
     await client.deleteFile(file.id);
   }
@@ -273,20 +318,29 @@ async function performBackup({ trigger, userId, kind }) {
     const client = await connection.getClient();
     const folderId = await connection.ensureFolder('backup');
     dump = await makeDump({ kind });
-    const buffer = await fs.promises.readFile(dump.filePath);
+    const digest = await hashFile(dump.filePath);
+    // Streamed from disk in chunks; sha256 + size go with the file for the check before a restore.
     const uploaded = await client.uploadFile({
       name: dump.fileName,
       parentId: await dayFolderFor(client, folderId),
       mimeType: 'application/octet-stream',
-      buffer,
-      description: `Webitof CRM database backup (${trigger})`
+      filePath: dump.filePath,
+      description: `Webitof CRM database backup (${trigger})`,
+      appProperties: { sha256: digest.sha256, size: String(digest.size) },
+      fields: 'id,name,size,md5Checksum,appProperties'
     });
+
+    // Drive computes md5Checksum from the bytes it stored: it must equal the local file's.
+    const driveMd5 = uploaded.md5Checksum || (await client.getFile(uploaded.id, 'id,md5Checksum')).md5Checksum;
+    if (driveMd5 !== digest.md5) {
+      await client.deleteFile(uploaded.id).catch(() => {});
+      throw new Error(`The uploaded backup did not match the local dump (Drive MD5 ${driveMd5 || 'missing'}, expected ${digest.md5}); it was removed from Drive.`);
+    }
 
     let removed = 0;
     let retentionError = '';
     try {
-      // A safety copy taken before a restore never prunes: the oldest backup may be the one being restored.
-      if (kind !== 'pre-restore') removed = await applyRetention(client, folderId, getGoogleDriveConfig().backupKeep);
+      removed = await applyRetention(client, folderId, keepByKind());
     } catch (error) {
       // The new backup is already safe; record the problem without failing the run.
       retentionError = error.message;
@@ -301,9 +355,12 @@ async function performBackup({ trigger, userId, kind }) {
       fileName: dump.fileName,
       kind,
       size: dump.size,
+      sha256: digest.sha256,
+      verified: true,
       removed,
       ...(retentionError ? { retentionError } : {})
     };
+    // A success ends any open backup alert.
     await setSetting(STATE_KEY, { state: 'IDLE', last: result, lastSuccess: result });
     return result;
   } catch (error) {
@@ -315,11 +372,56 @@ async function performBackup({ trigger, userId, kind }) {
       error: error.message
     };
     const latest = await getSetting(STATE_KEY, {});
-    await setSetting(STATE_KEY, { state: 'IDLE', last: result, lastSuccess: latest.lastSuccess || null });
+    await setSetting(STATE_KEY, { state: 'IDLE', last: result, lastSuccess: latest.lastSuccess || null, alert: latest.alert || null });
+    await recordBackupProblem({
+      reason: 'failed',
+      message: `The ${kind === 'scheduled' ? 'daily' : kind} database backup failed: ${error.message}`
+    }).catch((alertError) => console.error('Backup failure alert could not be sent:', alertError.message));
     return result;
   } finally {
     if (dump) await dump.cleanup();
   }
+}
+
+// ─── alerts ──────────────────────────────────────────────────────────────────
+// One open alert at a time in state.alert: admins hear about it at once, then once a day while it
+// lasts. The next successful backup clears it (performBackup writes the state without it).
+async function recordBackupProblem({ reason, message }, now = new Date()) {
+  const state = await getSetting(STATE_KEY, {});
+  const alert = state.alert || { since: now.toISOString() };
+  const lastAlertedAt = Date.parse(alert.alertedAt || '');
+  const due = !(now.getTime() - lastAlertedAt < connection.REMIND_MS);
+  const next = { ...alert, reason, message, ...(due ? { alertedAt: now.toISOString() } : {}) };
+  await setSetting(STATE_KEY, { ...state, alert: next });
+  if (due) {
+    await connection.notifyDriveAdmins({
+      eventKey: reason === 'stale' ? 'gdrive_backup_overdue' : 'gdrive_backup_failed',
+      title: reason === 'stale' ? 'No database backup for over a day' : 'Database backup failed',
+      message: `${message} Open Settings → Storage & Backup to check, then run Back up now.`
+    });
+  }
+  return { alerted: due, alert: next };
+}
+
+// Called with the backup cycle (server.js): alerts when the last successful backup (any kind) is
+// older than STALE_HOURS while the schedule is on and Drive is connected. A freshly connected Drive
+// counts from its connection time, so it is not reported as overdue right away.
+async function checkBackupHealth(now = new Date()) {
+  await refreshDriveSettings();
+  if (getGoogleDriveConfig().backupHourIst === -1) return { checked: false, reason: 'schedule off' };
+  if (!(await connection.isConnected())) return { checked: false, reason: 'drive not connected' };
+  const state = await getSetting(STATE_KEY, {});
+  const runningSince = Date.parse(state.runningSince || '');
+  const stillRunning = state.state === 'RUNNING' && Number.isFinite(runningSince) && now.getTime() - runningSince < STALE_RUNNING_MS;
+  if (running || stillRunning) return { checked: false, reason: 'backup running' };
+  const driveState = await connection.getState();
+  const since = Math.max(Date.parse(state.lastSuccess?.finishedAt || '') || 0, Date.parse(driveState.connectedAt || '') || 0);
+  if (!since) return { checked: true, ok: true };
+  const hours = (now.getTime() - since) / 3600000;
+  if (hours <= STALE_HOURS) return { checked: true, ok: true, hours };
+  const last = state.lastSuccess?.finishedAt ? `since ${new Date(state.lastSuccess.finishedAt).toISOString()}` : 'since Google Drive was connected';
+  await recordBackupProblem({ reason: 'stale', message: `No database backup has succeeded for ${Math.floor(hours)} hours (${last}).` }, now);
+  return { checked: true, ok: false, hours };
 }
 
 // Never throws; always resolves to a result object.
@@ -389,7 +491,11 @@ async function getBackupStatus({ user = null } = {}) {
   const stale = Number.isFinite(since) && Date.now() - since > STALE_RUNNING_MS;
   return {
     running: Boolean(running) || (state.state === 'RUNNING' && !stale),
+    // Daily backups kept; manual and pre-restore backups are counted apart.
     keep: config.backupKeep,
+    keepManual: config.backupKeepManual,
+    keepPreRestore: config.backupKeepPreRestore,
+    alert: state.alert || null,
     schedule: {
       enabled: config.backupHourIst !== -1,
       hourIst: config.backupHourIst,
@@ -405,13 +511,173 @@ async function listBackups() {
   const client = await connection.getClient();
   const folderId = await connection.ensureFolder('backup');
   const files = await listOwnBackups(client, folderId);
-  return files.map((file) => ({
-    id: file.id,
-    name: file.name,
-    size: Number(file.size || 0),
-    createdTime: file.createdTime,
-    kind: kindOf(file.name)
-  }));
+  return files.map((file) => {
+    const sha256 = file.appProperties?.sha256 || '';
+    const expectedSize = Number(file.appProperties?.size || 0);
+    return {
+      id: file.id,
+      name: file.name,
+      size: Number(file.size || 0),
+      createdTime: file.createdTime,
+      kind: kindOf(file.name),
+      sha256,
+      expectedSize,
+      md5Checksum: file.md5Checksum || '',
+      // Checked against the local dump when it was uploaded, and Drive still holds the same size.
+      verified: Boolean(sha256) && expectedSize === Number(file.size || 0)
+    };
+  });
+}
+
+// Before a restore: the downloaded file must match the sha256 + size saved with it, or for backups
+// made before that, Drive's md5Checksum. Returns how it was checked; throws on a mismatch.
+async function verifyBackupFile(file, filePath) {
+  const digest = await hashFile(filePath);
+  if (file.sha256) {
+    if (digest.sha256 !== file.sha256 || (file.expectedSize && digest.size !== file.expectedSize)) {
+      throw new Error('The downloaded backup does not match the checksum saved when it was made; it may be damaged.');
+    }
+    return 'sha256';
+  }
+  if (file.md5Checksum) {
+    if (digest.md5 !== file.md5Checksum) throw new Error('The downloaded backup does not match its Drive checksum; it may be damaged.');
+    return 'md5';
+  }
+  console.warn(`Backup ${file.name || file.id} has no checksum to verify against; restoring it unverified.`);
+  return 'none';
+}
+
+// ─── backup health (read-only) ───────────────────────────────────────────────
+// pg tool and server versions are cached: the Settings panel polls the status every few seconds.
+const HEALTH_TTL_MS = 10 * 60 * 1000;
+let healthCache = null;
+
+function versionOf(text) {
+  const match = /(\d+)(?:\.(\d+))?/.exec(String(text || ''));
+  return match ? { version: match[2] !== undefined ? `${match[1]}.${match[2]}` : match[1], major: Number(match[1]) } : null;
+}
+
+function defaultToolVersion(name, toolPath) {
+  return new Promise((resolve) => {
+    let out = '';
+    let child;
+    try {
+      child = spawn(toolPath, ['--version'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (error) {
+      resolve({ error: error.message });
+      return;
+    }
+    const timer = setTimeout(() => child.kill('SIGTERM'), 15000);
+    child.stdout.on('data', (chunk) => { out += chunk.toString(); });
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      resolve({ error: error.code === 'ENOENT' ? `${name} was not found (${toolPath})` : error.message });
+    });
+    child.on('close', () => {
+      clearTimeout(timer);
+      const parsed = versionOf(out.split('\n')[0].replace(/^\D+/, ''));
+      resolve(parsed ? { ...parsed, raw: out.split('\n')[0].trim() } : { error: `${name} did not report a version` });
+    });
+  });
+}
+
+async function defaultServerVersion() {
+  const { query } = require('../../config/db');
+  const result = await query("select current_setting('server_version') as version, current_setting('server_version_num')::int as num");
+  const row = result.rows[0] || {};
+  return { version: String(row.version || '').split(' ')[0], major: Math.floor(Number(row.num || 0) / 10000) };
+}
+
+let probes = { toolVersion: defaultToolVersion, serverVersion: defaultServerVersion };
+
+function setHealthProbesForTests(overrides) {
+  probes = overrides ? { toolVersion: defaultToolVersion, serverVersion: defaultServerVersion, ...overrides } : { toolVersion: defaultToolVersion, serverVersion: defaultServerVersion };
+  healthCache = null;
+}
+
+// Which connection pg_dump / restore use, and whether it is Supabase's transaction pooler
+// (port 6543), which cannot run a restore in one transaction.
+function backupConnectionInfo() {
+  const source = process.env.BACKUP_DATABASE_URL ? 'BACKUP_DATABASE_URL' : process.env.DATABASE_URL ? 'DATABASE_URL' : 'PGHOST';
+  const params = getConnectionParams();
+  const transactionPooler = String(params.port) === '6543';
+  return {
+    source,
+    host: params.host,
+    port: String(params.port),
+    transactionPooler,
+    message: transactionPooler
+      ? `${source} uses port 6543 (Supabase transaction pooler). Backups work, but a restore needs the session pooler (port 5432) or the direct connection: set BACKUP_DATABASE_URL to one of those.`
+      : ''
+  };
+}
+
+async function versionReport() {
+  if (healthCache && Date.now() - healthCache.at < HEALTH_TTL_MS) return healthCache.report;
+  const toolPaths = {
+    pg_dump: getGoogleDriveConfig().pgDumpPath,
+    pg_restore: process.env.PG_RESTORE_PATH || 'pg_restore',
+    psql: process.env.PSQL_PATH || 'psql'
+  };
+  let server;
+  try {
+    server = await probes.serverVersion();
+  } catch (error) {
+    server = { error: `Server version could not be read: ${error.message}` };
+  }
+  const tools = [];
+  for (const [name, toolPath] of Object.entries(toolPaths)) {
+    const found = await probes.toolVersion(name, toolPath);
+    const ok = !found.error && (!server.major || found.major >= server.major);
+    tools.push({
+      name,
+      ...found,
+      ok,
+      message: found.error || (ok ? '' : `${name} ${found.version} is older than the database server (${server.version}); install version ${server.major} or newer.`)
+    });
+  }
+  const report = { server, tools, checkedAt: new Date().toISOString() };
+  healthCache = { at: Date.now(), report };
+  return report;
+}
+
+// Read-only summary for Settings → Storage & Backup: nothing here changes the server or database.
+async function getBackupHealth(now = new Date()) {
+  const config = getGoogleDriveConfig();
+  const state = await getSetting(STATE_KEY, {});
+  const driveStatus = await connection.getState().catch(() => ({}));
+  const connected = Boolean(driveStatus.encryptedRefreshToken) && !driveStatus.needsReconnect;
+  const lastSuccessAt = state.lastSuccess?.finishedAt || null;
+  const hoursSinceSuccess = lastSuccessAt ? Math.floor((now.getTime() - Date.parse(lastSuccessAt)) / 3600000) : null;
+  const scheduleOn = config.backupHourIst !== -1;
+  const { server, tools, checkedAt } = await versionReport();
+  const connectionInfo = backupConnectionInfo();
+  const overdue = scheduleOn && connected && hoursSinceSuccess !== null && hoursSinceSuccess > STALE_HOURS;
+
+  const problems = [];
+  if (!connected) problems.push(driveStatus.needsReconnect ? 'Google Drive needs to be reconnected.' : 'Google Drive is not connected.');
+  if (!scheduleOn) problems.push('The daily backup schedule is off.');
+  if (server.error) problems.push(server.error);
+  for (const tool of tools) if (!tool.ok) problems.push(tool.message);
+  if (connectionInfo.transactionPooler) problems.push(connectionInfo.message);
+  if (overdue) problems.push(`No successful backup for ${hoursSinceSuccess} hours.`);
+  else if (scheduleOn && connected && !lastSuccessAt) problems.push('No backup has succeeded yet.');
+
+  return {
+    ok: problems.length === 0,
+    problems,
+    checkedAt,
+    server,
+    tools,
+    connection: connectionInfo,
+    schedule: { enabled: scheduleOn, label: scheduleLabel(config.backupHourIst) },
+    lastSuccessAt,
+    hoursSinceSuccess,
+    overdue,
+    staleAfterHours: STALE_HOURS,
+    drive: { connected, needsReconnect: Boolean(driveStatus.needsReconnect) },
+    alert: state.alert || null
+  };
 }
 
 // Only ids in this server's own backup list, so this never becomes a "read any Drive file" proxy.
@@ -425,10 +691,18 @@ async function openBackup(fileId) {
 }
 
 module.exports = {
+  STALE_HOURS,
+  backupConnectionInfo,
   buildFileName,
   canBackUpManually,
+  checkBackupHealth,
+  getBackupHealth,
   getConnectionParams,
+  hashFile,
+  isProtectedFromRetention,
   kindOf,
+  protectFromRetention,
+  recordBackupProblem,
   redact,
   getBackupStatus,
   isOwnBackupName,
@@ -438,7 +712,9 @@ module.exports = {
   runBackup,
   runScheduledBackupIfDue,
   setDumpRunnerForTests,
+  setHealthProbesForTests,
   acquireBackupLock: () => acquireLock(),
   setLockForTests,
-  startBackupInBackground
+  startBackupInBackground,
+  verifyBackupFile
 };
