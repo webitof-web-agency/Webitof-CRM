@@ -274,6 +274,7 @@ export const api = {
     markRead: (token, id) => request(`/notifications/${id}/read`, { method: 'PATCH', token, skipCache: true }),
     markAllRead: (token) => request('/notifications/read-all', { method: 'PATCH', token, skipCache: true }),
     unreadSummary: (token) => request('/notifications/unread-summary', { token, skipCache: true }),
+    stats: (token) => request('/notifications/stats', { token, skipCache: true }),
     markManyRead: (token, ids) => request('/notifications/read-many', { method: 'PATCH', token, body: { ids }, skipCache: true })
   },
   followUps: {

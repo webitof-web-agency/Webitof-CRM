@@ -170,31 +170,48 @@ async function sendNotificationEmail({ to, subject, title, message, routePath, s
   }
 }
 
-async function listNotifications(userId, { limit = 50, offset = 0, unreadOnly = false } = {}) {
-  const clauses = ['user_id = $1'];
-  const values = [String(userId || '')];
-  if (unreadOnly) {
-    clauses.push(`coalesce(is_read, false) = false`);
-  }
+// A user's own actions never count as unread (older rows from before they stopped being created).
+const UNREAD_SQL = `coalesce(is_read, false) = false AND actor_user_id IS DISTINCT FROM user_id`;
+const LIST_FILTERS = {
+  all: 'TRUE',
+  unread: UNREAD_SQL,
+  read: `NOT (${UNREAD_SQL})`,
+  high: `severity IN ('warning', 'danger', 'critical')`
+};
 
-  values.push(Math.max(1, Number(limit) || 50));
-  const limitIndex = values.length;
-  values.push(Math.max(0, Number(offset) || 0));
-  const offsetIndex = values.length;
-
-  const result = await notificationModel.list({
-    where: { userId: String(userId || '') },
-    orderBy: 'created_at DESC'
+// Newest first, filtered on the server so "Unread" finds every unread item, not only the latest page.
+// filter: all | unread | read | high. unreadOnly=true is the older spelling of filter=unread.
+async function listNotifications(userId, { limit = 50, offset = 0, unreadOnly = false, filter = 'all' } = {}) {
+  const where = LIST_FILTERS[unreadOnly ? 'unread' : filter] || LIST_FILTERS.all;
+  const { rows } = await query(
+    `SELECT * FROM notifications WHERE user_id = $1 AND ${where} ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+    [String(userId || ''), Math.min(Math.max(1, Number(limit) || 50), 200), Math.max(0, Number(offset) || 0)]
+  );
+  return rows.map((row) => {
+    const item = notificationModel.hydrateRow(row);
+    // Shown as read so the list agrees with the unread count.
+    if (item.actorUserId && String(item.actorUserId) === String(item.userId)) item.isRead = true;
+    return item;
   });
+}
 
-  const rows = result.slice(Number(offset) || 0, (Number(offset) || 0) + (Number(limit) || 50));
-  return unreadOnly ? rows.filter((row) => !row.isRead) : rows;
+// Totals for the notifications page cards (all of the user's notifications, not one page).
+async function notificationStats(userId) {
+  const { rows } = await query(
+    `SELECT count(*)::int AS total,
+            count(*) FILTER (WHERE ${UNREAD_SQL})::int AS unread,
+            count(*) FILTER (WHERE created_at >= now() - interval '24 hours')::int AS today,
+            count(*) FILTER (WHERE ${LIST_FILTERS.high})::int AS high
+       FROM notifications WHERE user_id = $1`,
+    [String(userId || '')]
+  );
+  return rows[0] || { total: 0, unread: 0, today: 0, high: 0 };
 }
 
 async function getUnreadCount(userId) {
   const { rows } = await query(
     // Older rows about the user's own actions are not counted (they are no longer created).
-    'SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND coalesce(is_read, false) = false AND actor_user_id IS DISTINCT FROM user_id',
+    `SELECT count(*)::int AS n FROM notifications WHERE user_id = $1 AND ${UNREAD_SQL}`,
     [String(userId || '')]
   );
   return rows[0]?.n || 0;
@@ -226,7 +243,7 @@ async function listUnreadSummary(userId, { limit = 2000 } = {}) {
   const { rows } = await query(
     `SELECT id, module_name, entity_id, coalesce(nullif(route_path, ''), payload->>'routePath', '') AS route_path
        FROM notifications
-      WHERE user_id = $1 AND coalesce(is_read, false) = false AND actor_user_id IS DISTINCT FROM user_id
+      WHERE user_id = $1 AND ${UNREAD_SQL}
       ORDER BY created_at DESC
       LIMIT $2`,
     [String(userId || ''), limit]
@@ -572,6 +589,7 @@ module.exports = {
   getUnreadCount,
   listNotifications,
   listUnreadSummary,
+  notificationStats,
   markAllNotificationsRead,
   markNotificationRead,
   markNotificationsRead,

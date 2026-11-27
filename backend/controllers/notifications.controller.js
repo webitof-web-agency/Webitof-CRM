@@ -3,6 +3,7 @@ const {
   getUnreadCount,
   listNotifications,
   listUnreadSummary,
+  notificationStats,
   markAllNotificationsRead,
   markNotificationRead,
   markNotificationsRead
@@ -13,7 +14,8 @@ async function listController(req, res, next) {
     const limit = Math.max(1, Number(req.query?.limit || 50));
     const offset = Math.max(0, Number(req.query?.offset || 0));
     const unreadOnly = String(req.query?.unreadOnly || '').toLowerCase() === 'true';
-    const notifications = await listNotifications(req.user?.id, { limit, offset, unreadOnly });
+    const filter = String(req.query?.filter || 'all');
+    const notifications = await listNotifications(req.user?.id, { limit, offset, unreadOnly, filter });
     res.json({ success: true, data: notifications });
   } catch (error) {
     next(error);
@@ -32,6 +34,14 @@ async function unreadCountController(req, res, next) {
 async function unreadSummaryController(req, res, next) {
   try {
     res.json({ success: true, data: await listUnreadSummary(req.user?.id) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function statsController(req, res, next) {
+  try {
+    res.json({ success: true, data: await notificationStats(req.user?.id) });
   } catch (error) {
     next(error);
   }
@@ -100,6 +110,7 @@ module.exports = {
   markManyReadController,
   markReadController,
   seedController,
+  statsController,
   unreadCountController,
   unreadSummaryController
 };

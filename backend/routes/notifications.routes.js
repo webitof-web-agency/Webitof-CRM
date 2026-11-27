@@ -6,6 +6,7 @@ const router = express.Router();
 router.get('/', controller.listController);
 router.get('/unread-count', controller.unreadCountController);
 router.get('/unread-summary', controller.unreadSummaryController);
+router.get('/stats', controller.statsController);
 router.patch('/read-all', controller.markAllReadController);
 router.patch('/read-many', controller.markManyReadController);
 router.patch('/:id/read', controller.markReadController);

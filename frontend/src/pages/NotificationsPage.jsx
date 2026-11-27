@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowUpRight, Bell, CheckCheck, Clock3, Filter, Mail, RefreshCcw, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -7,6 +7,8 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useNotifications } from '../context/NotificationContext';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../api/client';
 import { notificationTarget } from '../lib/notificationTarget';
 
 function formatTime(value) {
@@ -93,47 +95,83 @@ function NotificationRow({ item, onOpen, onMarkRead }) {
   );
 }
 
+const PAGE_SIZE = 30;
+
 export function NotificationsPage() {
   const navigate = useNavigate();
-  const { notifications, unreadCount, loading, refresh, markRead, markAllRead } = useNotifications();
+  const { token } = useAuth();
+  const { notifications: live, unreadCount, markRead, markAllRead } = useNotifications();
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false);
+  // The page keeps its own list: filtered on the server and paged, so "Unread" shows every unread
+  // notification (the header bell only keeps the latest 30).
+  const [rows, setRows] = useState([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [reload, setReload] = useState(0);
 
-  const stats = useMemo(() => {
-    const unread = notifications.filter((item) => !item.isRead).length;
-    const today = notifications.filter((item) => {
-      const created = item.createdAt ? new Date(item.createdAt) : null;
-      if (!created || Number.isNaN(created.getTime())) return false;
-      const now = new Date();
-      return created.toDateString() === now.toDateString();
-    }).length;
-    const high = notifications.filter((item) => ['warning', 'danger'].includes(String(item.severity || '').toLowerCase())).length;
-    return { unread, today, high };
-  }, [notifications]);
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.notifications
+      .list(token, { limit: PAGE_SIZE, offset: 0, filter })
+      .then((response) => {
+        if (!active) return;
+        const list = Array.isArray(response.data) ? response.data : [];
+        setRows(list);
+        setHasMore(list.length === PAGE_SIZE);
+      })
+      .catch((error) => active && toast.error(error.message || 'Unable to load notifications'))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+    };
+  }, [token, filter, reload]);
 
-  const visibleNotifications = useMemo(() => {
-    let rows = notifications;
-    if (filter === 'unread') rows = rows.filter((item) => !item.isRead);
-    if (filter === 'read') rows = rows.filter((item) => item.isRead);
-    if (filter === 'high') rows = rows.filter((item) => ['warning', 'danger'].includes(String(item.severity || '').toLowerCase()));
-    return rows;
-  }, [filter, notifications]);
+  // Card totals follow the bell: re-read them whenever the unread count moves.
+  useEffect(() => {
+    api.notifications.stats(token).then((response) => setStats(response.data || null)).catch(() => {});
+  }, [token, unreadCount, reload]);
 
-  async function handleRefresh() {
-    setBusy(true);
+  // New notifications arriving live are added on top (when they belong to the open tab).
+  useEffect(() => {
+    const newest = live[0];
+    if (!newest || newest.isRead || !['all', 'unread'].includes(filter)) return;
+    setRows((current) => (current.some((item) => item.id === newest.id) ? current : [newest, ...current]));
+  }, [live, filter]);
+
+  async function loadMore() {
+    setLoadingMore(true);
     try {
-      await refresh();
-      toast.success('Notifications refreshed');
+      const response = await api.notifications.list(token, { limit: PAGE_SIZE, offset: rows.length, filter });
+      const list = Array.isArray(response.data) ? response.data : [];
+      setRows((current) => [...current, ...list.filter((item) => !current.some((row) => row.id === item.id))]);
+      setHasMore(list.length === PAGE_SIZE);
     } catch (error) {
-      toast.error(error.message || 'Unable to refresh notifications');
+      toast.error(error.message || 'Unable to load notifications');
     } finally {
-      setBusy(false);
+      setLoadingMore(false);
     }
+  }
+
+  function markLocal(id) {
+    setRows((current) =>
+      filter === 'unread'
+        ? current.filter((item) => item.id !== id)
+        : current.map((item) => (item.id === id ? { ...item, isRead: true } : item))
+    );
+  }
+
+  function handleRefresh() {
+    setReload((n) => n + 1);
   }
 
   async function handleMarkRead(item) {
     try {
       await markRead(item.id);
+      markLocal(item.id);
       toast.success('Marked as read');
     } catch (error) {
       toast.error(error.message || 'Unable to update notification');
@@ -144,6 +182,7 @@ export function NotificationsPage() {
     try {
       if (!item.isRead) {
         await markRead(item.id);
+        markLocal(item.id);
       }
       const target = notificationTarget(item);
       if (target) navigate(target);
@@ -157,12 +196,15 @@ export function NotificationsPage() {
     try {
       await markAllRead();
       toast.success('All notifications marked as read');
+      setReload((n) => n + 1);
     } catch (error) {
       toast.error(error.message || 'Unable to update notifications');
     } finally {
       setBusy(false);
     }
   }
+
+  const tabTotal = stats ? { all: stats.total, unread: stats.unread, read: stats.total - stats.unread, high: stats.high }[filter] : null;
 
   return (
     <div className="space-y-6">
@@ -185,9 +227,9 @@ export function NotificationsPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {[
-          { label: 'Unread', value: stats.unread, helper: 'Bell count in header', bg: 'bg-indigo-50/80 text-indigo-500', Icon: Bell },
-          { label: 'Today', value: stats.today, helper: 'Created in last 24 hours', bg: 'bg-emerald-50/80 text-emerald-500', Icon: Clock3 },
-          { label: 'High Priority', value: stats.high, helper: 'Warnings and critical events', bg: 'bg-rose-50/80 text-rose-500', Icon: ShieldAlert }
+          { label: 'Unread', value: unreadCount, helper: 'Same as the bell in the header', bg: 'bg-indigo-50/80 text-indigo-500', Icon: Bell },
+          { label: 'Today', value: stats?.today ?? '…', helper: 'Created in last 24 hours', bg: 'bg-emerald-50/80 text-emerald-500', Icon: Clock3 },
+          { label: 'High Priority', value: stats?.high ?? '…', helper: 'Warnings and critical events', bg: 'bg-rose-50/80 text-rose-500', Icon: ShieldAlert }
         ].map((item) => (
           <Card key={item.label} className="px-4 py-5 flex items-center gap-3 shadow-sm border border-slate-100 rounded-2xl">
             <div className={`shrink-0 w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-full ${item.bg}`}>
@@ -195,7 +237,7 @@ export function NotificationsPage() {
             </div>
             <div className="overflow-hidden min-w-0">
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-500 mb-1 truncate">{item.label}</p>
-              <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{loading ? '...' : String(item.value)}</h3>
+              <h3 className="text-base md:text-lg font-bold text-slate-800 leading-tight truncate">{String(item.value)}</h3>
               <p className="mt-1 text-[10px] text-slate-400 truncate">{item.helper}</p>
             </div>
           </Card>
@@ -206,7 +248,9 @@ export function NotificationsPage() {
         <div className="flex flex-col border-b border-slate-200">
           <div className="px-5 py-4">
             <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">Inbox</h2>
-            <p className="mt-1 text-sm text-slate-500">Showing {visibleNotifications.length} of {notifications.length} notifications</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {loading ? 'Loading…' : `Showing ${rows.length}${tabTotal != null ? ` of ${tabTotal}` : ''} notifications`}
+            </p>
           </div>
           <div className="flex w-full overflow-x-auto hide-scrollbar px-2">
             {[
@@ -232,10 +276,21 @@ export function NotificationsPage() {
         </div>
 
         <div className="space-y-3 p-4 md:p-5">
-          {visibleNotifications.length ? (
-            visibleNotifications.map((item) => (
-              <NotificationRow key={item.id} item={item} onOpen={handleOpen} onMarkRead={handleMarkRead} />
-            ))
+          {rows.length ? (
+            <>
+              {rows.map((item) => (
+                <NotificationRow key={item.id} item={item} onOpen={handleOpen} onMarkRead={handleMarkRead} />
+              ))}
+              {hasMore && (
+                <div className="flex justify-center pt-2">
+                  <Button variant="outline" onClick={loadMore} disabled={loadingMore}>
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : loading ? (
+            <div className="h-24 animate-pulse rounded-2xl bg-slate-100" />
           ) : (
             <EmptyState
               title="No notifications yet"
