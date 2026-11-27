@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useNotifications } from '../context/NotificationContext';
+import { notificationTarget } from '../lib/notificationTarget';
 
 function formatTime(value) {
   if (!value) return 'Just now';
@@ -63,7 +64,7 @@ function NotificationRow({ item, onOpen, onMarkRead }) {
               <Clock3 size={12} />
               {formatTime(item.createdAt)}
             </span>
-            {item.routePath ? (
+            {notificationTarget(item) ? (
               <span className="inline-flex items-center gap-1 text-[var(--primary)]">
                 Open record
                 <ArrowUpRight size={12} />
@@ -132,10 +133,7 @@ export function NotificationsPage() {
 
   async function handleMarkRead(item) {
     try {
-      const next = await markRead(item.id);
-      if (next?.routePath) {
-        navigate(next.routePath);
-      }
+      await markRead(item.id);
       toast.success('Marked as read');
     } catch (error) {
       toast.error(error.message || 'Unable to update notification');
@@ -147,9 +145,8 @@ export function NotificationsPage() {
       if (!item.isRead) {
         await markRead(item.id);
       }
-      if (item.routePath) {
-        navigate(item.routePath);
-      }
+      const target = notificationTarget(item);
+      if (target) navigate(target);
     } catch (error) {
       toast.error(error.message || 'Unable to open notification');
     }

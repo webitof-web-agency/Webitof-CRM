@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import { toast } from 'sonner';
 import { API_BASE_URL, api } from '../api/client';
 import { useAuth } from './AuthContext';
+import { notificationTarget } from '../lib/notificationTarget';
 
 const NotificationContext = createContext(null);
 
@@ -92,15 +93,29 @@ export function NotificationProvider({ children }) {
       setNotifications((current) => mergeNotifications(current, notification));
       setUnreadCount((current) => current + (notification.isRead ? 0 : 1));
       const title = notification.title || 'Notification';
-      const message = notification.message || '';
+      const target = notificationTarget(notification);
+      const options = { description: notification.message || '' };
+      // The provider sits outside the router, so open the page through the hash (HashRouter).
+      if (target) {
+        options.action = {
+          label: 'Open',
+          onClick: () => {
+            if (!notification.isRead) api.notifications.markRead(token, notification.id)
+              .then((response) => setNotifications((current) => mergeNotifications(current, response.data)))
+              .then(() => setUnreadCount((current) => Math.max(0, current - 1)))
+              .catch(() => {});
+            window.location.hash = target;
+          }
+        };
+      }
       if (notification.severity === 'danger') {
-        toast.error(title, { description: message });
+        toast.error(title, options);
       } else if (notification.severity === 'warning') {
-        toast.warning(title, { description: message });
+        toast.warning(title, options);
       } else if (notification.severity === 'success') {
-        toast.success(title, { description: message });
+        toast.success(title, options);
       } else {
-        toast.message(title, { description: message });
+        toast.message(title, options);
       }
     });
 

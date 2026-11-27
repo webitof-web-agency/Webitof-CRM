@@ -7,6 +7,7 @@ import { SidebarToggle } from './Sidebar';
 import { UserAvatar } from '../ui/UserAvatar';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '../ui/Badge';
+import { notificationTarget } from '../../lib/notificationTarget';
 
 function formatTime(value) {
   if (!value) return 'Just now';
@@ -211,8 +212,9 @@ export function Topbar({
                       key={item.id}
                       type="button"
                       onClick={() => {
-                        markRead(item.id);
-                        if (item.link) navigate(item.link);
+                        if (!item.isRead) markRead(item.id).catch(() => {});
+                        const target = notificationTarget(item);
+                        if (target) navigate(target);
                         setNotificationsOpen(false);
                       }}
                       className={`w-full rounded-2xl p-2.5 text-left transition-all duration-150 cursor-pointer ${
