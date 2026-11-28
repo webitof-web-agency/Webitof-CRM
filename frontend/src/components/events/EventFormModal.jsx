@@ -7,6 +7,7 @@ import { SearchableSelect } from '../forms/SearchableSelect';
 import { AttachmentPicker } from '../ui/AttachmentPicker';
 import { normalizeEventAttachment, normalizeEventAttachments } from './eventAttachments';
 import { formatDateOnlyInput } from '../../lib/dateOnly';
+import { AttendeePicker } from '../common/AttendeePicker';
 
 const DEFAULT_COLORS = ['#84cc16', '#06b6d4', '#3b82f6', '#94a3b8', '#f59e0b', '#ef4444', '#db2777', '#8b5cf6'];
 
@@ -74,7 +75,11 @@ export function EventFormModal({
       visibility: nextVisibility === 'onlyme' ? 'only_me' : nextVisibility === 'specific_members_and_teams' ? 'specific' : nextVisibility,
       allowedUserIds: normalizeArray(initialValue?.allowedUserIds),
       allowedTeamIds: normalizeArray(initialValue?.allowedTeamIds),
-      attachments: normalizeEventAttachments(initialValue?.attachments)
+      attachments: normalizeEventAttachments(initialValue?.attachments),
+      // Invited people get the Google invite and email / WhatsApp / app notifications.
+      attendees: Array.isArray(initialValue?.attendees) ? initialValue.attendees : [],
+      addMeetLink: Boolean(initialValue?.addMeetLink),
+      meetLink: initialValue?.meetLink || ''
     });
   }, [defaultScopeId, defaultScopeType, initialValue, open, scopeLocked]);
 
@@ -199,6 +204,31 @@ export function EventFormModal({
         </div>
 
         <Input value={formData.location} onChange={(e) => set('location', e.target.value)} placeholder="Location" />
+
+        <AttendeePicker
+          value={formData.attendees}
+          onChange={(next) => set('attendees', next)}
+          leadId={formData.scopeType === 'lead' ? formData.scopeId : ''}
+          clientId={formData.scopeType === 'client' ? formData.scopeId : ''}
+          excludeUserId={initialValue?.ownerUserId || ''}
+        />
+
+        {formData.meetLink ? (
+          <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800">
+            Google Meet: <a href={formData.meetLink} target="_blank" rel="noreferrer" className="font-semibold underline">{formData.meetLink}</a>
+          </div>
+        ) : (
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--text-main)]">
+            <input
+              type="checkbox"
+              checked={formData.addMeetLink}
+              onChange={(e) => set('addMeetLink', e.target.checked)}
+              className="!appearance-auto"
+              style={{ accentColor: 'var(--primary)' }}
+            />
+            Add a Google Meet video link (needs your Google Calendar connected)
+          </label>
+        )}
 
         <SearchableSelect
           value={formData.labels}

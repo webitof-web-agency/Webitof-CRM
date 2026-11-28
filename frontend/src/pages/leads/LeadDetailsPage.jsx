@@ -23,6 +23,8 @@ import { INDIA_STATE_OPTIONS } from '../../data/indiaLocations';
 import { cn } from '../../lib/cn';
 import { normalizeSharedLabels, mergeSharedLabelOptions } from '../../lib/labels';
 import { formatDateOnlyInput } from '../../lib/dateOnly';
+import { isRealName } from '../../lib/followUpLead';
+import { RelatedTodosCard } from '../../components/todos/RelatedTodosCard';
 import { EventFormModal } from '../../components/events/EventFormModal';
 import { EventFeedPanel } from '../../components/events/EventFeedPanel';
 import { FollowUpFormModal } from '../../components/followups/FollowUpModals';
@@ -37,7 +39,7 @@ import { WhatsAppTemplateModal } from '../../components/leads/WhatsAppTemplateMo
 import { LeadStageVelocityBadge } from '../../components/leads/LeadStageVelocityBadge';
 import { MergeLeadModal } from '../../components/leads/MergeLeadModal';
 import { FollowUpCadenceStepper } from '../../components/followups/FollowUpQuickPresets';
-import { GitMerge, Brain, ChevronUp, ChevronDown, Scale, RotateCcw, ShieldCheck } from 'lucide-react';
+import { GitMerge, Brain, ChevronUp, ChevronDown, Scale, RotateCcw, ShieldCheck, Building2, Contact } from 'lucide-react';
 import { normalizeEventAttachment, normalizeEventAttachments } from '../../components/events/eventAttachments';
 import {
   DEFAULT_LEAD_OPTIONS,
@@ -3057,6 +3059,31 @@ function ActivityViewModal({
                 <span className="font-semibold text-[var(--text-main)]">{item.location}</span>
               </div>
             )}
+
+            {item.meetLink ? (
+              <div className="flex items-center justify-between text-xs text-[var(--text-muted)] border-t border-[var(--border-muted)]/60 pt-2">
+                <span className="font-medium">Google Meet:</span>
+                <a href={item.meetLink} target="_blank" rel="noreferrer" className="font-semibold text-[var(--primary)] underline truncate max-w-[60%]">{item.meetLink}</a>
+              </div>
+            ) : null}
+
+            {/* Invited people and their answer from Google Calendar (Yes / No / Maybe) */}
+            {Array.isArray(item.attendees) && item.attendees.length ? (
+              <div className="border-t border-[var(--border-muted)]/60 pt-2 text-xs text-[var(--text-muted)]">
+                <span className="font-medium">Invited ({item.attendees.length}):</span>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {item.attendees.map((attendee) => {
+                    const answer = { accepted: ['Yes', 'text-emerald-600'], declined: ['No', 'text-rose-600'], tentative: ['Maybe', 'text-amber-600'] }[attendee.responseStatus];
+                    return (
+                      <span key={`${attendee.type}:${attendee.id || attendee.email || attendee.phone}`} className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface)] px-2 py-0.5 font-semibold text-[var(--text-main)]" title={[attendee.email, attendee.phone].filter(Boolean).join(' · ')}>
+                        {attendee.name || attendee.email || attendee.phone}
+                        <span className={answer ? answer[1] : 'text-[var(--text-muted)] font-normal'}>{answer ? answer[0] : 'Invited'}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -4832,20 +4859,33 @@ export function LeadDetailsPage() {
               <button
                 type="button"
                 onClick={() => navigate('/app/leads')}
-                className="inline-flex items-center gap-2 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--text-muted)] hover:text-[var(--text-main)] cursor-pointer"
               >
-                <ArrowLeft size={16} />
+                <ArrowLeft size={15} />
                 Back to Leads
               </button>
-              <span className="text-[var(--text-muted)] opacity-40">/</span>
-              <h1 className="min-w-0 max-w-full truncate text-base font-semibold tracking-tight text-[var(--text-main)]">
-                {lead.companyName || lead.name}
+              <span className="text-sm text-[var(--text-muted)] opacity-40">/</span>
+              {/* Order: business name, primary contact person, lead number — one text size, 15px icons */}
+              <h1
+                className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-sm font-semibold text-[var(--text-main)]"
+                title={String(lead.type || '').toLowerCase() === 'person' ? 'Lead name' : 'Company / business'}
+              >
+                {String(lead.type || '').toLowerCase() === 'person'
+                  ? <User size={15} className="shrink-0 text-[var(--text-muted)]" />
+                  : <Building2 size={15} className="shrink-0 text-[var(--text-muted)]" />}
+                <span className="truncate">{lead.companyName || lead.name}</span>
               </h1>
-              {lead.leadNumber ? <span className="text-xs font-semibold text-[var(--text-muted)]">{lead.leadNumber}</span> : null}
+              {isRealName(lead.contactPerson) && String(lead.contactPerson).trim().toLowerCase() !== String(lead.companyName || lead.name || '').trim().toLowerCase() ? (
+                <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--text-main)]" title="Primary contact person">
+                  <Contact size={15} className="shrink-0 text-[var(--text-muted)]" />
+                  {String(lead.contactPerson).trim()}
+                </span>
+              ) : null}
+              {lead.leadNumber ? <span className="text-sm font-medium text-[var(--text-muted)]">{lead.leadNumber}</span> : null}
             </div>
             <div className="space-y-2">
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-[var(--border-muted)] bg-[var(--surface-2)] px-3 py-1 text-xs font-medium text-[var(--text-muted)]">
+                <span className="inline-flex items-center rounded-full border border-[var(--border-muted)] bg-[var(--surface-2)] px-2.5 py-0.5 text-xs font-semibold text-[var(--text-muted)]">
                   {lead.type || 'Organization'}
                 </span>
                 {renderStatusPill(lead.status, getLeadStatusColor(lead.status, statusColors))}
@@ -5048,17 +5088,26 @@ export function LeadDetailsPage() {
                 disabled={savingMeta}
               />
 
-              {/* 1. Commercial Highlights (Budget, Quotation & Services) */}
-              <Card className="flex flex-col gap-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 dark:bg-cyan-500/10 p-5 shadow-sm">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyan-500/15 pb-3.5">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
-                      <Tag size={20} strokeWidth={2} />
+              {/* 1. Commercial Highlights (Budget, Quotation & Services) — compact: services sit in the header row */}
+              <Card className="flex flex-col gap-2.5 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 dark:bg-cyan-500/10 px-4 py-3 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-cyan-500/15 pb-2.5">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 text-cyan-600 dark:text-cyan-400">
+                        <Tag size={14} strokeWidth={2} />
+                      </div>
+                      <h3 className="text-sm font-bold text-[var(--text-main)]" title="Commercial overview">Budget & Quotation</h3>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">Commercial Overview</p>
-                      <h3 className="text-sm font-bold text-[var(--text-main)]">Budget & Quotation</h3>
-                    </div>
+                    {serviceNames.length > 0 ? (
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Services</span>
+                        {serviceNames.map((service) => (
+                          <span key={service}>
+                            {renderServicePill(service, getLeadServiceColor(service))}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-semibold text-[var(--text-muted)]">Status:</span>
@@ -5088,100 +5137,77 @@ export function LeadDetailsPage() {
                   </div>
                 </div>
 
-                {/* Point 3: Expanded 6-Metric Responsive Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {/* 6 metrics, two lines each: label, value */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                   {/* Metric 1: Client Budget */}
-                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                  <div className="rounded-lg border border-cyan-500/15 bg-[var(--surface)]/80 px-3 py-2 shadow-2xs">
                     <div className="flex items-center justify-between gap-1">
                       <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Client Budget</span>
                       {lead?.budgetConfirmed != null ? (
                         <span className={cn(
-                          'rounded-sm px-1 py-0.2 text-[10px] font-bold uppercase',
+                          'rounded-sm px-1 text-[9px] font-bold uppercase',
                           lead.budgetConfirmed ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400' : 'bg-slate-500/15 text-slate-500'
                         )}>
                           {lead.budgetConfirmed ? 'Confirmed' : 'Estimated'}
                         </span>
                       ) : null}
                     </div>
-                    <span className="mt-1.5 block text-base font-bold text-[var(--text-main)] truncate" title={formatLeadAmount(clientBudget, lead?.currency)}>
+                    <span className="mt-0.5 block text-sm font-bold text-[var(--text-main)] truncate" title={formatLeadAmount(clientBudget, lead?.currency)}>
                       {formatLeadAmount(clientBudget, lead?.currency)}
                     </span>
                   </div>
 
                   {/* Metric 2: Quotation Value */}
-                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                  <div className="rounded-lg border border-cyan-500/15 bg-[var(--surface)]/80 px-3 py-2 shadow-2xs">
                     <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Quotation Value</span>
-                    <span className="mt-1.5 block text-base font-bold text-[var(--text-main)] truncate" title={quotationAmount != null ? formatLeadAmount(quotationAmount, lead?.currency) : '-'}>
+                    <span className="mt-0.5 block text-sm font-bold text-[var(--text-main)] truncate" title={quotationAmount != null ? formatLeadAmount(quotationAmount, lead?.currency) : '-'}>
                       {quotationAmount != null ? formatLeadAmount(quotationAmount, lead?.currency) : '-'}
                     </span>
                   </div>
 
                   {/* Metric 3: Billing / Deal Type */}
-                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                  <div className="rounded-lg border border-cyan-500/15 bg-[var(--surface)]/80 px-3 py-2 shadow-2xs">
                     <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Billing Type</span>
-                    <span className="mt-1.5 block text-sm font-bold text-[var(--text-main)] truncate" title={lead?.billingType || lead?.paymentPreference || '-'}>
+                    <span className="mt-0.5 block text-sm font-bold text-[var(--text-main)] truncate" title={lead?.billingType || lead?.paymentPreference || '-'}>
                       {lead?.billingType || lead?.paymentPreference || '-'}
                     </span>
                   </div>
 
                   {/* Metric 4: Expected Close / Timeline */}
-                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                  <div className="rounded-lg border border-cyan-500/15 bg-[var(--surface)]/80 px-3 py-2 shadow-2xs">
                     <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Expected Close</span>
-                    <span className="mt-1.5 block text-sm font-bold text-[var(--text-main)] truncate" title={formatDate(lead?.expectedClosingDate) !== '-' ? formatDate(lead?.expectedClosingDate) : (lead?.purchaseTimeline || '-')}>
+                    <span className="mt-0.5 block text-sm font-bold text-[var(--text-main)] truncate" title={formatDate(lead?.expectedClosingDate) !== '-' ? formatDate(lead?.expectedClosingDate) : (lead?.purchaseTimeline || '-')}>
                       {formatDate(lead?.expectedClosingDate) !== '-' ? formatDate(lead?.expectedClosingDate) : (lead?.purchaseTimeline || '-')}
                     </span>
                   </div>
 
                   {/* Metric 5: Deal Age / Velocity */}
-                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                  <div className="rounded-lg border border-cyan-500/15 bg-[var(--surface)]/80 px-3 py-2 shadow-2xs">
                     <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Pipeline Age</span>
-                    <span className="mt-1.5 block text-sm font-bold text-[var(--text-main)] truncate" title={`${dealAgeDays} Days active`}>
+                    <span className="mt-0.5 block truncate text-sm font-bold text-[var(--text-main)]" title={`${dealAgeDays} days active, since ${formatDate(lead?.createdAt)}`}>
                       {dealAgeDays} Day{dealAgeDays === 1 ? '' : 's'}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-muted)] mt-0.5 block truncate">
-                      Since {formatDate(lead?.createdAt)}
+                      <span className="ml-1.5 text-[10px] font-medium text-[var(--text-muted)]">since {formatDate(lead?.createdAt)}</span>
                     </span>
                   </div>
 
-                  {/* Metric 6: Proposal Readiness */}
-                  <div className="rounded-xl border border-cyan-500/15 bg-[var(--surface)]/80 p-3.5 shadow-2xs">
+                  {/* Metric 6: Proposal Readiness (its status is the pill in the header) */}
+                  <div className="rounded-lg border border-cyan-500/15 bg-[var(--surface)]/80 px-3 py-2 shadow-2xs">
                     <span className="block text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--text-muted)]">Proposal</span>
                     {quotationAmount != null ? (
-                      <span className="mt-1.5 block text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate">
+                      <span className="mt-0.5 block text-sm font-bold text-emerald-600 dark:text-emerald-400 truncate" title={quotationStatus || ''}>
                         Quotation Sent
                       </span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => openActivity('quotation')}
-                        className="mt-1.5 text-xs font-bold text-[var(--primary)] hover:underline truncate block text-left cursor-pointer"
+                        className="mt-0.5 text-sm font-bold text-[var(--primary)] hover:underline truncate block text-left cursor-pointer"
                       >
                         + Create Quote
                       </button>
                     )}
-                    <span className="text-[10px] text-[var(--text-muted)] mt-0.5 block truncate">
-                      {quotationStatus || 'Not sent'}
-                    </span>
                   </div>
                 </div>
-
-                {serviceNames.length > 0 ? (
-                  <div className="pt-1">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--text-muted)]">Required Services</span>
-                      <span className="rounded-full bg-cyan-500/15 px-1.5 py-0.2 text-[10px] font-bold text-cyan-700 dark:text-cyan-300">
-                        {serviceNames.length}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {serviceNames.map((service) => (
-                        <span key={service}>
-                          {renderServicePill(service, getLeadServiceColor(service))}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </Card>
 
               {/* Point 4: 4-Pillar BANT Qualification Tracker */}
@@ -5193,14 +5219,14 @@ export function LeadDetailsPage() {
               />
 
               {/* 2. Next Scheduled Follow-up & Reminders */}
-              <Card className="p-5 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-3">
+              <Card className="px-4 py-3 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-2">
+                <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-2">
                   <div className="flex items-center gap-2">
                     <Clock3 size={16} className="text-amber-500" />
                     <h3 className="text-sm font-bold text-[var(--text-main)]">Next Scheduled Follow-up & Reminders</h3>
                   </div>
                   {canWriteLead ? (
-                    <Button variant="outline" size="sm" onClick={() => openActivity('reminder')} className="h-8 text-xs">
+                    <Button variant="outline" size="sm" onClick={() => openActivity('reminder')} className="h-7 text-xs">
                       <CalendarPlus size={14} className="mr-1.5" />
                       + Schedule Follow-up
                     </Button>
@@ -5214,24 +5240,25 @@ export function LeadDetailsPage() {
                 />
 
                 {activityBuckets.reminder.length > 0 ? (
-                  <div className="space-y-2.5">
+                  <div className="space-y-1.5">
                     {activityBuckets.reminder.slice(0, 3).map((item) => (
                       <div
                         key={item.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 p-3.5"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 px-3 py-2"
                       >
-                        <div className="min-w-0 space-y-1">
-                          <div className="flex items-center gap-2">
+                        {/* Badge, date and title on one line; the note on the next */}
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
                             <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400">
                               Reminder
                             </span>
                             <span className="text-xs font-semibold text-[var(--text-muted)]">
                               {formatDate(item.date || item.startDate)} {item.startTime ? `at ${item.startTime}` : ''}
                             </span>
+                            <p className="min-w-0 truncate text-sm font-bold text-[var(--text-main)]">{item.title}</p>
                           </div>
-                          <p className="text-sm font-bold text-[var(--text-main)] truncate">{item.title}</p>
                           {item.description ? (
-                            <p className="text-xs text-[var(--text-muted)] line-clamp-2 leading-relaxed">{item.description}</p>
+                            <p className="text-xs text-[var(--text-muted)] line-clamp-1" title={item.description}>{item.description}</p>
                           ) : null}
                         </div>
                         {!item.isSystemFollowUp && canWriteLead ? (
@@ -5248,10 +5275,10 @@ export function LeadDetailsPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-2)] p-6 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-x-2 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 text-center">
                     <p className="text-xs font-medium text-[var(--text-muted)]">No active follow-ups or reminders scheduled for this lead.</p>
                     {canWriteLead ? (
-                      <Button variant="ghost" size="sm" onClick={() => openActivity('reminder')} className="mt-2 text-xs text-[var(--primary)]">
+                      <Button variant="ghost" size="sm" onClick={() => openActivity('reminder')} className="h-7 text-xs text-[var(--primary)]">
                         + Set a Follow-up Date
                       </Button>
                     ) : null}
@@ -5259,9 +5286,9 @@ export function LeadDetailsPage() {
                 )}
               </Card>
 
-              {/* 3. Requirement & Key Notes Box */}
-              <Card className="p-5 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-3.5">
-                <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-2.5">
+              {/* 3. Requirement & Key Notes Box — compact: each note's label sits beside its text */}
+              <Card className="px-4 py-3 border-[var(--border)] bg-[var(--surface)] shadow-sm space-y-2">
+                <div className="flex items-center justify-between border-b border-[var(--border-muted)] pb-2">
                   <div className="flex items-center gap-2">
                     <FileText size={16} className="text-[var(--primary)]" />
                     <h3 className="text-sm font-bold text-[var(--text-main)]">Requirement & Key Notes</h3>
@@ -5280,38 +5307,32 @@ export function LeadDetailsPage() {
                   canWrite={canWriteLead}
                 />
 
-                <div className="space-y-3 pt-1">
-                  {lead.requirementDescription ? (
-                    <div>
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Client Requirement</span>
-                      <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
-                        {lead.requirementDescription}
+                <div className="space-y-1.5">
+                  {[
+                    ['Client Requirement', lead.requirementDescription, true],
+                    ['General Notes', lead.notes, true],
+                    ['Other Service Details', lead.otherServiceDetails, false]
+                  ].filter(([, text]) => text).map(([label, text, preWrap]) => (
+                    <div key={label} className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
+                      <span className="shrink-0 pt-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)] sm:w-32">{label}</span>
+                      <p className={cn(
+                        'min-w-0 flex-1 rounded-lg border border-[var(--border-muted)] bg-[var(--surface-2)] px-3 py-1.5 text-xs leading-relaxed text-[var(--text-main)]',
+                        preWrap && 'whitespace-pre-wrap'
+                      )}>
+                        {text}
                       </p>
                     </div>
-                  ) : null}
-                  {lead.notes ? (
-                    <div>
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">General Notes</span>
-                      <p className="mt-1 text-xs text-[var(--text-main)] whitespace-pre-wrap leading-relaxed rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-3">
-                        {lead.notes}
-                      </p>
-                    </div>
-                  ) : null}
-                  {lead.otherServiceDetails ? (
-                    <div>
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Other Service Details</span>
-                      <p className="mt-1 text-xs text-[var(--text-main)] rounded-lg bg-[var(--surface-2)] border border-[var(--border-muted)] p-2.5">
-                        {lead.otherServiceDetails}
-                      </p>
-                    </div>
-                  ) : null}
+                  ))}
                   {!lead.requirementDescription && !lead.notes && !lead.otherServiceDetails && (
-                    <p className="text-xs text-[var(--text-muted)] italic py-1">
+                    <p className="text-xs text-[var(--text-muted)] italic">
                       No text notes recorded yet. Use the tags above or click "+ Add Note" to log client requirements.
                     </p>
                   )}
                 </div>
               </Card>
+
+              {/* Todos linked to this lead (also in each assignee's Google Calendar) */}
+              <RelatedTodosCard relatedEntityType="Lead" relatedEntityId={lead?.id} relatedEntityLabel={lead?.companyName || lead?.name || ''} />
 
               {/* 4. Recent Activity Feed */}
               <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-2xs">

@@ -63,6 +63,7 @@ async function ensureDatabase() {
   await ensureInvoiceSourceIndexes();
   await withTransaction(migrateHrm);
   await ensureStorageSchema();
+  await ensureCalendarTodoNotifySchema();
   const seedDefaults = String(process.env.SEED_DEFAULT_DATA || 'true').toLowerCase() === 'true';
   if (seedDefaults) {
     await seedDefaultData();
@@ -559,6 +560,131 @@ async function ensureNotificationsSchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_notifications_event_key ON notifications(event_key);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);`);
   await query(`CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);`);
+}
+
+// Google Calendar (one connection per user), todos, and the channels a notification goes out on
+// (push, email, WhatsApp) with each user's choices and a delivery log.
+async function ensureCalendarTodoNotifySchema() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS user_calendar_connections (
+      user_id text PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      provider text NOT NULL DEFAULT 'google',
+      account_email text NOT NULL DEFAULT '',
+      encrypted_refresh_token jsonb,
+      calendar_id text NOT NULL DEFAULT 'primary',
+      sync_mode text NOT NULL DEFAULT 'one_way',
+      sync_token text,
+      needs_reconnect boolean NOT NULL DEFAULT false,
+      needs_reconnect_since timestamptz,
+      last_push_at timestamptz,
+      last_pull_at timestamptz,
+      last_error text,
+      connected_at timestamptz NOT NULL DEFAULT now(),
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  // One row per ERP item that sits in someone's Google Calendar (or per Google event pulled into the ERP).
+  await query(`
+    CREATE TABLE IF NOT EXISTS calendar_event_links (
+      id text PRIMARY KEY,
+      user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      source_type text NOT NULL,
+      source_id text NOT NULL,
+      google_calendar_id text NOT NULL DEFAULT 'primary',
+      google_event_id text NOT NULL,
+      origin text NOT NULL DEFAULT 'erp',
+      etag text,
+      pushed_hash text,
+      google_updated_at timestamptz,
+      synced_at timestamptz,
+      last_error text,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_links_source ON calendar_event_links(source_type, source_id);`);
+  await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_links_google ON calendar_event_links(user_id, google_event_id);`);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS todos (
+      id text PRIMARY KEY,
+      title text NOT NULL,
+      description text NOT NULL DEFAULT '',
+      status text NOT NULL DEFAULT 'todo',
+      priority text NOT NULL DEFAULT 'Medium',
+      due_at timestamptz,
+      all_day boolean NOT NULL DEFAULT false,
+      reminder_minutes integer NOT NULL DEFAULT 15,
+      assigned_to text REFERENCES users(id) ON DELETE SET NULL,
+      created_by text REFERENCES users(id) ON DELETE SET NULL,
+      related_entity_type text NOT NULL DEFAULT '',
+      related_entity_id text NOT NULL DEFAULT '',
+      related_entity_label text NOT NULL DEFAULT '',
+      checklist jsonb NOT NULL DEFAULT '[]'::jsonb,
+      tags jsonb NOT NULL DEFAULT '[]'::jsonb,
+      sync_to_calendar boolean NOT NULL DEFAULT true,
+      completed_at timestamptz,
+      completed_by text REFERENCES users(id) ON DELETE SET NULL,
+      deleted_at timestamptz,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_todos_assigned_due ON todos(assigned_to, due_at) WHERE deleted_at IS NULL;`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_todos_created_by ON todos(created_by) WHERE deleted_at IS NULL;`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_todos_related ON todos(related_entity_type, related_entity_id) WHERE deleted_at IS NULL;`);
+
+  // Per user: which channels each kind of notification goes out on (see services/notify/preferences).
+  await query(`
+    CREATE TABLE IF NOT EXISTS notification_preferences (
+      user_id text PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      preferences jsonb NOT NULL DEFAULT '{}'::jsonb,
+      whatsapp_number text,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`
+    CREATE TABLE IF NOT EXISTS notification_deliveries (
+      id text PRIMARY KEY,
+      notification_id text,
+      user_id text,
+      recipient text NOT NULL DEFAULT '',
+      channel text NOT NULL,
+      status text NOT NULL,
+      error text,
+      payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notification_deliveries_notification ON notification_deliveries(notification_id);`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_notification_deliveries_created ON notification_deliveries(created_at);`);
+  // "Starting soon" / "due" reminders already sent, so a restart or a second server never repeats one.
+  await query(`
+    CREATE TABLE IF NOT EXISTS scheduled_reminder_log (
+      key text PRIMARY KEY,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+  `);
+
+  // Who was last told about a meeting / follow-up and for which schedule, so a change sends
+  // "invited", "updated" or "cancelled" to exactly the people it concerns.
+  await query(`
+    CREATE TABLE IF NOT EXISTS meeting_notice_state (
+      source_type text NOT NULL,
+      source_id text NOT NULL,
+      attendees jsonb NOT NULL DEFAULT '[]'::jsonb,
+      schedule_hash text NOT NULL DEFAULT '',
+      item jsonb NOT NULL DEFAULT '{}'::jsonb,
+      updated_at timestamptz NOT NULL DEFAULT now(),
+      PRIMARY KEY (source_type, source_id)
+    );
+  `);
+
+  await query(`ALTER TABLE follow_ups ADD COLUMN IF NOT EXISTS attendees jsonb NOT NULL DEFAULT '[]'::jsonb;`);
+  // Push devices: the HRM table now also holds CRM app phones (app = 'crm').
+  await query(`ALTER TABLE hrm_devices ADD COLUMN IF NOT EXISTS app text NOT NULL DEFAULT 'hrm';`);
 }
 
 async function ensurePaymentStatusSchema() {
@@ -1399,6 +1525,7 @@ async function seedRbac({ resetDefaultGrants = true } = {}) {
 }
 
 module.exports = {
+  ensureCalendarTodoNotifySchema,
   ensureDatabase,
   ensureInvoiceSourceIndexes,
   ensureStorageSchema,

@@ -9,6 +9,8 @@ import { api } from '../api/client';
 import { getFileViewUrl } from '../lib/fileUpload';
 import { toast } from 'sonner';
 import { imageCompression } from '../lib/imageCompression';
+import { GoogleCalendarCard } from '../components/settings/GoogleCalendarCard';
+import { NotificationPreferencesCard } from '../components/settings/NotificationPreferencesCard';
 
 export function ProfilePage() {
   const { user, token, updateProfile, deleteAvatar } = useAuth();
@@ -319,6 +321,12 @@ export function ProfilePage() {
             </div>
           </form>
         </Card>
+      </div>
+
+      {/* Calendar link and notification channels: each user sets their own. */}
+      <div className="grid gap-8 lg:grid-cols-2 items-stretch">
+        <GoogleCalendarCard />
+        <NotificationPreferencesCard />
       </div>
 
     </div>

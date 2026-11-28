@@ -67,6 +67,7 @@ const PaymentDetailPage = lazyNamed(() => import('./pages/payments/PaymentDetail
 const AutomationPage = lazyNamed(() => import('./pages/AutomationPage'), 'AutomationPage');
 const NotificationsPage = lazyNamed(() => import('./pages/NotificationsPage'), 'NotificationsPage');
 const FollowUpsPage = lazyNamed(() => import('./pages/followups/FollowUpsPage'), 'FollowUpsPage');
+const TodosPage = lazyNamed(() => import('./pages/todos/TodosPage'), 'TodosPage');
 const CallHistoryPage = lazyNamed(() => import('./pages/calls/CallHistoryPage'), 'CallHistoryPage');
 const HrmPage = lazyNamed(() => import('./pages/hrm/HrmPage'), 'HrmPage');
 const FileOpenPage = lazyNamed(() => import('./pages/FileOpenPage'), 'FileOpenPage');
@@ -285,6 +286,7 @@ function AppRoutes() {
             </PermissionRoute>
           }
         />
+        <Route path="todos" element={<TodosPage />} />
         <Route
           path="automation"
           element={

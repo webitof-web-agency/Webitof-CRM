@@ -444,6 +444,10 @@ module.exports = {
   buildAuthUrl,
   escapeQueryValue,
   exchangeCode,
+  // Shared with the Google Calendar client (same OAuth client, same token endpoint).
+  fetchWithRetry,
+  postToken,
+  readGoogleError,
   revokeToken,
   setFetchForTests,
   setSleepForTests,

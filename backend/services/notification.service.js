@@ -107,7 +107,25 @@ function buildEmailSubject(title, moduleName, eventKey) {
   return normalizeText(title) || `${moduleName} ${eventKey}`.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function buildEmailHtml({ title, message, routePath, companyName, severity = 'info' }) {
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+// details: [{ label, value }] shown as a two-column table under the message (who, when, where...).
+function buildDetailsHtml(details = []) {
+  const rows = (Array.isArray(details) ? details : []).filter((row) => row && row.label && row.value);
+  if (!rows.length) return '';
+  return `
+    <table style="margin:4px 0 16px;border-collapse:collapse;width:100%;font-size:14px">
+      ${rows.map((row) => `
+        <tr>
+          <td style="padding:8px 12px 8px 0;border-bottom:1px solid #e2e8f0;color:#64748b;white-space:nowrap;vertical-align:top;width:1%">${escapeHtml(row.label)}</td>
+          <td style="padding:8px 0;border-bottom:1px solid #e2e8f0;color:#0f172a;font-weight:600;white-space:pre-wrap">${escapeHtml(row.value)}</td>
+        </tr>`).join('')}
+    </table>`;
+}
+
+function buildEmailHtml({ title, message, routePath, companyName, severity = 'info', details = [], actionLabel = 'Open CRM' }) {
   const accentMap = {
     success: '#16a34a',
     warning: '#f59e0b',
@@ -118,7 +136,7 @@ function buildEmailHtml({ title, message, routePath, companyName, severity = 'in
   const safeTitle = normalizeText(title, 'Notification');
   const safeMessage = normalizeText(message, '');
   const safeCompany = normalizeText(companyName, 'Webitof CRM');
-  const link = routePath ? `<a href="${routePath}" style="display:inline-block;margin-top:16px;padding:12px 18px;border-radius:12px;background:${accent};color:#fff;text-decoration:none;font-weight:600">Open CRM</a>` : '';
+  const link = routePath ? `<a href="${routePath}" style="display:inline-block;margin-top:16px;padding:12px 18px;border-radius:12px;background:${accent};color:#fff;text-decoration:none;font-weight:600">${escapeHtml(actionLabel)}</a>` : '';
   const routeBlock = routePath ? `
     <div style="margin-top:18px;border:1px solid #e2e8f0;border-radius:14px;padding:12px 14px;background:#f8fafc;color:#475569;font-size:12px;word-break:break-all">
       ${routePath}
@@ -133,7 +151,8 @@ function buildEmailHtml({ title, message, routePath, companyName, severity = 'in
           <div style="margin-top:6px;font-size:22px;font-weight:700;line-height:1.3">${safeTitle}</div>
         </div>
         <div style="padding:24px">
-          <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#334155">${safeMessage}</p>
+          <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#334155">${escapeHtml(safeMessage)}</p>
+          ${buildDetailsHtml(details)}
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             ${link}
             <span style="font-size:12px;color:#64748b">You can open this directly from CRM as well.</span>
@@ -150,7 +169,7 @@ function buildEmailHtml({ title, message, routePath, companyName, severity = 'in
 
 // mailType picks the sending mailbox (config/mailSenders.js): staff mails go from no-reply,
 // client mails from support.
-async function sendNotificationEmail({ to, subject, title, message, routePath, severity = 'info', mailType = 'staff_notification' }) {
+async function sendNotificationEmail({ to, subject, title, message, routePath, severity = 'info', mailType = 'staff_notification', details = [], attachments = [], actionLabel = 'Open CRM' }) {
   if (!to) {
     return { sent: false, reason: 'Recipient email missing' };
   }
@@ -159,11 +178,12 @@ async function sendNotificationEmail({ to, subject, title, message, routePath, s
   const companyName = settings?.company?.name || 'Webitof CRM';
   const linkUrl = toAbsoluteUrl(routePath);
   const resolvedSubject = normalizeText(subject, buildEmailSubject(title, 'Notification', ''));
-  const html = buildEmailHtml({ title, message, routePath: linkUrl, companyName, severity });
-  const text = `${normalizeText(title, 'Notification')}\n\n${normalizeText(message, '')}${linkUrl ? `\n\nOpen: ${linkUrl}` : ''}`;
+  const html = buildEmailHtml({ title, message, routePath: linkUrl, companyName, severity, details, actionLabel });
+  const detailText = (Array.isArray(details) ? details : []).filter((row) => row?.label && row?.value).map((row) => `${row.label}: ${row.value}`).join('\n');
+  const text = `${normalizeText(title, 'Notification')}\n\n${normalizeText(message, '')}${detailText ? `\n\n${detailText}` : ''}${linkUrl ? `\n\nOpen: ${linkUrl}` : ''}`;
 
   try {
-    await sendMail({ mailType, to, subject: resolvedSubject, text, html });
+    await sendMail({ mailType, to, subject: resolvedSubject, text, html, attachments });
     return { sent: true };
   } catch (error) {
     return { sent: false, reason: error.message || 'Email send failed' };
@@ -351,6 +371,8 @@ async function createInternalNotification({
   emitToUser(user.id, 'notification:created', notification);
   const unreadCount = await getUnreadCount(user.id);
   emitToUser(user.id, 'notification:count', { unreadCount });
+  // Push / email / WhatsApp by the user's own notification settings (services/notify/dispatcher).
+  require('./notify/dispatcher.service').dispatchLater(notification, user);
   return notification;
 }
 
@@ -584,6 +606,8 @@ async function notifyBusinessEvent({
 }
 
 module.exports = {
+  buildEmailHtml,
+  toAbsoluteUrl,
   createInternalNotification,
   createNotificationRecord,
   getUnreadCount,

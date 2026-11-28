@@ -51,6 +51,8 @@ router.get('/files/:id/view', filesController.viewFile);
 router.get('/files/drive/:driveFileId/view', filesController.viewLegacyDriveFile);
 // Google sends the browser back here after "Connect Google Drive"; the signed state authorizes it.
 router.get('/google-drive/oauth/callback', googleDriveController.oauthCallback);
+// Same for "Connect Google Calendar" (each user links their own calendar).
+router.get('/google-calendar/oauth/callback', require('../controllers/googleCalendar.controller').oauthCallback);
 
 router.use('/maintenance', require('./maintenance.routes'));
 router.use('/auth', authRoutes);
@@ -109,6 +111,8 @@ router.use('/files', filesRoutes);
 router.use('/google-drive', require('./googleDrive.routes'));
 router.get('/backup/download', requirePermission('settings.write'), googleDriveController.downloadLocalBackup);
 router.use('/notifications', notificationsRoutes);
+router.use('/google-calendar', require('./googleCalendar.routes'));
+router.use('/todos', require('./todos.routes'));
 router.use('/users', usersRoutes);
 router.use('/roles', rolesRoutes);
 router.use('/permissions', permissionsRoutes);

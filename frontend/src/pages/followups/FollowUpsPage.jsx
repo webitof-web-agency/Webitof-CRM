@@ -3,9 +3,10 @@ import { confirmAction } from '../../lib/confirm';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BarChart3, BellRing, CalendarDays, CheckCircle2,
-  ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Clock3, Download, ExternalLink, Eye, Filter, Flame, LayoutList, MapPin,
+  Briefcase, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert, Clock3, Download, ExternalLink, Eye, Filter, Flame, History,
+  IndianRupee, LayoutList, MapPin, MessageSquareText,
   Loader2, Mail, MessageCircle, MoreHorizontal, MoreVertical, Pencil, Phone, Play, Plus, RefreshCcw, Search,
-  Settings2, ShieldAlert, Sparkles, TimerReset, Trash2, UserRound, UsersRound, Workflow, Zap
+  Settings2, ShieldAlert, Sparkles, StickyNote, TimerReset, Trash2, UserRound, UsersRound, Workflow, Zap
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '../../api/client';
@@ -28,6 +29,8 @@ import { Chip } from '../../components/ui/Chip';
 import { SimpleTable } from '../../components/ui/SimpleTable';
 import { IconButton } from '../../components/ui/IconButton';
 import { ThemedSelect } from '../../components/ui/ThemedSelect';
+import { clientFacingPurpose, displayPurpose } from '../../lib/followUpPurpose';
+import { greetingName, hasLeadContext, leadNames } from '../../lib/followUpLead';
 
 const tabs = [
   { id: 'today', label: 'Today', icon: Clock3 },
@@ -178,6 +181,279 @@ function getQuickRescheduleOptions() {
   ];
 }
 
+// ---- Lead context shown on follow-up cards (who, what they need, budget, last conversation) ----
+
+const UNSET_BUDGET_RANGES = new Set(['', 'Not Disclosed', 'Custom']);
+
+// Indian short form: 1500 -> 1.5k, 150000 -> 1.5L, 25000000 -> 2.5Cr
+function compactAmount(value) {
+  const number = Number(value || 0);
+  const trim = (n) => String(Number(n.toFixed(1)));
+  if (number >= 1e7) return `${trim(number / 1e7)}Cr`;
+  if (number >= 1e5) return `${trim(number / 1e5)}L`;
+  if (number >= 1e3) return `${trim(number / 1e3)}k`;
+  return String(Math.round(number));
+}
+
+function formatLeadBudget(ctx = {}) {
+  const symbol = ctx.currencySymbol || '₹';
+  const amount = (value) => `${symbol}${compactAmount(value)}`;
+  if (ctx.budgetMin > 0 && ctx.budgetMax > 0) return `${amount(ctx.budgetMin)} – ${amount(ctx.budgetMax)}`;
+  if (ctx.budgetMin > 0) return `${amount(ctx.budgetMin)}+`;
+  if (ctx.budgetMax > 0) return `Up to ${amount(ctx.budgetMax)}`;
+  if (ctx.estimatedBudget > 0) return amount(ctx.estimatedBudget);
+  if (!UNSET_BUDGET_RANGES.has(ctx.budgetRange || '')) return String(ctx.budgetRange).replace(/INR\s?/g, '₹');
+  return '';
+}
+
+function formatShortDate(value) {
+  if (!value) return '';
+  const date = new Date(String(value).length === 10 ? `${value}T00:00:00+05:30` : value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' }).format(date);
+}
+
+function formatAgo(value) {
+  if (!value) return '';
+  const date = new Date(String(value).length === 10 ? `${value}T00:00:00+05:30` : value);
+  if (Number.isNaN(date.getTime())) return '';
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 3600) return `${Math.max(1, Math.floor(seconds / 60))}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  const days = Math.floor(seconds / 86400);
+  return days <= 30 ? `${days}d ago` : formatShortDate(value);
+}
+
+function leadSummary(item) {
+  const ctx = item.leadContext || {};
+  const budget = formatLeadBudget(ctx);
+  const requirementText = String(ctx.requirementTitle || ctx.requirementSummary || '').trim();
+  const dealValue = Number(item.businessValue || 0);
+  const budgetNumbers = [ctx.estimatedBudget, ctx.budgetMin, ctx.budgetMax].map(Number);
+  return {
+    ctx,
+    budget,
+    budgetConfirmed: ctx.budgetConfirmed === 'Yes',
+    requirementText,
+    services: ctx.requiredServices || [],
+    dealValue: dealValue > 0 && !budgetNumbers.includes(dealValue) ? dealValue : 0,
+    timeline: ctx.purchaseTimeline || (ctx.expectedClosingDate ? `Close by ${formatShortDate(ctx.expectedClosingDate)}` : ''),
+    missingRequirement: !(ctx.requiredServices || []).length && !requirementText,
+    missingBudget: !budget
+  };
+}
+
+const TEMPERATURE_COLORS = { Hot: '#e11d48', Warm: '#f59e0b', Cold: '#0284c7' };
+
+function renderTemperaturePill(temperature, compact = false) {
+  if (!temperature) return null;
+  const color = TEMPERATURE_COLORS[temperature] || '#64748b';
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-0.5 rounded-full border font-semibold whitespace-nowrap',
+        compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs'
+      )}
+      style={{ backgroundColor: `${color}14`, borderColor: `${color}2E`, color }}
+      title="Lead temperature"
+    >
+      {temperature === 'Hot' ? <Flame size={compact ? 9 : 11} /> : null}
+      {temperature}
+    </span>
+  );
+}
+
+function renderLeadStagePill(stage, compact = false) {
+  if (!stage) return null;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border border-[var(--border)] bg-[var(--surface-2)] font-semibold text-[var(--text-muted)] whitespace-nowrap',
+        compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-0.5 text-xs'
+      )}
+      title="Lead status"
+    >
+      {stage}
+    </span>
+  );
+}
+
+function ServiceChips({ services = [], max = 4, compact = false }) {
+  if (!services.length) return null;
+  const shown = services.slice(0, max);
+  const extra = services.length - shown.length;
+  const chipClass = cn(
+    'inline-flex items-center rounded-md border border-indigo-500/20 bg-indigo-500/10 font-semibold text-indigo-700 dark:text-indigo-300 whitespace-nowrap',
+    compact ? 'px-1.5 py-px text-[10px]' : 'px-2 py-0.5 text-[11px]'
+  );
+  return (
+    <>
+      {shown.map((service) => <span key={service} className={chipClass}>{service}</span>)}
+      {extra > 0 ? <span className={chipClass} title={services.slice(max).join(', ')}>+{extra}</span> : null}
+    </>
+  );
+}
+
+function LeadIdentityLine({ item }) {
+  const ctx = item.leadContext || {};
+  const { contact, company } = leadNames(item);
+  const place = [ctx.source, ctx.city].filter(Boolean);
+  if (!contact && !company && !place.length) return null;
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-[var(--text-muted)]">
+      {contact ? (
+        <span className="inline-flex items-center gap-1" title="Primary contact person">
+          <UserRound size={12} />
+          Contact: <span className="font-semibold text-[var(--text-main)]">{contact}</span>
+        </span>
+      ) : null}
+      {company ? (
+        <span className="inline-flex items-center gap-1 font-medium text-[var(--text-main)]" title="Company">
+          <Briefcase size={12} className="text-[var(--text-muted)]" />
+          {company}
+        </span>
+      ) : null}
+      {place.length ? (
+        <span className="inline-flex items-center gap-1">
+          <MapPin size={12} />
+          {place.join(' · ')}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+const oneLine = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+
+// One item of the horizontal context strip: small muted label, then the value on the same line.
+function ContextItem({ icon: Icon, label, title, className, children }) {
+  return (
+    <div className={cn('inline-flex min-w-0 max-w-full items-center gap-1.5', className)} title={title}>
+      <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-[var(--text-muted)]">
+        <Icon size={12} className="shrink-0" />
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function LeadContextPanel({ item, closed }) {
+  const { ctx, budget, budgetConfirmed, requirementText, services, dealValue, timeline, missingRequirement, missingBudget } = leadSummary(item);
+  const previous = item.previousAttempt;
+  const previousOutcome = previous ? (previous.outcome || previous.communicationResult) : '';
+  const missing = [missingRequirement ? 'requirement' : '', missingBudget ? 'budget' : ''].filter(Boolean);
+  const showRequirement = !missingRequirement;
+  const showMoney = budget || dealValue > 0 || timeline;
+  const showLastTalk = Boolean(ctx.lastConversationSummary);
+  const notes = oneLine(ctx.notes);
+  const showHint = !closed && missing.length > 0;
+  if (!showRequirement && !notes && !showMoney && !showLastTalk && !previous && !showHint) return null;
+
+  const lastTalk = oneLine(ctx.lastConversationSummary);
+  const previousNote = previous ? oneLine(previous.note) : '';
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)]/60 px-3 py-1.5 text-xs text-[var(--text-main)]">
+      {showRequirement ? (
+        <ContextItem icon={Briefcase} label="Requirement" title={requirementText || undefined}>
+          <span className="inline-flex shrink-0 flex-wrap items-center gap-1">
+            <ServiceChips services={services} max={3} />
+          </span>
+          {requirementText ? <span className="min-w-0 max-w-[26rem] truncate">{oneLine(requirementText)}</span> : null}
+        </ContextItem>
+      ) : null}
+
+      {notes ? (
+        <ContextItem icon={StickyNote} label="Notes" title={ctx.notes}>
+          <span className="min-w-0 max-w-[34rem] truncate">{notes}</span>
+        </ContextItem>
+      ) : null}
+
+      {showMoney ? (
+        <ContextItem icon={IndianRupee} label="Budget">
+          <span className="inline-flex flex-wrap items-center gap-x-3">
+            {budget ? (
+              <span className="inline-flex items-center gap-1 font-semibold">
+                {budget}
+                {budgetConfirmed ? (
+                  <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" aria-label="Budget confirmed" />
+                ) : null}
+              </span>
+            ) : (
+              <span className="text-[var(--text-muted)]">Not captured</span>
+            )}
+            {dealValue > 0 ? (
+              <span className="text-[var(--text-muted)]">Deal <span className="font-semibold text-[var(--text-main)]">₹{compactAmount(dealValue)}</span></span>
+            ) : null}
+            {timeline ? (
+              <span className="text-[var(--text-muted)]">Timeline <span className="font-semibold text-[var(--text-main)]">{timeline}</span></span>
+            ) : null}
+          </span>
+        </ContextItem>
+      ) : null}
+
+      {showLastTalk ? (
+        <ContextItem icon={MessageSquareText} label="Last baat" title={ctx.lastConversationSummary}>
+          <span className="min-w-0 max-w-[26rem] truncate">
+            {ctx.lastContactDate ? <span className="mr-1 text-[11px] font-semibold text-[var(--text-muted)]">({formatAgo(ctx.lastContactDate)})</span> : null}
+            {lastTalk}
+          </span>
+        </ContextItem>
+      ) : null}
+
+      {previous ? (
+        <ContextItem icon={History} label="Pichhli baar" title={previous.note || previousOutcome}>
+          <span className="min-w-0 max-w-[30rem] truncate">
+            {previousOutcome ? <span className="mr-1 font-semibold">{previousOutcome}</span> : null}
+            <span className="mr-1 text-[11px] text-[var(--text-muted)]">({formatAgo(previous.completedAt)})</span>
+            {previousNote ? <span className="text-[var(--text-muted)]">— {previousNote}</span> : null}
+          </span>
+        </ContextItem>
+      ) : null}
+
+      {showHint ? (
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:text-amber-200">
+          <CircleAlert size={12} className="shrink-0" />
+          {missing.length === 2 ? 'Requirement aur budget' : missing[0] === 'requirement' ? 'Requirement' : 'Budget'} abhi capture nahi {missing.length === 2 ? 'hue' : 'hua'} — is call pe poochna hai
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function LeadContextCompact({ item }) {
+  const { ctx, budget, services, requirementText } = leadSummary(item);
+  const notes = oneLine(ctx.notes);
+  if (!services.length && !budget && !requirementText && !notes) return null;
+  return (
+    <div className="space-y-1">
+      {services.length || budget ? (
+        <div className="flex flex-wrap items-center gap-1">
+          <ServiceChips services={services} max={2} compact />
+          {budget ? (
+            <span className="inline-flex items-center gap-0.5 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-px text-[10px] font-semibold text-[var(--text-main)]">
+              {budget}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+      {requirementText ? (
+        <p className="flex items-center gap-1 text-[11px] text-[var(--text-main)]" title={requirementText}>
+          <Briefcase size={10} className="shrink-0 text-[var(--text-muted)]" />
+          <span className="truncate">{oneLine(requirementText)}</span>
+        </p>
+      ) : null}
+      {notes ? (
+        <p className="flex items-center gap-1 text-[11px] text-[var(--text-muted)]" title={ctx.notes}>
+          <StickyNote size={10} className="shrink-0" />
+          <span className="truncate">{notes}</span>
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function openDirectWhatsApp(item) {
   const phone = item.relatedPhone || item.phone || item.mobile;
   if (!phone) {
@@ -187,8 +463,8 @@ function openDirectWhatsApp(item) {
   let cleanPhone = String(phone).replace(/[^0-9]/g, '');
   if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
 
-  const name = item.relatedEntityLabel || item.companyName || 'there';
-  const purpose = item.purpose || item.title || 'our scheduled discussion';
+  const name = greetingName(item);
+  const purpose = clientFacingPurpose(item.purpose, item.title) || 'our scheduled discussion';
   const message = `Hi ${name}, following up regarding ${purpose}. Please let me know when would be a convenient time to connect over a quick call. Thanks!`;
   const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   window.open(url, '_blank', 'noopener,noreferrer');
@@ -364,6 +640,7 @@ function FollowUpCard({ item, onAction, dense = false }) {
   const [openMenu, setOpenMenu] = useState(false);
   const phone = item.relatedPhone || item.phone || item.mobile;
   const can = useFollowUpPermissions();
+  const showLead = hasLeadContext(item);
 
   // Dense Mode for Kanban Columns
   if (dense) {
@@ -381,6 +658,7 @@ function FollowUpCard({ item, onAction, dense = false }) {
           <div className="flex flex-wrap items-center gap-1 min-w-0">
             {renderPriorityPill(item.priority, true)}
             {renderStatusPill(item.effectiveStatus || item.status, true)}
+            {showLead ? renderTemperaturePill(item.leadContext.temperature, true) : null}
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
@@ -493,10 +771,13 @@ function FollowUpCard({ item, onAction, dense = false }) {
             title="View Lead Profile"
           >
             <UserRound size={10} className="shrink-0" />
-            <span className="truncate">{item.relatedEntityLabel || item.relatedEntityId}</span>
+            <span className="truncate">{leadNames(item).chip}</span>
             <ExternalLink size={9} className="opacity-70 shrink-0" />
           </button>
         ) : null}
+
+        {/* Requirement + budget at a glance */}
+        {showLead ? <LeadContextCompact item={item} /> : null}
 
         {/* Note / Description */}
         {item.description && !item.description.startsWith('Remark:') ? (
@@ -522,17 +803,16 @@ function FollowUpCard({ item, onAction, dense = false }) {
 
   return (
     <div className={cn(
-      "rounded-2xl border bg-[var(--surface)] p-4 transition-all duration-150 hover:shadow-md space-y-3",
+      "rounded-2xl border bg-[var(--surface)] px-4 py-3 transition-all duration-150 hover:shadow-md space-y-2",
       item.effectiveStatus === 'Overdue'
         ? "border-rose-500/40 ring-1 ring-rose-500/15 shadow-[0_4px_20px_rgba(244,63,94,0.06)]"
         : "border-[var(--border)]"
     )}>
       {/* Top Header Row: Status Badge + Title + Action Icons */}
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 flex-1 space-y-1">
+          {/* Order: lead, who to contact, temperature, lead status, then the follow-up's priority and status */}
           <div className="flex flex-wrap items-center gap-1.5">
-            {renderPriorityPill(item.priority, true)}
-            {renderStatusPill(item.effectiveStatus || item.status, true)}
             {route ? (
               <button
                 type="button"
@@ -541,18 +821,35 @@ function FollowUpCard({ item, onAction, dense = false }) {
                 title="View Lead Profile"
               >
                 <UserRound size={11} />
-                <span>{item.relatedEntityLabel || item.relatedEntityId}</span>
+                <span>{leadNames(item).chip}</span>
                 <ExternalLink size={10} className="opacity-70" />
               </button>
             ) : null}
+            {showLead ? (
+              <span className="mx-1 inline-flex">
+                <LeadIdentityLine item={item} />
+              </span>
+            ) : null}
+            {showLead ? renderTemperaturePill(item.leadContext.temperature, true) : null}
+            {showLead ? renderLeadStagePill(item.leadStage, true) : null}
+            {renderPriorityPill(item.priority, true)}
+            {renderStatusPill(item.effectiveStatus || item.status, true)}
           </div>
 
-          <h3
-            onClick={() => onAction('details', item)}
-            className="text-sm font-bold text-[var(--text-main)] hover:text-[var(--primary)] transition cursor-pointer"
-          >
-            {item.title}
-          </h3>
+          {/* Title and the note share one line on wide screens */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 min-w-0">
+            <h3
+              onClick={() => onAction('details', item)}
+              className="text-sm font-bold text-[var(--text-main)] hover:text-[var(--primary)] transition cursor-pointer shrink-0"
+            >
+              {item.title}
+            </h3>
+            {item.description && !item.description.startsWith('Remark:') ? (
+              <p className="min-w-0 flex-1 basis-60 truncate text-xs text-[var(--text-muted)]" title={item.description}>
+                {item.description}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -570,16 +867,12 @@ function FollowUpCard({ item, onAction, dense = false }) {
         </div>
       ) : null}
 
-      {/* Note / Description */}
-      {item.description && !item.description.startsWith('Remark:') ? (
-        <p className="text-xs text-[var(--text-muted)] leading-relaxed line-clamp-2">
-          {item.description}
-        </p>
-      ) : null}
+      {/* Lead context: requirement, budget, last conversation, previous attempt */}
+      {showLead ? <LeadContextPanel item={item} closed={closed} /> : null}
 
-      {/* Scheduled Line & Timing */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border-muted)] pt-2.5 text-[11px]">
-        <div className="flex items-center gap-2 font-medium text-[var(--text-muted)]">
+      {/* Footer: assignee + quick reschedule on the left, timing on the right — one row */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t border-[var(--border-muted)] pt-2 text-[11px]">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 font-medium text-[var(--text-muted)]">
           {item.assigneeName ? (
             <span className="inline-flex items-center gap-1 text-[var(--text-main)] bg-[var(--surface-2)] border border-[var(--border)] px-2 py-0.5 rounded-full font-medium text-[11px]">
               <UserRound size={12} className="text-[var(--text-muted)]" />
@@ -588,13 +881,38 @@ function FollowUpCard({ item, onAction, dense = false }) {
           ) : (
             <span className="text-[var(--text-muted)]">👤 Unassigned</span>
           )}
-          {item.purpose || item.followUpType ? (
-            <span className="text-[var(--text-muted)]">· {item.purpose || item.followUpType}</span>
+          {displayPurpose(item.purpose) || item.followUpType ? (
+            <span className="text-[var(--text-muted)]">· {displayPurpose(item.purpose) || item.followUpType}</span>
           ) : null}
+          {Number(item.rescheduleCount || 0) > 0 ? (
+            <span className="inline-flex items-center gap-0.5 text-amber-700 dark:text-amber-300" title="Times this follow-up was rescheduled">
+              · <TimerReset size={11} /> {item.rescheduleCount}x rescheduled
+            </span>
+          ) : null}
+
+          {/* Quick Reschedule Chips */}
+          {!closed && (
+            <span className="inline-flex flex-wrap items-center gap-1 sm:ml-2 sm:border-l sm:border-[var(--border-muted)] sm:pl-3">
+              <span className="text-[10px] font-semibold text-[var(--text-muted)] inline-flex items-center gap-0.5 mr-0.5">
+                <Zap size={11} className="text-amber-500" /> Reschedule:
+              </span>
+              {quickOptions.map((opt) => (
+                <button
+                  key={opt.label}
+                  type="button"
+                  onClick={() => onAction('quick_reschedule', { ...item, _rescheduleDate: opt.date, _rescheduleTime: opt.time, _rescheduleLabel: opt.label })}
+                  title={`Reschedule to ${opt.label}`}
+                  className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)] hover:text-[var(--primary)] hover:border-[var(--primary)] text-[var(--text-muted)] transition cursor-pointer"
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </span>
+          )}
         </div>
 
         {/* Right side: Timing */}
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <div className={`font-semibold px-2.5 py-0.5 rounded-full text-xs inline-flex items-center gap-1 ${
             closed
               ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20'
@@ -610,26 +928,6 @@ function FollowUpCard({ item, onAction, dense = false }) {
           </span>
         </div>
       </div>
-
-      {/* Quick Reschedule Chips */}
-      {!closed && (
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-[var(--border-muted)] pt-2">
-          <span className="text-[10px] font-semibold text-[var(--text-muted)] flex items-center gap-1 mr-0.5">
-            <Zap size={11} className="text-amber-500" /> Quick Reschedule:
-          </span>
-          {quickOptions.map((opt) => (
-            <button
-              key={opt.label}
-              type="button"
-              onClick={() => onAction('quick_reschedule', { ...item, _rescheduleDate: opt.date, _rescheduleTime: opt.time, _rescheduleLabel: opt.label })}
-              title={`Reschedule to ${opt.label}`}
-              className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border border-[var(--border)] bg-[var(--surface-2)] hover:bg-[var(--surface)] hover:text-[var(--primary)] hover:border-[var(--primary)] text-[var(--text-muted)] transition cursor-pointer"
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -931,7 +1229,7 @@ function ListView({ rows, meta, filters, setFilters, counts = {}, loading, onAct
                       {item.title}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
-                      {item.purpose || item.followUpType || 'General follow-up'}
+                      {displayPurpose(item.purpose) || item.followUpType || 'General follow-up'}
                     </p>
                   </td>
 
@@ -2406,7 +2704,7 @@ function ActivityViewModal({ item, open, onClose, onComplete, onEdit, onViewLead
             <div>
               <span className="text-[11px] font-medium text-[var(--text-muted)] block">🎯 Purpose / Type:</span>
               <span className="font-semibold text-[var(--text-main)] mt-0.5 block">
-                {item.purpose || item.followUpType || 'Call'}
+                {displayPurpose(item.purpose) || item.followUpType || 'Call'}
               </span>
             </div>
 
@@ -2646,7 +2944,7 @@ function CompletedFollowUpsView({ options, onAction, onScheduleNext }) {
             const phone = item.relatedPhone || item.phone || item.mobile;
             const leadRoute = entityRoute(item);
             const leadName = item.relatedEntityLabel || item.companyName || 'Lead';
-            const requirement = item.purpose || item.title || 'Follow-up discussion';
+            const requirement = displayPurpose(item.purpose) || item.title || 'Follow-up discussion';
             const channel = item.followUpType || 'Phone Call';
             const outcomeNote = item.discussionNote || item.actualOutcome || item.description || 'Completed successfully';
 

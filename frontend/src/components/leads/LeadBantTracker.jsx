@@ -6,8 +6,7 @@ import {
   DollarSign,
   UserCheck,
   FileCheck,
-  Calendar,
-  Sparkles
+  Calendar
 } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
@@ -56,30 +55,93 @@ export function LeadBantTracker({
     ? `${primaryContact.firstName || ''} ${primaryContact.lastName || ''}`.trim()
     : lead.contactPerson || 'Contact';
 
+  const services = Array.isArray(lead.requiredServices) ? lead.requiredServices : [];
+
+  const pillars = [
+    {
+      key: 'budget',
+      icon: DollarSign,
+      iconClass: 'text-emerald-500',
+      label: '[B] Budget',
+      done: isBudgetConfirmed,
+      doneText: 'Confirmed',
+      pendingText: 'Unconfirmed',
+      value: formattedBudget,
+      detail: lead.billingType || 'Standard Billing',
+      actionTitle: isBudgetConfirmed ? 'Unmark budget confirmed' : 'Mark budget confirmed',
+      onToggle: () => onUpdateMeta && onUpdateMeta({ budgetConfirmed: !isBudgetConfirmed })
+    },
+    {
+      key: 'authority',
+      icon: UserCheck,
+      iconClass: 'text-blue-500',
+      label: '[A] Authority',
+      done: isAuthorityConfirmed,
+      doneText: 'Decision Maker',
+      pendingText: 'Unverified',
+      value: contactName,
+      detail: primaryContact?.jobTitle || (isAuthorityConfirmed ? 'Verified Authority' : 'Role not assigned'),
+      actionTitle: isAuthorityConfirmed ? 'Unmark authority' : 'Verify as decision maker',
+      onToggle: () => onUpdateMeta && onUpdateMeta({
+        contactIsDecisionMaker: !isAuthorityConfirmed,
+        decisionMakerIdentified: !isAuthorityConfirmed ? 'Yes' : 'No'
+      })
+    },
+    {
+      key: 'need',
+      icon: FileCheck,
+      iconClass: 'text-indigo-500',
+      label: '[N] Need',
+      done: isNeedConfirmed,
+      doneText: 'Specified',
+      pendingText: 'Pending Scope',
+      value: services.length
+        ? `${services.length} Service${services.length > 1 ? 's' : ''}`
+        : lead.requirementDescription || lead.notes ? 'Notes Provided' : 'Needs Scoping',
+      detail: services.length ? services.join(', ') : lead.notes ? 'General note present' : 'No services tagged',
+      actionTitle: isNeedConfirmed ? 'Unmark need' : 'Confirm requirement scope',
+      onToggle: () => onUpdateMeta && onUpdateMeta({
+        needConfirmed: isNeedConfirmed ? 'No' : 'Yes',
+        requirementConfirmed: isNeedConfirmed ? 'No' : 'Yes'
+      })
+    },
+    {
+      key: 'timeline',
+      icon: Calendar,
+      iconClass: 'text-amber-500',
+      label: '[T] Timeline',
+      done: isTimelineConfirmed,
+      doneText: 'Confirmed',
+      pendingText: 'Unset',
+      value: lead.expectedClosingDate || lead.purchaseTimeline || 'Not Disclosed',
+      detail: lead.expectedClosingDate ? `Close target: ${lead.expectedClosingDate}` : 'Target date not set',
+      actionTitle: isTimelineConfirmed ? 'Unmark timeline' : 'Confirm closing timeline',
+      onToggle: () => onUpdateMeta && onUpdateMeta({ timelineConfirmed: isTimelineConfirmed ? 'No' : 'Yes' })
+    }
+  ];
+
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xs">
-      {/* Top Header & Progress */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border-muted)] pb-4 mb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 text-violet-600 dark:text-violet-400">
-            <ShieldCheck size={18} />
+    <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 shadow-2xs">
+      {/* Header: title, pillar count and progress on one line */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[var(--border-muted)] pb-2 mb-2.5">
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-500/15 text-violet-600 dark:text-violet-400">
+            <ShieldCheck size={14} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-[var(--text-main)]">Deal Qualification (BANT Tracker)</h3>
-              <span className="rounded-md bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-400 border border-violet-500/20">
-                {verifiedCount} / 4 Pillars Verified
-              </span>
-            </div>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              Verify Budget, Authority, Need, and Timeline to ensure high sales closure probability
-            </p>
-          </div>
+          <h3
+            className="text-sm font-bold text-[var(--text-main)]"
+            title="Verify Budget, Authority, Need, and Timeline to ensure high sales closure probability"
+          >
+            Deal Qualification (BANT)
+          </h3>
+          <span className="rounded-md bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-600 dark:text-violet-400 border border-violet-500/20">
+            {verifiedCount} / 4 Verified
+          </span>
         </div>
 
         {/* Progress Bar Display */}
-        <div className="flex items-center gap-3 w-full sm:w-48 shrink-0">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-2)] border border-[var(--border-muted)]">
+        <div className="flex items-center gap-2 w-full sm:w-44 shrink-0">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-2)] border border-[var(--border-muted)]">
             <div
               className={cn(
                 'h-full transition-all duration-500',
@@ -98,200 +160,55 @@ export function LeadBantTracker({
         </div>
       </div>
 
-      {/* 4 BANT Pillars Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        {/* Pillar 1: Budget */}
-        <div
-          className={cn(
-            'flex flex-col justify-between rounded-xl border p-3.5 transition-all',
-            isBudgetConfirmed
-              ? 'border-emerald-500/30 bg-emerald-500/5'
-              : 'border-[var(--border-muted)] bg-[var(--surface-2)]/40'
-          )}
-        >
-          <div>
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
-                <DollarSign size={12} className="text-emerald-500" /> [B] Budget
-              </span>
-              {isBudgetConfirmed ? (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 size={11} /> Confirmed
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                  <AlertCircle size={11} /> Unconfirmed
-                </span>
+      {/* 4 BANT pillars, two lines each: label + status, then value + detail + action */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        {pillars.map((pillar) => {
+          const Icon = pillar.icon;
+          return (
+            <div
+              key={pillar.key}
+              className={cn(
+                'rounded-lg border px-3 py-2 transition-all',
+                pillar.done
+                  ? 'border-emerald-500/30 bg-emerald-500/5'
+                  : 'border-[var(--border-muted)] bg-[var(--surface-2)]/40'
               )}
-            </div>
-            <p className="text-sm font-bold text-[var(--text-main)] truncate" title={formattedBudget}>
-              {formattedBudget}
-            </p>
-            <p className="text-[10px] text-[var(--text-muted)] mt-0.5">
-              {lead.billingType || 'Standard Billing'}
-            </p>
-          </div>
-
-          {canWrite && (
-            <button
-              type="button"
-              onClick={() => onUpdateMeta && onUpdateMeta({ budgetConfirmed: !isBudgetConfirmed })}
-              className="mt-3 text-[10px] font-semibold text-[var(--primary)] hover:underline text-left cursor-pointer"
             >
-              {isBudgetConfirmed ? 'Unmark Confirmed' : '✓ Mark Budget Confirmed'}
-            </button>
-          )}
-        </div>
-
-        {/* Pillar 2: Authority */}
-        <div
-          className={cn(
-            'flex flex-col justify-between rounded-xl border p-3.5 transition-all',
-            isAuthorityConfirmed
-              ? 'border-emerald-500/30 bg-emerald-500/5'
-              : 'border-[var(--border-muted)] bg-[var(--surface-2)]/40'
-          )}
-        >
-          <div>
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
-                <UserCheck size={12} className="text-blue-500" /> [A] Authority
-              </span>
-              {isAuthorityConfirmed ? (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 size={11} /> Decision Maker
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
+                  <Icon size={12} className={pillar.iconClass} /> {pillar.label}
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                  <AlertCircle size={11} /> Unverified
+                {pillar.done ? (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 size={11} /> {pillar.doneText}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                    <AlertCircle size={11} /> {pillar.pendingText}
+                  </span>
+                )}
+              </div>
+              <div className="mt-0.5 flex items-baseline gap-1.5 min-w-0">
+                <span className="shrink-0 max-w-[60%] truncate text-sm font-bold text-[var(--text-main)]" title={pillar.value}>
+                  {pillar.value}
                 </span>
-              )}
+                <span className="min-w-0 flex-1 truncate text-[10px] text-[var(--text-muted)]" title={pillar.detail}>
+                  {pillar.detail}
+                </span>
+                {canWrite ? (
+                  <button
+                    type="button"
+                    onClick={pillar.onToggle}
+                    title={pillar.actionTitle}
+                    className="shrink-0 text-[10px] font-semibold text-[var(--primary)] hover:underline cursor-pointer"
+                  >
+                    {pillar.done ? 'Undo' : '✓ Confirm'}
+                  </button>
+                ) : null}
+              </div>
             </div>
-            <p className="text-sm font-bold text-[var(--text-main)] truncate" title={contactName}>
-              {contactName}
-            </p>
-            <p className="text-[10px] text-[var(--text-muted)] mt-0.5 truncate">
-              {primaryContact?.jobTitle || (isAuthorityConfirmed ? 'Verified Authority' : 'Role not assigned')}
-            </p>
-          </div>
-
-          {canWrite && (
-            <button
-              type="button"
-              onClick={() =>
-                onUpdateMeta &&
-                onUpdateMeta({
-                  contactIsDecisionMaker: !isAuthorityConfirmed,
-                  decisionMakerIdentified: !isAuthorityConfirmed ? 'Yes' : 'No'
-                })
-              }
-              className="mt-3 text-[10px] font-semibold text-[var(--primary)] hover:underline text-left cursor-pointer"
-            >
-              {isAuthorityConfirmed ? 'Unmark Authority' : '✓ Verify as Decision Maker'}
-            </button>
-          )}
-        </div>
-
-        {/* Pillar 3: Need */}
-        <div
-          className={cn(
-            'flex flex-col justify-between rounded-xl border p-3.5 transition-all',
-            isNeedConfirmed
-              ? 'border-emerald-500/30 bg-emerald-500/5'
-              : 'border-[var(--border-muted)] bg-[var(--surface-2)]/40'
-          )}
-        >
-          <div>
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
-                <FileCheck size={12} className="text-indigo-500" /> [N] Need
-              </span>
-              {isNeedConfirmed ? (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 size={11} /> Specified
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                  <AlertCircle size={11} /> Pending Scope
-                </span>
-              )}
-            </div>
-            <p className="text-sm font-bold text-[var(--text-main)] truncate">
-              {Array.isArray(lead.requiredServices) && lead.requiredServices.length > 0
-                ? `${lead.requiredServices.length} Service${lead.requiredServices.length > 1 ? 's' : ''}`
-                : lead.requirementDescription || lead.notes ? 'Notes Provided' : 'Needs Scoping'}
-            </p>
-            <p className="text-[10px] text-[var(--text-muted)] mt-0.5 truncate">
-              {Array.isArray(lead.requiredServices) && lead.requiredServices.length > 0
-                ? lead.requiredServices.join(', ')
-                : lead.notes ? 'General note present' : 'No services tagged'}
-            </p>
-          </div>
-
-          {canWrite && (
-            <button
-              type="button"
-              onClick={() =>
-                onUpdateMeta &&
-                onUpdateMeta({
-                  needConfirmed: isNeedConfirmed ? 'No' : 'Yes',
-                  requirementConfirmed: isNeedConfirmed ? 'No' : 'Yes'
-                })
-              }
-              className="mt-3 text-[10px] font-semibold text-[var(--primary)] hover:underline text-left cursor-pointer"
-            >
-              {isNeedConfirmed ? 'Unmark Need' : '✓ Confirm Requirement Scope'}
-            </button>
-          )}
-        </div>
-
-        {/* Pillar 4: Timeline */}
-        <div
-          className={cn(
-            'flex flex-col justify-between rounded-xl border p-3.5 transition-all',
-            isTimelineConfirmed
-              ? 'border-emerald-500/30 bg-emerald-500/5'
-              : 'border-[var(--border-muted)] bg-[var(--surface-2)]/40'
-          )}
-        >
-          <div>
-            <div className="flex items-center justify-between gap-1 mb-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1">
-                <Calendar size={12} className="text-amber-500" /> [T] Timeline
-              </span>
-              {isTimelineConfirmed ? (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 size={11} /> Confirmed
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
-                  <AlertCircle size={11} /> Unset
-                </span>
-              )}
-            </div>
-            <p className="text-sm font-bold text-[var(--text-main)] truncate">
-              {lead.expectedClosingDate || lead.purchaseTimeline || 'Not Disclosed'}
-            </p>
-            <p className="text-[10px] text-[var(--text-muted)] mt-0.5 truncate">
-              {lead.expectedClosingDate ? `Close target: ${lead.expectedClosingDate}` : 'Target date not set'}
-            </p>
-          </div>
-
-          {canWrite && (
-            <button
-              type="button"
-              onClick={() =>
-                onUpdateMeta &&
-                onUpdateMeta({
-                  timelineConfirmed: isTimelineConfirmed ? 'No' : 'Yes'
-                })
-              }
-              className="mt-3 text-[10px] font-semibold text-[var(--primary)] hover:underline text-left cursor-pointer"
-            >
-              {isTimelineConfirmed ? 'Unmark Timeline' : '✓ Confirm Closing Timeline'}
-            </button>
-          )}
-        </div>
+          );
+        })}
       </div>
     </div>
   );

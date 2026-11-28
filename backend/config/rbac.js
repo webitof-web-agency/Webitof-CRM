@@ -81,7 +81,10 @@ const PERMISSIONS = [
   { code: 'calls.view_all', name: 'View All Calls', module: 'calls', action: 'view_all', description: 'View every staff member calls, not only the calls the user made.' },
   { code: 'calls.write', name: 'Write Call Records', module: 'calls', action: 'write', description: 'Create and log staff calls and recordings.' },
   { code: 'calls.recording_view', name: 'View/Listen Call Recordings', module: 'calls', action: 'recording_view', description: 'Listen to and download call audio recordings.' },
-  { code: 'calls.delete', name: 'Delete Call Records', module: 'calls', action: 'delete', description: 'Delete call records.' }
+  { code: 'calls.delete', name: 'Delete Call Records', module: 'calls', action: 'delete', description: 'Delete call records.' },
+  // Everyone manages their own todos (made by or assigned to them) without a permission; this one
+  // opens every user's todos to view and change.
+  { code: 'todos.view_all', name: 'Manage All Todos', module: 'todos', action: 'view_all', description: 'View and change every user todo, not only own or assigned ones.' }
 ];
 
 const PERMISSION_CODES = PERMISSIONS.map((permission) => permission.code);

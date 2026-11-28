@@ -90,48 +90,57 @@ export function FollowUpCadenceStepper({ currentAttempt = 0, onStartCadence }) {
     { step: 3, name: 'Attempt 3', label: 'Final Closing Check', window: 'Day 5 @ 10:30 AM' }
   ];
 
+  // One row: title, the three attempts (number + name + timing on one line), then the action.
   return (
-    <div className="rounded-xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 p-3 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">⚡</span>
-          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Smart Sales Cadence</span>
-        </div>
-        {onStartCadence ? (
-          <button
-            type="button"
-            onClick={onStartCadence}
-            className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-          >
-            Apply Next Cadence Step
-          </button>
-        ) : null}
+    <div className="flex flex-col gap-2 rounded-xl border border-blue-200/60 dark:border-blue-900/40 bg-blue-50/40 dark:bg-blue-950/20 px-3 py-2 lg:flex-row lg:items-center lg:gap-3">
+      <div className="flex shrink-0 items-center gap-1.5">
+        <span className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">⚡</span>
+        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Sales Cadence</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid min-w-0 flex-1 grid-cols-1 gap-1.5 sm:grid-cols-3">
         {steps.map((s) => {
           const isDone = currentAttempt >= s.step;
           const isCurrent = currentAttempt + 1 === s.step;
           return (
             <div
               key={s.step}
-              className={`p-2 rounded-lg border text-center transition ${
+              title={`${s.name}: ${s.label} (${s.window})`}
+              className={`flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1 transition ${
                 isDone
                   ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800/60'
                   : isCurrent
-                  ? 'bg-blue-100/70 dark:bg-blue-900/40 border-blue-400 dark:border-blue-700 shadow-xs'
+                  ? 'bg-blue-100/70 dark:bg-blue-900/40 border-blue-400 dark:border-blue-700'
                   : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'
               }`}
             >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                {s.name} {isDone ? '✓' : ''}
-              </div>
-              <div className="text-xs font-semibold text-slate-800 dark:text-slate-100 truncate">{s.label}</div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{s.window}</div>
+              <span
+                className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                  isDone
+                    ? 'bg-emerald-600 text-white'
+                    : isCurrent
+                    ? 'bg-blue-600 text-white'
+                    : 'border border-slate-300 dark:border-slate-700 text-slate-500'
+                }`}
+              >
+                {isDone ? '✓' : s.step}
+              </span>
+              <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{s.label}</span>
+              <span className="ml-auto shrink-0 text-[10px] text-slate-500 dark:text-slate-400">{s.window}</span>
             </div>
           );
         })}
       </div>
+
+      {onStartCadence ? (
+        <button
+          type="button"
+          onClick={onStartCadence}
+          className="shrink-0 text-left text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+        >
+          Apply Next Step
+        </button>
+      ) : null}
     </div>
   );
 }

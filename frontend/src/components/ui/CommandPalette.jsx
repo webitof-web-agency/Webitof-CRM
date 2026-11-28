@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Target,
   ListChecks,
+  ListTodo,
   Building2,
   BriefcaseBusiness,
   ReceiptText,
@@ -150,6 +151,7 @@ export function CommandPalette({ open, onClose }) {
     const navItems = [
       { id: 'nav-dashboard', label: 'Dashboard', category: 'Navigation', icon: LayoutDashboard, path: '/app/dashboard', permission: 'dashboard.view' },
       { id: 'nav-followups', label: 'Follow-ups & Tasks', category: 'Navigation', icon: ListChecks, path: '/app/follow-ups' },
+      { id: 'nav-todos', label: 'Todos', category: 'Navigation', icon: ListTodo, path: '/app/todos' },
       { id: 'nav-leads', label: 'Leads & Opportunities', category: 'Navigation', icon: Target, path: '/app/leads', permission: 'leads.read' },
       { id: 'nav-clients', label: 'Clients & Accounts', category: 'Navigation', icon: Building2, path: '/app/clients', permission: 'clients.read' },
       { id: 'nav-projects', label: 'Projects & Workspaces', category: 'Navigation', icon: BriefcaseBusiness, path: '/app/projects', permission: 'projects.read' },

@@ -10,12 +10,16 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
 import { Select } from '../ui/Select';
+import { clientFacingPurpose } from '../../lib/followUpPurpose';
+import { greetingName } from '../../lib/followUpLead';
+import { AttendeePicker } from '../common/AttendeePicker';
 
 const emptyForm = {
   relatedEntityType: 'Lead', relatedEntityId: '', relatedEntityLabel: '', title: '', followUpType: 'Call',
   purpose: '', date: '', time: '10:00', expectedDurationMinutes: 30, priority: 'Medium', assignedTo: '',
   assignedTeam: '', reminderSettings: [{ channel: 'inApp', minutesBefore: 30 }], description: '', expectedOutcome: '',
-  nextAction: '', tagsText: '', location: '', internalNote: '', isRecurring: false, recurrenceFrequency: 'monthly'
+  nextAction: '', tagsText: '', location: '', internalNote: '', isRecurring: false, recurrenceFrequency: 'monthly',
+  attendees: []
 };
 
 function todayInput() {
@@ -624,6 +628,16 @@ export function FollowUpFormModal({ open, onClose, onSaved, options = {}, initia
           />
         </Field>
 
+        {/* People on this follow-up: Google invite + email / WhatsApp / app notification */}
+        <AttendeePicker
+          value={form.attendees || []}
+          onChange={(next) => set('attendees', next)}
+          leadId={['Lead', 'Opportunity', 'Deal'].includes(form.relatedEntityType) ? form.relatedEntityId : ''}
+          clientId={form.relatedEntityType === 'Client' ? form.relatedEntityId : (form.clientId || '')}
+          excludeUserId={form.assignedTo}
+          label="Invite people (optional)"
+        />
+
         {isVisitFollowUp ? (
           <Field label="Visit location">
             <Input
@@ -848,7 +862,7 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
   }
 
   const phone = followUp.relatedPhone || followUp.phone || followUp.mobile;
-  const name = followUp.relatedEntityLabel || followUp.companyName || 'there';
+  const name = greetingName(followUp);
 
   const outcomeLabels = {
     connected: { title: 'Post-Call Summary', sub: 'Send discussion summary & next steps' },
@@ -857,7 +871,7 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
     switched_off: { title: 'Unreachable / Switched Off', sub: 'Send unreachable alert & alternate contact request' }
   };
   const meta = outcomeLabels[outcome] || outcomeLabels.connected;
-  const previewText = getWhatsAppMessage(name, outcome, followUp.purpose || followUp.title);
+  const previewText = getWhatsAppMessage(name, outcome, clientFacingPurpose(followUp.purpose, followUp.title));
 
   return (
     <Modal
@@ -1016,7 +1030,7 @@ export function CompleteFollowUpModal({ open, followUp, options = {}, onClose, o
               <Button
                 type="button"
                 size="sm"
-                onClick={() => openWhatsAppDirect(phone, name, outcome, followUp.purpose || followUp.title)}
+                onClick={() => openWhatsAppDirect(phone, name, outcome, clientFacingPurpose(followUp.purpose, followUp.title))}
                 variant="success"
                 className="h-7 text-xs shrink-0 cursor-pointer"
               >

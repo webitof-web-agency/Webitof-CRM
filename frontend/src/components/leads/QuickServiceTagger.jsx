@@ -63,22 +63,20 @@ export function QuickServiceTagger({
     }
   };
 
+  // One wrapping row: tagged services, then quick-add chips for the rest.
   return (
-    <div className="rounded-xl border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 to-transparent p-3.5 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[11px] text-[var(--text-main)]">
-          <Tag size={13} className="text-cyan-600 dark:text-cyan-400" />
-          <span>Fast-Action Requirement Tagger</span>
-        </div>
-        <span className="text-[10px] font-semibold text-[var(--text-muted)]">
-          Click tag to instantly attach to lead
-        </span>
-      </div>
+    <div
+      className="flex flex-wrap items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 to-transparent px-3 py-2"
+      title="Click a tag to attach it to the lead instantly"
+    >
+      <span className="mr-0.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--text-main)]">
+        <Tag size={12} className="text-cyan-600 dark:text-cyan-400" />
+        Services
+      </span>
 
       {/* Currently tagged services */}
       {currentServices.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 pb-1 border-b border-[var(--border-muted)]">
-          <span className="text-[10px] font-semibold text-[var(--text-muted)] mr-1">Active Tags:</span>
+        <>
           {currentServices.map((service) => (
             <span
               key={service}
@@ -99,25 +97,24 @@ export function QuickServiceTagger({
               )}
             </span>
           ))}
-        </div>
+          <span className="mx-1 h-4 w-px bg-[var(--border)]" aria-hidden="true" />
+        </>
       )}
 
       {/* Suggested Quick Add Chips */}
-      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-        <span className="text-[10px] font-semibold text-[var(--text-muted)] mr-1">Quick Add:</span>
-        {POPULAR_SERVICES.filter((s) => !currentServices.includes(s)).map((service) => (
-          <button
-            key={service}
-            type="button"
-            disabled={busy || !canWrite}
-            onClick={() => handleAddService(service)}
-            className="inline-flex items-center gap-1 rounded-md bg-[var(--surface)] hover:bg-cyan-500/10 border border-[var(--border-muted)] hover:border-cyan-500/30 px-2 py-0.5 text-xs font-medium text-[var(--text-muted)] hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors cursor-pointer select-none"
-          >
-            <Plus size={11} />
-            <span>{service}</span>
-          </button>
-        ))}
-      </div>
+      <span className="text-[10px] font-semibold text-[var(--text-muted)]">Add:</span>
+      {POPULAR_SERVICES.filter((s) => !currentServices.includes(s)).map((service) => (
+        <button
+          key={service}
+          type="button"
+          disabled={busy || !canWrite}
+          onClick={() => handleAddService(service)}
+          className="inline-flex items-center gap-0.5 rounded-md bg-[var(--surface)] hover:bg-cyan-500/10 border border-[var(--border-muted)] hover:border-cyan-500/30 px-1.5 py-px text-[11px] font-medium text-[var(--text-muted)] hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors cursor-pointer select-none"
+        >
+          <Plus size={10} />
+          <span>{service}</span>
+        </button>
+      ))}
     </div>
   );
 }

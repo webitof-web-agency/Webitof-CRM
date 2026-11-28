@@ -1,6 +1,8 @@
 const { createRepository, column } = require('./baseModel');
+const { withCalendarHooks } = require('../services/googleCalendar/syncHooks');
 
-module.exports = createRepository({
+// Meetings, reminders and tasks also go to the owner's Google Calendar (see calendarSync.service).
+module.exports = withCalendarHooks('lead_event', createRepository({
   table: 'lead_events',
   idPrefix: 'lead-event',
   columns: [
@@ -24,4 +26,4 @@ module.exports = createRepository({
     column({ key: 'color', db: 'color' })
   ],
   searchColumns: ['title', 'description', 'location', 'event_type']
-});
+}));

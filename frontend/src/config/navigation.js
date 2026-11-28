@@ -23,6 +23,7 @@ import {
   Target,
   AlarmClock,
   ListChecks,
+  ListTodo,
   CheckCircle2,
   Clock3,
   LayoutList,
@@ -83,6 +84,8 @@ export const navigationGroups = [
           { label: 'Analytics', path: '/app/follow-ups?view=analytics', icon: BarChart3 }
         ]
       },
+      // Everyone has their own todos, so no permission.
+      { label: 'Todos', path: '/app/todos', icon: ListTodo, badgeWhen: { moduleName: 'todos' } },
             {
         label: 'Call History',
         path: '/app/call-history',

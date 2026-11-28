@@ -342,6 +342,10 @@ async function assertActiveAssignee(userId, db) {
   if (!result.rows[0]) throw validationError({ assignedTo: 'Select an active employee' });
 }
 
+// People invited to a follow-up (meeting / visit): employees, lead or client contacts, or any email.
+// They get the Google Calendar invite and the notifications (services/notify/meetingNotify).
+const { normalizeAttendees } = require('./notify/attendees');
+
 function normalizeFollowUpInput(input = {}, context = {}, settings = {}) {
   const entityType = normalizeEntityType(input.relatedEntityType || context.type);
   const entityId = String(input.relatedEntityId || context.id || '').trim();
@@ -396,7 +400,8 @@ function normalizeFollowUpInput(input = {}, context = {}, settings = {}) {
     recurrenceRule: input.recurrenceRule && typeof input.recurrenceRule === 'object' ? input.recurrenceRule : {},
     parentFollowUpId: input.parentFollowUpId || null,
     previousFollowUpId: input.previousFollowUpId || null,
-    originalDueAt: input.originalDueAt || dueAt
+    originalDueAt: input.originalDueAt || dueAt,
+    attendees: normalizeAttendees(input.attendees)
   };
 }
 
@@ -531,6 +536,65 @@ async function createFollowUp(input = {}, actor = null, options = {}) {
   return options.db ? work(options.db) : withTransaction(work);
 }
 
+// Shared by the list and single-record reads: the follow-up plus enough of its lead (or quotation's lead) for the
+// card to show who it is, what they need, the budget, and how the last attempt went.
+const JOINED_FOLLOW_UP_SELECT = `select f.*, u.full_name as assignee_name, bu.full_name as backup_assignee_name,
+       coalesce(l.phone, ql.phone, c.mobile, '') as related_phone,
+       coalesce(l.email, ql.email, c.email, '') as related_email,
+       coalesce(l.company_name, ql.company_name, c.company_name, c.name, '') as company_name,
+       coalesce(l.value, ql.value, i.total_amount, p.value, r.renewal_price, r.client_charge, 0) as business_value,
+       coalesce(l.status, ql.status, i.status, p.status, r.status, '') as related_status,
+       coalesce(l.status, ql.status, f.lead_stage_at_creation, '') as lead_stage,
+       coalesce(l.name, ql.name, '') as related_name,
+       coalesce(l.contact_person, ql.contact_person, '') as contact_person,
+       coalesce(l.type, ql.type, '') as lead_type,
+       coalesce(l.lead_number, ql.lead_number, '') as lead_number,
+       coalesce(l.lead_temperature, ql.lead_temperature, '') as lead_temperature,
+       coalesce(l.source, ql.source, '') as lead_source,
+       coalesce(l.city, ql.city, '') as related_city,
+       coalesce(l.required_services, ql.required_services, '[]'::jsonb) as required_services,
+       coalesce(l.requirement_title, ql.requirement_title, '') as requirement_title,
+       coalesce(l.requirement_summary, ql.requirement_summary, '') as requirement_summary,
+       coalesce(l.notes, ql.notes, '') as lead_notes,
+       coalesce(l.estimated_budget, ql.estimated_budget) as estimated_budget,
+       coalesce(l.budget_min, ql.budget_min) as budget_min,
+       coalesce(l.budget_max, ql.budget_max) as budget_max,
+       coalesce(l.budget_range, ql.budget_range, '') as budget_range,
+       coalesce(l.budget_confirmed, ql.budget_confirmed, '') as budget_confirmed,
+       coalesce(l.currency_symbol, ql.currency_symbol, '') as currency_symbol,
+       coalesce(l.purchase_timeline, ql.purchase_timeline, '') as purchase_timeline,
+       to_char(coalesce(l.expected_closing_date, ql.expected_closing_date), 'YYYY-MM-DD') as expected_closing_date,
+       coalesce(l.last_conversation_summary, ql.last_conversation_summary, '') as last_conversation_summary,
+       to_char(coalesce(l.last_contact_date, ql.last_contact_date), 'YYYY-MM-DD') as last_contact_date,
+       prev.actual_outcome as previous_outcome,
+       prev.communication_result as previous_communication_result,
+       prev.discussion_note as previous_discussion_note,
+       prev.completed_at as previous_completed_at,
+       greatest(f.updated_at, coalesce(l.updated_at, f.updated_at), coalesce(ql.updated_at, f.updated_at), coalesce(c.updated_at, f.updated_at), coalesce(i.updated_at, f.updated_at), coalesce(p.updated_at, f.updated_at), coalesce(r.updated_at, f.updated_at)) as last_activity_at
+     from follow_ups f
+     left join users u on u.id = f.assigned_to left join users bu on bu.id = f.backup_assignee
+     left join leads l on f.related_entity_type in ('Lead','Opportunity','Deal') and l.id=f.related_entity_id
+     left join lead_events qe on f.related_entity_type in ('Quotation','Proposal') and qe.id=f.related_entity_id
+     left join leads ql on ql.id=qe.lead_id
+     left join clients c on c.id=coalesce(f.client_id, case when f.related_entity_type='Client' then f.related_entity_id end)
+     left join invoices i on i.id=coalesce(f.invoice_id, case when f.related_entity_type='Invoice' then f.related_entity_id end)
+     left join projects p on p.id=coalesce(f.project_id, case when f.related_entity_type='Project' then f.related_entity_id end)
+     left join renewals r on r.id=coalesce(f.renewal_id, case when f.related_entity_type='Renewal' then f.related_entity_id end)
+     left join lateral (
+       select pf.actual_outcome, pf.communication_result, pf.discussion_note, pf.completed_at
+       from follow_ups pf
+       where pf.related_entity_type = f.related_entity_type and pf.related_entity_id = f.related_entity_id
+         and pf.id <> f.id and pf.deleted_at is null and pf.completed_at is not null and pf.status <> 'Auto-Closed'
+         and pf.completed_at < coalesce(f.completed_at, 'infinity'::timestamptz)
+       order by pf.completed_at desc limit 1
+     ) prev on true`;
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function hydrateJoinedRow(row) {
   const record = followUpModel.hydrateRow(row);
   if (!record) return null;
@@ -542,6 +606,35 @@ function hydrateJoinedRow(row) {
   record.businessValue = Number(row.business_value || 0);
   record.relatedStatus = row.related_status || '';
   record.leadStage = row.lead_stage || record.leadStageAtCreation || '';
+  record.leadContext = {
+    name: row.related_name || '',
+    contactPerson: row.contact_person || '',
+    type: row.lead_type || '',
+    leadNumber: row.lead_number || '',
+    temperature: row.lead_temperature || '',
+    source: row.lead_source || '',
+    city: row.related_city || '',
+    requiredServices: Array.isArray(row.required_services) ? row.required_services.filter(Boolean).map(String) : [],
+    requirementTitle: row.requirement_title || '',
+    requirementSummary: row.requirement_summary || '',
+    notes: row.lead_notes || '',
+    estimatedBudget: toNumberOrNull(row.estimated_budget),
+    budgetMin: toNumberOrNull(row.budget_min),
+    budgetMax: toNumberOrNull(row.budget_max),
+    budgetRange: row.budget_range || '',
+    budgetConfirmed: row.budget_confirmed || '',
+    currencySymbol: row.currency_symbol || '',
+    purchaseTimeline: row.purchase_timeline || '',
+    expectedClosingDate: row.expected_closing_date || '',
+    lastConversationSummary: row.last_conversation_summary || '',
+    lastContactDate: row.last_contact_date || ''
+  };
+  record.previousAttempt = row.previous_completed_at ? {
+    outcome: row.previous_outcome || '',
+    communicationResult: row.previous_communication_result || '',
+    note: row.previous_discussion_note || '',
+    completedAt: row.previous_completed_at
+  } : null;
   record.lastActivityAt = row.last_activity_at || record.updatedAt;
   record.effectiveStatus = calculateEffectiveStatus(record, new Date(), record.timezone);
   record.overdueDurationSeconds = calculateOverdueSeconds(record);
@@ -648,23 +741,7 @@ async function listFollowUps(filters = {}, user = null) {
   const countResult = await query(`select count(*)::int as count from follow_ups f where ${where}`, values);
   values.push(limit, offset);
   const rows = await query(
-    `select f.*, u.full_name as assignee_name, bu.full_name as backup_assignee_name,
-       coalesce(l.phone, ql.phone, c.mobile, '') as related_phone,
-       coalesce(l.email, ql.email, c.email, '') as related_email,
-       coalesce(l.company_name, ql.company_name, c.company_name, c.name, '') as company_name,
-       coalesce(l.value, ql.value, i.total_amount, p.value, r.renewal_price, r.client_charge, 0) as business_value,
-       coalesce(l.status, ql.status, i.status, p.status, r.status, '') as related_status,
-       coalesce(l.status, ql.status, f.lead_stage_at_creation, '') as lead_stage,
-       greatest(f.updated_at, coalesce(l.updated_at, f.updated_at), coalesce(ql.updated_at, f.updated_at), coalesce(c.updated_at, f.updated_at), coalesce(i.updated_at, f.updated_at), coalesce(p.updated_at, f.updated_at), coalesce(r.updated_at, f.updated_at)) as last_activity_at
-     from follow_ups f
-     left join users u on u.id = f.assigned_to left join users bu on bu.id = f.backup_assignee
-     left join leads l on f.related_entity_type in ('Lead','Opportunity','Deal') and l.id=f.related_entity_id
-     left join lead_events qe on f.related_entity_type in ('Quotation','Proposal') and qe.id=f.related_entity_id
-     left join leads ql on ql.id=qe.lead_id
-     left join clients c on c.id=coalesce(f.client_id, case when f.related_entity_type='Client' then f.related_entity_id end)
-     left join invoices i on i.id=coalesce(f.invoice_id, case when f.related_entity_type='Invoice' then f.related_entity_id end)
-     left join projects p on p.id=coalesce(f.project_id, case when f.related_entity_type='Project' then f.related_entity_id end)
-     left join renewals r on r.id=coalesce(f.renewal_id, case when f.related_entity_type='Renewal' then f.related_entity_id end)
+    `${JOINED_FOLLOW_UP_SELECT}
      where ${where} order by ${sort} ${direction}, f.created_at desc limit $${values.length - 1} offset $${values.length}`,
     values
   );
@@ -681,23 +758,7 @@ async function getFollowUp(id, user = null, { includeHistory = true } = {}) {
   const values = [id];
   const access = buildAccessClause(user, values);
   const result = await query(
-    `select f.*, u.full_name as assignee_name, bu.full_name as backup_assignee_name,
-       coalesce(l.phone, ql.phone, c.mobile, '') as related_phone,
-       coalesce(l.email, ql.email, c.email, '') as related_email,
-       coalesce(l.company_name, ql.company_name, c.company_name, c.name, '') as company_name,
-       coalesce(l.value, ql.value, i.total_amount, p.value, r.renewal_price, r.client_charge, 0) as business_value,
-       coalesce(l.status, ql.status, i.status, p.status, r.status, '') as related_status,
-       coalesce(l.status, ql.status, f.lead_stage_at_creation, '') as lead_stage,
-       greatest(f.updated_at, coalesce(l.updated_at, f.updated_at), coalesce(ql.updated_at, f.updated_at), coalesce(c.updated_at, f.updated_at), coalesce(i.updated_at, f.updated_at), coalesce(p.updated_at, f.updated_at), coalesce(r.updated_at, f.updated_at)) as last_activity_at
-     from follow_ups f
-     left join users u on u.id = f.assigned_to left join users bu on bu.id = f.backup_assignee
-     left join leads l on f.related_entity_type in ('Lead','Opportunity','Deal') and l.id=f.related_entity_id
-     left join lead_events qe on f.related_entity_type in ('Quotation','Proposal') and qe.id=f.related_entity_id
-     left join leads ql on ql.id=qe.lead_id
-     left join clients c on c.id=coalesce(f.client_id, case when f.related_entity_type='Client' then f.related_entity_id end)
-     left join invoices i on i.id=coalesce(f.invoice_id, case when f.related_entity_type='Invoice' then f.related_entity_id end)
-     left join projects p on p.id=coalesce(f.project_id, case when f.related_entity_type='Project' then f.related_entity_id end)
-     left join renewals r on r.id=coalesce(f.renewal_id, case when f.related_entity_type='Renewal' then f.related_entity_id end)
+    `${JOINED_FOLLOW_UP_SELECT}
      where f.id = $1 and f.deleted_at is null and ${access} limit 1`,
     values
   );
@@ -762,6 +823,7 @@ async function updateFollowUp(id, patch = {}, actor = null, expectedVersion = nu
       tags: patch.tags, location: patch.location, attachments: patch.attachments, assignedTo: patch.assignedTo,
       assignedTeam: patch.assignedTeam, backupAssignee: patch.backupAssignee, templateId: patch.templateId,
       escalationRuleId: patch.escalationRuleId, isRecurring: patch.isRecurring, recurrenceRule: patch.recurrenceRule,
+      attendees: patch.attendees === undefined ? undefined : normalizeAttendees(patch.attendees),
       updatedBy: actor?.id || null, version: Number(current.version || 1) + 1
     };
     Object.keys(allowed).forEach((key) => allowed[key] === undefined && delete allowed[key]);
@@ -969,6 +1031,41 @@ async function rescheduleFollowUp(id, payload = {}, actor = null, actionType = '
     return updated;
   };
   return options.db ? work(options.db) : withTransaction(work);
+}
+
+// The follow-up was moved (or its place changed) in the assignee's Google Calendar (two-way sync).
+// Same bookkeeping as a reschedule (history, reminders, lead next action) but no reason prompt or
+// reschedule limit: the person who owns it moved it in their own calendar.
+async function applyCalendarChange(id, { dueAt = null, durationMinutes = null, location } = {}, actorUserId = null) {
+  return withTransaction(async (db) => {
+    const current = await followUpModel.findById(id, db);
+    if (!current || current.deletedAt || CLOSED_FOLLOW_UP_STATUSES.includes(current.status)) return null;
+    const patch = {};
+    const timeChanged = dueAt && new Date(dueAt).getTime() !== new Date(current.dueAt).getTime();
+    if (timeChanged) Object.assign(patch, { dueAt, scheduledAt: dueAt, escalationLevel: 0 });
+    if (durationMinutes && Number(durationMinutes) !== Number(current.expectedDurationMinutes || 0)) {
+      patch.expectedDurationMinutes = Math.max(5, Math.round(Number(durationMinutes)));
+    }
+    if (location !== undefined && String(location || '') !== String(current.location || '')) patch.location = String(location || '');
+    if (!Object.keys(patch).length) return current;
+    patch.updatedBy = actorUserId;
+    patch.version = Number(current.version || 1) + 1;
+    const updated = await followUpModel.update(id, patch, db);
+    if (timeChanged) {
+      const settings = await getSettings(db);
+      await db.query(
+        `insert into follow_up_reschedule_history (id, follow_up_id, previous_due_at, next_due_at, reason, note, action_type, changed_by)
+         values ($1, $2, $3, $4, $5, '', 'calendar', $6)`,
+        [createId('fureschedule'), id, current.dueAt, dueAt, 'Moved in Google Calendar', actorUserId]
+      );
+      await db.query(`update follow_up_reminders set status='cancelled', updated_at=now() where follow_up_id=$1 and status in ('pending','retry')`, [id]);
+      await scheduleReminders(db, updated, undefined, settings);
+      await syncLeadNextAction(db, updated);
+      await createTimelineEvent(db, updated, actorUserId, 'follow_up_rescheduled', 'Moved in Google Calendar', { previousDueAt: current.dueAt });
+    }
+    await recordAudit(db, id, 'calendar_sync', actorUserId, current, updated, { source: 'google_calendar' });
+    return updated;
+  });
 }
 
 async function reassignFollowUp(id, payload = {}, actor = null, options = {}) {
@@ -1546,7 +1643,8 @@ async function processSequenceEnrollments(db, report = { failed: 0 }) {
   return processed;
 }
 
-// Returns true when an in-app notification was sent, false when the reminder was skipped.
+// Returns the notification id when an in-app notification was sent, false when the reminder was skipped.
+// After the cycle commits, that notification also goes to push / email / WhatsApp (dispatcher).
 async function deliverReminder(db, reminder) {
   if (!reminder.recipient_user_id || reminder.channel !== 'inApp') {
     await db.query(`update follow_up_reminders set status='skipped', failure_reason=$2, updated_at=now() where id=$1`, [reminder.id, reminder.channel === 'inApp' ? 'Recipient missing' : 'Channel requires configured integration']);
@@ -1566,7 +1664,7 @@ async function deliverReminder(db, reminder) {
      values ($1,$2,$3,'inApp',$4,now(),'sent',$5,$6::jsonb) on conflict (idempotency_key) do nothing`,
     [createId('funotif'), reminder.follow_up_id, reminder.id, reminder.recipient_user_id, notificationKey, JSON.stringify({ notificationId })]
   );
-  return true;
+  return notificationId;
 }
 
 async function processDueReminders(db, report = { failed: 0 }) {
@@ -1581,7 +1679,10 @@ async function processDueReminders(db, report = { failed: 0 }) {
   for (const reminder of reminders.rows) {
     const outcome = await runIsolated(db, `reminder ${reminder.id}`, () => deliverReminder(db, reminder));
     if (outcome.ok) {
-      if (outcome.value) sent += 1;
+      if (outcome.value) {
+        sent += 1;
+        if (Array.isArray(report.notificationIds)) report.notificationIds.push(outcome.value);
+      }
       continue;
     }
     report.failed += 1;
@@ -1665,14 +1766,15 @@ async function processPaymentPromises(db, report = { failed: 0 }) {
 }
 
 async function runAutomationCycle({ runSource = 'cron' } = {}) {
-  return withTransaction(async (db) => {
+  const notificationIds = [];
+  const result = await withTransaction(async (db) => {
     // One cycle at a time. A second instance, or a slow cycle overlapping the next tick or the manual run,
     // would otherwise process the same reminders and create duplicate follow-ups.
     const lock = await db.query(`select pg_try_advisory_xact_lock(hashtext('follow-up-automation-cycle')) as locked`);
     if (!lock.rows[0]?.locked) return { runSource, skipped: true, reason: 'Another automation cycle is already running' };
 
     const startedAt = new Date().toISOString();
-    const report = { failed: 0 };
+    const report = { failed: 0, notificationIds };
     // Each stage is isolated too, so a failure in one (say the escalation query) does not stop the others.
     const stage = async (name, work, fallback) => {
       const outcome = await runIsolated(db, `stage ${name}`, work);
@@ -1693,6 +1795,12 @@ async function runAutomationCycle({ runSource = 'cron' } = {}) {
     );
     return result;
   });
+  // Committed: the reminder notifications now also go out on push / email / WhatsApp.
+  if (notificationIds.length) {
+    require('./notify/dispatcher.service').dispatchByIds(notificationIds)
+      .catch((error) => console.error('[Follow-ups] Reminder dispatch failed:', error.message));
+  }
+  return result;
 }
 
 function createFollowUpScheduler({ schedule = process.env.FOLLOW_UP_AUTOMATION_CRON || '*/10 * * * *', timezone = process.env.FOLLOW_UP_TIMEZONE || 'Asia/Kolkata' } = {}) {
@@ -1718,6 +1826,7 @@ module.exports = {
   OUTCOMES,
   PRIORITIES,
   acknowledgeReminder,
+  applyCalendarChange,
   autoCloseEntityFollowUps,
   calculateEffectiveStatus,
   calculateOverdueSeconds,

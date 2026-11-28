@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Check, Clock, ChevronRight, Trophy, XCircle, ArrowRight } from 'lucide-react';
+import { Check, Clock, XCircle } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 const DEFAULT_STAGES = [
@@ -46,41 +46,14 @@ export function LeadStageStepper({
   }, [createdAt, lastStatusChangedAt]);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xs">
-      {/* Header Info: Stage Name & Duration */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--border-muted)] pb-3 mb-3.5">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-            Lead Journey & Stage
-          </span>
-          <span
-            className={cn(
-              'rounded-full px-2.5 py-0.5 text-xs font-bold',
-              isWon
-                ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25'
-                : isLost
-                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/25'
-                  : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25'
-            )}
-          >
-            {normalizedCurrent}
-          </span>
-        </div>
+    <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 shadow-2xs">
+      {/* One row: title, the six stages, time in the current stage */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+        <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+          Lead Journey
+        </span>
 
-        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-          <Clock size={12} className="shrink-0 text-[var(--text-muted)]" />
-          <span>
-            In <strong className="font-semibold text-[var(--text-main)]">{normalizedCurrent}</strong> for{' '}
-            <strong className="font-semibold text-[var(--text-main)]">
-              {daysInStage} day{daysInStage === 1 ? '' : 's'}
-            </strong>
-          </span>
-        </div>
-      </div>
-
-      {/* Stepper Progress Bar */}
-      <div className="relative">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-6">
           {DEFAULT_STAGES.map((stage, index) => {
             const isCompleted = !isLost && index < currentIndex;
             const isCurrent = !isLost && index === currentIndex;
@@ -93,9 +66,9 @@ export function LeadStageStepper({
                 disabled={disabled || isCurrent}
                 onClick={() => onChangeStatus && onChangeStatus(stage)}
                 className={cn(
-                  'group relative flex flex-col items-center justify-center rounded-xl p-2.5 text-center transition-all cursor-pointer border select-none',
+                  'group flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1 text-left transition-all cursor-pointer select-none',
                   isCurrent &&
-                    'border-blue-500/40 bg-gradient-to-b from-blue-500/10 to-blue-500/5 shadow-xs ring-2 ring-blue-500/20',
+                    'border-blue-500/40 bg-blue-500/10 ring-1 ring-blue-500/20',
                   isCompleted &&
                     'border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/50',
                   isFuture &&
@@ -103,25 +76,25 @@ export function LeadStageStepper({
                   isLost &&
                     'border-[var(--border-muted)] bg-[var(--surface-2)]/30 opacity-50'
                 )}
-                title={isCurrent ? 'Current stage' : `Advance to ${stage}`}
+                title={isCurrent ? 'Current stage' : `Move to ${stage}`}
               >
                 {/* Step indicator node */}
-                <div
+                <span
                   className={cn(
-                    'flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-transform group-hover:scale-105 mb-1.5',
-                    isCurrent && 'bg-blue-600 text-white shadow-2xs',
-                    isCompleted && 'bg-emerald-600 text-white shadow-2xs',
+                    'flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                    isCurrent && 'bg-blue-600 text-white',
+                    isCompleted && 'bg-emerald-600 text-white',
                     isFuture && 'bg-[var(--surface)] text-[var(--text-muted)] border border-[var(--border)]',
                     isLost && 'bg-gray-200 dark:bg-gray-800 text-gray-400'
                   )}
                 >
-                  {isCompleted ? <Check size={13} strokeWidth={3} /> : index + 1}
-                </div>
+                  {isCompleted ? <Check size={11} strokeWidth={3} /> : index + 1}
+                </span>
 
                 <span
                   className={cn(
-                    'text-[11px] font-bold truncate max-w-full leading-tight',
-                    isCurrent && 'text-blue-600 dark:text-blue-400',
+                    'min-w-0 truncate text-[11px] font-semibold leading-tight',
+                    isCurrent && 'font-bold text-blue-600 dark:text-blue-400',
                     isCompleted && 'text-emerald-700 dark:text-emerald-300',
                     isFuture && 'text-[var(--text-muted)] group-hover:text-[var(--text-main)]',
                     isLost && 'text-gray-400'
@@ -129,18 +102,35 @@ export function LeadStageStepper({
                 >
                   {stage}
                 </span>
-
-                {isCurrent && (
-                  <span className="mt-1 h-1 w-4 rounded-full bg-blue-500 animate-pulse" />
-                )}
               </button>
             );
           })}
         </div>
 
+        <div className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--text-muted)]">
+          <Clock size={12} className="shrink-0" />
+          <span>
+            In{' '}
+            <strong
+              className={cn(
+                'font-semibold',
+                isWon ? 'text-emerald-600 dark:text-emerald-400' : isLost ? 'text-rose-600 dark:text-rose-400' : 'text-[var(--text-main)]'
+              )}
+            >
+              {normalizedCurrent}
+            </strong>{' '}
+            for{' '}
+            <strong className="font-semibold text-[var(--text-main)]">
+              {daysInStage} day{daysInStage === 1 ? '' : 's'}
+            </strong>
+          </span>
+        </div>
+      </div>
+
+      <div>
         {/* If Lost Warning Flag */}
         {isLost && (
-          <div className="mt-3 flex items-center justify-between rounded-lg bg-rose-500/10 border border-rose-500/25 p-2.5 text-xs text-rose-700 dark:text-rose-300">
+          <div className="mt-2 flex items-center justify-between rounded-lg bg-rose-500/10 border border-rose-500/25 px-2.5 py-1.5 text-xs text-rose-700 dark:text-rose-300">
             <div className="flex items-center gap-1.5">
               <XCircle size={14} />
               <span>Lead marked as <strong>{normalizedCurrent}</strong>.</span>

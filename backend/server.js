@@ -159,6 +159,26 @@ async function start() {
   setTimeout(driveHealthCycle, 60 * 1000).unref();
   setInterval(driveHealthCycle, 6 * 60 * 60 * 1000).unref();
 
+  // ─── Google Calendar sync ─────────────────────────────────────────
+  // Every CALENDAR_SYNC_MINUTES (5): items changed while nobody was watching (or that failed) go to
+  // their owner's calendar, and changes made in Google come back (two-way users; responses for all).
+  const calendarCycle = () => {
+    if (maintenance.skipDuringMaintenance('Calendar sync')) return;
+    require('./services/googleCalendar/calendarSync.service').runCycle()
+      .catch((error) => console.error('[Calendar] Sync cycle failed:', error.message));
+  };
+  setTimeout(calendarCycle, 90 * 1000).unref();
+  setInterval(calendarCycle, Math.max(1, Number(process.env.CALENDAR_SYNC_MINUTES || 5)) * 60 * 1000).unref();
+
+  // ─── Meeting "starting soon" and todo due reminders ───────────────
+  const reminderCycle = () => {
+    if (maintenance.skipDuringMaintenance('Reminders')) return;
+    require('./services/notify/meetingNotify.service').runDueReminders()
+      .catch((error) => console.error('[Notify] Reminder cycle failed:', error.message));
+  };
+  setTimeout(reminderCycle, 30 * 1000).unref();
+  setInterval(reminderCycle, 60 * 1000).unref();
+
   try {
     const AMC_AUTOMATION_SCHEDULE = process.env.AMC_AUTOMATION_CRON || '15 9 * * *';
     scheduleAmcAutomation({ schedule: AMC_AUTOMATION_SCHEDULE, timezone: 'Asia/Kolkata' });

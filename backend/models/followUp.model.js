@@ -1,6 +1,8 @@
 const { createRepository, column } = require('./baseModel');
+const { withCalendarHooks } = require('../services/googleCalendar/syncHooks');
 
-module.exports = createRepository({
+// Every write also schedules the Google Calendar sync and attendee notices for the follow-up.
+module.exports = withCalendarHooks('follow_up', createRepository({
   table: 'follow_ups',
   idPrefix: 'follow-up',
   columns: [
@@ -67,7 +69,8 @@ module.exports = createRepository({
     column({ key: 'lastEscalationAt', db: 'last_escalation_at' }),
     column({ key: 'notificationDeliveryStatus', db: 'notification_delivery_status' }),
     column({ key: 'version', db: 'version', type: 'number' }),
+    column({ key: 'attendees', db: 'attendees', type: 'json' }),
     column({ key: 'deletedAt', db: 'deleted_at' })
   ],
   searchColumns: ['follow_up_number', 'title', 'description', 'related_entity_label', 'purpose', 'next_action']
-});
+}));

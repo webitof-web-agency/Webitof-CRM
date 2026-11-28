@@ -27,7 +27,7 @@
     "backfill:follow-ups": "node database/backfill-follow-ups.js",
     "backfill:follow-ups:apply": "node database/backfill-follow-ups.js --apply",
     "seed:follow-ups": "node database/seed-follow-ups.js --yes-seed-followups",
-    "test:follow-ups": "node --test tests/followUpEngine.test.js tests/followUpCycle.test.js tests/followUpGuards.test.js",
+    "test:follow-ups": "node --test tests/followUpEngine.test.js tests/followUpCycle.test.js tests/followUpGuards.test.js tests/calendarNotify.test.js",
     "test:follow-up-api": "node tests/followUpApi.smoke.js",
     "test:leads": "node --test tests/leadManagement.test.js",
     "test:lead-api": "node tests/leadApi.smoke.js",

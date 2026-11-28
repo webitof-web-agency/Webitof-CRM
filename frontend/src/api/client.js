@@ -409,6 +409,25 @@ export const api = {
       return request(`${path}/${id}`, { method: 'DELETE', token });
     }
   },
+  // The signed-in user's own Google Calendar link (Profile page).
+  googleCalendar: {
+    status: (token) => request('/google-calendar/status', { token, skipCache: true }),
+    connect: (token) => request('/google-calendar/connect', { method: 'POST', token }),
+    setSyncMode: (token, syncMode) => request('/google-calendar/sync-mode', { method: 'PUT', token, body: { syncMode } }),
+    syncNow: (token) => request('/google-calendar/sync', { method: 'POST', token }),
+    disconnect: (token) => request('/google-calendar/disconnect', { method: 'POST', token })
+  },
+  notificationPreferences: {
+    get: (token) => request('/notifications/preferences', { token, skipCache: true }),
+    save: (token, payload) => request('/notifications/preferences', { method: 'PUT', token, body: payload })
+  },
+  todos: {
+    list: (token, query = {}) => request(`/todos${reportQuery(query)}`, { token, skipCache: true }),
+    get: (token, id) => request(`/todos/${encodeURIComponent(id)}`, { token, skipCache: true }),
+    create: (token, payload) => request('/todos', { method: 'POST', token, body: payload }),
+    update: (token, id, payload) => request(`/todos/${encodeURIComponent(id)}`, { method: 'PATCH', token, body: payload }),
+    remove: (token, id) => request(`/todos/${encodeURIComponent(id)}`, { method: 'DELETE', token })
+  },
   cache: {
     invalidate: (prefix = '') => invalidateStoredCache(prefix),
     clear: () => invalidateStoredCache('')

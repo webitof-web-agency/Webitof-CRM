@@ -76,21 +76,21 @@ export function LeadStageVelocityBadge({ lead, timeline = [], className = '' }) 
     return {
       isStale: false,
       type: 'normal',
-      label: `⏱️ ${stageDuration.text}`,
+      label: stageDuration.text,
       bg: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
     };
   }, [status, stageDuration, hasFirstContact]);
 
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${alertInfo.bg} ${className}`}>
+    <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${alertInfo.bg} ${className}`}>
       {alertInfo.type === 'sla_pending' ? (
-        <Flame size={13} className="text-rose-500 shrink-0" />
+        <Flame size={12} className="text-rose-500 shrink-0" />
       ) : alertInfo.isStale ? (
-        <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+        <AlertTriangle size={12} className="text-amber-500 shrink-0" />
       ) : alertInfo.type === 'won' ? (
-        <CheckCircle2 size={13} className="text-emerald-500 shrink-0" />
+        <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
       ) : (
-        <Clock size={13} className="text-slate-400 shrink-0" />
+        <Clock size={12} className="text-slate-400 shrink-0" />
       )}
       <span>{alertInfo.label}</span>
     </div>

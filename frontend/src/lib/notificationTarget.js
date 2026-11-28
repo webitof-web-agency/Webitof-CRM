@@ -9,6 +9,8 @@ const BY_MODULE = {
   leads: (id) => `/app/leads/${id}`,
   amc: (id) => `/app/amc/${id}`,
   followups: (id) => (id ? `/app/follow-ups?focus=${id}` : '/app/follow-ups'),
+  todos: (id) => (id ? `/app/todos?focus=${id}` : '/app/todos'),
+  calendar: () => '/app/profile',
   outsourcing: () => '/app/outsourcing',
   renewals: () => '/app/renewals',
   'lead-commissions': () => '/app/lead-commissions',
